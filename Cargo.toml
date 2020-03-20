@@ -1,0 +1,21 @@
+[package]
+name = "distaff"
+version = "0.1.0"
+authors = ["Bobbin Threadbare <bobbinth@protonmail.com>"]
+edition = "2018"
+repository = "https://github.com/GuildOfWeavers/distaff"
+license = "MIT"
+
+[lib]
+name = "distaff"
+path = "src/lib.rs"
+
+[[bench]]
+name = "all"
+harness = false
+
+[dependencies]
+rand = "0.7.3"
+
+[dev-dependencies]
+criterion = "0.3"

@@ -1,0 +1,11 @@
+{
+    "files.exclude": {
+      "**/.git": true,
+      ".gitignore": true,
+      ".gitattributes": true
+    },
+    "search.exclude": {
+        "**/target": true
+    }
+  }
+  
