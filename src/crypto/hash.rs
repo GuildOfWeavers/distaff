@@ -1,10 +1,10 @@
 use crate::math;
 
-// Exponents for S-BOX (poseidon & rescue) and inverse S-BOX (rescue)
+// Exponents for S-BOX (Poseidon, Rescue, GMiMC) and inverse S-BOX (rescue)
 const ALPHA: u64 = 3;
 const INV_ALPHA: u64 = 12297829253624015531;
 
-// MDS matrix used by both hash functions
+// MDS matrix used by Poseidon and Rescue
 const MDS: [u64; 144] = [
     14570791697008582876, 14287730469917200292, 15111342538701370819,  1111401104756727833, 18343752991270580578, 10395724785100660355, 14391941175009286906,  5491581447267359356,  1031244057765854727,  2741392851187030668,  8356433820458919454, 10361960094523491469,
     17296841519685941390,  1598937820631795543, 18252132164632030075,   241444688886262292, 17599434116007097224,  9231563221418652240, 15805688995498349990, 17256539972135898838,  2330753493485837824,  6251316318077619492,  7679024702804679152,  2943046310091653711,
@@ -20,7 +20,7 @@ const MDS: [u64; 144] = [
      4496862336099562608, 14815253423827224307,  3941759144983839864,   496394397619911104, 14326824099506036322, 16750030373530649240,   567590961228605744,  3305769176941360911, 16162169544256723442, 15781486664476971789,  5656405359499826694, 14405311909503260201
 ];
 
-// Round constants used by both hash functions; Poseidon uses all of the constants, rescue uses only the first 252 constants
+// Round constants for all hash functions; Poseidon uses all constants, Rescue the first 252, GMiMC uses the first 101
 const ARK: [u64; 576] = [
       114590214580931143,   990026313300730203,  1045057248257823412,  1738842170916331719,  1660024061661494622,  4118625024966406515,  2532743523039298950, 13390548470015888379, 16970022055943448291,  3229289085814137249,  7936587485501753336,  8739725378210913269,
      3908716019379605388,  9612982705190869253,  8618151851322356977,  2377359971860592461,  3415531505045617650,  1803014891579917898, 18253631080420666568,  4298533870496457949,  3516726635115581733, 14188758512685690560, 17767631070091881919,  9712595766457023099,
@@ -130,6 +130,28 @@ pub fn rescue(values: &[u64], result: &mut [u64]) {
     result.copy_from_slice(&state[..4]);
 }
 
+// ------------------------------------------------------------------------------------------------
+/// GMiMC_erf hash function
+pub fn gmimc(values: &[u64], result: &mut [u64]) {
+    assert!(values.len() <= 8, "expected fewer than 8 values but received {}", values.len());
+
+    // copy values into state and set the remaining state elements to 0
+    let mut state = [0u64; 12];
+    state[..values.len()].copy_from_slice(values);
+
+    for i in 0..101 {
+        let s0 = state[0];
+        let mask = math::exp(math::add(s0, ARK[i]), ALPHA);
+        for j in 1..12 {
+            state[j - 1] = math::add(mask, state[j]);
+        }
+        state[11] = s0;
+    }
+
+    // return the result
+    result.copy_from_slice(&state[..4]);
+}
+
 // HELPER FUNCTIONS
 // ------------------------------------------------------------------------------------------------
 fn add_constants(state: &mut[u64; 12], offset: usize) {
@@ -170,7 +192,7 @@ fn apply_mds(state: &mut[u64; 12]) {
 // ================================================================================================
 #[cfg(test)]
 mod tests {
-    use super::{ poseidon as poseidon_hash, rescue as rescue_hash };
+    use super::{ poseidon as poseidon_hash, rescue as rescue_hash, gmimc as gmimc_hash };
 
     #[test]
     fn poseidon() {
@@ -188,5 +210,14 @@ mod tests {
         rescue_hash(&value, &mut result);
 
         assert_eq!([8675231609413418651, 5008873880099962244, 1143406322110855369, 6071655998975610945], result);
+    }
+
+    #[test]
+    fn gmimc() {
+        let value = [1u64, 2, 3, 4, 5, 6, 7, 8];
+        let mut result = [0u64; 4];
+        gmimc_hash(&value, &mut result);
+
+        assert_eq!([13347011516039751531, 1694648777756066234, 2833950855839661719, 5145889775304403416], result);
     }
 }

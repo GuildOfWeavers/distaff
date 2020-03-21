@@ -21,4 +21,12 @@ fn main() {
     }
     let t = now.elapsed().as_millis();
     println!("completed {} rescue hashes in: {} ms", N, t);
+
+    let now = Instant::now();
+    for i in 0..N {
+        hash::gmimc(&values[(i * 8)..(i * 8 + 8)], &mut result[(i * 4)..(i * 4 + 4)]);
+    }
+    let t = now.elapsed().as_millis();
+    println!("completed {} GMiMC hashes in: {} ms", N, t);
+
 }
