@@ -1,2 +1,2 @@
 mod crypto;
-pub use crypto::{ hash, math };
+pub use crypto::{ hash, math, polys };

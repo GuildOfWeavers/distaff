@@ -1,8 +1,8 @@
 use rand::prelude::*;
 use rand::distributions::{Distribution, Uniform};
 
-const M: u64 = 18446743880436023297; // 2^64 - 45 * 2^32 + 1
-const G: u64 = 8387321423513296549;  // 2^32 root of unity
+pub const M: u64 = 18446743880436023297; // 2^64 - 45 * 2^32 + 1
+pub const G: u64 = 8387321423513296549;  // 2^32 root of unity
 
 // BASIC ARITHMETIC
 // ------------------------------------------------------------------------------------------------
@@ -123,6 +123,10 @@ pub fn get_root_of_unity(order: u64) -> u64 {
     return exp(G, p as u64);
 }
 
+pub fn fill_power_series(base: u64, dest: &mut [u64]) {
+    // TODO: implement
+}
+
 // RANDOMNESS
 // ------------------------------------------------------------------------------------------------
 pub fn rand() -> u64 {
@@ -131,15 +135,19 @@ pub fn rand() -> u64 {
     return range.sample(&mut g);
 }
 
-pub fn rand_fill(vec: &mut [u64]) {
+pub fn rand_fill(dest: &mut [u64]) {
     let mut g = thread_rng();
-    g.fill(vec);
+    g.fill(dest);
 }
 
 pub fn prng(seed: [u8; 32]) -> u64 {
     let range = Uniform::from(0..M);
     let mut g = StdRng::from_seed(seed);
     return range.sample(&mut g);
+}
+
+pub fn prng_fill(seed: [u8; 32], dest: &mut [u64]) {
+    // TODO: implement
 }
 
 // TESTS
