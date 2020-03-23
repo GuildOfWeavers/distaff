@@ -45,28 +45,56 @@ pub fn sub(a: &[u64], b: &[u64]) -> Vec<u64> {
     return result;
 }
 
-pub fn mul(poly1: &[u64], poly2: &[u64]) -> Vec<u64> {
-    let result_len = poly1.len() + poly2.len() - 1;
+/// Multiplies two polynomials
+pub fn mul(a: &[u64], b: &[u64]) -> Vec<u64> {
+    let result_len = a.len() + b.len() - 1;
     let mut result = vec![0u64; result_len];
-    for i in 0..poly1.len() {
-        for j in 0..poly2.len() {
-            let s = math::mul(poly1[i], poly2[j]);
+    for i in 0..a.len() {
+        for j in 0..b.len() {
+            let s = math::mul(a[i], b[j]);
             result[i + j] = math::add(result[i + j], s);
         }
     }
     return result;
 }
 
-pub fn mul_by_const(poly: &[u64], c: u64) -> Vec<u64> {
+/// Multiplies every coefficient of the polynomial by provided constant
+pub fn mul_by_const(poly: &[u64], k: u64) -> Vec<u64> {
     let mut result = Vec::with_capacity(poly.len());
     for i in 0..poly.len() {
-        result.push(math::mul(poly[i], c));
+        result.push(math::mul(poly[i], k));
     }
     return result;
 }
 
-pub fn div(poly1: &[u64], poly2: &[u64], result: &mut [u64]) {
-    // TODO: implement
+pub fn div(a: &[u64], b: &[u64]) -> Vec<u64> {
+    
+    let mut apos = get_last_non_zero_index(a);
+    let mut a = a.to_vec();
+
+    let bpos = get_last_non_zero_index(b);
+    assert!(apos >= bpos, "cannot divide by polynomial of higher order");
+
+    let mut result = vec![0u64; apos - bpos + 1];
+    for i in (0..result.len()).rev() {
+        let quot = math::div(a[apos], b[bpos]);
+        result[i] = quot;
+        for j in (0..bpos).rev() {
+            a[i + j] = math::sub(a[i + j], math::mul(b[j], quot));
+        }
+        apos = apos.wrapping_sub(1);
+    }
+
+    return result;
+}
+
+// HELPER FUNCTIONS
+// ================================================================================================
+fn get_last_non_zero_index(vec: &[u64]) -> usize {
+    for i in (0..vec.len()).rev() {
+        if vec[i] != 0 { return i; }
+    }
+    return vec.len();
 }
 
 // TESTS
@@ -74,7 +102,8 @@ pub fn div(poly1: &[u64], poly2: &[u64], result: &mut [u64]) {
 #[cfg(test)]
 mod tests {
     use super::{ 
-        eval as eval_poly, add as add_polys, sub as sub_polys, mul as mul_polys, mul_by_const as mul_poly_by_const 
+        eval as eval_poly, add as add_polys, sub as sub_polys, mul as mul_polys, div as div_polys,
+        mul_by_const as mul_poly_by_const 
     };
 
     #[test]
@@ -144,10 +173,31 @@ mod tests {
     }
 
     #[test]
-    fn mul_by_constant() {
+    fn mul_by_const() {
         let poly = [384863712573444386, 7682273369345308472, 13294661765012277990];
         let c = 11269864713250585702u64;
         let pr = vec![14327042696637944021, 16658076832266294442, 5137918534171880203];
         assert_eq!(pr, mul_poly_by_const(&poly, c));
+    }
+
+    #[test]
+    fn div() {
+        // divide degree 4 by degree 2
+        let poly1 = [3955396989677724641, 11645020397934612208, 5279606801653296505, 4127428352286805209, 5628361441431074344];
+        let poly2 = [384863712573444386, 7682273369345308472, 13294661765012277990];
+        let pr = vec![9918505539874556741, 16401861429499852246, 12181445947541805654];
+        assert_eq!(pr, div_polys(&poly1, &poly2));
+
+        // divide degree 3 by degree 2
+        let poly1 = [3955396989677724641, 11645020397934612208, 3726230352653943207, 12439170984765704776];
+        let poly2 = [9918505539874556741, 16401861429499852246, 12181445947541805654];
+        let pr = vec![384863712573444386, 7682273369345308472];
+        assert_eq!(pr, div_polys(&poly1, &poly2));
+
+        // divide degree 3 by degree 3
+        let poly1 = [14327042696637944021, 16658076832266294442, 5137918534171880203];
+        let poly2 = [384863712573444386, 7682273369345308472, 13294661765012277990];
+        let pr = vec![11269864713250585702];
+        assert_eq!(pr, div_polys(&poly1, &poly2));
     }
 }
