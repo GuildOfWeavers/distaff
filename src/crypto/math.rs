@@ -124,7 +124,11 @@ pub fn get_root_of_unity(order: u64) -> u64 {
 }
 
 pub fn fill_power_series(base: u64, dest: &mut [u64]) {
-    // TODO: implement
+    let mut p = 1u64;
+    for i in 0..dest.len() {
+        dest[i] = p;
+        p = mul(p, base);
+    }
 }
 
 // RANDOMNESS

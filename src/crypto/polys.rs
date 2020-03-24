@@ -1,27 +1,27 @@
 use crate::math;
 
-/// Evaluates a polynomial at a provided x coordinates
-pub fn eval(poly: &[u64], x: u64) -> u64 {
-    if poly.len() == 0 { return 0; }
-    else if poly.len() == 1 { return poly[0]; }
-    else if poly.len() == 2 { return math::add(poly[0], math::mul(poly[1], x)); }
-    else if poly.len() == 3 {
-        let y = math::add(poly[0], math::mul(poly[1], x));
+/// Evaluates polynomial `p` at coordinate `x`
+pub fn eval(p: &[u64], x: u64) -> u64 {
+    if p.len() == 0 { return 0; }
+    else if p.len() == 1 { return p[0]; }
+    else if p.len() == 2 { return math::add(p[0], math::mul(p[1], x)); }
+    else if p.len() == 3 {
+        let y = math::add(p[0], math::mul(p[1], x));
         let x2 = math::mul(x, x);
-        return math::add(y, math::mul(poly[2], x2));
+        return math::add(y, math::mul(p[2], x2));
     }
     else {
         let mut y = 0u64;
         let mut power_of_x = 1u64;
-        for i in 0..poly.len() {
-            y = math::add(y, math::mul(poly[i], power_of_x));
+        for i in 0..p.len() {
+            y = math::add(y, math::mul(p[i], power_of_x));
             power_of_x = math::mul(power_of_x, x);
         }
         return y;
     }
 }
 
-/// Computes a[i] + b[i] for all i
+/// Adds polynomial `a` to polynomial `b`
 pub fn add(a: &[u64], b: &[u64]) -> Vec<u64> {
     let result_len = std::cmp::max(a.len(), b.len());
     let mut result = Vec::with_capacity(result_len);
@@ -33,7 +33,7 @@ pub fn add(a: &[u64], b: &[u64]) -> Vec<u64> {
     return result;
 }
 
-/// Computes a[i] - b[i] for all i
+/// Subtracts polynomial `b` from polynomial `a`
 pub fn sub(a: &[u64], b: &[u64]) -> Vec<u64> {
     let result_len = std::cmp::max(a.len(), b.len());
     let mut result = Vec::with_capacity(result_len);
@@ -45,7 +45,7 @@ pub fn sub(a: &[u64], b: &[u64]) -> Vec<u64> {
     return result;
 }
 
-/// Multiplies two polynomials
+/// Multiplies polynomial `a` by polynomial `b`
 pub fn mul(a: &[u64], b: &[u64]) -> Vec<u64> {
     let result_len = a.len() + b.len() - 1;
     let mut result = vec![0u64; result_len];
@@ -58,15 +58,17 @@ pub fn mul(a: &[u64], b: &[u64]) -> Vec<u64> {
     return result;
 }
 
-/// Multiplies every coefficient of the polynomial by provided constant
-pub fn mul_by_const(poly: &[u64], k: u64) -> Vec<u64> {
-    let mut result = Vec::with_capacity(poly.len());
-    for i in 0..poly.len() {
-        result.push(math::mul(poly[i], k));
+/// Multiplies every coefficient of polynomial `p` by constant `k`
+pub fn mul_by_const(p: &[u64], k: u64) -> Vec<u64> {
+    let mut result = Vec::with_capacity(p.len());
+    for i in 0..p.len() {
+        result.push(math::mul(p[i], k));
     }
     return result;
 }
 
+/// Divides polynomial `a` by polynomial `b`; if the polynomials don't divide evenly
+/// the remainder is ignored.
 pub fn div(a: &[u64], b: &[u64]) -> Vec<u64> {
     
     let mut apos = get_last_non_zero_index(a);
