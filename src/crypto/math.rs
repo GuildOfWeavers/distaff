@@ -131,6 +131,10 @@ pub fn fill_power_series(base: u64, dest: &mut [u64]) {
     }
 }
 
+pub fn get_power_series(base: u64, length: usize) -> Vec<u64> {
+    return (0..length).map(|i| exp(base, i as u64)).collect::<Vec<u64>>();
+}
+
 // RANDOMNESS
 // ------------------------------------------------------------------------------------------------
 pub fn rand() -> u64 {
