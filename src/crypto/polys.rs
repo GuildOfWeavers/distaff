@@ -1,4 +1,7 @@
-use crate::math;
+use crate::{ math, fft };
+
+// POLYNOMIAL EVALUATION
+// ================================================================================================
 
 /// Evaluates polynomial `p` at coordinate `x`
 pub fn eval(p: &[u64], x: u64) -> u64 {
@@ -20,6 +23,42 @@ pub fn eval(p: &[u64], x: u64) -> u64 {
         return y;
     }
 }
+
+pub fn eval_fft(p: &mut [u64], unpermute: bool) {
+    let g = math::get_root_of_unity(p.len() as u64);
+    let twiddles = fft::get_twiddles(g, p.len());
+    eval_fft_twiddles(p, &twiddles, unpermute);
+}
+
+pub fn eval_fft_twiddles(p: &mut [u64], twiddles: &[u64], unpermute: bool) {
+    fft::fft_in_place(p, &twiddles, 1, 1, 0);
+    if unpermute {
+        fft::permute(p);
+    }
+}
+
+// POLYNOMIAL INTERPOLATION
+// ================================================================================================
+
+pub fn interpolate_fft(v: &mut [u64], unpermute: bool) {
+    let g = math::get_root_of_unity(v.len() as u64);
+    let twiddles = fft::get_inv_twiddles(g, v.len());
+    interpolate_fft_twiddles(v, &twiddles, unpermute);
+}
+
+pub fn interpolate_fft_twiddles(v: &mut [u64], twiddles: &[u64], unpermute: bool) {
+    fft::fft_in_place(v, &twiddles, 1, 1, 0);
+    let inv_length = math::inv(v.len() as u64);
+    for e in v.iter_mut() {
+        *e = math::mul(*e, inv_length);
+    }
+    if unpermute {
+        fft::permute(v);
+    }
+}
+
+// POLYNOMIAL MATH OPERATIONS
+// ================================================================================================
 
 /// Adds polynomial `a` to polynomial `b`
 pub fn add(a: &[u64], b: &[u64]) -> Vec<u64> {

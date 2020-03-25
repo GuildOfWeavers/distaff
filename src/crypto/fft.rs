@@ -49,6 +49,11 @@ pub fn get_twiddles(root: u64, size: usize) -> Vec<u64> {
     return twiddles;
 }
 
+pub fn get_inv_twiddles(root: u64, size: usize) -> Vec<u64> {
+    let inv_root = math::exp(root, (size - 1) as u64);
+    return get_twiddles(inv_root, size);
+}
+
 pub fn permute(v: &mut [u64]) {
     let n = v.len();
     for i in 0..n {
