@@ -1,9 +1,9 @@
-use crate::{ math, polys };
+use crate::{ math };
 
 // CONSTANTS
 // ================================================================================================
 const USIZE_BITS: usize = 0_usize.count_zeros() as usize;
-const MAX_LOOP: usize = 128;
+const MAX_LOOP: usize = 256;
 
 // PUBLIC FUNCTIONS
 // ================================================================================================
@@ -97,7 +97,8 @@ fn butterfly_twiddle(values: &mut [u64], twiddle: u64, offset: usize, stride: us
 // ================================================================================================
 #[cfg(test)]
 mod tests {
-    use super::{ math, polys, fft_in_place as fft, get_twiddles, permute };
+    use crate::{ math, polys };
+    use super::{ fft_in_place as fft, get_twiddles, permute };
 
     #[test]
     fn fft_in_place() {

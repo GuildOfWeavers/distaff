@@ -83,6 +83,32 @@ pub fn inv(x: u64) -> u64 {
     return a as u64;
 }
 
+pub fn inv_many(v: &[u64]) -> Vec<u64> {
+    let mut result = Vec::with_capacity(v.len());
+    unsafe { result.set_len(v.len()); }
+
+    let mut last = 1u64;
+    for i in 0..v.len() {
+        result[i] = last;
+        if v[i] != 0 {
+            last = mul(last, v[i]);
+        }
+    }
+
+    last = inv(last);
+    for i in (0..v.len()).rev() {
+        if v[i] == 0 {
+            result[i] = 0;
+        }
+        else {
+            result[i] = mul(last, result[i]);
+            last = mul(last, v[i]);
+        }
+    }
+
+    return result;
+}
+
 /// Computes y = (a / b) such that b * y = a; a and b are assumed to be valid field elements.
 pub fn div(a: u64, b: u64) -> u64 {
     let b = inv(b);

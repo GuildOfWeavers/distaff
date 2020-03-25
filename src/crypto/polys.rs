@@ -40,6 +40,36 @@ pub fn eval_fft_twiddles(p: &mut [u64], twiddles: &[u64], unpermute: bool) {
 // POLYNOMIAL INTERPOLATION
 // ================================================================================================
 
+pub fn interpolate(xs: &[u64], ys: &[u64]) -> Vec<u64> {
+    // TODO: assert Xs and Ys are of the same length
+
+    let roots = get_zero_roots(xs);
+    let mut divisor = [0u64, 1];
+    let mut numerators: Vec<Vec<u64>> = Vec::with_capacity(xs.len());
+    for i in 0..xs.len() {
+        divisor[0] = math::neg(xs[i]);
+        numerators.push(div(&roots, &divisor));
+    }
+
+    let mut denominators: Vec<u64> = Vec::with_capacity(xs.len());
+    for i in 0..xs.len() {
+        denominators.push(eval(&numerators[i], xs[i]));
+    }
+    let denominators = math::inv_many(&denominators);
+
+    let mut result = vec![0u64; xs.len()];
+    for i in 0..xs.len() {
+        let y_slice = math::mul(ys[i], denominators[i]);
+        for j in 0..xs.len() {
+            if numerators[i][j] != 0 && ys[i] != 0 {
+                result[j] = math::add(result[j], math::mul(numerators[i][j], y_slice));
+            }
+        }
+    }
+
+    return result;
+}
+
 pub fn interpolate_fft(v: &mut [u64], unpermute: bool) {
     let g = math::get_root_of_unity(v.len() as u64);
     let twiddles = fft::get_inv_twiddles(g, v.len());
@@ -136,6 +166,25 @@ fn get_last_non_zero_index(vec: &[u64]) -> usize {
         if vec[i] != 0 { return i; }
     }
     return vec.len();
+}
+
+fn get_zero_roots(xs: &[u64]) -> Vec<u64> {
+    let mut n = xs.len() + 1;
+    let mut result = Vec::with_capacity(n);
+    unsafe { result.set_len(n); }
+    
+    n -= 1;
+    result[n] = 1;
+
+    for i in 0..xs.len() {
+        n -= 1;
+        result[n] = 0;
+        for j in n..xs.len() {
+            result[j] = math::sub(result[j], math::mul(result[j + 1], xs[i]));
+        }
+    }
+
+    return result;
 }
 
 // TESTS
