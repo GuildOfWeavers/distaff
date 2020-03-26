@@ -5,32 +5,32 @@ use crate::{ math, fft };
 
 /// Evaluates polynomial `p` at coordinate `x`
 pub fn eval(p: &[u64], x: u64) -> u64 {
-    if p.len() == 0 { return 0; }
-    else if p.len() == 1 { return p[0]; }
-    else if p.len() == 2 { return math::add(p[0], math::mul(p[1], x)); }
-    else if p.len() == 3 {
-        let y = math::add(p[0], math::mul(p[1], x));
-        let x2 = math::mul(x, x);
-        return math::add(y, math::mul(p[2], x2));
+    let mut y = 0u64;
+    let mut power_of_x = 1u64;
+    for i in 0..p.len() {
+        y = math::add(y, math::mul(p[i], power_of_x));
+        power_of_x = math::mul(power_of_x, x);
     }
-    else {
-        let mut y = 0u64;
-        let mut power_of_x = 1u64;
-        for i in 0..p.len() {
-            y = math::add(y, math::mul(p[i], power_of_x));
-            power_of_x = math::mul(power_of_x, x);
-        }
-        return y;
-    }
+    return y;
 }
 
+/// Evaluates polynomial `p` using FFT algorithm; the evaluation is done in-place, meaning
+/// `p` is updated with results of the evaluation.
+/// 
+/// If `unpermute` parameter is set to false, the evaluations will be left in permuted state.
 pub fn eval_fft(p: &mut [u64], unpermute: bool) {
     let g = math::get_root_of_unity(p.len() as u64);
     let twiddles = fft::get_twiddles(g, p.len());
     eval_fft_twiddles(p, &twiddles, unpermute);
 }
 
+/// Evaluates polynomial `p` using FFT algorithm; the evaluation is done in-place, meaning
+/// `p` is updated with results of the evaluation. Unlike the previous function, this function
+/// does not generate twiddles internally. Thus, the twiddles must be supplied as a parameter.
+/// 
+/// If `unpermute` parameter is set to false, the evaluations will be left in permuted state.
 pub fn eval_fft_twiddles(p: &mut [u64], twiddles: &[u64], unpermute: bool) {
+    debug_assert!(p.len() == twiddles.len() * 2, "Invalid number of twiddles");
     fft::fft_in_place(p, &twiddles, 1, 1, 0);
     if unpermute {
         fft::permute(p);
@@ -40,8 +40,9 @@ pub fn eval_fft_twiddles(p: &mut [u64], twiddles: &[u64], unpermute: bool) {
 // POLYNOMIAL INTERPOLATION
 // ================================================================================================
 
+/// Uses Lagrange interpolation to build a polynomial from X and Y coordinates.
 pub fn interpolate(xs: &[u64], ys: &[u64]) -> Vec<u64> {
-    // TODO: assert Xs and Ys are of the same length
+    debug_assert!(xs.len() == ys.len(), "Number of X and Y coordinates must be the same");
 
     let roots = get_zero_roots(xs);
     let mut divisor = [0u64, 1];
@@ -70,12 +71,22 @@ pub fn interpolate(xs: &[u64], ys: &[u64]) -> Vec<u64> {
     return result;
 }
 
+/// Uses FFT algorithm to interpolate a polynomial from provided values `v`; the interpolation
+/// is done in-place, meaning `v` is updated with polynomial coefficients.
+/// 
+/// If `unpermute` parameter is set to false, the coefficients will be left in permuted state.
 pub fn interpolate_fft(v: &mut [u64], unpermute: bool) {
     let g = math::get_root_of_unity(v.len() as u64);
     let twiddles = fft::get_inv_twiddles(g, v.len());
     interpolate_fft_twiddles(v, &twiddles, unpermute);
 }
 
+/// Uses FFT algorithm to interpolate a polynomial from provided values `v`; the interpolation
+/// is done in-place, meaning `v` is updated with polynomial coefficients. Unlike the previous
+/// function, this function does not generate twiddles internally. Thus, the twiddles must be
+/// supplied as a parameter.
+/// 
+/// If `unpermute` parameter is set to false, the evaluations will be left in permuted state.
 pub fn interpolate_fft_twiddles(v: &mut [u64], twiddles: &[u64], unpermute: bool) {
     fft::fft_in_place(v, &twiddles, 1, 1, 0);
     let inv_length = math::inv(v.len() as u64);
@@ -191,9 +202,10 @@ fn get_zero_roots(xs: &[u64]) -> Vec<u64> {
 // ================================================================================================
 #[cfg(test)]
 mod tests {
+    use crate::math;
     use super::{ 
-        eval as eval_poly, add as add_polys, sub as sub_polys, mul as mul_polys, div as div_polys,
-        mul_by_const as mul_poly_by_const 
+        eval as eval_poly, eval_fft as poly_eval_fft, add as add_polys, sub as sub_polys, 
+        mul as mul_polys, div as div_polys, mul_by_const as mul_poly_by_const 
     };
 
     #[test]
@@ -206,6 +218,25 @@ mod tests {
         assert_eq!(17042940544839738828, eval_poly(&poly[..2], x)); // degree 1
         assert_eq!(6485711713712766590, eval_poly(&poly[..3], x));  // degree 2
         assert_eq!(15417995579153477369, eval_poly(&poly, x));      // degree 3
+    }
+
+    #[test]
+    fn eval_fft() {
+        let n: usize = 1024;
+
+        // create a random polynomial
+        let mut poly = vec![0u64; n];
+        math::rand_fill(&mut poly);
+
+        // evaluate polynomial using FFT
+        let mut y1 = poly.clone();
+        poly_eval_fft(&mut y1, true);
+
+        // evaluate polynomial using simple evaluation
+        let roots = math::get_power_series(math::get_root_of_unity(n as u64), n);
+        let y2 = roots.iter().map(|&x| eval_poly(&poly, x)).collect::<Vec<u64>>();
+        
+        assert_eq!(y1, y2);
     }
 
     #[test]
