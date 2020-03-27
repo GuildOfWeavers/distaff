@@ -1,2 +1,5 @@
 mod crypto;
-pub use crypto::{ hash, math, polys, fft, quartic };
+pub use crypto::*;
+
+mod math;
+pub use math::*;

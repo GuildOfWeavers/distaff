@@ -1,12 +1,12 @@
 use criterion::{ black_box, criterion_group, Criterion };
-use distaff::{ fft, math };
+use distaff::{ field, fft};
 
 pub fn fft_in_place(c: &mut Criterion) {
 
     let size: usize = 1 << 12;
     let mut values = vec![0u64; size];
-    math::rand_fill(&mut values);
-    let r = math::get_root_of_unity(size as u64);
+    field::rand_fill(&mut values);
+    let r = field::get_root_of_unity(size as u64);
     let twiddles = fft::get_twiddles(r, size);
 
     c.bench_function("FFT (in-place)", |bench| {

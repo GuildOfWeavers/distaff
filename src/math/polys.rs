@@ -1,4 +1,4 @@
-use crate::{ math, fft };
+use crate::math::{ field, fft };
 
 // POLYNOMIAL EVALUATION
 // ================================================================================================
@@ -8,8 +8,8 @@ pub fn eval(p: &[u64], x: u64) -> u64 {
     let mut y = 0u64;
     let mut power_of_x = 1u64;
     for i in 0..p.len() {
-        y = math::add(y, math::mul(p[i], power_of_x));
-        power_of_x = math::mul(power_of_x, x);
+        y = field::add(y, field::mul(p[i], power_of_x));
+        power_of_x = field::mul(power_of_x, x);
     }
     return y;
 }
@@ -19,7 +19,7 @@ pub fn eval(p: &[u64], x: u64) -> u64 {
 /// 
 /// If `unpermute` parameter is set to false, the evaluations will be left in permuted state.
 pub fn eval_fft(p: &mut [u64], unpermute: bool) {
-    let g = math::get_root_of_unity(p.len() as u64);
+    let g = field::get_root_of_unity(p.len() as u64);
     let twiddles = fft::get_twiddles(g, p.len());
     eval_fft_twiddles(p, &twiddles, unpermute);
 }
@@ -48,7 +48,7 @@ pub fn interpolate(xs: &[u64], ys: &[u64]) -> Vec<u64> {
     let mut divisor = [0u64, 1];
     let mut numerators: Vec<Vec<u64>> = Vec::with_capacity(xs.len());
     for i in 0..xs.len() {
-        divisor[0] = math::neg(xs[i]);
+        divisor[0] = field::neg(xs[i]);
         numerators.push(div(&roots, &divisor));
     }
 
@@ -56,14 +56,14 @@ pub fn interpolate(xs: &[u64], ys: &[u64]) -> Vec<u64> {
     for i in 0..xs.len() {
         denominators.push(eval(&numerators[i], xs[i]));
     }
-    let denominators = math::inv_many(&denominators);
+    let denominators = field::inv_many(&denominators);
 
     let mut result = vec![0u64; xs.len()];
     for i in 0..xs.len() {
-        let y_slice = math::mul(ys[i], denominators[i]);
+        let y_slice = field::mul(ys[i], denominators[i]);
         for j in 0..xs.len() {
             if numerators[i][j] != 0 && ys[i] != 0 {
-                result[j] = math::add(result[j], math::mul(numerators[i][j], y_slice));
+                result[j] = field::add(result[j], field::mul(numerators[i][j], y_slice));
             }
         }
     }
@@ -76,7 +76,7 @@ pub fn interpolate(xs: &[u64], ys: &[u64]) -> Vec<u64> {
 /// 
 /// If `unpermute` parameter is set to false, the coefficients will be left in permuted state.
 pub fn interpolate_fft(v: &mut [u64], unpermute: bool) {
-    let g = math::get_root_of_unity(v.len() as u64);
+    let g = field::get_root_of_unity(v.len() as u64);
     let twiddles = fft::get_inv_twiddles(g, v.len());
     interpolate_fft_twiddles(v, &twiddles, unpermute);
 }
@@ -89,9 +89,9 @@ pub fn interpolate_fft(v: &mut [u64], unpermute: bool) {
 /// If `unpermute` parameter is set to false, the evaluations will be left in permuted state.
 pub fn interpolate_fft_twiddles(v: &mut [u64], twiddles: &[u64], unpermute: bool) {
     fft::fft_in_place(v, &twiddles, 1, 1, 0);
-    let inv_length = math::inv(v.len() as u64);
+    let inv_length = field::inv(v.len() as u64);
     for e in v.iter_mut() {
-        *e = math::mul(*e, inv_length);
+        *e = field::mul(*e, inv_length);
     }
     if unpermute {
         fft::permute(v);
@@ -108,7 +108,7 @@ pub fn add(a: &[u64], b: &[u64]) -> Vec<u64> {
     for i in 0..result_len {
         let c1 = if i < a.len() { a[i] } else { 0 };
         let c2 = if i < b.len() { b[i] } else { 0 };
-        result.push(math::add(c1, c2));
+        result.push(field::add(c1, c2));
     }
     return result;
 }
@@ -120,7 +120,7 @@ pub fn sub(a: &[u64], b: &[u64]) -> Vec<u64> {
     for i in 0..result_len {
         let c1 = if i < a.len() { a[i] } else { 0 };
         let c2 = if i < b.len() { b[i] } else { 0 };
-        result.push(math::sub(c1, c2));
+        result.push(field::sub(c1, c2));
     }
     return result;
 }
@@ -131,8 +131,8 @@ pub fn mul(a: &[u64], b: &[u64]) -> Vec<u64> {
     let mut result = vec![0u64; result_len];
     for i in 0..a.len() {
         for j in 0..b.len() {
-            let s = math::mul(a[i], b[j]);
-            result[i + j] = math::add(result[i + j], s);
+            let s = field::mul(a[i], b[j]);
+            result[i + j] = field::add(result[i + j], s);
         }
     }
     return result;
@@ -142,7 +142,7 @@ pub fn mul(a: &[u64], b: &[u64]) -> Vec<u64> {
 pub fn mul_by_const(p: &[u64], k: u64) -> Vec<u64> {
     let mut result = Vec::with_capacity(p.len());
     for i in 0..p.len() {
-        result.push(math::mul(p[i], k));
+        result.push(field::mul(p[i], k));
     }
     return result;
 }
@@ -159,10 +159,10 @@ pub fn div(a: &[u64], b: &[u64]) -> Vec<u64> {
 
     let mut result = vec![0u64; apos - bpos + 1];
     for i in (0..result.len()).rev() {
-        let quot = math::div(a[apos], b[bpos]);
+        let quot = field::div(a[apos], b[bpos]);
         result[i] = quot;
         for j in (0..bpos).rev() {
-            a[i + j] = math::sub(a[i + j], math::mul(b[j], quot));
+            a[i + j] = field::sub(a[i + j], field::mul(b[j], quot));
         }
         apos = apos.wrapping_sub(1);
     }
@@ -191,7 +191,7 @@ fn get_zero_roots(xs: &[u64]) -> Vec<u64> {
         n -= 1;
         result[n] = 0;
         for j in n..xs.len() {
-            result[j] = math::sub(result[j], math::mul(result[j + 1], xs[i]));
+            result[j] = field::sub(result[j], field::mul(result[j + 1], xs[i]));
         }
     }
 
