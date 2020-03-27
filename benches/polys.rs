@@ -19,4 +19,14 @@ pub fn eval4(c: &mut Criterion) {
     });
 }
 
-criterion_group!(group, eval, eval4);
+pub fn interpolate4_batch(c: &mut Criterion) {
+    let r = field::get_root_of_unity(1024);
+    let xs = field::get_power_series(r, 1024);
+    let mut ys = vec![0u64; 1024];
+    field::rand_fill(&mut ys);
+    c.bench_function("Poly interpolation (quartic batch)", |bench| {
+        bench.iter(|| quartic::interpolate_batch(black_box(&xs), black_box(&ys)))
+    });
+}
+
+criterion_group!(group, eval, eval4, interpolate4_batch);
