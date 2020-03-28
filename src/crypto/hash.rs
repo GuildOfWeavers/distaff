@@ -192,13 +192,12 @@ fn apply_mds(state: &mut[u64; 12]) {
 // ================================================================================================
 #[cfg(test)]
 mod tests {
-    use super::{ poseidon as poseidon_hash, rescue as rescue_hash, gmimc as gmimc_hash };
 
     #[test]
     fn poseidon() {
         let value = [1u64, 2, 3, 4, 5, 6, 7, 8];
         let mut result = [0u64; 4];
-        poseidon_hash(&value, &mut result);
+        super::poseidon(&value, &mut result);
 
         assert_eq!([18371635412595540007, 1894744910730962130, 10854054167595012332, 14797165172502003225], result);
     }
@@ -207,7 +206,7 @@ mod tests {
     fn rescue() {
         let value = [1u64, 2, 3, 4, 5, 6, 7, 8];
         let mut result = [0u64; 4];
-        rescue_hash(&value, &mut result);
+        super::rescue(&value, &mut result);
 
         assert_eq!([8675231609413418651, 5008873880099962244, 1143406322110855369, 6071655998975610945], result);
     }
@@ -216,7 +215,7 @@ mod tests {
     fn gmimc() {
         let value = [1u64, 2, 3, 4, 5, 6, 7, 8];
         let mut result = [0u64; 4];
-        gmimc_hash(&value, &mut result);
+        super::gmimc(&value, &mut result);
 
         assert_eq!([13347011516039751531, 1694648777756066234, 2833950855839661719, 5145889775304403416], result);
     }

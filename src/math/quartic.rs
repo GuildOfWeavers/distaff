@@ -15,8 +15,11 @@ pub fn eval(p: &[u64], x: u64) -> u64 {
     return y;
 }
 
+/// Evaluates a batch of degree 3 polynomials at provided X coordinates. The polynomials are assumed
+/// to be recorded as a sequence of 4 sequential coefficients.
 pub fn evaluate_batch(polys: &[u64], xs: &[u64]) -> Vec<u64> {
     let n = polys.len() / 4;   // number of polynomials
+    debug_assert!(polys.len() % 4 == 0, "each polynomial must contain 4 coefficients");
     debug_assert!(n == xs.len(), "number of polynomials must be equal to number of X coordinates");
 
     let mut result: Vec<u64> = Vec::with_capacity(n);
@@ -33,10 +36,11 @@ pub fn evaluate_batch(polys: &[u64], xs: &[u64]) -> Vec<u64> {
 /// assumed to be in batches with 4 sequential coordinates per batch.
 /// 
 /// This function is many times faster than using `polys::interpolate` function in a loop. This is
-/// primarily due to the ability to do batch inversion.
+/// primarily due to amortizing inversions over the entire batch.
 pub fn interpolate_batch(xs: &[u64], ys: &[u64]) -> Vec<u64> {
     let n = xs.len() / 4;   // number of batches
     debug_assert!(xs.len() == ys.len(), "number of X coordinates must be equal to number of Y coordinates");
+    debug_assert!(xs.len() % 4 == 0, "coordinate batches must consists of 4 coordinates per batch");
 
     let mut equations: Vec<u64> = Vec::with_capacity(n * 16);
     let mut inverses: Vec<u64> = Vec::with_capacity(n * 4);
@@ -146,5 +150,20 @@ mod tests {
                7956382178997078117,  3241000499730616449, 12475269242634339237,  18251897020816760349
         ];
         assert_eq!(expected, super::interpolate_batch(&xs, &ys));
+    }
+
+    #[test]
+    fn evaluate_batch() {
+        let r = field::get_root_of_unity(16);
+        let xs = field::get_power_series(r, 16).iter().step_by(4).map(|x| *x).collect::<Vec<u64>>();
+        
+        let polys = [
+            7956382178997078105u64,  6172178935026293282,  5971474637801684060, 16793452009046991148,
+               7956382178997078109, 15205743380705406848, 12475269242634339237,   194846859619262948,
+               7956382178997078113, 12274564945409730015,  5971474637801684060,  1653291871389032149,
+               7956382178997078117,  3241000499730616449, 12475269242634339237,  18251897020816760349
+        ];
+        let expected = vec![1u64, 5, 9, 13];
+        assert_eq!(expected, super::evaluate_batch(&polys, &xs));
     }
 }

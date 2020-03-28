@@ -188,103 +188,100 @@ pub fn prng_fill(seed: [u8; 32], dest: &mut [u64]) {
 // ================================================================================================
 #[cfg(test)]
 mod tests {
-    use super::{ M, rand,
-        add as mod_add, sub as mod_sub, mul as mod_mul, inv as mod_inv, exp as mod_exp
-    };
-
+    
     #[test]
     fn add() {
         // identity
-        let r = rand();
-        assert_eq!(r, mod_add(r, 0));
+        let r = super::rand();
+        assert_eq!(r, super::add(r, 0));
 
         // test addition within bounds
-        assert_eq!(5, mod_add(2, 3));
+        assert_eq!(5, super::add(2, 3));
 
         // test overflow
-        let t = M - 1;
-        assert_eq!(0, mod_add(t, 1));
-        assert_eq!(1, mod_add(t, 2));
+        let t = super::M - 1;
+        assert_eq!(0, super::add(t, 1));
+        assert_eq!(1, super::add(t, 2));
 
         // test random values
-        let r1 = rand();
-        let r2 = rand();
-        assert_eq!(test_add(r1, r2), mod_add(r1, r2));
+        let r1 = super::rand();
+        let r2 = super::rand();
+        assert_eq!(test_add(r1, r2), super::add(r1, r2));
     }
 
     #[test]
     fn sub() {
         // identity
-        let r = rand();
-        assert_eq!(r, mod_sub(r, 0));
+        let r = super::rand();
+        assert_eq!(r, super::sub(r, 0));
 
         // test subtraction within bounds
-        assert_eq!(2, mod_sub(5, 3));
+        assert_eq!(2, super::sub(5, 3));
 
         // test underflow
-        assert_eq!(M - 2, mod_sub(3, 5));
+        assert_eq!(super::M - 2, super::sub(3, 5));
     }
 
     #[test]
     fn mul() {
         // identity
-        let r = rand();
-        assert_eq!(0, mod_mul(r, 0));
-        assert_eq!(r, mod_mul(r, 1));
+        let r = super::rand();
+        assert_eq!(0, super::mul(r, 0));
+        assert_eq!(r, super::mul(r, 1));
 
         // test multiplication within bounds
-        assert_eq!(15, mod_mul(5, 3));
+        assert_eq!(15, super::mul(5, 3));
 
         // test overflow
-        let t = M - 1;
-        assert_eq!(1, mod_mul(t, t));
-        assert_eq!(M - 2, mod_mul(t, 2));
-        assert_eq!(M - 4, mod_mul(t, 4));
+        let t = super::M - 1;
+        assert_eq!(1, super::mul(t, t));
+        assert_eq!(super::M - 2, super::mul(t, 2));
+        assert_eq!(super::M - 4, super::mul(t, 4));
 
-        let t = (M + 1) / 2;
-        assert_eq!(1, mod_mul(t, 2));
+        let t = (super::M + 1) / 2;
+        assert_eq!(1, super::mul(t, 2));
 
         // test random values
-        let r1 = rand();
-        let r2 = rand();
-        assert_eq!(test_mul(r1, r2), mod_mul(r1, r2));
+        let r1 = super::rand();
+        let r2 = super::rand();
+        assert_eq!(test_mul(r1, r2), super::mul(r1, r2));
     }
 
     #[test]
     fn inv() {
         // identity
-        assert_eq!(1, mod_inv(1));
-        assert_eq!(0, mod_inv(0));
+        assert_eq!(1, super::inv(1));
+        assert_eq!(0, super::inv(0));
 
         // test random values
-        let x = rand();
-        let y = mod_inv(x);
-        assert_eq!(1, mod_mul(x, y));
+        let x = super::rand();
+        let y = super::inv(x);
+        assert_eq!(1, super::mul(x, y));
     }
 
     #[test]
     fn exp() {
         // identity
-        let r = rand();
-        assert_eq!(1, mod_exp(r, 0));
-        assert_eq!(r, mod_exp(r, 1));
-        assert_eq!(0, mod_exp(0, r));
+        let r = super::rand();
+        assert_eq!(1, super::exp(r, 0));
+        assert_eq!(r, super::exp(r, 1));
+        assert_eq!(0, super::exp(0, r));
 
         // test exponentiation within bounds
-        assert_eq!(125, mod_exp(5, 3));
+        assert_eq!(125, super::exp(5, 3));
 
         // test overflow
-        let t = M - 1;
-        assert_eq!(test_mul(t, t), mod_exp(t, 2));
-        assert_eq!(test_mul(test_mul(t, t), t), mod_exp(t, 3));
+        let t = super::M - 1;
+        assert_eq!(test_mul(t, t), super::exp(t, 2));
+        assert_eq!(test_mul(test_mul(t, t), t), super::exp(t, 3));
     }
 
     // controller methods
     fn test_add(a: u64, b: u64) -> u64 {
-        ((a as u128 + b as u128) % (M as u128)) as u64
+        ((a as u128 + b as u128) % (super::M as u128)) as u64
     }
 
     fn test_mul(a: u64, b: u64) -> u64 {
-        ((a as u128 * b as u128) % (M as u128)) as u64
+        ((a as u128 * b as u128) % (super::M as u128)) as u64
     }
 }
