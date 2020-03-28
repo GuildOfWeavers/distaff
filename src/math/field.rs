@@ -147,22 +147,18 @@ pub fn neg(x: u64) -> u64 {
 
 // ROOT OF UNITY
 // ------------------------------------------------------------------------------------------------
+/// Computes primitive root of unity for the specified `order`.
 pub fn get_root_of_unity(order: u64) -> u64 {
-    // TODO: add error handling is_power_of_two
+    assert!(order != 0, "cannot get root of unity for order 0");
+    assert!(order.is_power_of_two(), "order must be a power of 2");
+    assert!(order.trailing_zeros() <= 32, "order cannot exceed 2^32");
     let p = 1 << (32 - order.trailing_zeros());
     return exp(G, p as u64);
 }
 
-pub fn fill_power_series(base: u64, dest: &mut [u64]) {
-    let mut p = 1u64;
-    for i in 0..dest.len() {
-        dest[i] = p;
-        p = mul(p, base);
-    }
-}
-
-pub fn get_power_series(base: u64, length: usize) -> Vec<u64> {
-    return (0..length).map(|i| exp(base, i as u64)).collect::<Vec<u64>>();
+/// Generates a vector with values [1, b, b^2, b^3, b^4, ..., b^length].
+pub fn get_power_series(b: u64, length: usize) -> Vec<u64> {
+    return (0..length).map(|i| exp(b, i as u64)).collect::<Vec<u64>>();
 }
 
 // RANDOMNESS
@@ -235,6 +231,13 @@ mod tests {
     }
 
     #[test]
+    fn neg() {
+        let r = super::rand();
+        let nr = super::neg(r);
+        assert_eq!(0, super::add(r, nr));
+    }
+
+    #[test]
     fn mul() {
         // identity
         let r = super::rand();
@@ -272,6 +275,15 @@ mod tests {
     }
 
     #[test]
+    fn inv_many() {
+        let v = super::rand_vector(1024);
+        let inv_v = super::inv_many(&v);
+        for i in 0..inv_v.len() {
+            assert_eq!(super::inv(v[i]), inv_v[i]);
+        }
+    }
+
+    #[test]
     fn exp() {
         // identity
         let r = super::rand();
@@ -286,6 +298,35 @@ mod tests {
         let t = super::M - 1;
         assert_eq!(test_mul(t, t), super::exp(t, 2));
         assert_eq!(test_mul(test_mul(t, t), t), super::exp(t, 3));
+    }
+
+    #[test]
+    fn rand() {
+        assert!(super::rand() < super::M);
+    }
+
+    #[test]
+    fn rand_vector() {
+        let v = super::rand_vector(1024);
+        assert_eq!(1024, v.len());
+        for i in 0..v.len() {
+            assert!(v[i] < super::M);
+        }
+    }
+
+    #[test]
+    fn prng() {
+        assert_eq!(1585975022918167114u64, super::prng([42u8; 32]));
+    }
+    #[test]
+    fn prng_vector() {
+        let expected = vec![
+            1585975022918167114u64,  8820585137952568641, 15299160011266138131,  6866407899083796441,
+              10162285885306164082,  7867471008095992463, 13555280605728288753,   188511605104900532,
+               2199779508986021858, 14291627743304465931,   279098277252367170, 13691721925447740205,
+              10211632385674463860,  3308819557792802457, 16148052607759843745, 10046899211138939420
+        ];
+        assert_eq!(expected, super::prng_vector([42u8; 32], 16));
     }
 
     // controller methods
