@@ -202,7 +202,7 @@ fn get_zero_roots(xs: &[u64]) -> Vec<u64> {
 // ================================================================================================
 #[cfg(test)]
 mod tests {
-    use crate::math;
+    use crate::math::field;
 
     #[test]
     fn eval() {
@@ -221,15 +221,14 @@ mod tests {
         let n: usize = 1024;
 
         // create a random polynomial
-        let mut poly = vec![0u64; n];
-        math::rand_fill(&mut poly);
+        let poly = field::rand_vector(n);
 
         // evaluate polynomial using FFT
         let mut y1 = poly.clone();
         super::eval_fft(&mut y1, true);
 
         // evaluate polynomial using simple evaluation
-        let roots = math::get_power_series(math::get_root_of_unity(n as u64), n);
+        let roots = field::get_power_series(field::get_root_of_unity(n as u64), n);
         let y2 = roots.iter().map(|&x| super::eval(&poly, x)).collect::<Vec<u64>>();
         
         assert_eq!(y1, y2);

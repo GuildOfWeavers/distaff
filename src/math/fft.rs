@@ -38,7 +38,6 @@ pub fn fft_in_place(values: &mut [u64], twiddles: &[u64], count: usize, stride: 
             butterfly_twiddle(values, twiddles[i], j, stride);
         }
     }
-    
 }
 
 pub fn get_twiddles(root: u64, size: usize) -> Vec<u64> {
@@ -137,8 +136,7 @@ mod tests {
         assert_eq!(expected, p);
 
         // degree 1023
-        let mut p = vec![0u64; 1024];
-        field::rand_fill(&mut p);
+        let mut p = field::rand_vector(1024);
         let g = field::get_root_of_unity(1024);
         let roots = field::get_power_series(g, 1024);
         let expected = roots.iter().map(|x| polys::eval(&p, *x)).collect::<Vec<u64>>();

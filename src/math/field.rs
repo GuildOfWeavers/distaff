@@ -1,8 +1,11 @@
 use rand::prelude::*;
 use rand::distributions::{Distribution, Uniform};
 
-pub const M: u64 = 18446743880436023297; // 2^64 - 45 * 2^32 + 1
-pub const G: u64 = 8387321423513296549;  // 2^32 root of unity
+// Field modulus = 2^64 - 45 * 2^32 + 1
+pub const M: u64 = 18446743880436023297;
+
+// 2^32 root of unity
+pub const G: u64 = 8387321423513296549;
 
 // BASIC ARITHMETIC
 // ------------------------------------------------------------------------------------------------
@@ -83,6 +86,7 @@ pub fn inv(x: u64) -> u64 {
     return a as u64;
 }
 
+/// Computes multiplicative inverses of all slice elements using batch inversion method.
 pub fn inv_many(v: &[u64]) -> Vec<u64> {
     let mut result = Vec::with_capacity(v.len());
     unsafe { result.set_len(v.len()); }
@@ -109,7 +113,7 @@ pub fn inv_many(v: &[u64]) -> Vec<u64> {
     return result;
 }
 
-/// Computes y = (a / b) such that b * y = a; a and b are assumed to be valid field elements.
+/// Computes y = (a / b) such that (b * y) % m = a; a and b are assumed to be valid field elements.
 pub fn div(a: u64, b: u64) -> u64 {
     let b = inv(b);
     return mul(a, b);
@@ -163,25 +167,33 @@ pub fn get_power_series(base: u64, length: usize) -> Vec<u64> {
 
 // RANDOMNESS
 // ------------------------------------------------------------------------------------------------
+
+/// Generates a random field element.
 pub fn rand() -> u64 {
     let range = Uniform::from(0..M);
     let mut g = thread_rng();
-    return range.sample(&mut g);
+    return g.sample(range);
 }
 
-pub fn rand_fill(dest: &mut [u64]) {
-    let mut g = thread_rng();
-    g.fill(dest);
+/// Generates a vector of random field elements.
+pub fn rand_vector(length: usize) -> Vec<u64> {
+    let range = Uniform::from(0..M);
+    let g = thread_rng();
+    return g.sample_iter(range).take(length).collect();
 }
 
+/// Generates a pseudo-random field element from a given `seed`.
 pub fn prng(seed: [u8; 32]) -> u64 {
     let range = Uniform::from(0..M);
     let mut g = StdRng::from_seed(seed);
     return range.sample(&mut g);
 }
 
-pub fn prng_fill(seed: [u8; 32], dest: &mut [u64]) {
-    // TODO: implement
+/// Generates a vector of pseudo-random field elements from a given `seed`.
+pub fn prng_vector(seed: [u8; 32], length: usize) -> Vec<u64> {
+    let range = Uniform::from(0..M);
+    let g = StdRng::from_seed(seed);
+    return g.sample_iter(range).take(length).collect();
 }
 
 // TESTS
