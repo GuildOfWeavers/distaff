@@ -2,7 +2,8 @@
     "files.exclude": {
       "**/.git": true,
       ".gitignore": true,
-      ".gitattributes": true
+      ".gitattributes": true,
+      "Cargo.lock": true
     },
     "search.exclude": {
         "**/target": true

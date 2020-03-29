@@ -16,6 +16,7 @@ harness = false
 
 [dependencies]
 rand = "0.7.3"
+num_cpus = "1.12.0"
 
 [dev-dependencies]
 criterion = "0.3"
