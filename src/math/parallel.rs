@@ -1,17 +1,15 @@
 use crate::math::field;
 use std::sync::{ atomic::{AtomicU64, Ordering}, Arc };
 use std::thread;
-extern crate num_cpus;
 
 // MULTIPLICATION
 // ================================================================================================
 
-pub fn mul(a: &[u64], b: &[u64]) -> Vec<u64> {
+pub fn mul(a: &[u64], b: &[u64], num_threads: usize) -> Vec<u64> {
     let n = a.len();
-    assert!(n == b.len(), "number of values to multiply must be the same for both operands");
-    let cpu_num: usize = num_cpus::get();
-    assert!(n % cpu_num == 0, "number of values to multiply must be divisible by {}", cpu_num);
-    let batch_size = n / cpu_num;
+    assert!(n == b.len(), "number of values must be the same for both operands");
+    assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
+    let batch_size = n / num_threads;
 
     // create atomic references to both operands
     let a = Arc::new(unsafe { &*(a as *const _ as *const [AtomicU64]) });
@@ -48,12 +46,11 @@ pub fn mul(a: &[u64], b: &[u64]) -> Vec<u64> {
     return from_atomic(result);
 }
 
-pub fn mul_in_place(a: &[u64], b: &mut [u64]) {
+pub fn mul_in_place(a: &[u64], b: &mut [u64], num_threads: usize) {
     let n = a.len();
     assert!(n == b.len(), "number of values to multiply must be the same for both operands");
-    let cpu_num: usize = num_cpus::get();
-    assert!(n % cpu_num == 0, "number of values to multiply must be divisible by {}", cpu_num);
-    let batch_size = n / cpu_num;
+    assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
+    let batch_size = n / num_threads;
 
     // create atomic references to both operands
     let a = Arc::new(unsafe { &*(a as *const _ as *const [AtomicU64]) });
@@ -82,7 +79,6 @@ pub fn mul_in_place(a: &[u64], b: &mut [u64]) {
 
 // HELPER FUNCTIONS
 // ================================================================================================
-
 fn from_atomic(v: Vec<AtomicU64>) -> Vec<u64> {
     let mut v = std::mem::ManuallyDrop::new(v);
     let p = v.as_mut_ptr();
