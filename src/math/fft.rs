@@ -1,3 +1,4 @@
+use std::sync::{ atomic::{AtomicU64, Ordering}, Arc };
 use crossbeam_utils::thread;
 use crate::math::field;
 
@@ -53,12 +54,15 @@ pub fn fft_in_place2(values: &mut [u64], twiddles: &[u64], count: usize, stride:
         if stride == count && count < MAX_LOOP {
             fft_in_place2(values, twiddles, 2 * count, 2 * stride, offset, num_threads);
         } else if num_threads > 1 {
-            let handle = thread::scope(|s| {
+            let v = Arc::new(unsafe { &*(values as *const _ as *const [AtomicU64]) });
+            thread::scope(|s| {
                 //println!("starting new thread");
-                s.spawn(|_| fft_in_place2(values, twiddles, count, 2 * stride, offset, num_threads / 2));
-            });
-            fft_in_place2(values, twiddles, count, 2 * stride, offset + stride, num_threads / 2);
-            handle.unwrap();
+                let values_slice = unsafe { &mut *(&v[..] as *const _ as *mut [u64]) };
+                s.spawn(move |_| {
+                    fft_in_place2(values_slice, twiddles, count, 2 * stride, offset, num_threads / 2)
+                });
+                fft_in_place2(values, twiddles, count, 2 * stride, offset + stride, num_threads / 2);
+            }).unwrap();
         }
         else {
             fft_in_place2(values, twiddles, count, 2 * stride, offset, num_threads);
