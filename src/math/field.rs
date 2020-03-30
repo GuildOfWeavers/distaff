@@ -87,30 +87,34 @@ pub fn inv(x: u64) -> u64 {
 }
 
 /// Computes multiplicative inverses of all slice elements using batch inversion method.
-pub fn inv_many(v: &[u64]) -> Vec<u64> {
-    let mut result = Vec::with_capacity(v.len());
-    unsafe { result.set_len(v.len()); }
+pub fn inv_many(values: &[u64]) -> Vec<u64> {
+    let mut result = Vec::with_capacity(values.len());
+    unsafe { result.set_len(values.len()); }
+    inv_many_fill(values, &mut result);
+    return result;
+}
 
+/// Computes multiplicative inverses of all slice elements using batch inversion method
+/// and stores the result into the provided slice.
+pub fn inv_many_fill(values: &[u64], result: &mut [u64]) {
     let mut last = 1u64;
-    for i in 0..v.len() {
+    for i in 0..values.len() {
         result[i] = last;
-        if v[i] != 0 {
-            last = mul(last, v[i]);
+        if values[i] != 0 {
+            last = mul(last, values[i]);
         }
     }
 
     last = inv(last);
-    for i in (0..v.len()).rev() {
-        if v[i] == 0 {
+    for i in (0..values.len()).rev() {
+        if values[i] == 0 {
             result[i] = 0;
         }
         else {
             result[i] = mul(last, result[i]);
-            last = mul(last, v[i]);
+            last = mul(last, values[i]);
         }
     }
-
-    return result;
 }
 
 /// Computes y = (a / b) such that (b * y) % m = a; a and b are assumed to be valid field elements.
