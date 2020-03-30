@@ -1,10 +1,16 @@
 use std::time::{ Instant };
-use distaff::{ field, fft, polys, quartic };
-
-const N: usize = 10_000;
+use std::sync::atomic::{ AtomicU64, Ordering };
+use distaff::{ field, fft, polys, quartic, parallel, hash };
+extern crate num_cpus;
 
 fn main() {
 
+    let n: usize = 1 << 22;
+    //test_parallel_mul(n);
+    test_parallel_fft(n);
+    //test_parallel_inv(n);
+
+    /*
     let n: usize = 1 << 25;
     let r = field::get_root_of_unity(n as u64);
     let xs = field::get_power_series(r, n);
@@ -13,6 +19,7 @@ fn main() {
     let ys = quartic::evaluate_batch(&polys, &xs);
     let t = now.elapsed().as_millis();
     println!("Interpolated {} quartic polynomials in {} ms", ys.len() / 4, t);
+    */
 
     /*
     let n: usize = 1 << 21;
@@ -26,75 +33,146 @@ fn main() {
     println!("Interpolated {} quartic polynomials in {} ms", ps.len() / 4, t);
     */
 
-    /*
-    let ds: usize = 1 << 22;
-    let mut p = vec![0u64; ds];
-    math::rand_fill(&mut p);
-    let g = math::get_root_of_unity(ds as u64);
-    let twiddles = fft::get_twiddles(g, ds);
+    //fft::permute(&mut p);
+    //println!("{:?}", p);
+}
+
+
+fn test_parallel_mul(n: usize) {
+    let num_threads = num_cpus::get_physical();
+    println!("cores: {}, threads: {}", num_cpus::get_physical(), num_threads);
+
+    let x = field::rand_vector(n);
+    let y = field::rand_vector(n);
+    let mut z1 = vec![0u64; n];
+
+    let now = Instant::now();
+    for i in 0..n {
+        z1[i] = field::mul(x[i], y[i]);
+    }
+    let t = now.elapsed().as_millis();
+    println!("Multiplied {} values using one thread in {} ms", z1.len(), t);
+    
+    let now = Instant::now();
+    let z2 = parallel::mul(&x, &y, num_threads);
+    let t = now.elapsed().as_millis();
+    println!("Multiplied {} values using {} threads in {} ms", z2.len(), num_threads, t);
+
+    for i in 0..n {
+        assert_eq!(z1[i], z2[i]);
+    }
+}
+
+fn test_parallel_inv(n: usize) {
+    let num_threads = num_cpus::get_physical();
+    println!("cores: {}, threads: {}", num_cpus::get_physical(), num_threads);
+
+    let v = field::rand_vector(n);
+    let now = Instant::now();
+    let z1 = field::inv_many(&v);
+    let t = now.elapsed().as_millis();
+    println!("Inverted {} values using one thread in {} ms", z1.len(), t);
+
+    let now = Instant::now();
+    let z2 = parallel::inv(&v, num_threads);
+    let t = now.elapsed().as_millis();
+    println!("Inverted {} values using {} threads in {} ms", z2.len(), num_threads, t);
+
+    for i in 0..n {
+        assert_eq!(z1[i], z2[i]);
+    }
+}
+
+fn test_parallel_fft(n: usize) {
+    let p = field::rand_vector(n);
+    let g = field::get_root_of_unity(n as u64);
+    let twiddles = fft::get_twiddles(g, n);
+
+    let mut v1 = p.clone();
+    let now = Instant::now();
+    fft::fft_in_place(&mut v1, &twiddles, 1, 1, 0);
+    let t = now.elapsed().as_millis();
+    println!("computed FFT over {} values in {} ms", p.len(), t);
+
+    //let threads: usize = 1;
+    //let values = unsafe { &mut *((&p[..]) as *const _ as *mut [AtomicU64]) };
+    //let twiddles = unsafe { &*((&twiddles[..]) as *const _ as *const [AtomicU64]) };
+
+    let mut v2 = p.clone();
+    let now = Instant::now();
+    fft::fft_in_place2(&mut v2, &twiddles, 1, 1, 0, 1);
+    let t = now.elapsed().as_millis();
+    println!("computed FFT over {} values using {} threads in {} ms", p.len(), 1, t);
+    for i in 0..n { assert_eq!(v1[i], v2[i]); }
+
+    let mut v2 = p.clone();
+    let now = Instant::now();
+    fft::fft_in_place2(&mut v2, &twiddles, 1, 1, 0, 2);
+    let t = now.elapsed().as_millis();
+    println!("computed FFT over {} values using {} threads in {} ms", p.len(), 2, t);
+    for i in 0..n { assert_eq!(v1[i], v2[i]); }
+
+    let mut v2 = p.clone();
+    let now = Instant::now();
+    fft::fft_in_place2(&mut v2, &twiddles, 1, 1, 0, 4);
+    let t = now.elapsed().as_millis();
+    println!("computed FFT over {} values using {} threads in {} ms", p.len(), 4, t);
+    for i in 0..n { assert_eq!(v1[i], v2[i]); }
+
+    let mut v2 = p.clone();
+    let now = Instant::now();
+    fft::fft_in_place2(&mut v2, &twiddles, 1, 1, 0, 8);
+    let t = now.elapsed().as_millis();
+    println!("computed FFT over {} values using {} threads in {} ms", p.len(), 8, t);
+    for i in 0..n { assert_eq!(v1[i], v2[i]); }
+}
+
+fn test_fft(n: usize) {
+    let p = field::rand_vector(n);
+    let g = field::get_root_of_unity(n as u64);
+    let twiddles = fft::get_twiddles(g, n);
+
+    let mut v = p.clone();
+    let now = Instant::now();
+    fft::fft_in_place(&mut v, &twiddles, 1, 1, 0);
+    let t = now.elapsed().as_millis();
+    println!("computed FFT over {} values in {} ms", p.len(), t);
+}
+
+fn test_poly_eval_fft(n: usize) {
+
+    let mut p = field::rand_vector(n);
+    let g = field::get_root_of_unity(n as u64);
+    let twiddles = fft::get_twiddles(g, n);
 
     let now = Instant::now();
     polys::eval_fft_twiddles(&mut p, &twiddles, true);
     let t = now.elapsed().as_millis();
     println!("evaluated degree {} polynomial in {} ms", p.len(), t);
-    */
+}
 
-    /*
-    let p = [1u64, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-    let r = field::get_root_of_unity(16);
-    let twiddles = fft::get_twiddles(r, 16);
-    let mut v = p.clone();
-    polys::eval_fft_twiddles(&mut v, &twiddles, true);
-    println!("{:?}", v);
-
-    let mut p2 = v.clone();
-    polys::interpolate_fft(&mut p2, true);
-    println!("{:?}", p2);
-
-    let roots = field::get_power_series(r, 16);
-    let p3 = polys::interpolate(&roots, &v);
-    println!("{:?}", p3);
-    */
-
-    //fft::permute(&mut p);
-    //println!("{:?}", p);
-    
-
-    /*
-    let p = [384863712573444386u64, 7682273369345308472, 13294661765012277990];
-    let x = 11269864713250585702u64;
-    let y = polys::eval(&p, x);
-    println!("{}", y);
-    */
-
-    /*
-    let values = vec![42u64; 8 * N];
-    let mut result = vec![0u64; 4 * N];
+fn test_hash_functions(n: usize) {
+    let values = vec![42u64; 8 * n];
+    let mut result = vec![0u64; 4 * n];
 
     let now = Instant::now();
-    for i in 0..N {
+    for i in 0..n {
         hash::poseidon(&values[(i * 8)..(i * 8 + 8)], &mut result[(i * 4)..(i * 4 + 4)]);
     }
     let t = now.elapsed().as_millis();
-    println!("completed {} poseidon hashes in: {} ms", N, t);
+    println!("completed {} poseidon hashes in: {} ms", n, t);
 
     let now = Instant::now();
-    for i in 0..N {
+    for i in 0..n {
         hash::rescue(&values[(i * 8)..(i * 8 + 8)], &mut result[(i * 4)..(i * 4 + 4)]);
     }
     let t = now.elapsed().as_millis();
-    println!("completed {} rescue hashes in: {} ms", N, t);
+    println!("completed {} rescue hashes in: {} ms", n, t);
 
     let now = Instant::now();
-    for i in 0..N {
+    for i in 0..n {
         hash::gmimc(&values[(i * 8)..(i * 8 + 8)], &mut result[(i * 4)..(i * 4 + 4)]);
     }
     let t = now.elapsed().as_millis();
-    println!("completed {} GMiMC hashes in: {} ms", N, t);
-    */
-}
-
-fn test() -> Vec<i32> {
-    let result = vec![1, 2, 3];
-    return result;
+    println!("completed {} GMiMC hashes in: {} ms", n, t);
 }

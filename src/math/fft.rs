@@ -1,3 +1,4 @@
+use crossbeam_utils::thread;
 use crate::math::field;
 
 // CONSTANTS
@@ -25,6 +26,43 @@ pub fn fft_in_place(values: &mut [u64], twiddles: &[u64], count: usize, stride: 
         } else {
             fft_in_place(values, twiddles, count, 2 * stride, offset);
             fft_in_place(values, twiddles, count, 2 * stride, offset + stride);
+        }
+    }
+
+    for offset in offset..(offset + count) {
+        butterfly(values, offset, stride);
+    }
+
+    let last_offset = offset + size * stride;
+    for (i, offset) in (offset..last_offset).step_by(2 * stride).enumerate().skip(1) {
+        for j in offset..(offset + count) {
+            butterfly_twiddle(values, twiddles[i], j, stride);
+        }
+    }
+}
+
+pub fn fft_in_place2(values: &mut [u64], twiddles: &[u64], count: usize, stride: usize, offset: usize, num_threads: usize) {
+    
+    let size = values.len() / stride;
+    debug_assert!(size.is_power_of_two());
+    debug_assert!(offset < stride);
+    debug_assert_eq!(values.len() % size, 0);
+    
+    // Keep recursing until size is 2
+    if size > 2 {
+        if stride == count && count < MAX_LOOP {
+            fft_in_place2(values, twiddles, 2 * count, 2 * stride, offset, num_threads);
+        } else if num_threads > 1 {
+            let handle = thread::scope(|s| {
+                //println!("starting new thread");
+                s.spawn(|_| fft_in_place2(values, twiddles, count, 2 * stride, offset, num_threads / 2));
+            });
+            fft_in_place2(values, twiddles, count, 2 * stride, offset + stride, num_threads / 2);
+            handle.unwrap();
+        }
+        else {
+            fft_in_place2(values, twiddles, count, 2 * stride, offset, num_threads);
+            fft_in_place2(values, twiddles, count, 2 * stride, offset + stride, num_threads);
         }
     }
 
