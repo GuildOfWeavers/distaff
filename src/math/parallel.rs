@@ -14,13 +14,11 @@ pub fn add(a: &[u64], b: &[u64], num_threads: usize) -> Vec<u64> {
     let batch_size = n / num_threads;
 
     // create atomic references to both operands
-    let a = Arc::new(unsafe { &*(a as *const _ as *const [AtomicU64]) });
-    let b = Arc::new(unsafe { &*(b as *const _ as *const [AtomicU64]) });
+    let a = Arc::new(to_atomic(a));
+    let b = Arc::new(to_atomic(b));
 
     // create a vector to hold the result
-    let mut result: Vec<AtomicU64> = Vec::with_capacity(n);
-    unsafe { result.set_len(n); };
-    let result = Arc::new(result);
+    let result = Arc::new(atomic_result_vec(n));
 
     // add batches of values in separate threads
     let mut handles = vec![];
@@ -57,8 +55,8 @@ pub fn add_in_place(a: &[u64], b: &mut [u64], num_threads: usize) {
     let batch_size = n / num_threads;
 
     // create atomic references to both operands
-    let a = Arc::new(unsafe { &*(a as *const _ as *const [AtomicU64]) });
-    let b = Arc::new(unsafe { &*(b as *const _ as *const [AtomicU64]) });
+    let a = Arc::new(to_atomic(a));
+    let b = Arc::new(to_atomic(b));
 
     // multiply batches of values in separate threads
     let mut handles = vec![];
@@ -93,13 +91,11 @@ pub fn mul(a: &[u64], b: &[u64], num_threads: usize) -> Vec<u64> {
     let batch_size = n / num_threads;
 
     // create atomic references to both operands
-    let a = Arc::new(unsafe { &*(a as *const _ as *const [AtomicU64]) });
-    let b = Arc::new(unsafe { &*(b as *const _ as *const [AtomicU64]) });
+    let a = Arc::new(to_atomic(a));
+    let b = Arc::new(to_atomic(b));
 
     // create a vector to hold the result
-    let mut result: Vec<AtomicU64> = Vec::with_capacity(n);
-    unsafe { result.set_len(n); };
-    let result = Arc::new(result);
+    let result = Arc::new(atomic_result_vec(n));
 
     // multiply batches of values in separate threads
     let mut handles = vec![];
@@ -136,8 +132,8 @@ pub fn mul_in_place(a: &[u64], b: &mut [u64], num_threads: usize) {
     let batch_size = n / num_threads;
 
     // create atomic references to both operands
-    let a = Arc::new(unsafe { &*(a as *const _ as *const [AtomicU64]) });
-    let b = Arc::new(unsafe { &*(b as *const _ as *const [AtomicU64]) });
+    let a = Arc::new(to_atomic(a));
+    let b = Arc::new(to_atomic(b));
 
     // multiply batches of values in separate threads
     let mut handles = vec![];
@@ -171,12 +167,10 @@ pub fn inv(values: &[u64], num_threads: usize) -> Vec<u64> {
     let batch_size = n / num_threads;
 
     // create atomic references to the values
-    let values = Arc::new(unsafe { &*(values as *const _ as *const [AtomicU64]) });
+    let values = Arc::new(to_atomic(values));
 
     // create a vector to hold the result
-    let mut result: Vec<AtomicU64> = Vec::with_capacity(n);
-    unsafe { result.set_len(n); };
-    let result = Arc::new(result);
+    let result = Arc::new(atomic_result_vec(n));
 
     // break up the values into batches and invert each batch in a separate thread
     let mut handles = vec![];
@@ -205,12 +199,22 @@ pub fn inv(values: &[u64], num_threads: usize) -> Vec<u64> {
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn from_atomic(v: Vec<AtomicU64>) -> Vec<u64> {
-    let mut v = std::mem::ManuallyDrop::new(v);
+fn to_atomic<'a>(values: &[u64]) -> &'a [AtomicU64] {
+    return unsafe { &*(values as *const _ as *const [AtomicU64]) };
+}
+
+fn from_atomic(vector: Vec<AtomicU64>) -> Vec<u64> {
+    let mut v = std::mem::ManuallyDrop::new(vector);
     let p = v.as_mut_ptr();
     let len = v.len();
     let cap = v.capacity();
     return unsafe { Vec::from_raw_parts(p as *mut u64, len, cap) };
+}
+
+fn atomic_result_vec(n: usize) -> Vec<AtomicU64> {
+    let mut result: Vec<AtomicU64> = Vec::with_capacity(n);
+    unsafe { result.set_len(n); };
+    return result;
 }
 
 // TESTS
@@ -251,7 +255,8 @@ mod tests {
         }
 
         let mut z = y.clone();
-        assert_eq!(expected, super::add(&x, &mut z, num_threads));
+        super::add_in_place(&x, &mut z, num_threads);
+        assert_eq!(expected, z);
     }
 
     #[test]
@@ -286,7 +291,8 @@ mod tests {
         }
 
         let mut z = y.clone();
-        assert_eq!(expected, super::mul(&x, &mut z, num_threads));
+        super::mul_in_place(&x, &mut z, num_threads);
+        assert_eq!(expected, z);
     }
 
     #[test]

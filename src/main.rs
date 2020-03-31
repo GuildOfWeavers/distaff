@@ -1,5 +1,4 @@
 use std::time::{ Instant };
-use std::sync::atomic::{ AtomicU64, Ordering };
 use distaff::{ field, fft, polys, quartic, parallel, hash };
 extern crate num_cpus;
 
@@ -39,9 +38,7 @@ fn main() {
 
 
 fn test_parallel_mul(n: usize) {
-    let num_threads = num_cpus::get_physical();
-    println!("cores: {}, threads: {}", num_cpus::get_physical(), num_threads);
-
+            
     let x = field::rand_vector(n);
     let y = field::rand_vector(n);
     let mut z1 = vec![0u64; n];
@@ -51,15 +48,25 @@ fn test_parallel_mul(n: usize) {
         z1[i] = field::mul(x[i], y[i]);
     }
     let t = now.elapsed().as_millis();
-    println!("Multiplied {} values using one thread in {} ms", z1.len(), t);
+    println!("Multiplied {} values in {} ms", z1.len(), t);
     
-    let now = Instant::now();
-    let z2 = parallel::mul(&x, &y, num_threads);
-    let t = now.elapsed().as_millis();
-    println!("Multiplied {} values using {} threads in {} ms", z2.len(), num_threads, t);
+    for i in 0..4 {
+        let num_threads = usize::pow(2, i);
+        let now = Instant::now();
+        let z2 = parallel::mul(&x, &y, num_threads);
+        let t = now.elapsed().as_millis();
+        println!("Multiplied {} values using {} threads in {} ms", z2.len(), num_threads, t);
+        for i in 0..n { assert_eq!(z1[i], z2[i]); }
+    }
 
-    for i in 0..n {
-        assert_eq!(z1[i], z2[i]);
+    for i in 0..4 {
+        let num_threads = usize::pow(2, i);
+        let mut z2 = y.clone();
+        let now = Instant::now();
+        parallel::mul_in_place(&x, &mut z2, num_threads);
+        let t = now.elapsed().as_millis();
+        println!("Multiplied {} values in place using {} threads in {} ms", z2.len(), num_threads, t);
+        for i in 0..n { assert_eq!(z1[i], z2[i]); }
     }
 }
 
@@ -94,37 +101,15 @@ fn test_parallel_fft(n: usize) {
     let t = now.elapsed().as_millis();
     println!("computed FFT over {} values in {} ms", p.len(), t);
 
-    //let threads: usize = 1;
-    //let values = unsafe { &mut *((&p[..]) as *const _ as *mut [AtomicU64]) };
-    //let twiddles = unsafe { &*((&twiddles[..]) as *const _ as *const [AtomicU64]) };
-
-    let mut v2 = p.clone();
-    let now = Instant::now();
-    fft::fft_in_place2(&mut v2, &twiddles, 1, 1, 0, 1);
-    let t = now.elapsed().as_millis();
-    println!("computed FFT over {} values using {} threads in {} ms", p.len(), 1, t);
-    for i in 0..n { assert_eq!(v1[i], v2[i]); }
-
-    let mut v2 = p.clone();
-    let now = Instant::now();
-    fft::fft_in_place2(&mut v2, &twiddles, 1, 1, 0, 2);
-    let t = now.elapsed().as_millis();
-    println!("computed FFT over {} values using {} threads in {} ms", p.len(), 2, t);
-    for i in 0..n { assert_eq!(v1[i], v2[i]); }
-
-    let mut v2 = p.clone();
-    let now = Instant::now();
-    fft::fft_in_place2(&mut v2, &twiddles, 1, 1, 0, 4);
-    let t = now.elapsed().as_millis();
-    println!("computed FFT over {} values using {} threads in {} ms", p.len(), 4, t);
-    for i in 0..n { assert_eq!(v1[i], v2[i]); }
-
-    let mut v2 = p.clone();
-    let now = Instant::now();
-    fft::fft_in_place2(&mut v2, &twiddles, 1, 1, 0, 8);
-    let t = now.elapsed().as_millis();
-    println!("computed FFT over {} values using {} threads in {} ms", p.len(), 8, t);
-    for i in 0..n { assert_eq!(v1[i], v2[i]); }
+    for i in 0..4 {
+        let num_threads = usize::pow(2, i);
+        let mut v2 = p.clone();
+        let now = Instant::now();
+        fft::fft_in_place2(&mut v2, &twiddles, 1, 1, 0, num_threads);
+        let t = now.elapsed().as_millis();
+        println!("computed FFT over {} values using {} threads in {} ms", p.len(), num_threads, t);
+        for i in 0..n { assert_eq!(v1[i], v2[i]); }
+    }
 }
 
 fn test_fft(n: usize) {
