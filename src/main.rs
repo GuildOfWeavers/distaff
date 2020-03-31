@@ -4,7 +4,7 @@ extern crate num_cpus;
 
 fn main() {
 
-    let n: usize = 1 << 22;
+    let n: usize = 1 << 25;
     //test_parallel_mul(n);
     test_parallel_fft(n);
     //test_parallel_inv(n);
