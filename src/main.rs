@@ -4,7 +4,7 @@ extern crate num_cpus;
 
 fn main() {
 
-    let n: usize = 1 << 25;
+    let n: usize = 1 << 16;
     //test_parallel_mul(n);
     test_parallel_fft(n);
     //test_parallel_inv(n);
@@ -97,7 +97,7 @@ fn test_parallel_fft(n: usize) {
 
     let mut v1 = p.clone();
     let now = Instant::now();
-    fft::fft_in_place(&mut v1, &twiddles, 1, 1, 0);
+    fft::fft_in_place(&mut v1, &twiddles, 1, 1, 0, 1);
     let t = now.elapsed().as_millis();
     println!("computed FFT over {} values in {} ms", p.len(), t);
 
@@ -105,7 +105,7 @@ fn test_parallel_fft(n: usize) {
         let num_threads = usize::pow(2, i);
         let mut v2 = p.clone();
         let now = Instant::now();
-        fft::fft_in_place2(&mut v2, &twiddles, 1, 1, 0, num_threads);
+        fft::fft_in_place(&mut v2, &twiddles, 1, 1, 0, num_threads);
         let t = now.elapsed().as_millis();
         println!("computed FFT over {} values using {} threads in {} ms", p.len(), num_threads, t);
         for i in 0..n { assert_eq!(v1[i], v2[i]); }
@@ -119,7 +119,7 @@ fn test_fft(n: usize) {
 
     let mut v = p.clone();
     let now = Instant::now();
-    fft::fft_in_place(&mut v, &twiddles, 1, 1, 0);
+    fft::fft_in_place(&mut v, &twiddles, 1, 1, 0, 1);
     let t = now.elapsed().as_millis();
     println!("computed FFT over {} values in {} ms", p.len(), t);
 }

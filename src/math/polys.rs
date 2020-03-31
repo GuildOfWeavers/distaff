@@ -31,7 +31,8 @@ pub fn eval_fft(p: &mut [u64], unpermute: bool) {
 /// If `unpermute` parameter is set to false, the evaluations will be left in permuted state.
 pub fn eval_fft_twiddles(p: &mut [u64], twiddles: &[u64], unpermute: bool) {
     debug_assert!(p.len() == twiddles.len() * 2, "Invalid number of twiddles");
-    fft::fft_in_place(p, &twiddles, 1, 1, 0);
+    // TODO: don't hard-code num_threads
+    fft::fft_in_place(p, &twiddles, 1, 1, 0, 1);
     if unpermute {
         fft::permute(p);
     }
@@ -88,7 +89,8 @@ pub fn interpolate_fft(v: &mut [u64], unpermute: bool) {
 /// 
 /// If `unpermute` parameter is set to false, the evaluations will be left in permuted state.
 pub fn interpolate_fft_twiddles(v: &mut [u64], twiddles: &[u64], unpermute: bool) {
-    fft::fft_in_place(v, &twiddles, 1, 1, 0);
+    // TODO: don't hard-code num_threads
+    fft::fft_in_place(v, &twiddles, 1, 1, 0, 1);
     let inv_length = field::inv(v.len() as u64);
     for e in v.iter_mut() {
         *e = field::mul(*e, inv_length);

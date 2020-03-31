@@ -9,39 +9,11 @@ const MAX_LOOP: usize = 256;
 // PUBLIC FUNCTIONS
 // ================================================================================================
 
-/// In-place recursive FFT with permuted output.
+/// In-place recursive FFT with permuted output. If `num_threads` is > 1, the computation is
+/// performed in multiple threads. Number of threads must be a power of 2.
 /// 
 /// Adapted from: https://github.com/0xProject/OpenZKP/tree/master/algebra/primefield/src/fft
-pub fn fft_in_place(values: &mut [u64], twiddles: &[u64], count: usize, stride: usize, offset: usize) {
-    
-    let size = values.len() / stride;
-    debug_assert!(size.is_power_of_two());
-    debug_assert!(offset < stride);
-    debug_assert_eq!(values.len() % size, 0);
-    
-    // Keep recursing until size is 2
-    if size > 2 {
-        if stride == count && count < MAX_LOOP {
-            fft_in_place(values, twiddles, 2 * count, 2 * stride, offset);
-        } else {
-            fft_in_place(values, twiddles, count, 2 * stride, offset);
-            fft_in_place(values, twiddles, count, 2 * stride, offset + stride);
-        }
-    }
-
-    for offset in offset..(offset + count) {
-        butterfly(values, offset, stride);
-    }
-
-    let last_offset = offset + size * stride;
-    for (i, offset) in (offset..last_offset).step_by(2 * stride).enumerate().skip(1) {
-        for j in offset..(offset + count) {
-            butterfly_twiddle(values, twiddles[i], j, stride);
-        }
-    }
-}
-
-pub fn fft_in_place2(values: &mut [u64], twiddles: &[u64], count: usize, stride: usize, offset: usize, num_threads: usize) {
+pub fn fft_in_place(values: &mut [u64], twiddles: &[u64], count: usize, stride: usize, offset: usize, num_threads: usize) {
     
     let size = values.len() / stride;
     debug_assert!(size.is_power_of_two());
@@ -52,19 +24,22 @@ pub fn fft_in_place2(values: &mut [u64], twiddles: &[u64], count: usize, stride:
     // Keep recursing until size is 2
     if size > 2 {
         if stride == count && count < MAX_LOOP {
-            fft_in_place2(values, twiddles, 2 * count, 2 * stride, offset, num_threads);
+            fft_in_place(values, twiddles, 2 * count, 2 * stride, offset, num_threads);
         } else if num_threads > 1 {
+            // run half of FFT in the current thread, and spin up a new thread for the other half
             thread::scope(|s| {
+                // get another mutable reference to values to be used inside the new thread;
+                // this is OK because halves of FFT don't step on each other
                 let values2 = unsafe { &mut *(values as *mut [u64]) };
                 s.spawn(move |_| {
-                    fft_in_place2(values2, twiddles, count, 2 * stride, offset, num_threads / 2);
+                    fft_in_place(values2, twiddles, count, 2 * stride, offset, num_threads / 2);
                 });
-                fft_in_place2(values, twiddles, count, 2 * stride, offset + stride, num_threads / 2);
+                fft_in_place(values, twiddles, count, 2 * stride, offset + stride, num_threads / 2);
             }).unwrap();
         }
         else {
-            fft_in_place2(values, twiddles, count, 2 * stride, offset, num_threads);
-            fft_in_place2(values, twiddles, count, 2 * stride, offset + stride, num_threads);
+            fft_in_place(values, twiddles, count, 2 * stride, offset, num_threads);
+            fft_in_place(values, twiddles, count, 2 * stride, offset + stride, num_threads);
         }
     }
 
@@ -145,7 +120,7 @@ mod tests {
         let g = field::get_root_of_unity(4);
         let twiddles = super::get_twiddles(g, 4);
         let expected = vec![ 10, 7428598796440720870, 18446743880436023295, 11018145083995302423 ];
-        super::fft_in_place(&mut p, &twiddles, 1, 1, 0);
+        super::fft_in_place(&mut p, &twiddles, 1, 1, 0, 1);
         super::permute(&mut p);
         assert_eq!(expected, p);
 
@@ -157,7 +132,7 @@ mod tests {
                               36, 15351167094271246394, 14857197592881441740, 4083515788944386203,
             18446743880436023293, 14363228091491637086,  3589546287554581549, 3095576786164776895
         ];
-        super::fft_in_place(&mut p, &twiddles, 1, 1, 0);
+        super::fft_in_place(&mut p, &twiddles, 1, 1, 0, 1);
         super::permute(&mut p);
         assert_eq!(expected, p);
 
@@ -171,7 +146,7 @@ mod tests {
             18446743880436023289,  5088616106422431903, 10279712302547250875,  9293637913703561373,
              7179092575109163098, 11406318638362039842,  6191153572329553790, 17470923251081539499
         ];
-        super::fft_in_place(&mut p, &twiddles, 1, 1, 0);
+        super::fft_in_place(&mut p, &twiddles, 1, 1, 0, 1);
         super::permute(&mut p);
         assert_eq!(expected, p);
 
@@ -181,7 +156,7 @@ mod tests {
         let roots = field::get_power_series(g, 1024);
         let expected = roots.iter().map(|x| polys::eval(&p, *x)).collect::<Vec<u64>>();
         let twiddles = super::get_twiddles(g, 1024);
-        super::fft_in_place(&mut p, &twiddles, 1, 1, 0);
+        super::fft_in_place(&mut p, &twiddles, 1, 1, 0, 1);
         super::permute(&mut p);
         assert_eq!(expected, p);
     }

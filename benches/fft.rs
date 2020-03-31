@@ -9,7 +9,7 @@ pub fn fft_in_place(c: &mut Criterion) {
     let twiddles = fft::get_twiddles(r, size);
 
     c.bench_function("FFT (in-place)", |bench| {
-        bench.iter(|| fft::fft_in_place(black_box(&mut values), black_box(&twiddles), black_box(1), black_box(1), black_box(0)))
+        bench.iter(|| fft::fft_in_place(black_box(&mut values), black_box(&twiddles), black_box(1), black_box(1), black_box(0), black_box(1)))
     });
 }
 
