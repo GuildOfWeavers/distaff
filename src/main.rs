@@ -1,13 +1,14 @@
 use std::time::{ Instant };
-use distaff::{ field, fft, polys, quartic, parallel, hash };
+use distaff::{ field, fft, polys, quartic, parallel, hash, MerkleTree };
 extern crate num_cpus;
 
 fn main() {
 
-    let n: usize = 1 << 16;
+    let n: usize = 1 << 22;
     //test_parallel_mul(n);
-    test_parallel_fft(n);
+    //test_parallel_fft(n);
     //test_parallel_inv(n);
+    test_merkle_tree(n);
 
     /*
     let n: usize = 1 << 25;
@@ -36,6 +37,40 @@ fn main() {
     //println!("{:?}", p);
 }
 
+fn test_merkle_tree(n: usize) {
+    let leaves = field::rand_vector(n);
+    /*
+    let leaves = vec![
+        6240958401110583462u64,  7913251457734141410, 10424272014552449446,  8926189284258310218,
+          16554193988646091251, 18107256576288978408,  9223357806195242659,  7591105067405469359,
+          11143668108497789195,  3289331174328174429, 18085733244798495096, 16874288619384630339,
+          13458213771757530415, 15574026171644776407,  2236303685881236230, 16652047415881651529
+    ];
+    let leaves = vec![
+        10241768711231905139u64, 9543515656056738355, 3787122002184510141, 9354315911492805116,
+           14373792471285313076, 10259803863341799909, 4361913119464376502, 14664313136545201958,
+           10131098303839284098, 5921316728206729490, 10334290713044556732, 8643164606753777491,
+            3453858615599341263, 17558389957719367849, 9827054574735249697, 8012452355193068045,
+            9196785718850699443, 6184806869699853092, 1586592971438511472, 555830527090219830,
+            9952908082911899749, 3740909091289176615, 284496432800007785, 12636108119248205469,
+           15468185072990248985, 9202716477534013353, 15320321401254534633, 9244660312647244009,
+           13492130182068317175, 11411250703184174957, 5614217056664461616, 12322142689514354888
+    ];
+    */
+    let index: usize = 3;
+    //println!("leaves: {:?}", leaves);
+    //println!("----------");
+    let now = Instant::now();
+    let tree = MerkleTree::new(leaves, hash::gmimc);
+    let t = now.elapsed().as_millis();
+    println!("Merkle tree of {} nodes built in {} ms", n / 4, t);
+    println!("----------");
+    let proof = tree.prove(index);
+    //println!("proof: {:?}", proof);
+    //println!("----------");
+    let result = MerkleTree::verify(tree.root(), index, &proof, hash::gmimc);
+    println!("{}", result);
+}
 
 fn test_parallel_mul(n: usize) {
             
