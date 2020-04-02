@@ -89,7 +89,7 @@ impl MerkleTree {
 
         // add required internal nodes to the proof, skipping redundancies
         let depth = self.values.len().trailing_zeros();
-        for _ in (1..depth).rev() {
+        for _ in 1..depth {
             let indexes = next_indexes.clone();
             next_indexes.truncate(0);
 
@@ -154,32 +154,40 @@ impl MerkleTree {
         let mut next_indexes: Vec<usize> = Vec::new();
         let mut proof_pointers: Vec<usize> = Vec::with_capacity(indexes.len());
         for (i, index) in indexes.into_iter().enumerate() {
-
-            let input_index1 = index_map.get(&index);
-            let input_index2 = index_map.get(&(index + 1));
-
-            if input_index1.is_some() {
-                if input_index2.is_some() {
-                    &buf[0..4].copy_from_slice(&proof.values[*input_index1.unwrap()]);
-                    &buf[4..8].copy_from_slice(&proof.values[*input_index2.unwrap()]);
-                    proof_pointers.push(0);
-                }
-                else {
-                    &buf[0..4].copy_from_slice(&proof.values[*input_index1.unwrap()]);
-                    &buf[4..8].copy_from_slice(&proof.nodes[i][0]);
+            // copy values of leaf sibling leaf nodes into the buffer
+            match index_map.get(&index) {
+                Some(&index1) => {
+                    &buf[0..4].copy_from_slice(&proof.values[index1]);
+                    match index_map.get(&(index + 1)) {
+                        Some(&index2) => {
+                            &buf[4..8].copy_from_slice(&proof.values[index2]);
+                            proof_pointers.push(0);
+                        },
+                        None => {
+                            if proof.nodes[i].len() < 1 { return false }
+                            &buf[4..8].copy_from_slice(&proof.nodes[i][0]);
+                            proof_pointers.push(1);
+                        }
+                    }
+                },
+                None => {
+                    if proof.nodes[i].len() < 1 { return false }
+                    &buf[0..4].copy_from_slice(&proof.nodes[i][0]);
+                    match index_map.get(&(index + 1)) {
+                        Some(&index2) => {
+                            &buf[4..8].copy_from_slice(&proof.values[index2]);
+                        },
+                        None => return false
+                    }
                     proof_pointers.push(1);
                 }
             }
-            else {
-                &buf[0..4].copy_from_slice(&proof.nodes[i][0]);
-                &buf[4..8].copy_from_slice(&proof.values[*input_index2.unwrap()]);
-                proof_pointers.push(1);
-            }
 
+            // hash sibling nodes into their parent
             let mut parent = [0u64; 4];
             hash(&buf, &mut parent);
-            let parent_index = offset + index >> 1;
 
+            let parent_index = offset + index >> 1;
             v.insert(parent_index, parent);
             next_indexes.push(parent_index);
         }
@@ -189,37 +197,46 @@ impl MerkleTree {
             let indexes = next_indexes.clone();
             next_indexes.truncate(0);
 
-            let mut sibling = [0u64; 4];
             let mut i = 0;
             while i < indexes.len() {
                 let node_index = indexes[i];
                 let sibling_index = node_index ^ 1;
 
+                // determine the sibling
+                let sibling: &[u64; 4];
                 if i + 1 < indexes.len() && indexes[i + 1] == sibling_index {
-                    sibling = *v.get(&sibling_index).unwrap();
+                    sibling = match v.get(&sibling_index) {
+                        Some(sibling) => sibling,
+                        None => return false
+                    };
                     i += 1;
                 }
                 else {
                     let pointer = proof_pointers[i];
-                    sibling = proof.nodes[i][pointer];
+                    if proof.nodes[i].len() < pointer { return false }
+                    sibling = &proof.nodes[i][pointer];
                     proof_pointers[i] += 1;
                 }
 
-                // get the node
-                let node = v.get(&node_index).unwrap();
+                // get the node from the map of hashed nodes
+                let node = match v.get(&node_index) {
+                    Some(node) => node,
+                    None => return false
+                };
 
-                // compute parent node and add it to the next set of nodes
+                // compute parent node from node and sibling
                 if node_index & 1 != 0 {
-                    &buf[0..4].copy_from_slice(&sibling);
+                    &buf[0..4].copy_from_slice(sibling);
                     &buf[4..8].copy_from_slice(node);
                 }
                 else {
                     &buf[0..4].copy_from_slice(node);
-                    &buf[4..8].copy_from_slice(&sibling);
+                    &buf[4..8].copy_from_slice(sibling);
                 }
-
                 let mut parent = [0u64; 4];
                 hash(&buf, &mut parent);
+
+                // add the parent node to the next set of nodes
                 let parent_index = node_index >> 1;
                 v.insert(parent_index, parent);
                 next_indexes.push(parent_index);
@@ -274,10 +291,10 @@ fn map_indexes(indexes: &[usize], max_valid: usize) -> HashMap<usize, usize> {
 
 fn normalize_indexes(indexes: &[usize]) -> Vec<usize> {
     let mut set = BTreeSet::new();
-    for index in indexes {
+    for &index in indexes {
         set.insert(index - (index & 1));
     }
-    return set.iter().cloned().collect();
+    return set.into_iter().collect();
 }
 
 // TESTS
@@ -378,5 +395,95 @@ mod tests {
 
         let proof = tree.prove(6);
         assert_eq!(true, super::MerkleTree::verify(tree.root(), 6, &proof, hash::poseidon));
+    }
+
+    #[test]
+    fn prove_batch() {
+        let leaves = LEAVES8.to_vec();
+        let tree = super::MerkleTree::new(leaves, hash::poseidon);
+        
+        // 1 index
+        let proof = tree.prove_batch(&[1]);
+        let expected_values = vec![
+            [14373792471285313076u64, 10259803863341799909,  4361913119464376502, 14664313136545201958]
+        ];
+        let expected_nodes = vec![
+            vec![
+                [10241768711231905139u64, 9543515656056738355, 3787122002184510141,  9354315911492805116],
+                [      44908261164380711, 3641300267207966756, 9037481878828096793,  1015347137991923011],
+                [   10450220324776338674, 4170064214771947868, 3580214161055284290, 10659497852322269609]
+            ]
+        ];
+        assert_eq!(expected_values, proof.values);
+        assert_eq!(expected_nodes, proof.nodes);
+        assert_eq!(3, proof.depth);
+
+        // 2 indexes
+        let proof = tree.prove_batch(&[1, 2]);
+        let expected_values = vec![
+            [14373792471285313076u64, 10259803863341799909,  4361913119464376502, 14664313136545201958],
+            [   10131098303839284098,  5921316728206729490, 10334290713044556732,  8643164606753777491]
+        ];
+        let expected_nodes = vec![
+            vec![
+                [10241768711231905139u64, 9543515656056738355, 3787122002184510141,  9354315911492805116],
+                [   10450220324776338674, 4170064214771947868, 3580214161055284290, 10659497852322269609]
+            ],
+            vec![
+                [    3453858615599341263, 17558389957719367849, 9827054574735249697, 8012452355193068045]
+            ]
+        ];
+        assert_eq!(expected_values, proof.values);
+        assert_eq!(expected_nodes, proof.nodes);
+        assert_eq!(3, proof.depth);
+
+        // 2 indexes on opposite sides
+        let proof = tree.prove_batch(&[1, 6]);
+        let expected_values = vec![
+            [14373792471285313076u64, 10259803863341799909,  4361913119464376502, 14664313136545201958],
+            [   15468185072990248985,  9202716477534013353, 15320321401254534633,  9244660312647244009]
+        ];
+        let expected_nodes = vec![
+            vec![
+                [10241768711231905139u64, 9543515656056738355, 3787122002184510141,  9354315911492805116],
+                [      44908261164380711, 3641300267207966756, 9037481878828096793,  1015347137991923011]
+            ],
+            vec![
+                [   13492130182068317175, 11411250703184174957, 5614217056664461616, 12322142689514354888],
+                [    4955870195980606083, 11478659773640590941, 5548116754451226534, 14304409171415235034]
+            ]
+        ];
+        assert_eq!(expected_values, proof.values);
+        assert_eq!(expected_nodes, proof.nodes);
+        assert_eq!(3, proof.depth);
+
+        // all indexes
+        let proof = tree.prove_batch(&[0, 1, 2, 3, 4, 5, 6, 7]);
+        let expected_values = LEAVES8.to_vec();
+        let expected_nodes: Vec<Vec<[u64; 4]>> = vec![ vec![], vec![], vec![], vec![]];
+        assert_eq!(expected_values, proof.values);
+        assert_eq!(expected_nodes, proof.nodes);
+        assert_eq!(3, proof.depth);
+    }
+
+    #[test]
+    fn verify_batch() {
+        let leaves = LEAVES8.to_vec();
+        let tree = super::MerkleTree::new(leaves, hash::poseidon);
+
+        let proof = tree.prove_batch(&[1]);
+        assert_eq!(true, super::MerkleTree::verify_batch(tree.root(), &[1], &proof, hash::poseidon));
+
+        let proof = tree.prove_batch(&[1, 2]);
+        assert_eq!(true, super::MerkleTree::verify_batch(tree.root(), &[1, 2], &proof, hash::poseidon));
+
+        let proof = tree.prove_batch(&[1, 6]);
+        assert_eq!(true, super::MerkleTree::verify_batch(tree.root(), &[1, 6], &proof, hash::poseidon));
+
+        let proof = tree.prove_batch(&[1, 3, 6]);
+        assert_eq!(true, super::MerkleTree::verify_batch(tree.root(), &[1, 3, 6], &proof, hash::poseidon));
+
+        let proof = tree.prove_batch(&[0, 1, 2, 3, 4, 5, 6, 7]);
+        assert_eq!(true, super::MerkleTree::verify_batch(tree.root(), &[0, 1, 2, 3, 4, 5, 6, 7], &proof, hash::poseidon));
     }
 }
