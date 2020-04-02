@@ -21,9 +21,10 @@ type HashFunction = fn(&[u64], &mut [u64]);
 // ================================================================================================
 impl MerkleTree {
 
+    /// Creates a new merkle tree from the provide leaves and using the provided hash function.
     pub fn new(leaves: Vec<[u64; 4]>, hash: HashFunction) -> MerkleTree {
         assert!(leaves.len().is_power_of_two(), "number of leaves must be a power of 2");
-        assert!(leaves.len() >= 2, "a tree must consist of at least 2 leaves");
+        assert!(leaves.len() >= 2, "a tree must contain at least 2 leaves");
 
         let nodes = build_merkle_nodes(&leaves, hash);
         return MerkleTree {
@@ -32,11 +33,14 @@ impl MerkleTree {
         };
     }
 
+    /// Returns the root of the tree
     pub fn root(&self) -> &[u64; 4] {
         return &self.nodes[1];
     }
 
+    /// Computes merkle path the given leaf index.
     pub fn prove(&self, index: usize) -> Vec<[u64; 4]> {
+        assert!(index < self.values.len(), "invalid index {}", index);
 
         let mut proof = Vec::new();
         proof.push(self.values[index]);
@@ -51,6 +55,7 @@ impl MerkleTree {
         return proof;
     }
 
+    /// Computes merkle paths for the provided indexes and compresses the paths into a single proof.
     pub fn prove_batch(&self, indexes: &[usize]) -> BatchMerkleProof {
         let n = self.values.len();
 
@@ -113,7 +118,7 @@ impl MerkleTree {
         return BatchMerkleProof { values, nodes, depth };
     }
 
-
+    /// Checks whether the path for the specified index is valid.
     pub fn verify(root: &[u64; 4], index: usize, proof: &[[u64; 4]], hash: HashFunction) -> bool {
         let mut buf = [0u64; 8];
         let mut v = [0u64; 4];
@@ -140,6 +145,7 @@ impl MerkleTree {
         return v == *root;
     }
 
+    /// Checks whether the batch proof contains merkle paths for the of the specified indexes.
     pub fn verify_batch(root: &[u64; 4], indexes: &[usize], proof: &BatchMerkleProof, hash: HashFunction) -> bool {
         let mut buf = [0u64; 8];
         let mut v: HashMap<usize, [u64; 4]> = HashMap::new();
@@ -157,9 +163,11 @@ impl MerkleTree {
             // copy values of leaf sibling leaf nodes into the buffer
             match index_map.get(&index) {
                 Some(&index1) => {
+                    if proof.values.len() <= index1 { return false }
                     &buf[0..4].copy_from_slice(&proof.values[index1]);
                     match index_map.get(&(index + 1)) {
                         Some(&index2) => {
+                            if proof.values.len() <= index2 { return false }
                             &buf[4..8].copy_from_slice(&proof.values[index2]);
                             proof_pointers.push(0);
                         },
@@ -175,6 +183,7 @@ impl MerkleTree {
                     &buf[0..4].copy_from_slice(&proof.nodes[i][0]);
                     match index_map.get(&(index + 1)) {
                         Some(&index2) => {
+                            if proof.values.len() <= index2 { return false }
                             &buf[4..8].copy_from_slice(&proof.values[index2]);
                         },
                         None => return false
@@ -213,7 +222,7 @@ impl MerkleTree {
                 }
                 else {
                     let pointer = proof_pointers[i];
-                    if proof.nodes[i].len() < pointer { return false }
+                    if proof.nodes[i].len() <= pointer { return false }
                     sibling = &proof.nodes[i][pointer];
                     proof_pointers[i] += 1;
                 }
@@ -473,9 +482,13 @@ mod tests {
 
         let proof = tree.prove_batch(&[1]);
         assert_eq!(true, super::MerkleTree::verify_batch(tree.root(), &[1], &proof, hash::poseidon));
+        assert_eq!(false, super::MerkleTree::verify_batch(tree.root(), &[2], &proof, hash::poseidon));
 
         let proof = tree.prove_batch(&[1, 2]);
         assert_eq!(true, super::MerkleTree::verify_batch(tree.root(), &[1, 2], &proof, hash::poseidon));
+        assert_eq!(false, super::MerkleTree::verify_batch(tree.root(), &[1], &proof, hash::poseidon));
+        assert_eq!(false, super::MerkleTree::verify_batch(tree.root(), &[1, 3], &proof, hash::poseidon));
+        assert_eq!(false, super::MerkleTree::verify_batch(tree.root(), &[1, 2, 3], &proof, hash::poseidon));
 
         let proof = tree.prove_batch(&[1, 6]);
         assert_eq!(true, super::MerkleTree::verify_batch(tree.root(), &[1, 6], &proof, hash::poseidon));

@@ -13,7 +13,7 @@ pub fn evaluate_quartic_batch(c: &mut Criterion) {
     let n: usize = 1 << 10;
     let r = field::get_root_of_unity(n as u64);
     let xs = field::get_power_series(r, n);
-    let polys = field::rand_vector(n * 4);
+    let polys = quartic::to_quartic_vec(field::rand_vector(n * 4));
     c.bench_function("Poly evaluation (quartic batch)", |bench| {
         bench.iter(|| quartic::evaluate_batch(black_box(&polys), black_box(&xs)))
     });
@@ -22,8 +22,8 @@ pub fn evaluate_quartic_batch(c: &mut Criterion) {
 pub fn interpolate_quartic_batch(c: &mut Criterion) {
     let n: usize = 1 << 10;
     let r = field::get_root_of_unity((n * 4) as u64);
-    let xs = field::get_power_series(r, n * 4);
-    let ys = field::rand_vector(n * 4);
+    let xs = quartic::to_quartic_vec(field::get_power_series(r, n * 4));
+    let ys = quartic::to_quartic_vec(field::rand_vector(n * 4));
     c.bench_function("Poly interpolation (quartic batch)", |bench| {
         bench.iter(|| quartic::interpolate_batch(black_box(&xs), black_box(&ys)))
     });

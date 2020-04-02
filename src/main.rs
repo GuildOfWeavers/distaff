@@ -4,7 +4,7 @@ extern crate num_cpus;
 
 fn main() {
 
-    let n: usize = 1 << 22;
+    let n: usize = 1 << 20;
     //test_parallel_mul(n);
     //test_parallel_fft(n);
     //test_parallel_inv(n);
@@ -38,19 +38,20 @@ fn main() {
 }
 
 fn test_merkle_tree(n: usize) {
-    let leaves = field::rand_vector(n);
-    let index: usize = 3;
+    let leaves = quartic::to_quartic_vec(field::rand_vector(n));
+    //let index: usize = 3;
     //println!("leaves: {:?}", leaves);
     //println!("----------");
     let now = Instant::now();
-    let tree = MerkleTree::new(to_quartic_vec(leaves), hash::gmimc);
+    let tree = MerkleTree::new(leaves, hash::gmimc);
     let t = now.elapsed().as_millis();
     println!("Merkle tree of {} nodes built in {} ms", n / 4, t);
     println!("----------");
-    let proof = tree.prove(index);
+    let proof = tree.prove_batch(&[1, 2]);
     //println!("proof: {:?}", proof);
-    //println!("----------");
-    let result = MerkleTree::verify(tree.root(), index, &proof, hash::gmimc);
+    println!("----------");
+    //let result = MerkleTree::verify(tree.root(), index, &proof, hash::gmimc);
+    let result = MerkleTree::verify_batch(tree.root(), &[1, 2], &proof, hash::gmimc);
     println!("{}", result);
 }
 
@@ -177,14 +178,4 @@ fn test_hash_functions(n: usize) {
     }
     let t = now.elapsed().as_millis();
     println!("completed {} GMiMC hashes in: {} ms", n, t);
-}
-
-// HELPER FUNCTIONS
-// ================================================================================================
-fn to_quartic_vec(vector: Vec<u64>) -> Vec<[u64; 4]> {
-    let mut v = std::mem::ManuallyDrop::new(vector);
-    let p = v.as_mut_ptr();
-    let len = v.len() / 4;
-    let cap = v.capacity() / 4;
-    return unsafe { Vec::from_raw_parts(p as *mut [u64; 4], len, cap) };
 }
