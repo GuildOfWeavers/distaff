@@ -1,4 +1,8 @@
+use std::slice;
 use crate::math::field;
+
+// CONSTANTS
+// ================================================================================================
 
 // Exponents for S-BOX (Poseidon, Rescue, GMiMC) and inverse S-BOX (rescue)
 const ALPHA: u64 = 3;
@@ -75,7 +79,8 @@ const ARK: [u64; 576] = [
 // ------------------------------------------------------------------------------------------------
 /// Poseidon hash function
 pub fn poseidon(values: &[u64], result: &mut [u64]) {
-    assert!(values.len() <= 8, "expected fewer than 8 values but received {}", values.len());
+    debug_assert!(values.len() <= 8, "expected fewer than 8 values but received {}", values.len());
+    debug_assert!(result.len() == 4, "expected result slice to have 4 elements but received {}", result.len());
 
     // copy values into state and set the remaining state elements to 0
     let mut state = [0u64; 12];
@@ -105,7 +110,8 @@ pub fn poseidon(values: &[u64], result: &mut [u64]) {
 // ------------------------------------------------------------------------------------------------
 /// Rescue hash function
 pub fn rescue(values: &[u64], result: &mut [u64]) {
-    assert!(values.len() <= 8, "expected fewer than 8 values but received {}", values.len());
+    debug_assert!(values.len() <= 8, "expected fewer than 8 values but received {}", values.len());
+    debug_assert!(result.len() == 4, "expected result slice to have 4 elements but received {}", result.len());
 
     // copy values into state and set the remaining state elements to 0
     let mut state = [0u64; 12];
@@ -133,7 +139,8 @@ pub fn rescue(values: &[u64], result: &mut [u64]) {
 // ------------------------------------------------------------------------------------------------
 /// GMiMC_erf hash function
 pub fn gmimc(values: &[u64], result: &mut [u64]) {
-    assert!(values.len() <= 8, "expected fewer than 8 values but received {}", values.len());
+    debug_assert!(values.len() <= 8, "expected fewer than 8 values but received {}", values.len());
+    debug_assert!(result.len() == 4, "expected result slice to have 4 elements but received {}", result.len());
 
     // copy values into state and set the remaining state elements to 0
     let mut state = [0u64; 12];
@@ -152,8 +159,19 @@ pub fn gmimc(values: &[u64], result: &mut [u64]) {
     result.copy_from_slice(&state[..4]);
 }
 
-// HELPER FUNCTIONS
 // ------------------------------------------------------------------------------------------------
+/// Wrapper around blake3 hash function
+pub fn blake3(values: &[u64], result: &mut [u64]) {
+    debug_assert!(result.len() == 4, "expected result slice to have 4 elements but received {}", result.len());
+    
+    let values = unsafe { slice::from_raw_parts(values.as_ptr() as *const u8, values.len() * 8) };
+    let hash = blake3::hash(&values);
+    let result: &mut [u8; 32] = unsafe { &mut *(result as *const _ as *mut [u8; 32]) };
+    result.copy_from_slice(hash.as_bytes());
+}
+
+// HELPER FUNCTIONS
+// ================================================================================================
 fn add_constants(state: &mut[u64; 12], offset: usize) {
     for i in 0..12 {
         state[i] = field::add(state[i], ARK[offset + i]);

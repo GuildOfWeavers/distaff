@@ -1,5 +1,5 @@
 use criterion::{ black_box, criterion_group, Criterion };
-use distaff::{ hash, blake2s };
+use distaff::hash;
 
 pub fn poseidon(c: &mut Criterion) {
     let v = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -25,20 +25,12 @@ pub fn gmimc(c: &mut Criterion) {
     });
 }
 
-pub fn blake2s(c: &mut Criterion) {
+pub fn blake3(c: &mut Criterion) {
     let v = [1, 2, 3, 4, 5, 6, 7, 8];
     let mut r = [0u64; 4];
-    c.bench_function("Blake2s", |bench| {
-        bench.iter(|| blake2s::hash(black_box(&v), black_box(&mut r)))
+    c.bench_function("Blake3", |bench| {
+        bench.iter(|| hash::blake3(black_box(&v), black_box(&mut r)))
     });
 }
 
-pub fn blake2s_fixed(c: &mut Criterion) {
-    let v = [1, 2, 3, 4, 5, 6, 7, 8];
-    let mut r = [0u64; 4];
-    c.bench_function("Blake2s (fixed)", |bench| {
-        bench.iter(|| blake2s::hash_fixed(black_box(&v), black_box(&mut r)))
-    });
-}
-
-criterion_group!(group, poseidon, rescue, gmimc, blake2s, blake2s_fixed);
+criterion_group!(group, poseidon, rescue, gmimc, blake3);
