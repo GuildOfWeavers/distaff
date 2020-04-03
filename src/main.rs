@@ -1,5 +1,4 @@
 use std::time::{ Instant };
-use std::slice;
 use distaff::{ field, fft, polys, quartic, parallel, hash, MerkleTree };
 use rand::prelude::*;
 use rand::distributions::Uniform;
@@ -7,64 +6,68 @@ extern crate num_cpus;
 
 fn main() {
 
-    let n: usize = 1 << 22;
+    let n: usize = 1 << 20;
+    //test_merkle_tree(n);
+    test_parallel_fft(n);
+    //test_poly_eval_fft(n);
     //test_parallel_mul(n);
-    //test_parallel_fft(n);
     //test_parallel_inv(n);
-    test_merkle_tree(n);
-    //test_blake2s();
-
-    /*
-    let n: usize = 1 << 25;
-    let r = field::get_root_of_unity(n as u64);
-    let xs = field::get_power_series(r, n);
-    let polys = field::rand_vector(n * 4);
-    let now = Instant::now();
-    let ys = quartic::evaluate_batch(&polys, &xs);
-    let t = now.elapsed().as_millis();
-    println!("Interpolated {} quartic polynomials in {} ms", ys.len() / 4, t);
-    */
-
-    /*
-    let n: usize = 1 << 21;
-    let r = field::get_root_of_unity((n * 4) as u64);
-    let xs = field::get_power_series(r, n * 4);
-    let mut ys = vec![0u64; n * 4];
-    field::rand_fill(&mut ys);
-    let now = Instant::now();
-    let ps = quartic::interpolate_batch(&xs, &ys);
-    let t = now.elapsed().as_millis();
-    println!("Interpolated {} quartic polynomials in {} ms", ps.len() / 4, t);
-    */
-
-    //fft::permute(&mut p);
-    //println!("{:?}", p);
+    //test_quartic_batch(n);
+    //test_hash_functions(n);
 }
 
 fn test_merkle_tree(n: usize) {
-    let leaves = quartic::to_quartic_vec(field::rand_vector(n));
-    //let index: usize = 3;
-    let indexes = rand_vector(48, n / 4);
-    //println!("leaves: {:?}", leaves);
-    //println!("----------");
+    let leaves = quartic::to_quartic_vec(field::rand_vector(n * 4));
+    let indexes = rand_vector(48, n);
     let now = Instant::now();
     let tree = MerkleTree::new(leaves, hash::blake3);
     let t = now.elapsed().as_millis();
-    println!("Merkle tree of {} nodes built in {} ms", n / 4, t);
-    println!("----------");
+    println!("Merkle tree of {} nodes built in {} ms", n, t);
     
     let now = Instant::now();
     let proof = tree.prove_batch(&indexes);
     let t = now.elapsed().as_millis();
     println!("Generated proof for {} indexes in {} ms", indexes.len(), t);
-    println!("----------");
 
-    //let result = MerkleTree::verify(tree.root(), index, &proof, hash::gmimc);
     let now = Instant::now();
     let result = MerkleTree::verify_batch(tree.root(), &indexes, &proof, hash::blake3);
     let t = now.elapsed().as_millis();
     println!("Verified proof for {} indexes in {} ms", indexes.len(), t);
     println!("{}", result);
+}
+
+fn test_parallel_fft(n: usize) {
+    let p = field::rand_vector(n);
+    let g = field::get_root_of_unity(n as u64);
+    let twiddles = fft::get_twiddles(g, n);
+
+    let mut v1 = p.clone();
+    let now = Instant::now();
+    fft::fft_in_place(&mut v1, &twiddles, 1, 1, 0, 1);
+    let t = now.elapsed().as_millis();
+    println!("computed FFT over {} values in {} ms", p.len(), t);
+
+    for i in 0..4 {
+        let num_threads = usize::pow(2, i);
+        let mut v2 = p.clone();
+        let now = Instant::now();
+        fft::fft_in_place(&mut v2, &twiddles, 1, 1, 0, num_threads);
+        let t = now.elapsed().as_millis();
+        println!("computed FFT over {} values using {} threads in {} ms", p.len(), num_threads, t);
+        for i in 0..n { assert_eq!(v1[i], v2[i]); }
+    }
+}
+
+fn test_poly_eval_fft(n: usize) {
+
+    let mut p = field::rand_vector(n);
+    let g = field::get_root_of_unity(n as u64);
+    let twiddles = fft::get_twiddles(g, n);
+
+    let now = Instant::now();
+    polys::eval_fft_twiddles(&mut p, &twiddles, true);
+    let t = now.elapsed().as_millis();
+    println!("evaluated degree {} polynomial in {} ms", p.len(), t);
 }
 
 fn test_parallel_mul(n: usize) {
@@ -120,50 +123,23 @@ fn test_parallel_inv(n: usize) {
     }
 }
 
-fn test_parallel_fft(n: usize) {
-    let p = field::rand_vector(n);
-    let g = field::get_root_of_unity(n as u64);
-    let twiddles = fft::get_twiddles(g, n);
+fn test_quartic_batch(n: usize) {
 
-    let mut v1 = p.clone();
+    let r = field::get_root_of_unity(n as u64);
+    let xs = field::get_power_series(r, n);
+    let polys = quartic::to_quartic_vec(field::rand_vector(n * 4));
     let now = Instant::now();
-    fft::fft_in_place(&mut v1, &twiddles, 1, 1, 0, 1);
+    let ys = quartic::evaluate_batch(&polys, &xs);
     let t = now.elapsed().as_millis();
-    println!("computed FFT over {} values in {} ms", p.len(), t);
+    println!("Evaluated {} quartic polynomials in {} ms", ys.len(), t);
 
-    for i in 0..4 {
-        let num_threads = usize::pow(2, i);
-        let mut v2 = p.clone();
-        let now = Instant::now();
-        fft::fft_in_place(&mut v2, &twiddles, 1, 1, 0, num_threads);
-        let t = now.elapsed().as_millis();
-        println!("computed FFT over {} values using {} threads in {} ms", p.len(), num_threads, t);
-        for i in 0..n { assert_eq!(v1[i], v2[i]); }
-    }
-}
-
-fn test_fft(n: usize) {
-    let p = field::rand_vector(n);
-    let g = field::get_root_of_unity(n as u64);
-    let twiddles = fft::get_twiddles(g, n);
-
-    let mut v = p.clone();
+    let r = field::get_root_of_unity((n * 4) as u64);
+    let xs = quartic::to_quartic_vec(field::get_power_series(r, n * 4));
+    let ys = quartic::to_quartic_vec(field::rand_vector(n * 4));
     let now = Instant::now();
-    fft::fft_in_place(&mut v, &twiddles, 1, 1, 0, 1);
+    let polys = quartic::interpolate_batch(&xs, &ys);
     let t = now.elapsed().as_millis();
-    println!("computed FFT over {} values in {} ms", p.len(), t);
-}
-
-fn test_poly_eval_fft(n: usize) {
-
-    let mut p = field::rand_vector(n);
-    let g = field::get_root_of_unity(n as u64);
-    let twiddles = fft::get_twiddles(g, n);
-
-    let now = Instant::now();
-    polys::eval_fft_twiddles(&mut p, &twiddles, true);
-    let t = now.elapsed().as_millis();
-    println!("evaluated degree {} polynomial in {} ms", p.len(), t);
+    println!("Interpolated {} quartic polynomials in {} ms", polys.len(), t);
 }
 
 fn test_hash_functions(n: usize) {
@@ -190,6 +166,13 @@ fn test_hash_functions(n: usize) {
     }
     let t = now.elapsed().as_millis();
     println!("completed {} GMiMC hashes in: {} ms", n, t);
+
+    let now = Instant::now();
+    for i in 0..n {
+        hash::blake3(&values[(i * 8)..(i * 8 + 8)], &mut result[(i * 4)..(i * 4 + 4)]);
+    }
+    let t = now.elapsed().as_millis();
+    println!("completed {} Blake3 hashes in: {} ms", n, t);
 }
 
 // HELPER FUNCTIONS
