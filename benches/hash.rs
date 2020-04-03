@@ -33,4 +33,12 @@ pub fn blake2s(c: &mut Criterion) {
     });
 }
 
-criterion_group!(group, poseidon, rescue, gmimc, blake2s);
+pub fn blake2s_fixed(c: &mut Criterion) {
+    let v = [1, 2, 3, 4, 5, 6, 7, 8];
+    let mut r = [0u64; 4];
+    c.bench_function("Blake2s (fixed)", |bench| {
+        bench.iter(|| blake2s::hash_fixed(black_box(&v), black_box(&mut r)))
+    });
+}
+
+criterion_group!(group, poseidon, rescue, gmimc, blake2s, blake2s_fixed);

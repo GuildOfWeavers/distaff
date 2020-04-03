@@ -16,13 +16,15 @@ const SIGMA: [u64; 20] = [
 // ================================================================================================
 pub fn hash(values: &[u64], result: &mut [u64]) {
 
+    debug_assert!(result.len() == 4, "result must be a slice of 4 elements");
+
     let values = unsafe { slice::from_raw_parts(values.as_ptr() as *const u32, values.len() * 2) };
     let result: &mut [u32; 8] = unsafe { &mut *(result as *const _ as *mut [u32; 8]) };
 
     // initialize the context
     result[0] = 0x6b08e647; // IV[0] ^ 0x01010000 ^ 0 ^ 32
     result[1..8].copy_from_slice(&IV[1..8]);
-    let mut t = 0u64;
+    let mut t = 0u32;
 
     // run intermediate compressions
     let mut m = [0u32; 16];
@@ -43,34 +45,55 @@ pub fn hash(values: &[u64], result: &mut [u64]) {
     for i in n..15 {
         m[i] = 0;
     }
-    t += (n as u64) * 4;
+    t += (n as u32) * 4;
     compress(&mut v, result, &m, t, true);
+}
+
+pub fn hash_fixed(values: &[u64], result: &mut [u64]) {
+
+    debug_assert!(values.len() == 8, "values must be a slice of 8 elements");
+    debug_assert!(result.len() == 4, "result must be a slice of 4 elements");
+
+    // recast slices as arrays
+    let values = unsafe { &*(values as *const _ as *const [u32; 16]) };
+    let result: &mut [u32; 8] = unsafe { &mut *(result as *const _ as *mut [u32; 8]) };
+
+    // initialize context
+    result[0] = 0x6b08e647; // IV[0] ^ 0x01010000 ^ 0 ^ 32
+    result[1..8].copy_from_slice(&IV[1..8]);
+    let mut v = [0u32; 16];
+    let m = values.clone();
+
+    // run compression function only once
+    compress(&mut v, result, &m, 64, true);
 }
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn compress(v: &mut [u32; 16], h: &mut [u32; 8], m: &[u32; 16], t: u64, last: bool) {
+
+#[inline(always)]
+fn compress(v: &mut [u32; 16], h: &mut [u32; 8], m: &[u32; 16], t: u32, last: bool) {
     
     v[0..8].copy_from_slice(h);
     v[8..16].copy_from_slice(&IV);
-    v[12] = v[12] ^ (t as u32);
-    v[13] = v[13] ^ ((t >> 32) as u32);
+    v[12] = v[12] ^ t;
+    //v[13] = v[13] ^ ((t >> 32) as u32);  not needed since t is restricted to u32
     if last {
         v[14] = !v[14];
     }
 
     let mut i = 0;
     for _ in 0..10 {
-        mix(v, m,  0, 16, 32, 48,  SIGMA[i] as u8,        (SIGMA[i] >>  8) as u8);
-        mix(v, m,  4, 20, 36, 52, (SIGMA[i] >> 16) as u8, (SIGMA[i] >> 24) as u8);
-        mix(v, m,  8, 24, 40, 56, (SIGMA[i] >> 32) as u8, (SIGMA[i] >> 40) as u8);
-        mix(v, m, 12, 28, 44, 60, (SIGMA[i] >> 48) as u8, (SIGMA[i] >> 56) as u8);
+        mix(v, m, 0, 4,  8, 12,  SIGMA[i] as u8,        (SIGMA[i] >>  8) as u8);
+        mix(v, m, 1, 5,  9, 13, (SIGMA[i] >> 16) as u8, (SIGMA[i] >> 24) as u8);
+        mix(v, m, 2, 6, 10, 14, (SIGMA[i] >> 32) as u8, (SIGMA[i] >> 40) as u8);
+        mix(v, m, 3, 7, 11, 15, (SIGMA[i] >> 48) as u8, (SIGMA[i] >> 56) as u8);
 
         i += 1;
-        mix(v, m,  0, 20, 40, 60,  SIGMA[i] as u8,        (SIGMA[i] >>  8) as u8);
-        mix(v, m,  4, 24, 44, 48, (SIGMA[i] >> 16) as u8, (SIGMA[i] >> 24) as u8);
-        mix(v, m,  8, 28, 32, 52, (SIGMA[i] >> 32) as u8, (SIGMA[i] >> 40) as u8);
-        mix(v, m, 12, 16, 36, 56, (SIGMA[i] >> 48) as u8, (SIGMA[i] >> 56) as u8);
+        mix(v, m, 0, 5, 10, 15,  SIGMA[i] as u8,        (SIGMA[i] >>  8) as u8);
+        mix(v, m, 1, 6, 11, 12, (SIGMA[i] >> 16) as u8, (SIGMA[i] >> 24) as u8);
+        mix(v, m, 2, 7,  8, 13, (SIGMA[i] >> 32) as u8, (SIGMA[i] >> 40) as u8);
+        mix(v, m, 3, 4,  9, 14, (SIGMA[i] >> 48) as u8, (SIGMA[i] >> 56) as u8);
 
         i += 1;
     }
@@ -80,20 +103,13 @@ fn compress(v: &mut [u32; 16], h: &mut [u32; 8], m: &[u32; 16], t: u64, last: bo
     }
 }
 
-fn mix(v: &mut [u32; 16], m: &[u32; 16], a: u8, b: u8, c: u8, d: u8, xi: u8, yi: u8) {
-
-    let a = (a / 4) as usize;
-    let b = (b / 4) as usize;
-    let c = (c / 4) as usize;
-    let d = (d / 4) as usize;
-    let xi = xi as usize;
-    let yi = yi as usize;
-
-    v[a] = v[a].wrapping_add(v[b]).wrapping_add(m[xi]);
+#[inline(always)]
+fn mix(v: &mut [u32; 16], m: &[u32; 16], a: usize, b: usize, c: usize, d: usize, xi: u8, yi: u8) {
+    v[a] = v[a].wrapping_add(v[b]).wrapping_add(m[xi as usize]);
     v[d] = (v[d] ^ v[a]).rotate_right(16);
     v[c] = v[c].wrapping_add(v[d]);
     v[b] = (v[b] ^ v[c]).rotate_right(12);
-    v[a] = v[a].wrapping_add(v[b]).wrapping_add(m[yi]);
+    v[a] = v[a].wrapping_add(v[b]).wrapping_add(m[yi as usize]);
     v[d] = (v[d] ^ v[a]).rotate_right(8);
     v[c] = v[c].wrapping_add(v[d]);
     v[b] = (v[b] ^ v[c]).rotate_right(7);
@@ -112,6 +128,21 @@ mod tests {
         ];
         let mut result = vec![0u64; 4];
         super::hash(&values, &mut result);
+        let expected: Vec<u64> = vec![
+            10411853493597827926, 5881077485475197633, 14930829144967047688, 4515679653252488733
+        ];
+
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn hash_fixed() {
+        let values: Vec<u64> = vec![
+             506097522914230528, 1084818905618843912, 1663540288323457296, 2242261671028070680,
+            2820983053732684064, 3399704436437297448, 3978425819141910832, 4557147201846524216
+        ];
+        let mut result = vec![0u64; 4];
+        super::hash_fixed(&values, &mut result);
         let expected: Vec<u64> = vec![
             10411853493597827926, 5881077485475197633, 14930829144967047688, 4515679653252488733
         ];
