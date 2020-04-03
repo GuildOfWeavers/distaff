@@ -1,14 +1,18 @@
 use std::time::{ Instant };
-use distaff::{ field, fft, polys, quartic, parallel, hash, MerkleTree };
+use std::slice;
+use distaff::{ field, fft, polys, quartic, parallel, hash, MerkleTree, blake2s };
+use rand::prelude::*;
+use rand::distributions::Uniform;
 extern crate num_cpus;
 
 fn main() {
 
-    let n: usize = 1 << 20;
+    let n: usize = 1 << 22;
     //test_parallel_mul(n);
     //test_parallel_fft(n);
     //test_parallel_inv(n);
-    test_merkle_tree(n);
+    //test_merkle_tree(n);
+    test_blake2s();
 
     /*
     let n: usize = 1 << 25;
@@ -40,18 +44,26 @@ fn main() {
 fn test_merkle_tree(n: usize) {
     let leaves = quartic::to_quartic_vec(field::rand_vector(n));
     //let index: usize = 3;
+    let indexes = rand_vector(48, n / 4);
     //println!("leaves: {:?}", leaves);
     //println!("----------");
     let now = Instant::now();
-    let tree = MerkleTree::new(leaves, hash::gmimc);
+    let tree = MerkleTree::new(leaves, blake2s::hash);
     let t = now.elapsed().as_millis();
     println!("Merkle tree of {} nodes built in {} ms", n / 4, t);
     println!("----------");
-    let proof = tree.prove_batch(&[1, 2]);
-    //println!("proof: {:?}", proof);
+    
+    let now = Instant::now();
+    let proof = tree.prove_batch(&indexes);
+    let t = now.elapsed().as_millis();
+    println!("Generated proof for {} indexes in {} ms", indexes.len(), t);
     println!("----------");
+
     //let result = MerkleTree::verify(tree.root(), index, &proof, hash::gmimc);
-    let result = MerkleTree::verify_batch(tree.root(), &[1, 2], &proof, hash::gmimc);
+    let now = Instant::now();
+    let result = MerkleTree::verify_batch(tree.root(), &indexes, &proof, blake2s::hash);
+    let t = now.elapsed().as_millis();
+    println!("Verified proof for {} indexes in {} ms", indexes.len(), t);
     println!("{}", result);
 }
 
@@ -178,4 +190,26 @@ fn test_hash_functions(n: usize) {
     }
     let t = now.elapsed().as_millis();
     println!("completed {} GMiMC hashes in: {} ms", n, t);
+}
+
+fn test_blake2s() {
+    let values = vec![
+        0x0706050403020100, 0x0f0e0d0c0b0a0908, 0x1716151413121110, 0x1f1e1d1c1b1a1918,
+        0x2726252423222120, 0x2f2e2d2c2b2a2928, 0x3736353433323130, 0x3f3e3d3c3b3a3938
+    ];
+    let mut result = vec![0u64; 4];
+
+    blake2s::hash(&values, &mut result);
+    //let result = unsafe { slice::from_raw_parts(result.as_ptr() as *const u8, result.len() * 8) };
+    //let values = unsafe { slice::from_raw_parts(values.as_ptr() as *const u8, values.len() * 8) };
+    println!("values {:?}", values);
+    println!("result {:?}", result);
+}
+
+// HELPER FUNCTIONS
+// ================================================================================================
+pub fn rand_vector(count: usize, max: usize) -> Vec<usize> {
+    let range = Uniform::from(0..max);
+    let g = thread_rng();
+    return g.sample_iter(range).take(count).collect();
 }
