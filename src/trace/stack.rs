@@ -63,6 +63,25 @@ impl Stack {
         self.current += 1;
     }
 
+    pub fn pop(&mut self) {
+        self.shift_left(1, 1);
+        self.current += 1;
+    }
+
+    pub fn dup0(&mut self) {
+        self.shift_right(0, 1);
+        let value = self.trace[0][self.current];
+        self.trace[0][self.current + 1] = value;
+        self.current += 1;
+    }
+
+    pub fn dup1(&mut self) {
+        self.shift_right(0, 1);
+        let value = self.trace[1][self.current];
+        self.trace[0][self.current + 1] = value;
+        self.current += 1;
+    }
+
     pub fn add(&mut self) {
         let x = self.trace[0][self.current];
         let y = self.trace[1][self.current];
@@ -157,6 +176,43 @@ mod tests {
         stack.push(3);
         stack.fill_row(&mut row, 3);
         assert_eq!([3, 2, 1, 0, 0, 0, 0, 0], row);
+    }
+
+    #[test]
+    fn pop() {
+        let mut row = [0u64; 8];
+        let mut stack = super::Stack::new(STACK_DEPTH, STATE_COUNT);
+
+        stack.push(1);
+        stack.push(2);
+        stack.pop();
+        stack.fill_row(&mut row, 3);
+        assert_eq!([1, 0, 0, 0, 0, 0, 0, 0], row);
+    }
+
+    
+    #[test]
+    fn dup0() {
+        let mut row = [0u64; 8];
+        let mut stack = super::Stack::new(STACK_DEPTH, STATE_COUNT);
+
+        stack.push(1);
+        stack.push(2);
+        stack.dup0();
+        stack.fill_row(&mut row, 3);
+        assert_eq!([2, 2, 1, 0, 0, 0, 0, 0], row);
+    }
+
+    #[test]
+    fn dup1() {
+        let mut row = [0u64; 8];
+        let mut stack = super::Stack::new(STACK_DEPTH, STATE_COUNT);
+
+        stack.push(1);
+        stack.push(2);
+        stack.dup1();
+        stack.fill_row(&mut row, 3);
+        assert_eq!([1, 2, 1, 0, 0, 0, 0, 0], row);
     }
 
     #[test]
