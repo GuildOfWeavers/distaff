@@ -1,4 +1,5 @@
 use crate::math::field;
+use crate::trace::TraceState;
 use crate::utils;
 
 // CONSTANTS
@@ -36,10 +37,9 @@ impl Stack {
         return &self.trace[index];
     }
 
-    pub fn fill_state(&self, state: &mut [u64], step: usize) {
-        debug_assert!(state.len() == self.trace.len(), "state width must be equal to {}", self.trace.len());
+    pub fn fill_state(&self, state: &mut TraceState, step: usize) {
         for i in 0..self.trace.len() {
-            state[i] = self.trace[i][step];
+            state.stack[i] = self.trace[i][step];
         }
     }
 
@@ -146,6 +146,8 @@ impl Stack {
 #[cfg(test)]
 mod tests {
     
+    use crate::trace::TraceState;
+
     const STACK_DEPTH: usize = 8;
     const STATE_COUNT: usize = 16;
 
@@ -155,115 +157,133 @@ mod tests {
         assert_eq!(STACK_DEPTH, stack.max_stack_depth());
         assert_eq!(STATE_COUNT, stack.trace_length());
 
-        let mut row = [0u64; 8];
-        stack.fill_state(&mut row, 0);
-        assert_eq!([0, 0, 0, 0, 0, 0, 0, 0], row);
+        let mut state = TraceState::new();
+        stack.fill_state(&mut state, 0);
+        assert_eq!([0u64; 32], state.stack);
     }
 
     #[test]
     fn noop() {
-        let mut row = [0u64; 8];
+        let mut state = TraceState::new();
         let mut stack = super::Stack::new(STACK_DEPTH, STATE_COUNT);
+        let mut expected = [0u64; 32];
 
         stack.noop();
-        stack.fill_state(&mut row, 1);
-        assert_eq!([0, 0, 0, 0, 0, 0, 0, 0], row);
+        stack.fill_state(&mut state, 1);
+        assert_eq!(expected, state.stack);
 
         stack.push(1);
         stack.noop();
         stack.noop();
-        stack.fill_state(&mut row, 4);
-        assert_eq!([1, 0, 0, 0, 0, 0, 0, 0], row);
+        stack.fill_state(&mut state, 4);
+        expected[0] = 1;
+        assert_eq!(expected, state.stack);
     }
 
     #[test]
     fn push() {
-        let mut row = [0u64; 8];
+        let mut state = TraceState::new();
         let mut stack = super::Stack::new(STACK_DEPTH, STATE_COUNT);
+        let mut expected = [0u64; 32];
 
         stack.push(1);
-        stack.fill_state(&mut row, 1);
-        assert_eq!([1, 0, 0, 0, 0, 0, 0, 0], row);
+        stack.fill_state(&mut state, 1);
+        expected[0] = 1;
+        assert_eq!(expected, state.stack);
 
         stack.push(2);
-        stack.fill_state(&mut row, 2);
-        assert_eq!([2, 1, 0, 0, 0, 0, 0, 0], row);
+        stack.fill_state(&mut state, 2);
+        expected[0..2].copy_from_slice(&[2, 1]);
+        assert_eq!(expected, state.stack);
 
         stack.push(3);
-        stack.fill_state(&mut row, 3);
-        assert_eq!([3, 2, 1, 0, 0, 0, 0, 0], row);
+        stack.fill_state(&mut state, 3);
+        expected[0..3].copy_from_slice(&[3, 2, 1]);
+        assert_eq!(expected, state.stack);
     }
 
     #[test]
     fn pop() {
-        let mut row = [0u64; 8];
+        let mut state = TraceState::new();
         let mut stack = super::Stack::new(STACK_DEPTH, STATE_COUNT);
+        let mut expected = [0u64; 32];
 
         stack.push(1);
         stack.push(2);
         stack.pop();
-        stack.fill_state(&mut row, 3);
-        assert_eq!([1, 0, 0, 0, 0, 0, 0, 0], row);
+        stack.fill_state(&mut state, 3);
+        expected[0] = 1;
+        assert_eq!(expected, state.stack);
     }
 
     
     #[test]
     fn dup0() {
-        let mut row = [0u64; 8];
+        let mut state = TraceState::new();
         let mut stack = super::Stack::new(STACK_DEPTH, STATE_COUNT);
+        let mut expected = [0u64; 32];
 
         stack.push(1);
         stack.push(2);
         stack.dup0();
-        stack.fill_state(&mut row, 3);
-        assert_eq!([2, 2, 1, 0, 0, 0, 0, 0], row);
+        stack.fill_state(&mut state, 3);
+        expected[0..3].copy_from_slice(&[2, 2, 1]);
+        assert_eq!(expected, state.stack);
     }
 
     #[test]
     fn dup1() {
-        let mut row = [0u64; 8];
+        let mut state = TraceState::new();
         let mut stack = super::Stack::new(STACK_DEPTH, STATE_COUNT);
+        let mut expected = [0u64; 32];
 
         stack.push(1);
         stack.push(2);
         stack.dup1();
-        stack.fill_state(&mut row, 3);
-        assert_eq!([1, 2, 1, 0, 0, 0, 0, 0], row);
+        stack.fill_state(&mut state, 3);
+        expected[0..3].copy_from_slice(&[1, 2, 1]);
+        assert_eq!(expected, state.stack);
     }
 
     #[test]
     fn add() {
-        let mut row = [0u64; 8];
+        let mut state = TraceState::new();
         let mut stack = super::Stack::new(STACK_DEPTH, STATE_COUNT);
+        let mut expected = [0u64; 32];
 
         stack.push(1);
         stack.push(2);
         stack.add();
-        stack.fill_state(&mut row, 3);
-        assert_eq!([3, 0, 0, 0, 0, 0, 0, 0], row);
+        stack.fill_state(&mut state, 3);
+        expected[0] = 3;
+        assert_eq!(expected, state.stack);
     }
 
     #[test]
     fn sub() {
-        let mut row = [0u64; 8];
+        let mut state = TraceState::new();
         let mut stack = super::Stack::new(STACK_DEPTH, STATE_COUNT);
+        let mut expected = [0u64; 32];
 
         stack.push(5);
         stack.push(2);
         stack.sub();
-        stack.fill_state(&mut row, 3);
-        assert_eq!([3, 0, 0, 0, 0, 0, 0, 0], row);
+        stack.fill_state(&mut state, 3);
+        expected[0] = 3;
+        assert_eq!(expected, state.stack);
     }
 
     #[test]
     fn mul() {
-        let mut row = [0u64; 8];
+        let mut state = TraceState::new();
         let mut stack = super::Stack::new(STACK_DEPTH, STATE_COUNT);
+        let mut expected = [0u64; 32];
 
         stack.push(2);
         stack.push(3);
         stack.mul();
-        stack.fill_state(&mut row, 3);
-        assert_eq!([6, 0, 0, 0, 0, 0, 0, 0], row);
+        stack.fill_state(&mut state, 3);
+        expected[0] = 6;
+        assert_eq!(expected, state.stack);
     }
 }

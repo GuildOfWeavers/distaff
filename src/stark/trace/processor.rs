@@ -1,4 +1,4 @@
-use crate::trace::Stack;
+use crate::trace::{ Stack, TraceState };
 use crate::opcodes;
 use crate::utils;
 
@@ -11,7 +11,7 @@ pub struct Processor {
     stack       : Stack,
 }
 
-// TRACE TABLE IMPLEMENTATION
+// PROCESSOR IMPLEMENTATION
 // ================================================================================================
 impl Processor {
 
@@ -39,19 +39,14 @@ impl Processor {
         return Processor { op_code, op_bits, copy_flag, stack };
     }
 
-    pub fn fill_state(&self, state: &mut [u64], step: usize) {
+    pub fn fill_state(&self, state: &mut TraceState, step: usize) {
         
-        state[0] = self.op_code[step];
-        state[1] = self.op_bits[0][step];
-        state[2] = self.op_bits[1][step];
-        state[3] = self.op_bits[2][step];
-        state[4] = self.op_bits[3][step];
-        state[5] = self.op_bits[4][step];
-        state[6] = self.op_bits[5][step];
-        state[7] = self.op_bits[6][step];
-        state[8] = self.op_bits[7][step];
-        state[9] = self.copy_flag[step];
-        self.stack.fill_state(&mut state[10..], step);
+        state.op_code = self.op_code[step];
+        for i in 0..self.op_bits.len() {
+            state.op_bits[i] = self.op_bits[i][step];
+        }
+        state.copy_flag = self.copy_flag[step];
+        self.stack.fill_state(state, step);
     }
 
     pub fn register_count(&self) -> usize {
