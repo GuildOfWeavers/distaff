@@ -1,3 +1,4 @@
+use crate::math::{ field, fft, polys };
 use crate::trace::{ Stack, TraceState };
 use crate::opcodes;
 use crate::utils;
@@ -40,7 +41,6 @@ impl Processor {
     }
 
     pub fn fill_state(&self, state: &mut TraceState, step: usize) {
-        
         state.op_code = self.op_code[step];
         for i in 0..self.op_bits.len() {
             state.op_bits[i] = self.op_bits[i][step];
@@ -113,4 +113,19 @@ impl Processor {
         }
     }
 
+    pub fn interpolate_traces(&self) -> Vec<Vec<u64>> {
+
+        let mut result = Vec::new();
+
+        let root = field::get_root_of_unity(self.trace_length() as u64);
+        let twiddles = fft::get_inv_twiddles(root, self.trace_length());
+
+        for i in 0..self.register_count() {
+            let mut trace = self.get_register_trace(i).to_vec();
+            polys::interpolate_fft_twiddles(&mut trace, &twiddles, true);
+            result.push(trace);
+        }
+        
+        return result;
+    }
 }

@@ -9,3 +9,6 @@ pub use processor::*;
 
 pub mod trace_state;
 pub use trace_state::*;
+
+pub mod trace_table;
+pub use trace_table::*;

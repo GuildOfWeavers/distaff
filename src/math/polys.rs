@@ -84,13 +84,13 @@ pub fn interpolate_fft(v: &mut [u64], unpermute: bool) {
 
 /// Uses FFT algorithm to interpolate a polynomial from provided values `v`; the interpolation
 /// is done in-place, meaning `v` is updated with polynomial coefficients. Unlike the previous
-/// function, this function does not generate twiddles internally. Thus, the twiddles must be
-/// supplied as a parameter.
+/// function, this function does not generate inverse twiddles internally. Thus, the twiddles
+/// must be supplied as a parameter.
 /// 
 /// If `unpermute` parameter is set to false, the evaluations will be left in permuted state.
-pub fn interpolate_fft_twiddles(v: &mut [u64], twiddles: &[u64], unpermute: bool) {
+pub fn interpolate_fft_twiddles(v: &mut [u64], inv_twiddles: &[u64], unpermute: bool) {
     // TODO: don't hard-code num_threads
-    fft::fft_in_place(v, &twiddles, 1, 1, 0, 1);
+    fft::fft_in_place(v, &inv_twiddles, 1, 1, 0, 1);
     let inv_length = field::inv(v.len() as u64);
     for e in v.iter_mut() {
         *e = field::mul(*e, inv_length);
