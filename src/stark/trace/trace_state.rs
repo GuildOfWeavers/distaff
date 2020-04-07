@@ -1,6 +1,6 @@
 // TYPES AND INTERFACES
 // ================================================================================================
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct TraceState {
     pub op_code     : u64,
     pub op_bits     : [u64; 8],

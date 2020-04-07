@@ -65,13 +65,34 @@ impl Stack {
         self.current_step += 1;
     }
 
+    pub fn pull1(&mut self) {
+        self.trace[0][self.current_step + 1] = self.trace[1][self.current_step];
+        self.trace[1][self.current_step + 1] = self.trace[0][self.current_step];
+        for i in 2..self.trace.len() {
+            let slot_value = self.trace[i][self.current_step];
+            self.trace[i][self.current_step + 1] = slot_value;
+        }
+        self.current_step += 1;
+    }
+
+    pub fn pull2(&mut self) {
+        self.trace[0][self.current_step + 1] = self.trace[2][self.current_step];
+        self.trace[1][self.current_step + 1] = self.trace[0][self.current_step];
+        self.trace[2][self.current_step + 1] = self.trace[1][self.current_step];
+        for i in 3..self.trace.len() {
+            let slot_value = self.trace[i][self.current_step];
+            self.trace[i][self.current_step + 1] = slot_value;
+        }
+        self.current_step += 1;
+    }
+
     pub fn push(&mut self, value: u64) {
         self.shift_right(0, 1);
         self.trace[0][self.current_step + 1] = value;
         self.current_step += 1;
     }
 
-    pub fn pop(&mut self) {
+    pub fn drop(&mut self) {
         self.shift_left(1, 1);
         self.current_step += 1;
     }
@@ -203,14 +224,14 @@ mod tests {
     }
 
     #[test]
-    fn pop() {
+    fn drop() {
         let mut state = TraceState::new();
         let mut stack = super::Stack::new(STACK_DEPTH, STATE_COUNT);
         let mut expected = [0u64; 32];
 
         stack.push(1);
         stack.push(2);
-        stack.pop();
+        stack.drop();
         stack.fill_state(&mut state, 3);
         expected[0] = 1;
         assert_eq!(expected, state.stack);
