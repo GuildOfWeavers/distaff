@@ -1,4 +1,4 @@
-use crate::math::field;
+use crate::math::{ field, polys };
 use crate::trace::TraceState;
 use crate::utils;
 
@@ -54,6 +54,28 @@ impl Stack {
 
     pub fn trace_length(&self) -> usize {
         return self.registers[0].len();
+    }
+
+    // INTERPOLATION AND EXTENSION
+    // --------------------------------------------------------------------------------------------
+    pub fn interpolate_registers(&mut self, inv_twiddles: &[u64]) {
+        for i in 0..self.max_depth() {
+            polys::interpolate_fft_twiddles(&mut self.registers[i], &inv_twiddles, true);
+        }
+    }
+
+    pub fn extend_registers(&mut self, twiddles: &[u64]) {
+        let domain_length = self.registers[0].capacity();
+        for i in 0..self.max_depth() {
+            debug_assert!(self.registers[i].capacity() == domain_length, "invalid register capacity");
+            unsafe { self.registers[i].set_len(domain_length); }
+            polys::eval_fft_twiddles(&mut self.registers[i], &twiddles, true);
+        }
+
+        for i in self.max_depth()..self.registers.len() {
+            debug_assert!(self.registers[i].capacity() == domain_length, "invalid register capacity");
+            unsafe { self.registers[i].set_len(domain_length); }
+        }
     }
 
     // OPERATIONS

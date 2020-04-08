@@ -22,19 +22,21 @@ impl TraceTable {
 
     pub fn new(program: &[u64], extension_factor: usize) -> TraceTable {
         let trace_length = program.len() + 1;
-        assert!(trace_length.is_power_of_two(), "program length must be one less than power of 2");
+        assert!(trace_length.is_power_of_two(), "program length must be one less than a power of 2");
+        assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
+        let domain_length = trace_length * extension_factor;
 
         let state = TraceTableState::Initialized;
-        let op_code = utils::uninit_vector(trace_length);
+        let op_code = utils::zero_filled_vector(trace_length, domain_length);
         let op_bits = [
-            utils::uninit_vector(trace_length),
-            utils::uninit_vector(trace_length),
-            utils::uninit_vector(trace_length),
-            utils::uninit_vector(trace_length),
-            utils::uninit_vector(trace_length),
-            utils::uninit_vector(trace_length),
-            utils::uninit_vector(trace_length),
-            utils::uninit_vector(trace_length)
+            utils::zero_filled_vector(trace_length, domain_length),
+            utils::zero_filled_vector(trace_length, domain_length),
+            utils::zero_filled_vector(trace_length, domain_length),
+            utils::zero_filled_vector(trace_length, domain_length),
+            utils::zero_filled_vector(trace_length, domain_length),
+            utils::zero_filled_vector(trace_length, domain_length),
+            utils::zero_filled_vector(trace_length, domain_length),
+            utils::zero_filled_vector(trace_length, domain_length)
         ];
 
         let stack = Stack::new(trace_length, extension_factor);
@@ -78,22 +80,36 @@ impl TraceTable {
         };
     }
 
-    // INTERPOLATION
+    // INTERPOLATION AND EXTENSION
     // --------------------------------------------------------------------------------------------
-    pub fn interpolate_traces(&self) -> Vec<Vec<u64>> {
-
-        let mut result = Vec::new();
-
+    pub fn interpolate(&mut self) {
         let root = field::get_root_of_unity(self.len() as u64);
-        let twiddles = fft::get_inv_twiddles(root, self.len());
+        let inv_twiddles = fft::get_inv_twiddles(root, self.len());
 
-        for i in 0..self.register_count() {
-            let mut trace = self.get_register_trace(i).to_vec();
-            polys::interpolate_fft_twiddles(&mut trace, &twiddles, true);
-            result.push(trace);
+        polys::interpolate_fft_twiddles(&mut self.op_code, &inv_twiddles, true);
+        for op_bit in self.op_bits.iter_mut() {
+            polys::interpolate_fft_twiddles(op_bit, &inv_twiddles, true);
         }
-        
-        return result;
+        self.stack.interpolate_registers(&inv_twiddles);
+
+        self.state = TraceTableState::Interpolated;
+    }
+
+    pub fn extend(&mut self) {
+        let domain_length = self.op_code.capacity();
+        let root = field::get_root_of_unity(domain_length as u64);
+        let twiddles = fft::get_twiddles(root, domain_length);
+
+        unsafe { self.op_code.set_len(domain_length); }
+        polys::eval_fft_twiddles(&mut self.op_code, &twiddles, true);
+        for op_bit in self.op_bits.iter_mut() {
+            debug_assert!(op_bit.capacity() == domain_length, "invalid register capacity");
+            unsafe { op_bit.set_len(domain_length); }
+            polys::eval_fft_twiddles(op_bit, &twiddles, true);
+        }
+        self.stack.extend_registers(&twiddles);
+
+        self.state = TraceTableState::Extended;
     }
 
     // PROGRAM EXECUTION
