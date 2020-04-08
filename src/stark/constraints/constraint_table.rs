@@ -22,11 +22,13 @@ impl ConstraintTable {
         assert!(!trace.is_extended(), "cannot evaluate extended trace table");
         assert!(trace.is_interpolated(), "cannot evaluate un-interpolated trace table");
 
+        // clone the trace and extended it by the COMPOSITION_FACTOR
         let mut trace = trace.clone(COMPOSITION_FACTOR);
         trace.extend();
 
+        // create vectors to hold constraint evaluations
         let mut decoder_constraints = Vec::new();
-        for _ in 0..9 {
+        for _ in 0..decoder::CONSTRAINT_DEGREES.len() {
             decoder_constraints.push(utils::uninit_vector(trace.len()));
         }
 
@@ -35,9 +37,9 @@ impl ConstraintTable {
             stack_constraints.push(utils::uninit_vector(trace.len()));
         }        
 
+        // evaluate the constraints
         let mut current = TraceState::new();
         let mut next = TraceState::new();
-
         for i in 0..trace.len() {
             trace.fill_state(&mut current, i);
             trace.fill_state(&mut next, (i + COMPOSITION_FACTOR) % trace.len()); // TODO
@@ -52,11 +54,15 @@ impl ConstraintTable {
             stack   : stack_constraints,
         };
     }
+
+    pub fn get_composition_poly() {
+        // TODO: implement
+    }
 }
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn get_op_flags(op_bits: &[u64; 8]) -> [u64; 32] {
+fn get_op_flags(op_bits: &[u64; 5]) -> [u64; 32] {
     let mut op_flags = [1u64; 32];
 
     // expand only the first 5 bits for now
