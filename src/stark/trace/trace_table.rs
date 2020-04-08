@@ -20,7 +20,7 @@ pub struct TraceTable {
 // ================================================================================================
 impl TraceTable {
 
-    pub fn new(program: &[u64]) -> TraceTable {
+    pub fn new(program: &[u64], extension_factor: usize) -> TraceTable {
         let trace_length = program.len() + 1;
         assert!(trace_length.is_power_of_two(), "program length must be one less than power of 2");
 
@@ -37,7 +37,7 @@ impl TraceTable {
             utils::uninit_vector(trace_length)
         ];
 
-        let stack = Stack::new(32, trace_length);   // TODO
+        let stack = Stack::new(trace_length, extension_factor);
         let mut trace = TraceTable { state, op_code, op_bits, stack };
 
         // copy program into the trace and set the last operation to NOOP
@@ -63,11 +63,11 @@ impl TraceTable {
     }
 
     pub fn register_count(&self) -> usize {
-        return 1 + self.op_bits.len() + self.stack.max_stack_depth();
+        return 1 + self.op_bits.len() + self.stack.max_depth();
     }
 
-    pub fn stack_depth(&self) -> usize {
-        return self.stack.max_stack_depth();
+    pub fn max_stack_depth(&self) -> usize {
+        return self.stack.max_depth();
     }
 
     pub fn get_register_trace(&self, index: usize) -> &[u64] {
