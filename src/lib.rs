@@ -7,5 +7,5 @@ pub use math::*;
 mod stark;
 pub use stark::*;
 
-mod utils;
+pub mod utils;
 pub use utils::*;

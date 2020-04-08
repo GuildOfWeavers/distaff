@@ -21,13 +21,14 @@ pub struct Stack {
 impl Stack {
 
     pub fn new(trace_length: usize, extension_factor: usize) -> Stack {
-        assert!(trace_length.is_power_of_two(), "trace length must be a power of 2");
-        let trace_capacity = trace_length * extension_factor;
+        debug_assert!(trace_length.is_power_of_two(), "trace length must be a power of 2");
+        debug_assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
+        let domain_size = trace_length * extension_factor;
 
         let current_step: usize = 0;
         let mut registers: Vec<Vec<u64>> = Vec::with_capacity(MIN_STACK_DEPTH);
         for _ in 0..MIN_STACK_DEPTH {
-            let mut register = utils::zero_filled_vector(trace_length, trace_capacity);
+            let mut register = utils::zero_filled_vector(trace_length, domain_size);
             register[current_step] = 0;
             registers.push(register);
         }
@@ -54,6 +55,26 @@ impl Stack {
 
     pub fn trace_length(&self) -> usize {
         return self.registers[0].len();
+    }
+
+    pub fn clone(&self, extension_factor: usize) -> Stack {
+        debug_assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
+        let trace_length = self.trace_length();
+        let domain_size = trace_length * extension_factor;
+
+        let mut registers = Vec::new();
+        for i in 0..self.registers.len() {
+            let mut register = utils::zero_filled_vector(trace_length, domain_size);
+            register.copy_from_slice(&self.registers[i]);
+            registers.push(register);
+        }
+
+        return Stack {
+            registers, 
+            current_step: self.current_step,
+            max_depth   : self.max_depth,
+            depth       : self.depth
+        };
     }
 
     // INTERPOLATION AND EXTENSION

@@ -5,6 +5,7 @@ use crate::utils;
 
 // TYPES AND INTERFACES
 // ================================================================================================
+#[derive(Clone, Copy, PartialEq)]
 pub enum TraceTableState {
     Initialized, Executed, Interpolated, Extended
 }
@@ -24,19 +25,19 @@ impl TraceTable {
         let trace_length = program.len() + 1;
         assert!(trace_length.is_power_of_two(), "program length must be one less than a power of 2");
         assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
-        let domain_length = trace_length * extension_factor;
+        let domain_size = trace_length * extension_factor;
 
         let state = TraceTableState::Initialized;
-        let op_code = utils::zero_filled_vector(trace_length, domain_length);
+        let op_code = utils::zero_filled_vector(trace_length, domain_size);
         let op_bits = [
-            utils::zero_filled_vector(trace_length, domain_length),
-            utils::zero_filled_vector(trace_length, domain_length),
-            utils::zero_filled_vector(trace_length, domain_length),
-            utils::zero_filled_vector(trace_length, domain_length),
-            utils::zero_filled_vector(trace_length, domain_length),
-            utils::zero_filled_vector(trace_length, domain_length),
-            utils::zero_filled_vector(trace_length, domain_length),
-            utils::zero_filled_vector(trace_length, domain_length)
+            utils::zero_filled_vector(trace_length, domain_size),
+            utils::zero_filled_vector(trace_length, domain_size),
+            utils::zero_filled_vector(trace_length, domain_size),
+            utils::zero_filled_vector(trace_length, domain_size),
+            utils::zero_filled_vector(trace_length, domain_size),
+            utils::zero_filled_vector(trace_length, domain_size),
+            utils::zero_filled_vector(trace_length, domain_size),
+            utils::zero_filled_vector(trace_length, domain_size)
         ];
 
         let stack = Stack::new(trace_length, extension_factor);
@@ -56,7 +57,6 @@ impl TraceTable {
         for i in 0..self.op_bits.len() {
             state.op_bits[i] = self.op_bits[i][step];
         }
-        state.copy_flag = 0;    // TODO
         self.stack.fill_state(state, step);
     }
 
@@ -80,9 +80,50 @@ impl TraceTable {
         };
     }
 
+    pub fn is_interpolated(&self) -> bool {
+        return self.state == TraceTableState::Interpolated;
+    }
+
+    pub fn is_extended(&self) -> bool {
+        return self.state == TraceTableState::Extended;
+    }
+
+    pub fn clone(&self, extension_factor: usize) -> TraceTable {
+        assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
+        let trace_length = self.len();
+        let domain_size = trace_length * extension_factor;
+
+        // clone op_code register
+        let mut op_code = utils::zero_filled_vector(trace_length, domain_size);
+        op_code.copy_from_slice(&self.op_code);
+
+        // clone op_bits registers
+        let mut op_bits = [
+            utils::zero_filled_vector(trace_length, domain_size),
+            utils::zero_filled_vector(trace_length, domain_size),
+            utils::zero_filled_vector(trace_length, domain_size),
+            utils::zero_filled_vector(trace_length, domain_size),
+            utils::zero_filled_vector(trace_length, domain_size),
+            utils::zero_filled_vector(trace_length, domain_size),
+            utils::zero_filled_vector(trace_length, domain_size),
+            utils::zero_filled_vector(trace_length, domain_size)
+        ];
+        for i in 0..op_bits.len() {
+            op_bits[i].copy_from_slice(&self.op_bits[i]);
+        }
+
+        // clone the stack
+        let stack = self.stack.clone(extension_factor);
+
+        return TraceTable { state: self.state, op_code, op_bits, stack };
+    }
+
     // INTERPOLATION AND EXTENSION
     // --------------------------------------------------------------------------------------------
     pub fn interpolate(&mut self) {
+        assert!(!self.is_interpolated(), "trace table has already been interpolated");
+        assert!(!self.is_extended(), "cannot interpolate extended trace table");
+
         let root = field::get_root_of_unity(self.len() as u64);
         let inv_twiddles = fft::get_inv_twiddles(root, self.len());
 
@@ -96,6 +137,9 @@ impl TraceTable {
     }
 
     pub fn extend(&mut self) {
+        assert!(!self.is_extended(), "trace table has already been extended");
+        assert!(self.is_interpolated(), "cannot extend un-interpolated trace table");
+
         let domain_length = self.op_code.capacity();
         let root = field::get_root_of_unity(domain_length as u64);
         let twiddles = fft::get_twiddles(root, domain_length);

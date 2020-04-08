@@ -1,5 +1,6 @@
 use std::slice;
 use std::collections::{ HashMap, BTreeSet };
+use crate::crypto::{ HashFunction };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -14,8 +15,6 @@ pub struct BatchMerkleProof {
     nodes   : Vec<Vec<[u64; 4]>>,
     depth   : u32
 }
-
-type HashFunction = fn(&[u64], &mut [u64]);
 
 // MERKLE TREE IMPLEMENTATION
 // ================================================================================================
