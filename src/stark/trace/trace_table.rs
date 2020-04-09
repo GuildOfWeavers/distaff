@@ -1,5 +1,5 @@
 use crate::math::{ field, fft, polys };
-use crate::program::opcodes;
+use crate::processor::opcodes;
 use crate::utils::zero_filled_vector;
 use super::{ TraceState, stack::Stack, acc_hash };
 

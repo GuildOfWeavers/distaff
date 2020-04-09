@@ -7,8 +7,8 @@ pub use math::*;
 pub mod stark;
 pub use stark::*;
 
-pub mod program;
-pub use program::*;
+pub mod processor;
+pub use processor::*;
 
 pub mod utils;
 pub use utils::*;

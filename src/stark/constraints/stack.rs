@@ -1,7 +1,7 @@
 use std::cmp;
 use crate::math::field::{ add, sub, mul };
 use crate::stark::{ TraceState, MIN_STACK_DEPTH };
-use crate::program::{ opcodes };
+use crate::processor::{ opcodes };
 
 // EVALUATOR FUNCTION
 // ================================================================================================

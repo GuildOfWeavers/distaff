@@ -1,6 +1,6 @@
 use crate::math::field::{ sub, mul, ONE };
 use crate::stark::{ TraceState };
-use crate::program::{ opcodes };
+use crate::processor::{ opcodes };
 
 // CONSTANTS
 // ================================================================================================
