@@ -1,4 +1,3 @@
-use crate::math::{ field };
 use crate::trace::{ TraceTable, TraceState };
 use crate::constraints::{ decoder, stack };
 use crate::utils;
@@ -38,13 +37,13 @@ impl ConstraintTable {
         }        
 
         // evaluate the constraints
-        let mut current = TraceState::new();
-        let mut next = TraceState::new();
+        let mut current = TraceState::new(trace.max_stack_depth());
+        let mut next = TraceState::new(trace.max_stack_depth());
         for i in 0..trace.len() {
             trace.fill_state(&mut current, i);
             trace.fill_state(&mut next, (i + COMPOSITION_FACTOR) % trace.len()); // TODO
 
-            let op_flags = get_op_flags(&current.op_bits);
+            let op_flags = current.get_op_flags();
             decoder::evaluate(&current, &next, &op_flags, &mut decoder_constraints, i);
             stack::evaluate(&current, &next, &op_flags, &mut stack_constraints, i);
         }
@@ -55,35 +54,11 @@ impl ConstraintTable {
         };
     }
 
+    pub fn constraint_count(&self) -> usize {
+        return self.decoder.len() + self.stack.len();
+    }
+
     pub fn get_composition_poly() {
         // TODO: implement
     }
-}
-
-// HELPER FUNCTIONS
-// ================================================================================================
-fn get_op_flags(op_bits: &[u64; 5]) -> [u64; 32] {
-    let mut op_flags = [1u64; 32];
-
-    // expand only the first 5 bits for now
-    for i in 0..5 {
-        
-        let segment_length = usize::pow(2, (i + 1) as u32);
-
-        let inv_bit = field::sub(field::ONE, op_bits[i]);
-        for j in 0..(segment_length / 2) {
-            op_flags[j] = field::mul(op_flags[j], inv_bit);
-        }
-
-        for j in (segment_length / 2)..segment_length {
-            op_flags[j] = field::mul(op_flags[j], op_bits[i]);
-        }
-
-        let segment_slice = unsafe { &*(&op_flags[0..segment_length] as *const [u64]) };
-        for j in (segment_length..32).step_by(segment_length) {
-            op_flags[j..(j + segment_length)].copy_from_slice(segment_slice);
-        }
-    }
-
-    return op_flags;
 }

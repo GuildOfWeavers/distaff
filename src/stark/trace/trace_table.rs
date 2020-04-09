@@ -22,12 +22,18 @@ pub struct TraceTable {
 // ================================================================================================
 impl TraceTable {
 
+    /// Returns a trace table resulting from the execution of the specified program. Space for the
+    /// trace table will be allocated in accordance with the specified `extension_factor`.
     pub fn new(program: &[u64], extension_factor: usize) -> TraceTable {
+        
         let trace_length = program.len() + 1;
-        assert!(trace_length.is_power_of_two(), "program length must be one less than a power of 2");
-        assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
         let domain_size = trace_length * extension_factor;
 
+        assert!(trace_length.is_power_of_two(), "program length must be one less than a power of 2");
+        assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
+
+        // allocate space for trace table registers. capacity of each register is set to the
+        // domain size right from the beginning to avoid vector re-allocation later on.
         let state = TraceTableState::Initialized;
         let op_code = utils::zero_filled_vector(trace_length, domain_size);
         let push_flag = utils::zero_filled_vector(trace_length, domain_size);
@@ -39,6 +45,7 @@ impl TraceTable {
             utils::zero_filled_vector(trace_length, domain_size),
         ];
 
+        // create trace table object
         let stack = Stack::new(trace_length, extension_factor);
         let mut trace = TraceTable { state, op_code, push_flag, op_bits, stack };
 
@@ -51,6 +58,7 @@ impl TraceTable {
         return trace;
     }
 
+    /// Copies trace table state at the specified `step` to the passed in `state` object.
     pub fn fill_state(&self, state: &mut TraceState, step: usize) {
         state.op_code = self.op_code[step];
         state.push_flag = self.push_flag[step];
@@ -60,18 +68,22 @@ impl TraceTable {
         self.stack.fill_state(state, step);
     }
 
+    /// Returns the number of states in the trace table.
     pub fn len(&self) -> usize {
         return self.op_code.len();
     }
 
+    /// Returns the number of registers in the trace table.
     pub fn register_count(&self) -> usize {
         return 1 + self.op_bits.len() + self.stack.max_depth();
     }
 
+    /// Returns the number of registers used by the stack.
     pub fn max_stack_depth(&self) -> usize {
         return self.stack.max_depth();
     }
 
+    /// Returns register trace at the specified `index`.
     pub fn get_register_trace(&self, index: usize) -> &[u64] {
         return match index {
             0     => &self.op_code,
@@ -80,16 +92,21 @@ impl TraceTable {
         };
     }
 
+    /// Returns `true` if the trace table has been interpolated, but has not yet been extended.
     pub fn is_interpolated(&self) -> bool {
         return self.state == TraceTableState::Interpolated;
     }
 
+    /// Returns `true` if the trace table has been extended.
     pub fn is_extended(&self) -> bool {
         return self.state == TraceTableState::Extended;
     }
 
+    /// Makes a deep copy of the trace table. The cloned trace table will have the extension_factor
+    /// set to the specified value.
     pub fn clone(&self, extension_factor: usize) -> TraceTable {
         assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
+
         let trace_length = self.len();
         let domain_size = trace_length * extension_factor;
 
@@ -121,6 +138,10 @@ impl TraceTable {
 
     // INTERPOLATION AND EXTENSION
     // --------------------------------------------------------------------------------------------
+
+    /// Interpolates all registers of the trace table using FFT interpolation. Interpolation is
+    /// allowed only once. That is, once the trace table is interpolated, it cannot be interpolated
+    /// again.
     pub fn interpolate(&mut self) {
         assert!(!self.is_interpolated(), "trace table has already been interpolated");
         assert!(!self.is_extended(), "cannot interpolate extended trace table");
@@ -138,6 +159,9 @@ impl TraceTable {
         self.state = TraceTableState::Interpolated;
     }
 
+    /// Extends all registers of the trace table by the extension_factor specified during
+    /// trace table construction. Extension is allowed only once, right after the trace table
+    /// is interpolated.
     pub fn extend(&mut self) {
         assert!(!self.is_extended(), "trace table has already been extended");
         assert!(self.is_interpolated(), "cannot extend un-interpolated trace table");
@@ -165,6 +189,9 @@ impl TraceTable {
 
     // PROGRAM EXECUTION
     // --------------------------------------------------------------------------------------------
+
+    /// Execute the program contained in the op_code register. This will fill in all other
+    /// registers of the trace table.
     fn execute_program(&mut self) {
         
         // for the first operation, push_flag is always 0
@@ -187,6 +214,7 @@ impl TraceTable {
                 // if the current operation is a PUSH, set push_flag for the next step to 1
                 self.push_flag[i + 1] = if op == opcodes::PUSH { 1 } else { 0 };
                 
+                // update stack state based on the op_code
                 match op {
                     opcodes::NOOP  => self.stack.noop(),
 
@@ -206,10 +234,15 @@ impl TraceTable {
                 }
             }
         }
+
+        // set op_bits for the last step
         self.set_op_bits(self.op_code[self.len() - 1], self.len() - 1);
+
         self.state = TraceTableState::Executed;
     }
 
+    /// Sets the op_bits registers at the specified `step` to a binary decomposition
+    /// of the `op_code` parameter.
     fn set_op_bits(&mut self, op_code: u64, step: usize) {
         for i in 0..self.op_bits.len() {
             self.op_bits[i][step] = (op_code >> i) & 1;

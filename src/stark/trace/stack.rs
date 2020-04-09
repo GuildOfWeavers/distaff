@@ -4,7 +4,7 @@ use crate::utils;
 
 // CONSTANTS
 // ================================================================================================
-const MIN_STACK_DEPTH: usize = 8;
+pub const MIN_STACK_DEPTH: usize = 8;
 pub const MAX_STACK_DEPTH: usize = 32;
 
 // TYPES AND INTERFACES
@@ -174,7 +174,7 @@ impl Stack {
     // --------------------------------------------------------------------------------------------
 
     fn copy_state(&mut self, start: usize) {
-        for i in start..self.registers.len() {
+        for i in start..self.depth {
             let slot_value = self.registers[i][self.current_step];
             self.registers[i][self.current_step + 1] = slot_value;
         }
@@ -239,7 +239,7 @@ mod tests {
 
     #[test]
     fn new() {
-        let mut state = TraceState::new();
+        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
         let stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
         let expected = vec![0u64; super::MAX_STACK_DEPTH];
 
@@ -248,12 +248,12 @@ mod tests {
         assert_eq!(TRACE_LENGTH, stack.trace_length());
 
         stack.fill_state(&mut state, 0);
-        assert_eq!(expected, state.stack.to_vec());
+        assert_eq!(expected, state.stack);
     }
 
     #[test]
     fn growth() {
-        let mut state = TraceState::new();
+        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
         let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
@@ -280,7 +280,7 @@ mod tests {
 
         expected[0..10].copy_from_slice(&[10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
         stack.fill_state(&mut state, 10);
-        assert_eq!(expected, state.stack.to_vec());
+        assert_eq!(expected, state.stack);
 
         // removing from the stack should reduce the depth but not max_depth
         stack.drop();
@@ -291,7 +291,7 @@ mod tests {
 
         expected[0..10].copy_from_slice(&[7, 6, 5, 4, 3, 2, 1, 0, 0, 0]);
         stack.fill_state(&mut state, 13);
-        assert_eq!(expected, state.stack.to_vec());
+        assert_eq!(expected, state.stack);
 
         // adding to stack again should increase depth but not max_depth
         stack.push(11);
@@ -301,12 +301,12 @@ mod tests {
 
         expected[0..10].copy_from_slice(&[12, 11, 7, 6, 5, 4, 3, 2, 1, 0]);
         stack.fill_state(&mut state, 15);
-        assert_eq!(expected, state.stack.to_vec());
+        assert_eq!(expected, state.stack);
     }
 
     #[test]
     fn noop() {
-        let mut state = TraceState::new();
+        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
         let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
@@ -319,7 +319,7 @@ mod tests {
         stack.noop();
         stack.fill_state(&mut state, 4);
         expected[0] = 1;
-        assert_eq!(expected, state.stack.to_vec());
+        assert_eq!(expected, state.stack);
 
         assert_eq!(1, stack.depth());
         assert_eq!(1, stack.max_depth());
@@ -327,7 +327,7 @@ mod tests {
 
     #[test]
     fn pull1() {
-        let mut state = TraceState::new();
+        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
         let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
@@ -346,7 +346,7 @@ mod tests {
 
     #[test]
     fn pull2() {
-        let mut state = TraceState::new();
+        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
         let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
@@ -366,7 +366,7 @@ mod tests {
 
     #[test]
     fn push() {
-        let mut state = TraceState::new();
+        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
         let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
@@ -391,7 +391,7 @@ mod tests {
     
     #[test]
     fn dup0() {
-        let mut state = TraceState::new();
+        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
         let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
@@ -408,7 +408,7 @@ mod tests {
 
     #[test]
     fn dup1() {
-        let mut state = TraceState::new();
+        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
         let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
@@ -425,7 +425,7 @@ mod tests {
 
     #[test]
     fn drop() {
-        let mut state = TraceState::new();
+        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
         let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
@@ -445,7 +445,7 @@ mod tests {
 
     #[test]
     fn add() {
-        let mut state = TraceState::new();
+        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
         let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
@@ -462,7 +462,7 @@ mod tests {
 
     #[test]
     fn sub() {
-        let mut state = TraceState::new();
+        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
         let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
@@ -479,7 +479,7 @@ mod tests {
 
     #[test]
     fn mul() {
-        let mut state = TraceState::new();
+        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
         let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
