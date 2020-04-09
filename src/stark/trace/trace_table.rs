@@ -1,7 +1,7 @@
 use crate::math::{ field, fft, polys };
 use crate::program::opcodes;
-use crate::utils;
-use super::{ TraceState, stack::Stack };
+use crate::utils::zero_filled_vector;
+use super::{ TraceState, stack::Stack, acc_hash };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -15,6 +15,7 @@ pub struct TraceTable {
     op_code     : Vec<u64>,
     push_flag   : Vec<u64>,
     op_bits     : [Vec<u64>; 5],
+    op_acc      : [Vec<u64>; acc_hash::STATE_WIDTH],
     stack       : Stack,
 }
 
@@ -35,19 +36,20 @@ impl TraceTable {
         // allocate space for trace table registers. capacity of each register is set to the
         // domain size right from the beginning to avoid vector re-allocation later on.
         let state = TraceTableState::Initialized;
-        let op_code = utils::zero_filled_vector(trace_length, domain_size);
-        let push_flag = utils::zero_filled_vector(trace_length, domain_size);
+        let op_code = zero_filled_vector(trace_length, domain_size);
+        let push_flag = zero_filled_vector(trace_length, domain_size);
         let op_bits = [
-            utils::zero_filled_vector(trace_length, domain_size),
-            utils::zero_filled_vector(trace_length, domain_size),
-            utils::zero_filled_vector(trace_length, domain_size),
-            utils::zero_filled_vector(trace_length, domain_size),
-            utils::zero_filled_vector(trace_length, domain_size),
+            zero_filled_vector(trace_length, domain_size),
+            zero_filled_vector(trace_length, domain_size),
+            zero_filled_vector(trace_length, domain_size),
+            zero_filled_vector(trace_length, domain_size),
+            zero_filled_vector(trace_length, domain_size),
         ];
 
         // create trace table object
+        let op_acc = acc_hash::digest(&program, extension_factor);
         let stack = Stack::new(trace_length, extension_factor);
-        let mut trace = TraceTable { state, op_code, push_flag, op_bits, stack };
+        let mut trace = TraceTable { state, op_code, push_flag, op_bits, op_acc, stack };
 
         // copy program into the trace and set the last operation to NOOP
         trace.op_code[0..program.len()].copy_from_slice(program);
@@ -66,6 +68,10 @@ impl TraceTable {
             state.op_bits[i] = self.op_bits[i][step];
         }
         self.stack.fill_state(state, step);
+
+        for i in 0..self.op_acc.len() {
+            state.op_acc[i] = self.op_acc[i][step];
+        }
     }
 
     /// Returns the number of states in the trace table.
@@ -75,7 +81,7 @@ impl TraceTable {
 
     /// Returns the number of registers in the trace table.
     pub fn register_count(&self) -> usize {
-        return 1 + self.op_bits.len() + self.stack.max_depth();
+        return 1 + self.op_bits.len() + self.op_acc.len() + self.stack.max_depth();
     }
 
     /// Returns the number of registers used by the stack.
@@ -111,29 +117,48 @@ impl TraceTable {
         let domain_size = trace_length * extension_factor;
 
         // clone op_code register
-        let mut op_code = utils::zero_filled_vector(trace_length, domain_size);
+        let mut op_code = zero_filled_vector(trace_length, domain_size);
         op_code.copy_from_slice(&self.op_code);
 
         // clone was_push register
-        let mut push_flag = utils::zero_filled_vector(trace_length, domain_size);
+        let mut push_flag = zero_filled_vector(trace_length, domain_size);
         push_flag.copy_from_slice(&self.push_flag);
 
         // clone op_bits registers
         let mut op_bits = [
-            utils::zero_filled_vector(trace_length, domain_size),
-            utils::zero_filled_vector(trace_length, domain_size),
-            utils::zero_filled_vector(trace_length, domain_size),
-            utils::zero_filled_vector(trace_length, domain_size),
-            utils::zero_filled_vector(trace_length, domain_size),
+            zero_filled_vector(trace_length, domain_size),
+            zero_filled_vector(trace_length, domain_size),
+            zero_filled_vector(trace_length, domain_size),
+            zero_filled_vector(trace_length, domain_size),
+            zero_filled_vector(trace_length, domain_size),
         ];
         for i in 0..op_bits.len() {
             op_bits[i].copy_from_slice(&self.op_bits[i]);
         }
 
-        // clone the stack
+        // clone op_acc registers
+        let mut op_acc = [
+            zero_filled_vector(trace_length, domain_size),
+            zero_filled_vector(trace_length, domain_size),
+            zero_filled_vector(trace_length, domain_size),
+            zero_filled_vector(trace_length, domain_size),
+            zero_filled_vector(trace_length, domain_size),
+            zero_filled_vector(trace_length, domain_size),
+            zero_filled_vector(trace_length, domain_size),
+            zero_filled_vector(trace_length, domain_size),
+            zero_filled_vector(trace_length, domain_size),
+            zero_filled_vector(trace_length, domain_size),
+            zero_filled_vector(trace_length, domain_size),
+            zero_filled_vector(trace_length, domain_size),
+        ];
+        for i in 0..op_acc.len() {
+            op_acc[i].copy_from_slice(&self.op_acc[i]);
+        }
+
+        // clone operation accumulator and stack
         let stack = self.stack.clone(extension_factor);
 
-        return TraceTable { state: self.state, op_code, push_flag, op_bits, stack };
+        return TraceTable { state: self.state, op_code, push_flag, op_bits, op_acc, stack };
     }
 
     // INTERPOLATION AND EXTENSION
@@ -153,6 +178,9 @@ impl TraceTable {
         polys::interpolate_fft_twiddles(&mut self.push_flag, &inv_twiddles, true);
         for op_bit in self.op_bits.iter_mut() {
             polys::interpolate_fft_twiddles(op_bit, &inv_twiddles, true);
+        }
+        for acc in self.op_acc.iter_mut() {
+            polys::interpolate_fft_twiddles(acc, &inv_twiddles, true);
         }
         self.stack.interpolate_registers(&inv_twiddles);
 
@@ -180,6 +208,12 @@ impl TraceTable {
             debug_assert!(op_bit.capacity() == domain_length, "invalid register capacity");
             unsafe { op_bit.set_len(domain_length); }
             polys::eval_fft_twiddles(op_bit, &twiddles, true);
+        }
+
+        for acc in self.op_acc.iter_mut() {
+            debug_assert!(acc.capacity() == domain_length, "invalid register capacity");
+            unsafe { acc.set_len(domain_length); }
+            polys::eval_fft_twiddles(acc, &twiddles, true);
         }
 
         self.stack.extend_registers(&twiddles);

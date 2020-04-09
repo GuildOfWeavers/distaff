@@ -1,5 +1,7 @@
 use std::fmt;
+use std::cmp;
 use crate::math::field::{ add, sub, mul, ONE };
+use super::{ acc_hash::STATE_WIDTH as ACC_WIDTH, MIN_STACK_DEPTH };
 
 // CONSTANTS
 // ================================================================================================
@@ -13,6 +15,7 @@ pub struct TraceState {
     pub op_code     : u64,
     pub push_flag   : u64,
     pub op_bits     : [u64; NUM_OP_BITS],
+    pub op_acc      : [u64; ACC_WIDTH],
     pub stack       : Vec<u64>,
 }
 
@@ -21,11 +24,13 @@ pub struct TraceState {
 impl TraceState {
 
     pub fn new(stack_depth: usize) -> TraceState {
+        let stack_depth = cmp::max(stack_depth, MIN_STACK_DEPTH);
         return TraceState {
-            op_code         : 0,
-            push_flag       : 0,
-            op_bits         : [0; NUM_OP_BITS],
-            stack           : vec![0; stack_depth],
+            op_code     : 0,
+            push_flag   : 0,
+            op_bits     : [0; NUM_OP_BITS],
+            op_acc      : [0; ACC_WIDTH],
+            stack       : vec![0; stack_depth],
         };
     }
 

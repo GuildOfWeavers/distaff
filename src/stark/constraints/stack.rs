@@ -1,12 +1,14 @@
+use std::cmp;
 use crate::math::field::{ add, sub, mul };
-use crate::stark::{ TraceState };
+use crate::stark::{ TraceState, MIN_STACK_DEPTH };
 use crate::program::{ opcodes };
 
 // EVALUATOR FUNCTION
 // ================================================================================================
 pub fn evaluate(current: &TraceState, next: &TraceState, op_flags: &[u64; 32], table: &mut Vec<Vec<u64>>, step: usize) {
 
-    let mut next_stack = vec![0u64; table.len()];
+    let stack_depth = cmp::max(table.len(), MIN_STACK_DEPTH);
+    let mut next_stack = vec![0u64; stack_depth];
 
     mul_acc(&mut next_stack,  &current.stack, op_flags[opcodes::NOOP as usize]);
 
