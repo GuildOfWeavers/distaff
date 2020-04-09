@@ -40,8 +40,10 @@ impl TraceState {
 
     pub fn get_op_flags(&self) -> [u64; NUM_LD_OPS] {
 
+        // TODO: needs to be optimized - takes 30% of constraint evaluation time
+
         // initialize op_flags to 1
-        let mut op_flags = [0; NUM_LD_OPS];
+        let mut op_flags = [1; NUM_LD_OPS];
 
         // expand the bits
         for i in 0..5 {
