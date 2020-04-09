@@ -1,7 +1,7 @@
 use crate::math::{ field, fft, polys };
-use crate::trace::{ TraceState, Stack };
-use crate::opcodes;
+use crate::program::opcodes;
 use crate::utils;
+use super::{ TraceState, stack::Stack };
 
 // TYPES AND INTERFACES
 // ================================================================================================

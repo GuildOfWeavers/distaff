@@ -1,5 +1,8 @@
-pub mod trace;
-pub use trace::*;
+mod trace;
+pub use trace::{ TraceTable, TraceState };
 
-pub mod constraints;
-pub use constraints::*;
+mod constraints;
+pub use constraints::{ ConstraintTable };
+
+mod prover;
+pub use prover::{ prove };

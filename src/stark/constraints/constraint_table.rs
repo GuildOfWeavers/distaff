@@ -1,6 +1,6 @@
-use crate::trace::{ TraceTable, TraceState };
-use crate::constraints::{ decoder, stack };
+use crate::stark::{ TraceTable, TraceState };
 use crate::utils;
+use super::{ decoder, stack };
 
 // CONSTANTS
 // ================================================================================================

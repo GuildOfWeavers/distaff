@@ -1,6 +1,6 @@
 use crate::math::{ field, polys };
-use crate::trace::TraceState;
 use crate::utils;
+use super::TraceState;
 
 // CONSTANTS
 // ================================================================================================
@@ -43,10 +43,6 @@ impl Stack {
         for i in 0..self.max_depth {
             state.stack[i] = self.registers[i][step];
         }
-    }
-
-    pub fn depth(&self) -> usize {
-        return self.depth;
     }
 
     pub fn max_depth(&self) -> usize {
@@ -232,7 +228,7 @@ impl Stack {
 #[cfg(test)]
 mod tests {
     
-    use crate::trace::TraceState;
+    use crate::stark::TraceState;
 
     const TRACE_LENGTH: usize = 16;
     const EXTENSION_FACTOR: usize = 16;
@@ -243,7 +239,7 @@ mod tests {
         let stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
         let expected = vec![0u64; super::MAX_STACK_DEPTH];
 
-        assert_eq!(0, stack.depth());
+        assert_eq!(0, stack.depth);
         assert_eq!(0, stack.max_depth());
         assert_eq!(TRACE_LENGTH, stack.trace_length());
 
@@ -259,11 +255,11 @@ mod tests {
 
         // adding to stack should grow it
         stack.push(1);
-        assert_eq!(1, stack.depth());
+        assert_eq!(1, stack.depth);
         assert_eq!(1, stack.max_depth());
         
         stack.push(2);
-        assert_eq!(2, stack.depth());
+        assert_eq!(2, stack.depth);
         assert_eq!(2, stack.max_depth());
 
         // grow the stack beyond MIN_STACK_DEPTH to make sure everything works
@@ -275,7 +271,7 @@ mod tests {
         stack.push(8);
         stack.push(9);
         stack.push(10);
-        assert_eq!(10, stack.depth());
+        assert_eq!(10, stack.depth);
         assert_eq!(10, stack.max_depth());
 
         expected[0..10].copy_from_slice(&[10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
@@ -286,7 +282,7 @@ mod tests {
         stack.drop();
         stack.drop();
         stack.drop();
-        assert_eq!(7, stack.depth());
+        assert_eq!(7, stack.depth);
         assert_eq!(10, stack.max_depth());
 
         expected[0..10].copy_from_slice(&[7, 6, 5, 4, 3, 2, 1, 0, 0, 0]);
@@ -296,7 +292,7 @@ mod tests {
         // adding to stack again should increase depth but not max_depth
         stack.push(11);
         stack.push(12);
-        assert_eq!(9, stack.depth());
+        assert_eq!(9, stack.depth);
         assert_eq!(10, stack.max_depth());
 
         expected[0..10].copy_from_slice(&[12, 11, 7, 6, 5, 4, 3, 2, 1, 0]);
@@ -321,7 +317,7 @@ mod tests {
         expected[0] = 1;
         assert_eq!(expected, state.stack);
 
-        assert_eq!(1, stack.depth());
+        assert_eq!(1, stack.depth);
         assert_eq!(1, stack.max_depth());
     }
 
@@ -340,7 +336,7 @@ mod tests {
         expected[0..3].copy_from_slice(&[2, 3, 1]);
         assert_eq!(expected, state.stack);
 
-        assert_eq!(3, stack.depth());
+        assert_eq!(3, stack.depth);
         assert_eq!(3, stack.max_depth());
     }
 
@@ -360,7 +356,7 @@ mod tests {
         expected[0..4].copy_from_slice(&[2, 4, 3, 1]);
         assert_eq!(expected, state.stack);
 
-        assert_eq!(4, stack.depth());
+        assert_eq!(4, stack.depth);
         assert_eq!(4, stack.max_depth());
     }
 
@@ -385,7 +381,7 @@ mod tests {
         expected[0..3].copy_from_slice(&[3, 2, 1]);
         assert_eq!(expected, state.stack);
 
-        assert_eq!(3, stack.depth());
+        assert_eq!(3, stack.depth);
         assert_eq!(3, stack.max_depth());
     }
     
@@ -402,7 +398,7 @@ mod tests {
         expected[0..3].copy_from_slice(&[2, 2, 1]);
         assert_eq!(expected, state.stack);
 
-        assert_eq!(3, stack.depth());
+        assert_eq!(3, stack.depth);
         assert_eq!(3, stack.max_depth());
     }
 
@@ -419,7 +415,7 @@ mod tests {
         expected[0..3].copy_from_slice(&[1, 2, 1]);
         assert_eq!(expected, state.stack);
 
-        assert_eq!(3, stack.depth());
+        assert_eq!(3, stack.depth);
         assert_eq!(3, stack.max_depth());
     }
 
@@ -431,7 +427,7 @@ mod tests {
 
         stack.push(1);
         stack.push(2);
-        assert_eq!(2, stack.depth());
+        assert_eq!(2, stack.depth);
         assert_eq!(2, stack.max_depth());
 
         stack.drop();
@@ -439,7 +435,7 @@ mod tests {
         expected[0] = 1;
         assert_eq!(expected, state.stack);
 
-        assert_eq!(1, stack.depth());
+        assert_eq!(1, stack.depth);
         assert_eq!(2, stack.max_depth());
     }
 
@@ -456,7 +452,7 @@ mod tests {
         expected[0] = 3;
         assert_eq!(expected, state.stack);
 
-        assert_eq!(1, stack.depth());
+        assert_eq!(1, stack.depth);
         assert_eq!(2, stack.max_depth());
     }
 
@@ -473,7 +469,7 @@ mod tests {
         expected[0] = 3;
         assert_eq!(expected, state.stack);
 
-        assert_eq!(1, stack.depth());
+        assert_eq!(1, stack.depth);
         assert_eq!(2, stack.max_depth());
     }
 
@@ -490,7 +486,7 @@ mod tests {
         expected[0] = 6;
         assert_eq!(expected, state.stack);
 
-        assert_eq!(1, stack.depth());
+        assert_eq!(1, stack.depth);
         assert_eq!(2, stack.max_depth());
     }
 }

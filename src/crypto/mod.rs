@@ -1,7 +1,6 @@
 pub mod hash;
-pub use hash::*;
 
-pub mod merkle;
-pub use merkle::*;
+mod merkle;
+pub use merkle::{ MerkleTree, BatchMerkleProof };
 
 pub type HashFunction = fn(&[u64], &mut [u64]);

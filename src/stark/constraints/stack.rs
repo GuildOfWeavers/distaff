@@ -1,5 +1,6 @@
 use crate::math::field::{ add, sub, mul };
-use crate::trace::{ TraceState, opcodes };
+use crate::stark::{ TraceState };
+use crate::program::{ opcodes };
 
 // EVALUATOR FUNCTION
 // ================================================================================================
