@@ -1,5 +1,5 @@
-use crate::stark::{ TraceTable, TraceState };
-use crate::utils;
+use crate::stark::{ TraceState };
+use crate::utils::{ uninit_vector };
 use super::{ decoder, stack };
 
 // CONSTANTS
@@ -17,41 +17,31 @@ pub struct ConstraintTable {
 // ================================================================================================
 impl ConstraintTable {
 
-    pub fn new(trace: &TraceTable) -> ConstraintTable {
-        assert!(!trace.is_extended(), "cannot evaluate extended trace table");
-        assert!(trace.is_interpolated(), "cannot evaluate un-interpolated trace table");
-
-        // clone the trace and extended it by the COMPOSITION_FACTOR
-        let mut trace = trace.clone(COMPOSITION_FACTOR);
-        trace.extend();
+    pub fn new(trace_length: usize, max_stack_depth: usize) -> ConstraintTable {
+        debug_assert!(trace_length.is_power_of_two(), "trace length must be a power of 2");
+        let trace_length = trace_length * COMPOSITION_FACTOR;
 
         // create vectors to hold constraint evaluations
         let mut decoder_constraints = Vec::new();
         for _ in 0..decoder::CONSTRAINT_DEGREES.len() {
-            decoder_constraints.push(utils::uninit_vector(trace.len()));
+            decoder_constraints.push(uninit_vector(trace_length));
         }
 
         let mut stack_constraints = Vec::new();
-        for _ in 0..trace.max_stack_depth() {
-            stack_constraints.push(utils::uninit_vector(trace.len()));
+        for _ in 0..max_stack_depth {
+            stack_constraints.push(uninit_vector(trace_length));
         }        
-
-        // evaluate the constraints
-        let mut current = TraceState::new(trace.max_stack_depth());
-        let mut next = TraceState::new(trace.max_stack_depth());
-        for i in 0..trace.len() {
-            trace.fill_state(&mut current, i);
-            trace.fill_state(&mut next, (i + COMPOSITION_FACTOR) % trace.len()); // TODO
-
-            let op_flags = current.get_op_flags();
-            decoder::evaluate(&current, &next, &op_flags, &mut decoder_constraints, i);
-            stack::evaluate(&current, &next, &op_flags, &mut stack_constraints, i);
-        }
 
         return ConstraintTable {
             decoder : decoder_constraints,
             stack   : stack_constraints,
         };
+    }
+
+    pub fn evaluate(&mut self, current: &TraceState, next: &TraceState, index: usize) {
+        let op_flags = current.get_op_flags();
+        decoder::evaluate(&current, &next, &op_flags, &mut self.decoder, index);
+        stack::evaluate(&current, &next, &op_flags, &mut self.stack, index);
     }
 
     pub fn constraint_count(&self) -> usize {
