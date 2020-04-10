@@ -8,15 +8,17 @@ use super::{ acc_hash::STATE_WIDTH as ACC_WIDTH, MIN_STACK_DEPTH };
 const NUM_OP_BITS: usize = 5;
 const NUM_LD_OPS: usize = 32;
 
+const OP_CODE_IDX   : usize = 0;
+const PUSH_FLAG_IDX : usize = 1;
+const OP_ACC_IDX    : usize = 2;
+const OP_BITS_IDX   : usize = OP_ACC_IDX + ACC_WIDTH;
+const STACK_IDX     : usize = OP_BITS_IDX + NUM_OP_BITS;
+
 // TYPES AND INTERFACES
 // ================================================================================================
 #[derive(Debug, PartialEq)]
 pub struct TraceState {
-    op_code     : u64,
-    push_flag   : u64,
-    op_bits     : [u64; NUM_OP_BITS],
-    op_acc      : [u64; ACC_WIDTH],
-    stack       : Vec<u64>,
+    pub state   : Vec<u64>,
 }
 
 // TRACE STATE IMPLEMENTATION
@@ -25,61 +27,60 @@ impl TraceState {
 
     pub fn new(stack_depth: usize) -> TraceState {
         let stack_depth = cmp::max(stack_depth, MIN_STACK_DEPTH);
+        let state_width = 2 + NUM_OP_BITS + ACC_WIDTH + stack_depth;
+        
         return TraceState {
-            op_code     : 0,
-            push_flag   : 0,
-            op_bits     : [0; NUM_OP_BITS],
-            op_acc      : [0; ACC_WIDTH],
-            stack       : vec![0; stack_depth],
+            state       : vec![0; state_width],
         };
     }
 
     // OP_CODE
     // --------------------------------------------------------------------------------------------
     pub fn get_op_code(&self) -> u64 {
-        return self.op_code;
+        return self.state[OP_CODE_IDX];
     }
 
     pub fn set_op_code(&mut self, value: u64) {
-        self.op_code = value;
+        self.state[OP_CODE_IDX] = value;
     }
 
     // PUSH_FLAG
     // --------------------------------------------------------------------------------------------
     pub fn get_push_flag(&self) -> u64 {
-        return self.push_flag;
+        return self.state[PUSH_FLAG_IDX];
     }
 
     pub fn set_push_flag(&mut self, value: u64) {
-        self.push_flag = value;
+        self.state[PUSH_FLAG_IDX] = value;
     }
 
     // OP_ACC
     // --------------------------------------------------------------------------------------------
-    pub fn get_op_acc(&self) -> &[u64; ACC_WIDTH] {
-        return &self.op_acc;
+    pub fn get_op_acc(&self) -> &[u64] {
+        return &self.state[OP_ACC_IDX..(OP_ACC_IDX + ACC_WIDTH)];
     }
 
     pub fn set_op_acc(&mut self, value: [u64; ACC_WIDTH]) {
-        self.op_acc = value;
+        self.state[OP_ACC_IDX..(OP_ACC_IDX + ACC_WIDTH)].copy_from_slice(&value);
     }
 
     // OP_BITS
     // --------------------------------------------------------------------------------------------
-    pub fn get_op_bits(&self) -> &[u64; NUM_OP_BITS] {
-        return &self.op_bits;
+    pub fn get_op_bits(&self) -> &[u64] {
+        return &self.state[OP_BITS_IDX..(OP_BITS_IDX + NUM_OP_BITS)];
     }
 
     pub fn set_op_bits(&mut self, op_bits: [u64; NUM_OP_BITS]) {
-        self.op_bits = op_bits;
+        self.state[OP_BITS_IDX..(OP_BITS_IDX + NUM_OP_BITS)].copy_from_slice(&op_bits);
     }
 
     pub fn get_op_bits_value(&self) -> u64 {
-        let mut value = self.op_bits[0];
-        value = add(value, mul(self.op_bits[1],  2));
-        value = add(value, mul(self.op_bits[2],  4));
-        value = add(value, mul(self.op_bits[3],  8));
-        value = add(value, mul(self.op_bits[4], 16));
+        let op_bits = self.get_op_bits();
+        let mut value = op_bits[0];
+        value = add(value, mul(op_bits[1],  2));
+        value = add(value, mul(op_bits[2],  4));
+        value = add(value, mul(op_bits[3],  8));
+        value = add(value, mul(op_bits[4], 16));
         return value;
     }
 
@@ -93,17 +94,18 @@ impl TraceState {
         let mut op_flags = [1; NUM_LD_OPS];
 
         // expand the bits
+        let op_bits = self.get_op_bits();
         for i in 0..5 {
             
             let segment_length = usize::pow(2, (i + 1) as u32);
 
-            let inv_bit = sub(ONE, self.op_bits[i]);
+            let inv_bit = sub(ONE, op_bits[i]);
             for j in 0..(segment_length / 2) {
                 op_flags[j] = mul(op_flags[j], inv_bit);
             }
 
             for j in (segment_length / 2)..segment_length {
-                op_flags[j] = mul(op_flags[j], self.op_bits[i]);
+                op_flags[j] = mul(op_flags[j], op_bits[i]);
             }
 
             let segment_slice = unsafe { &*(&op_flags[0..segment_length] as *const [u64]) };
@@ -118,16 +120,20 @@ impl TraceState {
     // STACK
     // --------------------------------------------------------------------------------------------
     pub fn get_stack(&self) -> &[u64] {
-        return &self.stack;
+        return &self.state[STACK_IDX..];
     }
 
     pub fn set_stack_value(&mut self, index: usize, value: u64) {
-        self.stack[index] = value;
+        self.state[STACK_IDX + index] = value;
     }
 }
 
 impl fmt::Display for TraceState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{}]\t[{}]\t{:?}\t{:?}", self.op_code, self.push_flag, self.op_bits, self.stack)
+        write!(f, "[{}]\t[{}]\t{:?}\t{:?}",
+            self.get_op_code(), 
+            self.get_push_flag(),
+            self.get_op_bits(),
+            self.get_stack())
     }
 }
