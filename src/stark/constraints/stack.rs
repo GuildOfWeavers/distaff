@@ -5,8 +5,9 @@ use crate::processor::{ opcodes };
 
 // EVALUATOR FUNCTION
 // ================================================================================================
-pub fn evaluate(current: &TraceState, next: &TraceState, op_flags: &[u64; 32], table: &mut Vec<Vec<u64>>, step: usize) {
+pub fn evaluate(current: &TraceState, next: &TraceState, table: &mut Vec<Vec<u64>>, step: usize) {
 
+    let op_flags = current.get_op_flags();
     let stack_depth = cmp::max(table.len(), MIN_STACK_DEPTH);
     let current_stack = current.get_stack();
     let mut expected_stack = vec![0u64; stack_depth];

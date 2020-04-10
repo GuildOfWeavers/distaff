@@ -5,8 +5,8 @@ use super::{ acc_hash::STATE_WIDTH as ACC_WIDTH, MIN_STACK_DEPTH };
 
 // CONSTANTS
 // ================================================================================================
-const NUM_OP_BITS: usize = 5;
-const NUM_LD_OPS: usize = 32;
+const NUM_OP_BITS   : usize = 5;
+const NUM_LD_OPS    : usize = 32;
 
 const OP_CODE_IDX   : usize = 0;
 const PUSH_FLAG_IDX : usize = 1;
@@ -19,6 +19,8 @@ const STACK_IDX     : usize = OP_BITS_IDX + NUM_OP_BITS;
 #[derive(Debug, PartialEq)]
 pub struct TraceState {
     pub state   : Vec<u64>,
+    op_flags    : [u64; NUM_LD_OPS],
+    op_flags_set: bool,
 }
 
 // TRACE STATE IMPLEMENTATION
@@ -31,6 +33,8 @@ impl TraceState {
         
         return TraceState {
             state       : vec![0; state_width],
+            op_flags    : [0; NUM_LD_OPS],
+            op_flags_set: false
         };
     }
 
@@ -72,6 +76,7 @@ impl TraceState {
 
     pub fn set_op_bits(&mut self, op_bits: [u64; NUM_OP_BITS]) {
         self.state[OP_BITS_IDX..(OP_BITS_IDX + NUM_OP_BITS)].copy_from_slice(&op_bits);
+        self.op_flags_set = false;
     }
 
     pub fn get_op_bits_value(&self) -> u64 {
@@ -87,8 +92,16 @@ impl TraceState {
     // OP_FLAGS
     // --------------------------------------------------------------------------------------------
     pub fn get_op_flags(&self) -> [u64; NUM_LD_OPS] {
+        if !self.op_flags_set {
+            let mutable_self = unsafe { &mut *(self as *const _ as *mut TraceState) };
+            mutable_self.set_op_flags();
+            mutable_self.op_flags_set = true;
+        }
+        return self.op_flags;
+    }
 
-        // TODO: needs to be optimized - takes 30% of constraint evaluation time
+    fn set_op_flags(&mut self) {
+        // TODO: needs to be optimized
 
         // initialize op_flags to 1
         let mut op_flags = [1; NUM_LD_OPS];
@@ -114,7 +127,7 @@ impl TraceState {
             }
         }
 
-        return op_flags;
+        self.op_flags = op_flags;
     }
 
     // STACK

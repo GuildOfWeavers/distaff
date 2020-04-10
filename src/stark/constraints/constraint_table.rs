@@ -39,9 +39,8 @@ impl ConstraintTable {
     }
 
     pub fn evaluate(&mut self, current: &TraceState, next: &TraceState, index: usize) {
-        let op_flags = current.get_op_flags();
-        decoder::evaluate(&current, &next, &op_flags, &mut self.decoder, index);
-        stack::evaluate(&current, &next, &op_flags, &mut self.stack, index);
+        decoder::evaluate(&current, &next, &mut self.decoder, index);
+        stack::evaluate(&current, &next, &mut self.stack, index);
     }
 
     pub fn constraint_count(&self) -> usize {

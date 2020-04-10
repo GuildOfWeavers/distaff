@@ -55,20 +55,6 @@ pub fn prove(program: &[u64], extension_factor: usize) {
     let t = now.elapsed().as_millis();
     println!("Built trace merkle tree in {} ms", t);
 
-    println!("{:?}", trace_tree.root());
-    /*
-    for i in (0..evaluations.stack[0].len()).step_by(8) {
-        for j in 0..evaluations.decoder.len() {
-            print!("{}\t", evaluations.decoder[j][i]);
-        }
-        print!("| ");
-        for j in 0..evaluations.stack.len() {
-            print!("{}\t", evaluations.stack[j][i]);
-        }
-        print!("\n");
-    }
-    */
-
     // 6 ----- compute composition polynomial
     // TODO
 

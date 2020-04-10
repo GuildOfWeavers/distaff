@@ -14,7 +14,7 @@ pub const CONSTRAINT_DEGREES: [usize; 9] = [
 
 // EVALUATOR FUNCTION
 // ================================================================================================
-pub fn evaluate(current: &TraceState, next: &TraceState, op_flags: &[u64; 32], table: &mut Vec<Vec<u64>>, step: usize) {
+pub fn evaluate(current: &TraceState, next: &TraceState, table: &mut Vec<Vec<u64>>, step: usize) {
 
     // constraint counter
     let mut i = 0;
@@ -31,6 +31,7 @@ pub fn evaluate(current: &TraceState, next: &TraceState, op_flags: &[u64; 32], t
     i += 1;
 
     // 1 constraint, degree 5: push_flag must be set to 1 after a PUSH operation
+    let op_flags = current.get_op_flags();
     table[i][step] = sub(op_flags[opcodes::PUSH as usize], next.get_push_flag());
     i += 1;
 
