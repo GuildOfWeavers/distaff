@@ -12,11 +12,11 @@ const NUM_LD_OPS: usize = 32;
 // ================================================================================================
 #[derive(Debug, PartialEq)]
 pub struct TraceState {
-    pub op_code     : u64,
-    pub push_flag   : u64,
-    pub op_bits     : [u64; NUM_OP_BITS],
-    pub op_acc      : [u64; ACC_WIDTH],
-    pub stack       : Vec<u64>,
+    op_code     : u64,
+    push_flag   : u64,
+    op_bits     : [u64; NUM_OP_BITS],
+    op_acc      : [u64; ACC_WIDTH],
+    stack       : Vec<u64>,
 }
 
 // TRACE STATE IMPLEMENTATION
@@ -34,6 +34,46 @@ impl TraceState {
         };
     }
 
+    // OP_CODE
+    // --------------------------------------------------------------------------------------------
+    pub fn get_op_code(&self) -> u64 {
+        return self.op_code;
+    }
+
+    pub fn set_op_code(&mut self, value: u64) {
+        self.op_code = value;
+    }
+
+    // PUSH_FLAG
+    // --------------------------------------------------------------------------------------------
+    pub fn get_push_flag(&self) -> u64 {
+        return self.push_flag;
+    }
+
+    pub fn set_push_flag(&mut self, value: u64) {
+        self.push_flag = value;
+    }
+
+    // OP_ACC
+    // --------------------------------------------------------------------------------------------
+    pub fn get_op_acc(&self) -> &[u64; ACC_WIDTH] {
+        return &self.op_acc;
+    }
+
+    pub fn set_op_acc(&mut self, value: [u64; ACC_WIDTH]) {
+        self.op_acc = value;
+    }
+
+    // OP_BITS
+    // --------------------------------------------------------------------------------------------
+    pub fn get_op_bits(&self) -> &[u64; NUM_OP_BITS] {
+        return &self.op_bits;
+    }
+
+    pub fn set_op_bits(&mut self, op_bits: [u64; NUM_OP_BITS]) {
+        self.op_bits = op_bits;
+    }
+
     pub fn get_op_bits_value(&self) -> u64 {
         let mut value = self.op_bits[0];
         value = add(value, mul(self.op_bits[1],  2));
@@ -43,6 +83,8 @@ impl TraceState {
         return value;
     }
 
+    // OP_FLAGS
+    // --------------------------------------------------------------------------------------------
     pub fn get_op_flags(&self) -> [u64; NUM_LD_OPS] {
 
         // TODO: needs to be optimized - takes 30% of constraint evaluation time
@@ -71,6 +113,16 @@ impl TraceState {
         }
 
         return op_flags;
+    }
+
+    // STACK
+    // --------------------------------------------------------------------------------------------
+    pub fn get_stack(&self) -> &[u64] {
+        return &self.stack;
+    }
+
+    pub fn set_stack_value(&mut self, index: usize, value: u64) {
+        self.stack[index] = value;
     }
 }
 

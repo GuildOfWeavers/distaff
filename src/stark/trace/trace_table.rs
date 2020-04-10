@@ -62,16 +62,18 @@ impl TraceTable {
 
     /// Copies trace table state at the specified `step` to the passed in `state` object.
     pub fn fill_state(&self, state: &mut TraceState, step: usize) {
-        state.op_code = self.op_code[step];
-        state.push_flag = self.push_flag[step];
-        for i in 0..self.op_bits.len() {
-            state.op_bits[i] = self.op_bits[i][step];
-        }
+        state.set_op_code(self.op_code[step]);
+        state.set_push_flag(self.push_flag[step]);
+        state.set_op_bits([
+            self.op_bits[0][step], self.op_bits[1][step], self.op_bits[2][step],
+            self.op_bits[3][step], self.op_bits[4][step]
+        ]);
+        state.set_op_acc([
+            self.op_acc[0][step], self.op_acc[1][step], self.op_acc[2][step],  self.op_acc[3][step],
+            self.op_acc[4][step], self.op_acc[5][step], self.op_acc[6][step],  self.op_acc[7][step],
+            self.op_acc[8][step], self.op_acc[9][step], self.op_acc[10][step], self.op_acc[11][step]
+        ]);
         self.stack.fill_state(state, step);
-
-        for i in 0..self.op_acc.len() {
-            state.op_acc[i] = self.op_acc[i][step];
-        }
     }
 
     /// Returns the number of states in the trace table.

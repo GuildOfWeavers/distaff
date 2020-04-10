@@ -41,7 +41,7 @@ impl Stack {
 
     pub fn fill_state(&self, state: &mut TraceState, step: usize) {
         for i in 0..self.max_depth {
-            state.stack[i] = self.registers[i][step];
+            state.set_stack_value(i, self.registers[i][step]);
         }
     }
 
@@ -244,7 +244,7 @@ mod tests {
         assert_eq!(TRACE_LENGTH, stack.trace_length());
 
         stack.fill_state(&mut state, 0);
-        assert_eq!(expected, state.stack);
+        assert_eq!(expected, state.get_stack());
     }
 
     #[test]
@@ -276,7 +276,7 @@ mod tests {
 
         expected[0..10].copy_from_slice(&[10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
         stack.fill_state(&mut state, 10);
-        assert_eq!(expected, state.stack);
+        assert_eq!(expected, state.get_stack());
 
         // removing from the stack should reduce the depth but not max_depth
         stack.drop();
@@ -287,7 +287,7 @@ mod tests {
 
         expected[0..10].copy_from_slice(&[7, 6, 5, 4, 3, 2, 1, 0, 0, 0]);
         stack.fill_state(&mut state, 13);
-        assert_eq!(expected, state.stack);
+        assert_eq!(expected, state.get_stack());
 
         // adding to stack again should increase depth but not max_depth
         stack.push(11);
@@ -297,7 +297,7 @@ mod tests {
 
         expected[0..10].copy_from_slice(&[12, 11, 7, 6, 5, 4, 3, 2, 1, 0]);
         stack.fill_state(&mut state, 15);
-        assert_eq!(expected, state.stack);
+        assert_eq!(expected, state.get_stack());
     }
 
     #[test]
@@ -308,14 +308,14 @@ mod tests {
 
         stack.noop();
         stack.fill_state(&mut state, 1);
-        assert_eq!(expected, state.stack);
+        assert_eq!(expected, state.get_stack());
 
         stack.push(1);
         stack.noop();
         stack.noop();
         stack.fill_state(&mut state, 4);
         expected[0] = 1;
-        assert_eq!(expected, state.stack);
+        assert_eq!(expected, state.get_stack());
 
         assert_eq!(1, stack.depth);
         assert_eq!(1, stack.max_depth());
@@ -334,7 +334,7 @@ mod tests {
 
         stack.fill_state(&mut state, 4);
         expected[0..3].copy_from_slice(&[2, 3, 1]);
-        assert_eq!(expected, state.stack);
+        assert_eq!(expected, state.get_stack());
 
         assert_eq!(3, stack.depth);
         assert_eq!(3, stack.max_depth());
@@ -354,7 +354,7 @@ mod tests {
 
         stack.fill_state(&mut state, 5);
         expected[0..4].copy_from_slice(&[2, 4, 3, 1]);
-        assert_eq!(expected, state.stack);
+        assert_eq!(expected, state.get_stack());
 
         assert_eq!(4, stack.depth);
         assert_eq!(4, stack.max_depth());
@@ -369,17 +369,17 @@ mod tests {
         stack.push(1);
         stack.fill_state(&mut state, 1);
         expected[0] = 1;
-        assert_eq!(expected, state.stack);
+        assert_eq!(expected, state.get_stack());
 
         stack.push(2);
         stack.fill_state(&mut state, 2);
         expected[0..2].copy_from_slice(&[2, 1]);
-        assert_eq!(expected, state.stack);
+        assert_eq!(expected, state.get_stack());
 
         stack.push(3);
         stack.fill_state(&mut state, 3);
         expected[0..3].copy_from_slice(&[3, 2, 1]);
-        assert_eq!(expected, state.stack);
+        assert_eq!(expected, state.get_stack());
 
         assert_eq!(3, stack.depth);
         assert_eq!(3, stack.max_depth());
@@ -396,7 +396,7 @@ mod tests {
         stack.dup0();
         stack.fill_state(&mut state, 3);
         expected[0..3].copy_from_slice(&[2, 2, 1]);
-        assert_eq!(expected, state.stack);
+        assert_eq!(expected, state.get_stack());
 
         assert_eq!(3, stack.depth);
         assert_eq!(3, stack.max_depth());
@@ -413,7 +413,7 @@ mod tests {
         stack.dup1();
         stack.fill_state(&mut state, 3);
         expected[0..3].copy_from_slice(&[1, 2, 1]);
-        assert_eq!(expected, state.stack);
+        assert_eq!(expected, state.get_stack());
 
         assert_eq!(3, stack.depth);
         assert_eq!(3, stack.max_depth());
@@ -433,7 +433,7 @@ mod tests {
         stack.drop();
         stack.fill_state(&mut state, 3);
         expected[0] = 1;
-        assert_eq!(expected, state.stack);
+        assert_eq!(expected, state.get_stack());
 
         assert_eq!(1, stack.depth);
         assert_eq!(2, stack.max_depth());
@@ -450,7 +450,7 @@ mod tests {
         stack.add();
         stack.fill_state(&mut state, 3);
         expected[0] = 3;
-        assert_eq!(expected, state.stack);
+        assert_eq!(expected, state.get_stack());
 
         assert_eq!(1, stack.depth);
         assert_eq!(2, stack.max_depth());
@@ -467,7 +467,7 @@ mod tests {
         stack.sub();
         stack.fill_state(&mut state, 3);
         expected[0] = 3;
-        assert_eq!(expected, state.stack);
+        assert_eq!(expected, state.get_stack());
 
         assert_eq!(1, stack.depth);
         assert_eq!(2, stack.max_depth());
@@ -484,7 +484,7 @@ mod tests {
         stack.mul();
         stack.fill_state(&mut state, 3);
         expected[0] = 6;
-        assert_eq!(expected, state.stack);
+        assert_eq!(expected, state.get_stack());
 
         assert_eq!(1, stack.depth);
         assert_eq!(2, stack.max_depth());

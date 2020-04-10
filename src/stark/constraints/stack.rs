@@ -8,24 +8,26 @@ use crate::processor::{ opcodes };
 pub fn evaluate(current: &TraceState, next: &TraceState, op_flags: &[u64; 32], table: &mut Vec<Vec<u64>>, step: usize) {
 
     let stack_depth = cmp::max(table.len(), MIN_STACK_DEPTH);
-    let mut next_stack = vec![0u64; stack_depth];
+    let current_stack = current.get_stack();
+    let mut expected_stack = vec![0u64; stack_depth];
 
-    mul_acc(&mut next_stack,  &current.stack, op_flags[opcodes::NOOP as usize]);
+    mul_acc(&mut expected_stack,  current_stack, op_flags[opcodes::NOOP as usize]);
 
-    op_pull1(&mut next_stack, &current.stack, op_flags[opcodes::PULL1 as usize]);
-    op_pull2(&mut next_stack, &current.stack, op_flags[opcodes::PULL2 as usize]);
+    op_pull1(&mut expected_stack, current_stack, op_flags[opcodes::PULL1 as usize]);
+    op_pull2(&mut expected_stack, current_stack, op_flags[opcodes::PULL2 as usize]);
 
-    op_push(&mut next_stack,  &current.stack, next.op_code, op_flags[opcodes::PUSH as usize]);
-    op_dup0(&mut next_stack,  &current.stack, op_flags[opcodes::DUP0 as usize]);
-    op_dup1(&mut next_stack,  &current.stack, op_flags[opcodes::DUP1 as usize]);
+    op_push(&mut expected_stack,  current_stack, next.get_op_code(), op_flags[opcodes::PUSH as usize]);
+    op_dup0(&mut expected_stack,  current_stack, op_flags[opcodes::DUP0 as usize]);
+    op_dup1(&mut expected_stack,  current_stack, op_flags[opcodes::DUP1 as usize]);
 
-    op_drop(&mut next_stack,  &current.stack, op_flags[opcodes::DROP as usize]);
-    op_add(&mut next_stack,   &current.stack, op_flags[opcodes::ADD as usize]);
-    op_sub(&mut next_stack,   &current.stack, op_flags[opcodes::SUB as usize]);
-    op_mul(&mut next_stack,   &current.stack, op_flags[opcodes::MUL as usize]);
+    op_drop(&mut expected_stack,  current_stack, op_flags[opcodes::DROP as usize]);
+    op_add(&mut expected_stack,   current_stack, op_flags[opcodes::ADD as usize]);
+    op_sub(&mut expected_stack,   current_stack, op_flags[opcodes::SUB as usize]);
+    op_mul(&mut expected_stack,   current_stack, op_flags[opcodes::MUL as usize]);
 
+    let next_stack = next.get_stack();
     for i in 0..table.len() {
-        table[i][step] = sub(next.stack[i], next_stack[i]);
+        table[i][step] = sub(next_stack[i], expected_stack[i]);
     }
 }
 
