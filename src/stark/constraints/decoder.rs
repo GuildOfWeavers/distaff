@@ -14,39 +14,33 @@ pub const CONSTRAINT_DEGREES: [usize; 9] = [
 
 // EVALUATOR FUNCTION
 // ================================================================================================
-pub fn evaluate(current: &TraceState, next: &TraceState, table: &mut Vec<Vec<u64>>, step: usize) {
+pub fn evaluate(current: &TraceState, next: &TraceState) -> [u64; 9] {
 
-    // constraint counter
-    let mut i = 0;
+    let mut result = [0; 9];
 
     // 5 constraints, degree 2: op_bits must be binary
     let op_bits = current.get_op_bits();
-    for _ in 0..5 {
-        table[i][step] = is_binary(op_bits[i]);
-        i += 1;
+    for i in 0..5 {
+        result[i] = is_binary(op_bits[i]);
     }
 
     // 1 constraint, degree 2: push_flag must be binary
-    table[i][step] = is_binary(current.get_push_flag());
-    i += 1;
+    result[5] = is_binary(current.get_push_flag());
 
     // 1 constraint, degree 5: push_flag must be set to 1 after a PUSH operation
     let op_flags = current.get_op_flags();
-    table[i][step] = sub(op_flags[opcodes::PUSH as usize], next.get_push_flag());
-    i += 1;
+    result[6] = sub(op_flags[opcodes::PUSH as usize], next.get_push_flag());
 
     // 1 constraint, degree 2: push_flag cannot be 1 for two consecutive operations
-    table[i][step] = mul(current.get_push_flag(), next.get_push_flag());
-    i += 1;
+    result[7] = mul(current.get_push_flag(), next.get_push_flag());
 
     // 1 constraint, degree 2: when push_flag = 0, op_bits must be a binary decomposition
     // of op_code, otherwise all op_bits must be 0 (NOOP)
     let op_bits_value = current.get_op_bits_value();
     let op_code = mul(current.get_op_code(), binary_not(current.get_push_flag()));
-    table[i][step] = sub(op_code, op_bits_value);
-    i += 1;
+    result[8] = sub(op_code, op_bits_value);
 
-    debug_assert!(CONSTRAINT_DEGREES.len() == i, "number of decoder constraints is invalid");
+    return result;
 }
 
 // HELPER FUNCTIONS

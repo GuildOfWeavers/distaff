@@ -20,35 +20,30 @@ impl ConstraintTable {
 
     pub fn new(trace_length: usize, max_stack_depth: usize) -> ConstraintTable {
         debug_assert!(trace_length.is_power_of_two(), "trace length must be a power of 2");
+
         let trace_length = trace_length * COMPOSITION_FACTOR;
-
-        // create vectors to hold constraint evaluations
-        let mut decoder_constraints = Vec::new();
-        for _ in 0..decoder::CONSTRAINT_DEGREES.len() {
-            decoder_constraints.push(uninit_vector(trace_length));
-        }
-
-        let mut op_acc_constraints = Vec::new();
-        for _ in 0..acc_hash::CONSTRAINT_DEGREES.len() {
-            op_acc_constraints.push(uninit_vector(trace_length));
-        }
-
-        let mut stack_constraints = Vec::new();
-        for _ in 0..max_stack_depth {
-            stack_constraints.push(uninit_vector(trace_length));
-        }
-
         return ConstraintTable {
-            decoder : decoder_constraints,
-            stack   : stack_constraints,
-            op_acc  : op_acc_constraints,
+            decoder : create_vectors(decoder::CONSTRAINT_DEGREES.len(), trace_length),
+            op_acc  : create_vectors(acc_hash::CONSTRAINT_DEGREES.len(), trace_length),
+            stack   : create_vectors(max_stack_depth, trace_length),
         };
     }
 
-    pub fn evaluate(&mut self, current: &TraceState, next: &TraceState, index: usize) {
-        decoder::evaluate(&current, &next, &mut self.decoder, index);
-        acc_hash::evaluate(&current, &next, &mut self.op_acc, index);
-        stack::evaluate(&current, &next, &mut self.stack, index);
+    pub fn evaluate(&mut self, current: &TraceState, next: &TraceState, step: usize) {
+        let op_dec = decoder::evaluate(&current, &next);
+        for i in 0..op_dec.len() {
+            self.decoder[i][step] = op_dec[i];
+        }
+
+        let op_acc = acc_hash::evaluate(&current, &next, step);
+        for i in 0..op_acc.len() {
+            self.op_acc[i][step] = op_acc[i];
+        }
+
+        let stack = stack::evaluate(&current, &next, self.stack.len());
+        for i in 0..stack.len() {
+            self.stack[i][step] = stack[i];
+        }
     }
 
     pub fn constraint_count(&self) -> usize {
@@ -58,4 +53,14 @@ impl ConstraintTable {
     pub fn get_composition_poly() {
         // TODO: implement
     }
+}
+
+// HELPER FUNCTIONS
+// ================================================================================================
+fn create_vectors(num_columns: usize, trace_length: usize) -> Vec<Vec<u64>> {
+    let mut result = Vec::with_capacity(num_columns);
+    for _ in 0..num_columns {
+        result.push(uninit_vector(trace_length));
+    }
+    return result;
 }

@@ -1,16 +1,16 @@
 use crate::math::field::{ sub, add, mul };
 use crate::stark::{ TraceState };
-use crate::utils::acc_hash::{ apply_mds, apply_sbox, apply_inv_mds };
+use crate::utils::acc_hash::{ apply_mds, apply_sbox, apply_inv_mds, STATE_WIDTH };
 
 // CONSTANTS
 // ================================================================================================
 
 /// Degree of hash accumulator constraints.
-pub const CONSTRAINT_DEGREES: [usize; 12] = [3; 12];
+pub const CONSTRAINT_DEGREES: [usize; STATE_WIDTH] = [3; STATE_WIDTH];
 
 // EVALUATOR FUNCTION
 // ================================================================================================
-pub fn evaluate(current: &TraceState, next: &TraceState, table: &mut Vec<Vec<u64>>, step: usize) {
+pub fn evaluate(current: &TraceState, next: &TraceState, step: usize) -> [u64; STATE_WIDTH] {
 
     let op_code = current.get_op_code();
     let mut current_acc = [0; 12];
@@ -29,8 +29,10 @@ pub fn evaluate(current: &TraceState, next: &TraceState, table: &mut Vec<Vec<u64
     sub_constants(&mut next_acc, step % 128, 12);
 
     for i in 0..12 {
-        table[i][step] = sub(next_acc[i], current_acc[i]);
+        next_acc[i] = sub(next_acc[i], current_acc[i]);
     }
+
+    return next_acc;
 }
 
 // HELPER FUNCTIONS
