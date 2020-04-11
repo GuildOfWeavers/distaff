@@ -1,7 +1,7 @@
 use std::fmt;
 use std::cmp;
 use crate::math::field::{ add, sub, mul, ONE };
-use super::{ acc_hash::STATE_WIDTH as ACC_WIDTH, MIN_STACK_DEPTH };
+use crate::stark::{ MIN_STACK_DEPTH, utils::hash_acc::STATE_WIDTH as ACC_WIDTH };
 
 // CONSTANTS
 // ================================================================================================

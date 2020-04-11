@@ -1,7 +1,7 @@
 use crate::math::{ field, fft, polys };
 use crate::processor::opcodes;
 use crate::utils::zero_filled_vector;
-use super::{ TraceState, stack::Stack, acc_hash };
+use super::{ TraceState, stack::Stack, hash_acc };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -15,7 +15,7 @@ pub struct TraceTable {
     op_code     : Vec<u64>,
     push_flag   : Vec<u64>,
     op_bits     : [Vec<u64>; 5],
-    op_acc      : [Vec<u64>; acc_hash::STATE_WIDTH],
+    op_acc      : [Vec<u64>; hash_acc::STATE_WIDTH],
     stack       : Stack,
 }
 
@@ -47,7 +47,7 @@ impl TraceTable {
         ];
 
         // create trace table object
-        let op_acc = acc_hash::digest(&program, extension_factor);
+        let op_acc = hash_acc::digest(&program, extension_factor);
         let stack = Stack::new(trace_length, extension_factor);
         let mut trace = TraceTable { state, op_code, push_flag, op_bits, op_acc, stack };
 
@@ -108,59 +108,6 @@ impl TraceTable {
     /// Returns `true` if the trace table has been extended.
     pub fn is_extended(&self) -> bool {
         return self.state == TraceTableState::Extended;
-    }
-
-    /// Makes a deep copy of the trace table. The cloned trace table will have the extension_factor
-    /// set to the specified value.
-    pub fn clone(&self, extension_factor: usize) -> TraceTable {
-        assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
-
-        let trace_length = self.len();
-        let domain_size = trace_length * extension_factor;
-
-        // clone op_code register
-        let mut op_code = zero_filled_vector(trace_length, domain_size);
-        op_code.copy_from_slice(&self.op_code);
-
-        // clone was_push register
-        let mut push_flag = zero_filled_vector(trace_length, domain_size);
-        push_flag.copy_from_slice(&self.push_flag);
-
-        // clone op_bits registers
-        let mut op_bits = [
-            zero_filled_vector(trace_length, domain_size),
-            zero_filled_vector(trace_length, domain_size),
-            zero_filled_vector(trace_length, domain_size),
-            zero_filled_vector(trace_length, domain_size),
-            zero_filled_vector(trace_length, domain_size),
-        ];
-        for i in 0..op_bits.len() {
-            op_bits[i].copy_from_slice(&self.op_bits[i]);
-        }
-
-        // clone op_acc registers
-        let mut op_acc = [
-            zero_filled_vector(trace_length, domain_size),
-            zero_filled_vector(trace_length, domain_size),
-            zero_filled_vector(trace_length, domain_size),
-            zero_filled_vector(trace_length, domain_size),
-            zero_filled_vector(trace_length, domain_size),
-            zero_filled_vector(trace_length, domain_size),
-            zero_filled_vector(trace_length, domain_size),
-            zero_filled_vector(trace_length, domain_size),
-            zero_filled_vector(trace_length, domain_size),
-            zero_filled_vector(trace_length, domain_size),
-            zero_filled_vector(trace_length, domain_size),
-            zero_filled_vector(trace_length, domain_size),
-        ];
-        for i in 0..op_acc.len() {
-            op_acc[i].copy_from_slice(&self.op_acc[i]);
-        }
-
-        // clone operation accumulator and stack
-        let stack = self.stack.clone(extension_factor);
-
-        return TraceTable { state: self.state, op_code, push_flag, op_bits, op_acc, stack };
     }
 
     // INTERPOLATION AND EXTENSION

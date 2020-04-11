@@ -1,8 +1,8 @@
 use crate::math::{ field };
 use crate::utils::zero_filled_vector;
-use crate::utils::acc_hash::{ add_constants, apply_mds, apply_sbox, apply_inv_sbox, NUM_ROUNDS };
+use crate::stark::utils::hash_acc;
 
-pub use crate::utils::acc_hash::STATE_WIDTH;
+pub use crate::stark::utils::hash_acc::{ STATE_WIDTH, NUM_ROUNDS };
 
 // OPERATION ACCUMULATOR
 // ================================================================================================
@@ -37,13 +37,13 @@ pub fn digest(op_codes: &[u64], extension_factor: usize) -> [Vec<u64>; STATE_WID
         state[1] = field::mul(state[1], op_codes[i]);
 
         // apply Rescue round
-        add_constants(&mut state, i % NUM_ROUNDS, 0);
-        apply_sbox(&mut state);
-        apply_mds(&mut state);
+        hash_acc::add_constants(&mut state, i % NUM_ROUNDS, 0);
+        hash_acc::apply_sbox(&mut state);
+        hash_acc::apply_mds(&mut state);
 
-        add_constants(&mut state, i % NUM_ROUNDS, STATE_WIDTH);
-        apply_inv_sbox(&mut state);
-        apply_mds(&mut state);
+        hash_acc::add_constants(&mut state, i % NUM_ROUNDS, STATE_WIDTH);
+        hash_acc::apply_inv_sbox(&mut state);
+        hash_acc::apply_mds(&mut state);
 
         // copy updated state into registers for the next step
         for j in 0..STATE_WIDTH {
