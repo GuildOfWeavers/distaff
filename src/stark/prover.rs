@@ -7,32 +7,13 @@ use crate::utils::uninit_vector;
 // PROVER FUNCTION
 // ================================================================================================
 
-pub fn prove(program: &[u64], extension_factor: usize) {
+pub fn prove(trace: &TraceTable, extension_factor: usize) {
 
-    // 1 ----- execute the program to generate its execution trace --------------------------------
-    let now = Instant::now();
-    let mut trace = TraceTable::new(&program, extension_factor);
-    let t = now.elapsed().as_millis();
-    println!("Generated trace table of {} steps in {} ms", trace.len(), t);
-
-    // 2 ----- interpolate trace into polynomials -------------------------------------------------
-    let now = Instant::now();
-    trace.interpolate();
-    let t = now.elapsed().as_millis();
-    println!("Interpolated trace of {} registers in {} ms", trace.register_count(), t);
-
-    // 3 ----- extend execution trace over evaluation domain --------------------------------------
-    let trace_length = trace.len();
-    let now = Instant::now();
-    trace.extend();
-    let t = now.elapsed().as_millis();
-    println!("Extended trace of {} registers in {} ms", trace.register_count(), t);
-
-    // 4 ----- evaluate transition constraints and hash extended trace ----------------------------
+    // 1 ----- evaluate transition constraints and hash extended trace ----------------------------
     let now = Instant::now();
     
     // allocate space to hold constraint evaluations and trace hashes
-    let mut constraints = ConstraintTable::new(trace_length, trace.max_stack_depth());
+    let mut constraints = ConstraintTable::new(trace.len() / extension_factor, trace.max_stack_depth());
     let mut hashed_states = to_quartic_vec(uninit_vector(trace.len() * 4));
 
     // allocate space to hold current and next states for constraint evaluations
@@ -61,18 +42,36 @@ pub fn prove(program: &[u64], extension_factor: usize) {
     let t = now.elapsed().as_millis();
     println!("Hashed trace states and evaluated {} constraints in {} ms", constraints.constraint_count(), t);
 
-    // 5 ----- build merkle tree of extended execution trace --------------------------------------
+    // 2 ----- build merkle tree of extended execution trace --------------------------------------
     let now = Instant::now();
     let trace_tree = MerkleTree::new(hashed_states, blake3);
     let t = now.elapsed().as_millis();
     println!("Built trace merkle tree in {} ms", t);
 
-    // 6 ----- compute composition polynomial -----------------------------------------------------
+    // 3 ----- compute composition polynomial -----------------------------------------------------
     // TODO
 
-    // 7 ----- generate low-degree proof for composition polynomial -------------------------------
+    // 4 ----- generate low-degree proof for composition polynomial -------------------------------
     // TODO
 
-    // 8 ----- query extended execution trace at pseudo-random positions --------------------------
+    // 5 ----- query extended execution trace at pseudo-random positions --------------------------
     // TODO
+
+    /*
+    println!("{:?}", trace_tree.root());
+    for i in (0..constraints.stack[0].len()).step_by(8) {
+        for j in 0..constraints.decoder.len() {
+            print!("{}\t", constraints.decoder[j][i]);
+        }
+        print!("| ");
+        for j in 0..constraints.stack.len() {
+            print!("{}\t", constraints.stack[j][i]);
+        }
+        print!("| ");
+        for j in 0..constraints.op_acc.len() {
+            print!("{}\t", constraints.op_acc[j][i]);
+        }
+        print!("\n");
+    }
+    */
 }
