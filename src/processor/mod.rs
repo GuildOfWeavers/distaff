@@ -17,15 +17,8 @@ pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize) -> Vec<u64> 
     let last_state = trace.get_state(trace.len() - 1);
     let outputs = last_state.get_stack()[0..num_outputs].to_vec();
 
-    // extend the execution trace
-    let now = Instant::now();
-    trace.interpolate();
-    trace.extend();
-    let t = now.elapsed().as_millis();
-    println!("Extended execution trace of {} registers to {} steps in {} ms", trace.register_count(), trace.len(), t);
-
     // generate STARK proof
-    prove(&trace, DEFAULT_EXTENSION_FACTOR);
+    prove(&mut trace);
 
     return outputs;
 }

@@ -18,14 +18,14 @@ pub struct ConstraintTable {
 // ================================================================================================
 impl ConstraintTable {
 
-    pub fn new(trace_length: usize, max_stack_depth: usize) -> ConstraintTable {
-        debug_assert!(trace_length.is_power_of_two(), "trace length must be a power of 2");
+    pub fn new(domain_size: usize, max_stack_depth: usize) -> ConstraintTable {
+        debug_assert!(domain_size.is_power_of_two(), "domain size must be a power of 2");
+        debug_assert!(domain_size % MAX_CONSTRAINT_DEGREE == 0, "domain size must be divisible by 8");
 
-        let trace_length = trace_length * MAX_CONSTRAINT_DEGREE;
         return ConstraintTable {
-            decoder : create_vectors(decoder::CONSTRAINT_DEGREES.len(), trace_length),
-            op_acc  : create_vectors(hash_acc::CONSTRAINT_DEGREES.len(), trace_length),
-            stack   : create_vectors(max_stack_depth, trace_length),
+            decoder : create_vectors(decoder::CONSTRAINT_DEGREES.len(), domain_size),
+            op_acc  : create_vectors(hash_acc::CONSTRAINT_DEGREES.len(), domain_size),
+            stack   : create_vectors(max_stack_depth, domain_size),
         };
     }
 

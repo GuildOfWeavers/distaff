@@ -5,18 +5,14 @@ use super::{ TraceState, stack::Stack, hash_acc };
 
 // TYPES AND INTERFACES
 // ================================================================================================
-#[derive(Clone, Copy, PartialEq)]
-pub enum TraceTableState {
-    Initialized, Executed, Interpolated, Extended
-}
-
 pub struct TraceTable {
-    state       : TraceTableState,
     op_code     : Vec<u64>,
     push_flag   : Vec<u64>,
     op_bits     : [Vec<u64>; 5],
     op_acc      : [Vec<u64>; hash_acc::STATE_WIDTH],
     stack       : Stack,
+
+    extension_factor: usize
 }
 
 // TRACE TABLE IMPLEMENTATION
@@ -24,7 +20,7 @@ pub struct TraceTable {
 impl TraceTable {
 
     /// Returns a trace table resulting from the execution of the specified program. Space for the
-    /// trace table will be allocated in accordance with the specified `extension_factor`.
+    /// trace table is allocated in accordance with the specified `extension_factor`.
     pub fn new(program: &[u64], extension_factor: usize) -> TraceTable {
         
         let trace_length = program.len() + 1;
@@ -35,7 +31,6 @@ impl TraceTable {
 
         // allocate space for trace table registers. capacity of each register is set to the
         // domain size right from the beginning to avoid vector re-allocation later on.
-        let state = TraceTableState::Initialized;
         let op_code = zero_filled_vector(trace_length, domain_size);
         let push_flag = zero_filled_vector(trace_length, domain_size);
         let op_bits = [
@@ -49,7 +44,7 @@ impl TraceTable {
         // create trace table object
         let op_acc = hash_acc::digest(&program, extension_factor);
         let stack = Stack::new(trace_length, extension_factor);
-        let mut trace = TraceTable { state, op_code, push_flag, op_bits, op_acc, stack };
+        let mut trace = TraceTable { op_code, push_flag, op_bits, op_acc, stack, extension_factor };
 
         // copy program into the trace and set the last operation to NOOP
         trace.op_code[0..program.len()].copy_from_slice(program);
@@ -88,6 +83,11 @@ impl TraceTable {
         return self.op_code.len();
     }
 
+    /// Returns `extension_factor` for the trace table.
+    pub fn extension_factor(&self) -> usize {
+        return self.extension_factor;
+    }
+
     /// Returns the number of registers in the trace table.
     pub fn register_count(&self) -> usize {
         return 1 + self.op_bits.len() + self.op_acc.len() + self.stack.max_depth();
@@ -107,74 +107,52 @@ impl TraceTable {
         };
     }
 
-    /// Returns `true` if the trace table has been interpolated, but has not yet been extended.
-    pub fn is_interpolated(&self) -> bool {
-        return self.state == TraceTableState::Interpolated;
-    }
-
     /// Returns `true` if the trace table has been extended.
     pub fn is_extended(&self) -> bool {
-        return self.state == TraceTableState::Extended;
+        return self.op_code.len() == self.op_code.capacity();
     }
 
     // INTERPOLATION AND EXTENSION
     // --------------------------------------------------------------------------------------------
 
-    /// Interpolates all registers of the trace table using FFT interpolation. Interpolation is
-    /// allowed only once. That is, once the trace table is interpolated, it cannot be interpolated
-    /// again.
-    pub fn interpolate(&mut self) {
-        assert!(!self.is_interpolated(), "trace table has already been interpolated");
-        assert!(!self.is_extended(), "cannot interpolate extended trace table");
-
-        let root = field::get_root_of_unity(self.len() as u64);
-        let inv_twiddles = fft::get_inv_twiddles(root, self.len());
-
-        polys::interpolate_fft_twiddles(&mut self.op_code, &inv_twiddles, true);
-        polys::interpolate_fft_twiddles(&mut self.push_flag, &inv_twiddles, true);
-        for op_bit in self.op_bits.iter_mut() {
-            polys::interpolate_fft_twiddles(op_bit, &inv_twiddles, true);
-        }
-        for acc in self.op_acc.iter_mut() {
-            polys::interpolate_fft_twiddles(acc, &inv_twiddles, true);
-        }
-        self.stack.interpolate_registers(&inv_twiddles);
-
-        self.state = TraceTableState::Interpolated;
-    }
-
-    /// Extends all registers of the trace table by the extension_factor specified during
-    /// trace table construction. Extension is allowed only once, right after the trace table
-    /// is interpolated.
+    /// Extends all registers of the trace table by the `extension_factor` specified during
+    /// trace table construction. A trace table can be extended only once.
     pub fn extend(&mut self) {
         assert!(!self.is_extended(), "trace table has already been extended");
-        assert!(self.is_interpolated(), "cannot extend un-interpolated trace table");
+        let domain_size = self.len() * self.extension_factor();
 
-        let domain_length = self.op_code.capacity();
-        let root = field::get_root_of_unity(domain_length as u64);
-        let twiddles = fft::get_twiddles(root, domain_length);
+        // build vectors of twiddles and inv_twiddles needed for FFT
+        let root = field::get_root_of_unity(self.len() as u64);
+        let inv_twiddles = fft::get_inv_twiddles(root, self.len());
+        let root = field::get_root_of_unity(domain_size as u64);
+        let twiddles = fft::get_twiddles(root, domain_size);
 
-        unsafe { self.op_code.set_len(domain_length); }
+        // extend op_code
+        polys::interpolate_fft_twiddles(&mut self.op_code, &inv_twiddles, true);
+        unsafe { self.op_code.set_len(domain_size); }
         polys::eval_fft_twiddles(&mut self.op_code, &twiddles, true);
 
-        unsafe { self.push_flag.set_len(domain_length); }
+        // extend push_flag
+        polys::interpolate_fft_twiddles(&mut self.push_flag, &inv_twiddles, true);
+        unsafe { self.push_flag.set_len(domain_size); }
         polys::eval_fft_twiddles(&mut self.push_flag, &twiddles, true);
 
+        // extend op_bits
         for op_bit in self.op_bits.iter_mut() {
-            debug_assert!(op_bit.capacity() == domain_length, "invalid register capacity");
-            unsafe { op_bit.set_len(domain_length); }
+            polys::interpolate_fft_twiddles(op_bit, &inv_twiddles, true);
+            unsafe { op_bit.set_len(domain_size); }
             polys::eval_fft_twiddles(op_bit, &twiddles, true);
         }
 
+        // extend op_acc
         for acc in self.op_acc.iter_mut() {
-            debug_assert!(acc.capacity() == domain_length, "invalid register capacity");
-            unsafe { acc.set_len(domain_length); }
+            polys::interpolate_fft_twiddles(acc, &inv_twiddles, true);
+            unsafe { acc.set_len(domain_size); }
             polys::eval_fft_twiddles(acc, &twiddles, true);
         }
 
-        self.stack.extend_registers(&twiddles);
-
-        self.state = TraceTableState::Extended;
+        // extend stack registers
+        self.stack.extend_registers(&twiddles, &inv_twiddles);
     }
 
     // PROGRAM EXECUTION
@@ -227,8 +205,6 @@ impl TraceTable {
 
         // set op_bits for the last step
         self.set_op_bits(self.op_code[self.len() - 1], self.len() - 1);
-
-        self.state = TraceTableState::Executed;
     }
 
     /// Sets the op_bits registers at the specified `step` to a binary decomposition

@@ -51,22 +51,16 @@ impl Stack {
 
     // INTERPOLATION AND EXTENSION
     // --------------------------------------------------------------------------------------------
-    pub fn interpolate_registers(&mut self, inv_twiddles: &[u64]) {
-        for i in 0..self.max_depth() {
-            polys::interpolate_fft_twiddles(&mut self.registers[i], &inv_twiddles, true);
-        }
-    }
 
-    pub fn extend_registers(&mut self, twiddles: &[u64]) {
+    pub fn extend_registers(&mut self, twiddles: &[u64], inv_twiddles: &[u64]) {
         let domain_length = self.registers[0].capacity();
         for i in 0..self.max_depth() {
-            debug_assert!(self.registers[i].capacity() == domain_length, "invalid register capacity");
+            polys::interpolate_fft_twiddles(&mut self.registers[i], &inv_twiddles, true);
             unsafe { self.registers[i].set_len(domain_length); }
             polys::eval_fft_twiddles(&mut self.registers[i], &twiddles, true);
         }
 
         for i in self.max_depth()..self.registers.len() {
-            debug_assert!(self.registers[i].capacity() == domain_length, "invalid register capacity");
             unsafe { self.registers[i].set_len(domain_length); }
         }
     }
