@@ -1,5 +1,5 @@
 use crate::math::field;
-use std::sync::{ atomic::{AtomicU64, Ordering}, Arc };
+use std::sync::{ atomic::{ AtomicU64, Ordering }, Arc };
 use std::thread;
 
 // ADDITION
@@ -50,7 +50,7 @@ pub fn add(a: &[u64], b: &[u64], num_threads: usize) -> Vec<u64> {
 /// batches which are distributed across multiple threads.
 pub fn add_in_place(a: &mut [u64], b: &[u64], num_threads: usize) {
     let n = a.len();
-    assert!(n == b.len(), "number of values to multiply must be the same for both operands");
+    assert!(n == b.len(), "number of values must be the same for both operands");
     assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
     let batch_size = n / num_threads;
 
@@ -58,7 +58,7 @@ pub fn add_in_place(a: &mut [u64], b: &[u64], num_threads: usize) {
     let a = Arc::new(to_atomic(a));
     let b = Arc::new(to_atomic(b));
 
-    // multiply batches of values in separate threads
+    // add batches of values in separate threads
     let mut handles = vec![];
     for i in (0..n).step_by(batch_size) {
         let a = Arc::clone(&a);
@@ -85,9 +85,29 @@ pub fn add_in_place(a: &mut [u64], b: &[u64], num_threads: usize) {
 /// Computes a[i] - b for all i and stores the results in a[i]. The subtraction is split into
 /// batches which are distributed across multiple threads.
 pub fn sub_const_in_place(a: &mut [u64], b: u64, num_threads: usize) {
-    // TODO: convert into multi-threaded implementation
-    for i in 0..a.len() {
-        a[i] = field::sub(a[i], b);
+    let n = a.len();
+    assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
+    let batch_size = n / num_threads;
+
+    // create atomic references to the array
+    let a = Arc::new(to_atomic(a));
+
+    // subtract batches of values in separate threads
+    let mut handles = vec![];
+    for i in (0..n).step_by(batch_size) {
+        let a = Arc::clone(&a);
+        let handle = thread::spawn(move || {
+            for j in i..(i + batch_size) {
+                let ai = a[j].load(Ordering::Relaxed);
+                a[j].store(field::sub(ai, b), Ordering::Relaxed);
+            }
+        });
+        handles.push(handle);
+    }
+
+    // wait until all threads are done
+    for handle in handles {
+        handle.join().unwrap();
     }
 }
 
@@ -139,7 +159,7 @@ pub fn mul(a: &[u64], b: &[u64], num_threads: usize) -> Vec<u64> {
 /// split into batches which are distributed across multiple threads.
 pub fn mul_in_place(a: &mut [u64], b: &[u64], num_threads: usize) {
     let n = a.len();
-    assert!(n == b.len(), "number of values to multiply must be the same for both operands");
+    assert!(n == b.len(), "number of values must be the same for both operands");
     assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
     let batch_size = n / num_threads;
 
@@ -168,11 +188,36 @@ pub fn mul_in_place(a: &mut [u64], b: &[u64], num_threads: usize) {
     }
 }
 
-/// Computes a[i] + b[i] * c for all i and saves result into a.
+/// Computes a[i] + b[i] * c for all i and saves result into a. The operation is 
+/// split into batches which are distributed across multiple threads.
 pub fn mul_acc(a: &mut[u64], b: &[u64], c: u64, num_threads: usize) {
-    // TODO: convert into multi-threaded implementation
-    for i in 0..a.len() {
-        a[i] = field::add(a[i], field::mul(b[i], c));
+    let n = a.len();
+    assert!(n == b.len(), "number of values must be the same for both arrays");
+    assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
+    let batch_size = n / num_threads;
+
+    // create atomic references to both arrays
+    let a = Arc::new(to_atomic(a));
+    let b = Arc::new(to_atomic(b));
+    
+    // multiply batches of values in separate threads
+    let mut handles = vec![];
+    for i in (0..n).step_by(batch_size) {
+        let a = Arc::clone(&a);
+        let b = Arc::clone(&b);
+        let handle = thread::spawn(move || {
+            for j in i..(i + batch_size) {
+                let ai = a[j].load(Ordering::Relaxed);
+                let bi = b[j].load(Ordering::Relaxed);
+                a[j].store(field::add(ai, field::mul(bi, c)), Ordering::Relaxed);
+            }
+        });
+        handles.push(handle);
+    }
+
+    // wait until all threads are done
+    for handle in handles {
+        handle.join().unwrap();
     }
 }
 
@@ -280,6 +325,24 @@ mod tests {
     }
 
     #[test]
+    fn sub_const_in_place() {
+
+        let n: usize = 1024;
+        let num_threads: usize = 4;
+        let mut x = field::rand_vector(n);
+        let y = field::rand();
+
+        // compute expected results
+        let mut expected = vec![0u64; n];
+        for i in 0..n {
+            expected[i] = field::sub(x[i], y);
+        }
+
+        super::sub_const_in_place(&mut x, y, num_threads);
+        assert_eq!(expected, x);
+    }
+
+    #[test]
     fn mul() {
 
         let n: usize = 1024;
@@ -313,6 +376,22 @@ mod tests {
         let mut z = y.clone();
         super::mul_in_place(&mut z, &x, num_threads);
         assert_eq!(expected, z);
+    }
+
+    #[test]
+    fn mul_acc() {
+        let n: usize = 1024;
+        let num_threads: usize = 4;
+        let mut x = field::rand_vector(n);
+        let y = field::rand_vector(n);
+        let z = field::rand();
+
+        // compute expected result
+        let mut expected = x.clone();
+        field::mul_acc(&mut expected, &y, z);
+
+        super::mul_acc(&mut x, &y, z, num_threads);
+        assert_eq!(expected, x);
     }
 
     #[test]
