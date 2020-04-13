@@ -8,7 +8,7 @@ pub use crate::stark::utils::hash_acc::{ STATE_WIDTH, NUM_ROUNDS };
 // ================================================================================================
 pub fn digest(op_codes: &[u64], extension_factor: usize) -> [Vec<u64>; STATE_WIDTH] {
     
-    let trace_length = op_codes.len() + 1;
+    let trace_length = op_codes.len();
     let domain_size = trace_length * extension_factor;
 
     let mut registers = [
@@ -31,7 +31,7 @@ pub fn digest(op_codes: &[u64], extension_factor: usize) -> [Vec<u64>; STATE_WID
         register[0] = 0;
     }
 
-    for i in 0..op_codes.len() {
+    for i in 0..(op_codes.len() - 1) {
         // inject op_code into the state
         state[0] = field::add(state[0], op_codes[i]);
         state[1] = field::mul(state[1], op_codes[i]);

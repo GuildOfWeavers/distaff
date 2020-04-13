@@ -21,13 +21,14 @@ impl TraceTable {
 
     /// Returns a trace table resulting from the execution of the specified program. Space for the
     /// trace table is allocated in accordance with the specified `extension_factor`.
-    pub fn new(program: &[u64], extension_factor: usize) -> TraceTable {
+    pub fn new(program: &[u64], inputs: &[u64], extension_factor: usize) -> TraceTable {
         
-        let trace_length = program.len() + 1;
+        let trace_length = program.len();
         let domain_size = trace_length * extension_factor;
 
-        assert!(trace_length.is_power_of_two(), "program length must be one less than a power of 2");
+        assert!(trace_length.is_power_of_two(), "program length must be a power of 2");
         assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
+        assert!(program[trace_length - 1] == opcodes::NOOP, "last operation in a program must be NOOP");
 
         // allocate space for trace table registers. capacity of each register is set to the
         // domain size right from the beginning to avoid vector re-allocation later on.
@@ -43,12 +44,11 @@ impl TraceTable {
 
         // create trace table object
         let op_acc = hash_acc::digest(&program, extension_factor);
-        let stack = Stack::new(trace_length, extension_factor);
+        let stack = Stack::new(trace_length, inputs, extension_factor);
         let mut trace = TraceTable { op_code, push_flag, op_bits, op_acc, stack, extension_factor };
 
-        // copy program into the trace and set the last operation to NOOP
+        // copy program into the trace
         trace.op_code[0..program.len()].copy_from_slice(program);
-        trace.op_code[trace_length - 1] = opcodes::NOOP;
         
         // execute the program to fill out the trace and return
         trace.execute_program();

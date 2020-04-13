@@ -4,7 +4,6 @@ pub const NOOP: u64     = 0b000_00_000;
 //pub const PULL_B4: u64  = 0b000_00_011;
 //pub const PULL_B8: u64  = 0b000_00_100;
 //pub const HASH2: u64    = 0b000_00_101;
-//pub const MK_HASH: u64  = 0b000_00_111;
 
 //pub const VERIFY: u64   = 0b000_01_000;
 //pub const NOT: u64      = 0b000_01_001;

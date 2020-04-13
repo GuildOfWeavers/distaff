@@ -4,6 +4,7 @@ use super::TraceState;
 
 // CONSTANTS
 // ================================================================================================
+pub const MAX_INPUTS: usize      = 8;
 pub const MIN_STACK_DEPTH: usize = 8;
 pub const MAX_STACK_DEPTH: usize = 32;
 
@@ -20,19 +21,22 @@ pub struct Stack {
 // ================================================================================================
 impl Stack {
 
-    pub fn new(trace_length: usize, extension_factor: usize) -> Stack {
+    pub fn new(trace_length: usize, inputs: &[u64], extension_factor: usize) -> Stack {
+        assert!(inputs.len() <= MAX_INPUTS, "expected 8 or fewer inputs, received {}", inputs.len());
         debug_assert!(trace_length.is_power_of_two(), "trace length must be a power of 2");
         debug_assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
         let domain_size = trace_length * extension_factor;
 
         let current_step: usize = 0;
         let mut registers: Vec<Vec<u64>> = Vec::with_capacity(MIN_STACK_DEPTH);
-        for _ in 0..MIN_STACK_DEPTH {
+        for i in 0..MIN_STACK_DEPTH {
             let mut register = utils::zero_filled_vector(trace_length, domain_size);
-            register[current_step] = 0;
+            if i < inputs.len() { 
+                register[current_step] = inputs[i];
+            };
             registers.push(register);
         }
-        return Stack { registers, current_step, max_depth: 0, depth: 0 };
+        return Stack { registers, current_step, max_depth: 0, depth: inputs.len() };
     }
 
     pub fn get_register_trace(&self, index: usize) -> &[u64] {
@@ -206,7 +210,7 @@ mod tests {
     #[test]
     fn new() {
         let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
+        let stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
         let expected = vec![0u64; super::MAX_STACK_DEPTH];
 
         assert_eq!(0, stack.depth);
@@ -220,7 +224,7 @@ mod tests {
     #[test]
     fn growth() {
         let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
+        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
         // adding to stack should grow it
@@ -273,7 +277,7 @@ mod tests {
     #[test]
     fn noop() {
         let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
+        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
         stack.noop();
@@ -294,7 +298,7 @@ mod tests {
     #[test]
     fn pull1() {
         let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
+        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
         stack.push(1);
@@ -313,7 +317,7 @@ mod tests {
     #[test]
     fn pull2() {
         let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
+        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
         stack.push(1);
@@ -333,7 +337,7 @@ mod tests {
     #[test]
     fn push() {
         let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
+        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
         stack.push(1);
@@ -358,7 +362,7 @@ mod tests {
     #[test]
     fn dup0() {
         let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
+        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
         stack.push(1);
@@ -375,7 +379,7 @@ mod tests {
     #[test]
     fn dup1() {
         let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
+        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
         stack.push(1);
@@ -392,7 +396,7 @@ mod tests {
     #[test]
     fn drop() {
         let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
+        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
         stack.push(1);
@@ -412,7 +416,7 @@ mod tests {
     #[test]
     fn add() {
         let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
+        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
         stack.push(1);
@@ -429,7 +433,7 @@ mod tests {
     #[test]
     fn sub() {
         let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
+        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
         stack.push(5);
@@ -446,7 +450,7 @@ mod tests {
     #[test]
     fn mul() {
         let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, EXTENSION_FACTOR);
+        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
         let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
 
         stack.push(2);

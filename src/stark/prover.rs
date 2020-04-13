@@ -7,7 +7,7 @@ use crate::utils::uninit_vector;
 // PROVER FUNCTION
 // ================================================================================================
 
-pub fn prove(trace: &mut TraceTable) {
+pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64]) {
 
     // 1 ----- extend execution trace -------------------------------------------------------------
     let now = Instant::now();
