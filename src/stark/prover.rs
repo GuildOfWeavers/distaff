@@ -56,7 +56,10 @@ pub fn prove(trace: &mut TraceTable) {
     println!("Built trace merkle tree in {} ms", t);
 
     // 4 ----- compute composition polynomial -----------------------------------------------------
-    // TODO
+    let now = Instant::now();
+    let c_poly = constraints.get_composition_poly(trace_tree.root(), trace.extension_factor());
+    let t = now.elapsed().as_millis();
+    println!("Computed composition polynomial in {} ms", t);
 
     // 5 ----- generate low-degree proof for composition polynomial -------------------------------
     // TODO

@@ -48,7 +48,7 @@ pub fn add(a: &[u64], b: &[u64], num_threads: usize) -> Vec<u64> {
 
 /// Computes a[i] + b[i] for all i and stores the results in b[i]. The addition is split into
 /// batches which are distributed across multiple threads.
-pub fn add_in_place(a: &[u64], b: &mut [u64], num_threads: usize) {
+pub fn add_in_place(a: &mut [u64], b: &[u64], num_threads: usize) {
     let n = a.len();
     assert!(n == b.len(), "number of values to multiply must be the same for both operands");
     assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
@@ -67,7 +67,7 @@ pub fn add_in_place(a: &[u64], b: &mut [u64], num_threads: usize) {
             for j in i..(i + batch_size) {
                 let ai = a[j].load(Ordering::Relaxed);
                 let bi = b[j].load(Ordering::Relaxed);
-                b[j].store(field::add(ai, bi), Ordering::Relaxed);
+                a[j].store(field::add(ai, bi), Ordering::Relaxed);
             }
         });
         handles.push(handle);
@@ -76,6 +76,18 @@ pub fn add_in_place(a: &[u64], b: &mut [u64], num_threads: usize) {
     // wait until all threads are done
     for handle in handles {
         handle.join().unwrap();
+    }
+}
+
+// SUBTRACTION
+// ================================================================================================
+
+/// Computes a[i] - b for all i and stores the results in a[i]. The subtraction is split into
+/// batches which are distributed across multiple threads.
+pub fn sub_const_in_place(a: &mut [u64], b: u64, num_threads: usize) {
+    // TODO: convert into multi-threaded implementation
+    for i in 0..a.len() {
+        a[i] = field::sub(a[i], b);
     }
 }
 
@@ -125,7 +137,7 @@ pub fn mul(a: &[u64], b: &[u64], num_threads: usize) -> Vec<u64> {
 
 /// Computes a[i] * b[i] for all i and stores the results in b[i]. The multiplication is 
 /// split into batches which are distributed across multiple threads.
-pub fn mul_in_place(a: &[u64], b: &mut [u64], num_threads: usize) {
+pub fn mul_in_place(a: &mut [u64], b: &[u64], num_threads: usize) {
     let n = a.len();
     assert!(n == b.len(), "number of values to multiply must be the same for both operands");
     assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
@@ -144,7 +156,7 @@ pub fn mul_in_place(a: &[u64], b: &mut [u64], num_threads: usize) {
             for j in i..(i + batch_size) {
                 let ai = a[j].load(Ordering::Relaxed);
                 let bi = b[j].load(Ordering::Relaxed);
-                b[j].store(field::mul(ai, bi), Ordering::Relaxed);
+                a[j].store(field::mul(ai, bi), Ordering::Relaxed);
             }
         });
         handles.push(handle);
@@ -153,6 +165,14 @@ pub fn mul_in_place(a: &[u64], b: &mut [u64], num_threads: usize) {
     // wait until all threads are done
     for handle in handles {
         handle.join().unwrap();
+    }
+}
+
+/// Computes a[i] + b[i] * c for all i and saves result into a.
+pub fn mul_acc(a: &mut[u64], b: &[u64], c: u64, num_threads: usize) {
+    // TODO: convert into multi-threaded implementation
+    for i in 0..a.len() {
+        a[i] = field::add(a[i], field::mul(b[i], c));
     }
 }
 
@@ -255,7 +275,7 @@ mod tests {
         }
 
         let mut z = y.clone();
-        super::add_in_place(&x, &mut z, num_threads);
+        super::add_in_place(&mut z, &x, num_threads);
         assert_eq!(expected, z);
     }
 
@@ -291,7 +311,7 @@ mod tests {
         }
 
         let mut z = y.clone();
-        super::mul_in_place(&x, &mut z, num_threads);
+        super::mul_in_place(&mut z, &x, num_threads);
         assert_eq!(expected, z);
     }
 

@@ -48,6 +48,13 @@ pub fn mul(a: u64, b: u64) -> u64 {
     return z as u64;
 }
 
+/// Computes a[i] + b[i] * c for all i and saves result into a.
+pub fn mul_acc(a: &mut [u64], b: &[u64], c: u64) {
+    for i in 0..a.len() {
+        a[i] = add(a[i], mul(b[i], c));
+    }
+}
+
 /// Computes y such that (x * y) % m = 1; x is assumed to be a valid field element.
 pub fn inv(x: u64) -> u64 {
     if x == 0 { return 0 };
@@ -267,6 +274,16 @@ mod tests {
         let r1 = super::rand();
         let r2 = super::rand();
         assert_eq!(test_mul(r1, r2), super::mul(r1, r2));
+    }
+
+    #[test]
+    fn mul_acc() {
+        let mut a = vec![1u64, 2, 3, 4];
+        let b = vec![5u64, 6, 7, 8];
+        let c = 3u64;
+
+        super::mul_acc(&mut a, &b, c);
+        assert_eq!(vec![16, 20, 24, 28], a);
     }
 
     #[test]

@@ -6,3 +6,4 @@ mod stack;
 pub use trace_state::TraceState;
 pub use trace_table::TraceTable;
 pub use stack::MIN_STACK_DEPTH;
+pub use stack::MAX_STACK_DEPTH;

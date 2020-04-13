@@ -1,7 +1,11 @@
 use std::cmp;
-use crate::math::field::{ add, sub, mul };
-use crate::stark::{ TraceState, MIN_STACK_DEPTH };
+use crate::math::field::{ add, sub, mul, mul_acc };
+use crate::stark::{ TraceState, MIN_STACK_DEPTH, MAX_STACK_DEPTH };
 use crate::processor::{ opcodes };
+
+// CONSTANTS
+// ================================================================================================
+pub const CONSTRAINT_DEGREES: [usize; MAX_STACK_DEPTH] = [5; MAX_STACK_DEPTH];
 
 // EVALUATOR FUNCTION
 // ================================================================================================
@@ -87,12 +91,4 @@ fn op_mul(next: &mut [u64], current: &[u64], op_flag: u64) {
     let op_result = mul(current[1], current[0]);
     next[0] = add(next[0], mul(op_result, op_flag));
     mul_acc(&mut next[1..n], &current[2..], op_flag);
-}
-
-// HELPER FUNCTIONS
-// ================================================================================================
-fn mul_acc(a: &mut [u64], b: &[u64], c: u64) {
-    for i in 0..a.len() {
-        a[i] = add(a[i], mul(b[i], c));
-    }
 }

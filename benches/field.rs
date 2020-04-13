@@ -37,7 +37,7 @@ pub fn mul_parallel_in_place(c: &mut Criterion) {
     let threads = 2;
 
     c.bench_function("mul (parallel, in place)", |bench| {
-        bench.iter(|| parallel::mul_in_place(black_box(&x), black_box(&mut y), black_box(threads)))
+        bench.iter(|| parallel::mul_in_place(black_box(&mut y), black_box(&x), black_box(threads)))
     });
 }
 
