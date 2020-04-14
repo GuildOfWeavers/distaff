@@ -1,177 +1,175 @@
-use crate::math::{ field, polys };
-use crate::utils;
-use super::TraceState;
+use std::cmp;
+use crate::math::{ field };
+use crate::processor::opcodes;
+use crate::utils::{ zero_filled_vector };
+use super::{ MAX_INPUTS, MIN_STACK_DEPTH, MAX_STACK_DEPTH };
 
-// CONSTANTS
+// TRACE BUILDER
 // ================================================================================================
-pub const MAX_INPUTS: usize      = 8;
-pub const MIN_STACK_DEPTH: usize = 8;
-pub const MAX_STACK_DEPTH: usize = 32;
+pub fn execute(program: &[u64], inputs: &[u64], extension_factor: usize) -> Vec<Vec<u64>> {
+
+    let trace_length = program.len();
+    let domain_size = trace_length * extension_factor;
+
+    assert!(inputs.len() <= MAX_INPUTS, "expected {} or fewer inputs, received {}", MAX_INPUTS, inputs.len());
+    assert!(trace_length.is_power_of_two(), "trace length must be a power of 2");
+    assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
+    assert!(program[trace_length - 1] == opcodes::NOOP, "last operation of a program must be NOOP");
+
+    // allocate space for stack registers and populate the first state with input values
+    let init_stack_depth = cmp::max(inputs.len(), MIN_STACK_DEPTH);
+    let mut registers: Vec<Vec<u64>> = Vec::with_capacity(init_stack_depth);
+    for i in 0..init_stack_depth {
+        let mut register = zero_filled_vector(trace_length, domain_size);
+        if i < inputs.len() { 
+            register[0] = inputs[i];
+        }
+        registers.push(register);
+    }
+
+    let mut stack = StackTrace { registers, max_depth: inputs.len(), depth: inputs.len() };
+
+    // execute the program capturing each successive stack state in the trace
+    let mut i = 0; 
+    while i < trace_length - 1 {
+        // update stack state based on the current operation
+        match program[i] {
+            opcodes::NOOP  => stack.noop(i),
+
+            opcodes::PUSH  => {
+                // push the value of the next instruction onto the stack and skip a step
+                // since next instruction is not an operation
+                stack.push(i, program[i + 1]);
+                i += 1;
+                stack.noop(i);
+            },
+            opcodes::DUP0  => stack.dup0(i),
+            opcodes::DUP1  => stack.dup1(i),
+
+            opcodes::PULL1 => stack.pull1(i),
+            opcodes::PULL2 => stack.pull2(i),
+
+            opcodes::DROP  => stack.drop(i),
+            opcodes::ADD   => stack.add(i),
+            opcodes::SUB   => stack.sub(i),
+            opcodes::MUL   => stack.mul(i),
+
+            _ => panic!("operation {} is not supported", program[i])
+        }
+        i += 1;
+    }
+
+    // keep only the registers used during program execution
+    stack.registers.truncate(stack.max_depth);
+
+    return stack.registers;
+}
 
 // TYPES AND INTERFACES
 // ================================================================================================
-pub struct Stack {
+struct StackTrace {
     registers   : Vec<Vec<u64>>,
-    current_step: usize,
     max_depth   : usize,
     depth       : usize,
 }
 
 // STACK IMPLEMENTATION
 // ================================================================================================
-impl Stack {
-
-    pub fn new(trace_length: usize, inputs: &[u64], extension_factor: usize) -> Stack {
-        assert!(inputs.len() <= MAX_INPUTS, "expected 8 or fewer inputs, received {}", inputs.len());
-        debug_assert!(trace_length.is_power_of_two(), "trace length must be a power of 2");
-        debug_assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
-        let domain_size = trace_length * extension_factor;
-
-        let current_step: usize = 0;
-        let mut registers: Vec<Vec<u64>> = Vec::with_capacity(MIN_STACK_DEPTH);
-        for i in 0..MIN_STACK_DEPTH {
-            let mut register = utils::zero_filled_vector(trace_length, domain_size);
-            if i < inputs.len() { 
-                register[current_step] = inputs[i];
-            };
-            registers.push(register);
-        }
-        return Stack { registers, current_step, max_depth: 0, depth: inputs.len() };
-    }
-
-    pub fn get_register_trace(&self, index: usize) -> &[u64] {
-        return &self.registers[index];
-    }
-
-    pub fn fill_state(&self, state: &mut TraceState, step: usize) {
-        for i in 0..self.max_depth {
-            state.set_stack_value(i, self.registers[i][step]);
-        }
-    }
-
-    pub fn max_depth(&self) -> usize {
-        return self.max_depth;
-    }
-
-    // INTERPOLATION AND EXTENSION
-    // --------------------------------------------------------------------------------------------
-
-    pub fn extend_registers(&mut self, twiddles: &[u64], inv_twiddles: &[u64]) {
-        let domain_length = self.registers[0].capacity();
-        for i in 0..self.max_depth() {
-            polys::interpolate_fft_twiddles(&mut self.registers[i], &inv_twiddles, true);
-            unsafe { self.registers[i].set_len(domain_length); }
-            polys::eval_fft_twiddles(&mut self.registers[i], &twiddles, true);
-        }
-
-        for i in self.max_depth()..self.registers.len() {
-            unsafe { self.registers[i].set_len(domain_length); }
-        }
-    }
+impl StackTrace {
 
     // OPERATIONS
     // --------------------------------------------------------------------------------------------
-    pub fn noop(&mut self) {
-        self.copy_state(0);
-        self.current_step += 1;
+    fn noop(&mut self, step: usize) {
+        self.copy_state(step, 0);
     }
 
-    pub fn pull1(&mut self) {
-        self.registers[0][self.current_step + 1] = self.registers[1][self.current_step];
-        self.registers[1][self.current_step + 1] = self.registers[0][self.current_step];
-        self.copy_state(2);
-        self.current_step += 1;
+    fn pull1(&mut self, step: usize) {
+        self.registers[0][step + 1] = self.registers[1][step];
+        self.registers[1][step + 1] = self.registers[0][step];
+        self.copy_state(step, 2);
     }
 
-    pub fn pull2(&mut self) {
-        self.registers[0][self.current_step + 1] = self.registers[2][self.current_step];
-        self.registers[1][self.current_step + 1] = self.registers[0][self.current_step];
-        self.registers[2][self.current_step + 1] = self.registers[1][self.current_step];
-        self.copy_state(3);
-        self.current_step += 1;
+    fn pull2(&mut self, step: usize) {
+        self.registers[0][step + 1] = self.registers[2][step];
+        self.registers[1][step + 1] = self.registers[0][step];
+        self.registers[2][step + 1] = self.registers[1][step];
+        self.copy_state(step, 3);
     }
 
-    pub fn push(&mut self, value: u64) {
-        self.shift_right(0, 1);
-        self.registers[0][self.current_step + 1] = value;
-        self.current_step += 1;
+    fn push(&mut self, step: usize, value: u64) {
+        self.shift_right(step, 0, 1);
+        self.registers[0][step + 1] = value;
     }
 
-    pub fn dup0(&mut self) {
-        self.shift_right(0, 1);
-        let value = self.registers[0][self.current_step];
-        self.registers[0][self.current_step + 1] = value;
-        self.current_step += 1;
+    fn dup0(&mut self, step: usize) {
+        self.shift_right(step, 0, 1);
+        let value = self.registers[0][step];
+        self.registers[0][step + 1] = value;
     }
 
-    pub fn dup1(&mut self) {
-        self.shift_right(0, 1);
-        let value = self.registers[1][self.current_step];
-        self.registers[0][self.current_step + 1] = value;
-        self.current_step += 1;
+    fn dup1(&mut self, step: usize) {
+        self.shift_right(step, 0, 1);
+        let value = self.registers[1][step];
+        self.registers[0][step + 1] = value;
     }
 
-    pub fn drop(&mut self) {
-        self.shift_left(1, 1);
-        self.current_step += 1;
+    fn drop(&mut self, step: usize) {
+        self.shift_left(step, 1, 1);
     }
 
-    pub fn add(&mut self) {
-        let x = self.registers[0][self.current_step];
-        let y = self.registers[1][self.current_step];
-        self.registers[0][self.current_step + 1] = field::add(x, y);
-        self.shift_left(2, 1);
-        self.current_step += 1;
+    fn add(&mut self, step: usize) {
+        let x = self.registers[0][step];
+        let y = self.registers[1][step];
+        self.registers[0][step + 1] = field::add(x, y);
+        self.shift_left(step, 2, 1);
     }
 
-    pub fn sub(&mut self) {
-        let x = self.registers[0][self.current_step];
-        let y = self.registers[1][self.current_step];
-        self.registers[0][self.current_step + 1] = field::sub(y, x);
-        self.shift_left(2, 1);
-        self.current_step += 1;
+    fn sub(&mut self, step: usize) {
+        let x = self.registers[0][step];
+        let y = self.registers[1][step];
+        self.registers[0][step + 1] = field::sub(y, x);
+        self.shift_left(step, 2, 1);
     }
 
-    pub fn mul(&mut self) {
-        let x = self.registers[0][self.current_step];
-        let y = self.registers[1][self.current_step];
-        self.registers[0][self.current_step + 1] = field::mul(x, y);
-        self.shift_left(2, 1);
-        self.current_step += 1;
+    fn mul(&mut self, step: usize) {
+        let x = self.registers[0][step];
+        let y = self.registers[1][step];
+        self.registers[0][step + 1] = field::mul(x, y);
+        self.shift_left(step, 2, 1);
     }
 
     // HELPER METHODS
     // --------------------------------------------------------------------------------------------
 
-    fn copy_state(&mut self, start: usize) {
+    fn copy_state(&mut self, step: usize, start: usize,) {
         for i in start..self.depth {
-            let slot_value = self.registers[i][self.current_step];
-            self.registers[i][self.current_step + 1] = slot_value;
+            let slot_value = self.registers[i][step];
+            self.registers[i][step + 1] = slot_value;
         }
     }
 
-    fn shift_left(&mut self, start: usize, pos_count: usize) {
-        assert!(self.depth >= pos_count, "stack underflow at step {}", self.current_step);
+    fn shift_left(&mut self, step: usize, start: usize, pos_count: usize) {
+        assert!(self.depth >= pos_count, "stack underflow at step {}", step);
         
         // shift all values by pos_count to the left
         for i in start..self.depth {
-            let slot_value = self.registers[i][self.current_step];
-            self.registers[i - pos_count][self.current_step + 1] = slot_value;
+            let slot_value = self.registers[i][step];
+            self.registers[i - pos_count][step + 1] = slot_value;
         }
 
         // set all "shifted-in" slots to 0
         for i in (self.depth - pos_count)..self.depth {
-            self.registers[i][self.current_step + 1] = 0;
+            self.registers[i][step + 1] = 0;
         }
 
         // stack depth has been reduced by pos_count
         self.depth -= pos_count;
     }
 
-    fn shift_right(&mut self, start: usize, pos_count: usize) {
+    fn shift_right(&mut self, step: usize, start: usize, pos_count: usize) {
         
         self.depth += pos_count;
-        assert!(self.depth <= MAX_STACK_DEPTH, "stack overflow at step {}", self.current_step);
+        assert!(self.depth <= MAX_STACK_DEPTH, "stack overflow at step {}", step);
 
         if self.depth > self.max_depth {
             self.max_depth += pos_count;
@@ -181,8 +179,8 @@ impl Stack {
         }
 
         for i in start..(self.depth - pos_count) {
-            let slot_value = self.registers[i][self.current_step];
-            self.registers[i + pos_count][self.current_step + 1] = slot_value;
+            let slot_value = self.registers[i][step];
+            self.registers[i + pos_count][step + 1] = slot_value;
         }
     }
 
@@ -191,7 +189,7 @@ impl Stack {
         let trace_length = self.registers[0].len();
         let trace_capacity = self.registers[0].capacity();
         for _ in 0..num_registers {
-            let register = utils::zero_filled_vector(trace_length, trace_capacity);
+            let register = zero_filled_vector(trace_length, trace_capacity);
             self.registers.push(register);
         }
     }
@@ -202,265 +200,127 @@ impl Stack {
 #[cfg(test)]
 mod tests {
     
-    use crate::stark::TraceState;
-
     const TRACE_LENGTH: usize = 16;
     const EXTENSION_FACTOR: usize = 16;
 
     #[test]
-    fn new() {
-        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
-        let expected = vec![0u64; super::MAX_STACK_DEPTH];
-
-        assert_eq!(0, stack.depth);
-        assert_eq!(0, stack.max_depth());
-        assert_eq!(TRACE_LENGTH, stack.registers[0].len());
-
-        stack.fill_state(&mut state, 0);
-        assert_eq!(expected, state.get_stack());
-    }
-
-    #[test]
-    fn growth() {
-        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
-        let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
-
-        // adding to stack should grow it
-        stack.push(1);
-        assert_eq!(1, stack.depth);
-        assert_eq!(1, stack.max_depth());
-        
-        stack.push(2);
-        assert_eq!(2, stack.depth);
-        assert_eq!(2, stack.max_depth());
-
-        // grow the stack beyond MIN_STACK_DEPTH to make sure everything works
-        stack.push(3);
-        stack.push(4);
-        stack.push(5);
-        stack.push(6);
-        stack.push(7);
-        stack.push(8);
-        stack.push(9);
-        stack.push(10);
-        assert_eq!(10, stack.depth);
-        assert_eq!(10, stack.max_depth());
-
-        expected[0..10].copy_from_slice(&[10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
-        stack.fill_state(&mut state, 10);
-        assert_eq!(expected, state.get_stack());
-
-        // removing from the stack should reduce the depth but not max_depth
-        stack.drop();
-        stack.drop();
-        stack.drop();
-        assert_eq!(7, stack.depth);
-        assert_eq!(10, stack.max_depth());
-
-        expected[0..10].copy_from_slice(&[7, 6, 5, 4, 3, 2, 1, 0, 0, 0]);
-        stack.fill_state(&mut state, 13);
-        assert_eq!(expected, state.get_stack());
-
-        // adding to stack again should increase depth but not max_depth
-        stack.push(11);
-        stack.push(12);
-        assert_eq!(9, stack.depth);
-        assert_eq!(10, stack.max_depth());
-
-        expected[0..10].copy_from_slice(&[12, 11, 7, 6, 5, 4, 3, 2, 1, 0]);
-        stack.fill_state(&mut state, 15);
-        assert_eq!(expected, state.get_stack());
-    }
-
-    #[test]
     fn noop() {
-        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
-        let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
+        let mut stack = init_stack(&[1, 2, 3, 4]);
+        stack.noop(0);
+        assert_eq!(vec![1, 2, 3, 4, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
-        stack.noop();
-        stack.fill_state(&mut state, 1);
-        assert_eq!(expected, state.get_stack());
-
-        stack.push(1);
-        stack.noop();
-        stack.noop();
-        stack.fill_state(&mut state, 4);
-        expected[0] = 1;
-        assert_eq!(expected, state.get_stack());
-
-        assert_eq!(1, stack.depth);
-        assert_eq!(1, stack.max_depth());
+        assert_eq!(4, stack.depth);
+        assert_eq!(4, stack.max_depth);
     }
 
     #[test]
     fn pull1() {
-        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
-        let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
+        let mut stack = init_stack(&[1, 2, 3, 4]);
+        stack.pull1(0);
+        assert_eq!(vec![2, 1, 3, 4, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
-        stack.push(1);
-        stack.push(2);
-        stack.push(3);
-        stack.pull1();
-
-        stack.fill_state(&mut state, 4);
-        expected[0..3].copy_from_slice(&[2, 3, 1]);
-        assert_eq!(expected, state.get_stack());
-
-        assert_eq!(3, stack.depth);
-        assert_eq!(3, stack.max_depth());
+        assert_eq!(4, stack.depth);
+        assert_eq!(4, stack.max_depth);
     }
 
     #[test]
     fn pull2() {
-        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
-        let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
-
-        stack.push(1);
-        stack.push(2);
-        stack.push(3);
-        stack.push(4);
-        stack.pull2();
-
-        stack.fill_state(&mut state, 5);
-        expected[0..4].copy_from_slice(&[2, 4, 3, 1]);
-        assert_eq!(expected, state.get_stack());
+        let mut stack = init_stack(&[1, 2, 3, 4]);
+        stack.pull2(0);
+        assert_eq!(vec![3, 1, 2, 4, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
         assert_eq!(4, stack.depth);
-        assert_eq!(4, stack.max_depth());
+        assert_eq!(4, stack.max_depth);
     }
 
     #[test]
     fn push() {
-        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
-        let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
+        let mut stack = init_stack(&[]);
+        stack.push(0, 3);
+        assert_eq!(vec![3, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
-        stack.push(1);
-        stack.fill_state(&mut state, 1);
-        expected[0] = 1;
-        assert_eq!(expected, state.get_stack());
-
-        stack.push(2);
-        stack.fill_state(&mut state, 2);
-        expected[0..2].copy_from_slice(&[2, 1]);
-        assert_eq!(expected, state.get_stack());
-
-        stack.push(3);
-        stack.fill_state(&mut state, 3);
-        expected[0..3].copy_from_slice(&[3, 2, 1]);
-        assert_eq!(expected, state.get_stack());
-
-        assert_eq!(3, stack.depth);
-        assert_eq!(3, stack.max_depth());
+        assert_eq!(1, stack.depth);
+        assert_eq!(1, stack.max_depth);
     }
     
     #[test]
     fn dup0() {
-        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
-        let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
-
-        stack.push(1);
-        stack.push(2);
-        stack.dup0();
-        stack.fill_state(&mut state, 3);
-        expected[0..3].copy_from_slice(&[2, 2, 1]);
-        assert_eq!(expected, state.get_stack());
+        let mut stack = init_stack(&[1, 2]);
+        stack.dup0(0);
+        assert_eq!(vec![1, 1, 2, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
         assert_eq!(3, stack.depth);
-        assert_eq!(3, stack.max_depth());
+        assert_eq!(3, stack.max_depth);
     }
 
     #[test]
     fn dup1() {
-        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
-        let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
-
-        stack.push(1);
-        stack.push(2);
-        stack.dup1();
-        stack.fill_state(&mut state, 3);
-        expected[0..3].copy_from_slice(&[1, 2, 1]);
-        assert_eq!(expected, state.get_stack());
+        let mut stack = init_stack(&[1, 2]);
+        stack.dup1(0);
+        assert_eq!(vec![2, 1, 2, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
         assert_eq!(3, stack.depth);
-        assert_eq!(3, stack.max_depth());
+        assert_eq!(3, stack.max_depth);
     }
 
     #[test]
     fn drop() {
-        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
-        let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
-
-        stack.push(1);
-        stack.push(2);
-        assert_eq!(2, stack.depth);
-        assert_eq!(2, stack.max_depth());
-
-        stack.drop();
-        stack.fill_state(&mut state, 3);
-        expected[0] = 1;
-        assert_eq!(expected, state.get_stack());
+        let mut stack = init_stack(&[1, 2]);
+        stack.drop(0);
+        assert_eq!(vec![2, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
         assert_eq!(1, stack.depth);
-        assert_eq!(2, stack.max_depth());
+        assert_eq!(2, stack.max_depth);
     }
 
     #[test]
     fn add() {
-        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
-        let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
-
-        stack.push(1);
-        stack.push(2);
-        stack.add();
-        stack.fill_state(&mut state, 3);
-        expected[0] = 3;
-        assert_eq!(expected, state.get_stack());
+        let mut stack = init_stack(&[1, 2]);
+        stack.add(0);
+        assert_eq!(vec![3, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
         assert_eq!(1, stack.depth);
-        assert_eq!(2, stack.max_depth());
+        assert_eq!(2, stack.max_depth);
     }
 
     #[test]
     fn sub() {
-        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
-        let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
-
-        stack.push(5);
-        stack.push(2);
-        stack.sub();
-        stack.fill_state(&mut state, 3);
-        expected[0] = 3;
-        assert_eq!(expected, state.get_stack());
+        let mut stack = init_stack(&[2, 5]);
+        stack.sub(0);
+        assert_eq!(vec![3, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
         assert_eq!(1, stack.depth);
-        assert_eq!(2, stack.max_depth());
+        assert_eq!(2, stack.max_depth);
     }
 
     #[test]
     fn mul() {
-        let mut state = TraceState::new(super::MAX_STACK_DEPTH);
-        let mut stack = super::Stack::new(TRACE_LENGTH, &[], EXTENSION_FACTOR);
-        let mut expected = vec![0u64; super::MAX_STACK_DEPTH];
-
-        stack.push(2);
-        stack.push(3);
-        stack.mul();
-        stack.fill_state(&mut state, 3);
-        expected[0] = 6;
-        assert_eq!(expected, state.get_stack());
+        let mut stack = init_stack(&[2, 3]);
+        stack.mul(0);
+        assert_eq!(vec![6, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
         assert_eq!(1, stack.depth);
-        assert_eq!(2, stack.max_depth());
+        assert_eq!(2, stack.max_depth);
+    }
+
+    fn init_stack(inputs: &[u64]) -> super::StackTrace {
+        let mut registers: Vec<Vec<u64>> = Vec::with_capacity(super::MIN_STACK_DEPTH);
+        for i in 0..super::MIN_STACK_DEPTH {
+            let mut register = super::zero_filled_vector(TRACE_LENGTH, TRACE_LENGTH * EXTENSION_FACTOR);
+            if i < inputs.len() { 
+                register[0] = inputs[i];
+            }
+            registers.push(register);
+        }
+    
+        return super::StackTrace { registers, max_depth: inputs.len(), depth: inputs.len() };
+    }
+
+    fn get_stack_state(stack: &super::StackTrace, step: usize) -> Vec<u64> {
+        let mut state = Vec::with_capacity(stack.registers.len());
+        for i in 0..stack.registers.len() {
+            state.push(stack.registers[i][step]);
+        }
+        return state;
     }
 }

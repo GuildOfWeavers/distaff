@@ -1,13 +1,11 @@
 use std::fmt;
 use std::cmp;
 use crate::math::field::{ add, sub, mul, ONE };
-use crate::stark::{ MIN_STACK_DEPTH, utils::hash_acc::STATE_WIDTH as ACC_WIDTH };
+use crate::stark::{ utils::hash_acc::STATE_WIDTH as ACC_WIDTH };
+use super::{ NUM_OP_BITS, NUM_LD_OPS, MIN_STACK_DEPTH };
 
 // CONSTANTS
 // ================================================================================================
-const NUM_OP_BITS   : usize = 5;
-const NUM_LD_OPS    : usize = 32;
-
 const OP_CODE_IDX   : usize = 0;
 const PUSH_FLAG_IDX : usize = 1;
 const OP_ACC_IDX    : usize = 2;

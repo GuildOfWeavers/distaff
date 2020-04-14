@@ -1,7 +1,6 @@
 use crate::math::{ field, fft, polys };
 use crate::processor::opcodes;
-use crate::utils::zero_filled_vector;
-use super::{ TraceState, stack::Stack, hash_acc };
+use super::{ TraceState, decoder, stack, hash_acc };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -10,7 +9,7 @@ pub struct TraceTable {
     push_flag   : Vec<u64>,
     op_bits     : [Vec<u64>; 5],
     op_acc      : [Vec<u64>; hash_acc::STATE_WIDTH],
-    stack       : Stack,
+    stack       : Vec<Vec<u64>>,
 
     extension_factor: usize
 }
@@ -23,36 +22,15 @@ impl TraceTable {
     /// trace table is allocated in accordance with the specified `extension_factor`.
     pub fn new(program: &[u64], inputs: &[u64], extension_factor: usize) -> TraceTable {
         
-        let trace_length = program.len();
-        let domain_size = trace_length * extension_factor;
-
-        assert!(trace_length.is_power_of_two(), "program length must be a power of 2");
+        assert!(program.len().is_power_of_two(), "program length must be a power of 2");
         assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
-        assert!(program[trace_length - 1] == opcodes::NOOP, "last operation in a program must be NOOP");
-
-        // allocate space for trace table registers. capacity of each register is set to the
-        // domain size right from the beginning to avoid vector re-allocation later on.
-        let op_code = zero_filled_vector(trace_length, domain_size);
-        let push_flag = zero_filled_vector(trace_length, domain_size);
-        let op_bits = [
-            zero_filled_vector(trace_length, domain_size),
-            zero_filled_vector(trace_length, domain_size),
-            zero_filled_vector(trace_length, domain_size),
-            zero_filled_vector(trace_length, domain_size),
-            zero_filled_vector(trace_length, domain_size),
-        ];
+        assert!(program[program.len() - 1] == opcodes::NOOP, "last operation of a program must be NOOP");
 
         // create trace table object
-        let op_acc = hash_acc::digest(&program, extension_factor);
-        let stack = Stack::new(trace_length, inputs, extension_factor);
-        let mut trace = TraceTable { op_code, push_flag, op_bits, op_acc, stack, extension_factor };
-
-        // copy program into the trace
-        trace.op_code[0..program.len()].copy_from_slice(program);
-        
-        // execute the program to fill out the trace and return
-        trace.execute_program();
-        return trace;
+        let (op_code, push_flag, op_bits) = decoder::process(program, extension_factor);
+        let op_acc = hash_acc::digest(program, extension_factor);
+        let stack = stack::execute(program, inputs, extension_factor);
+        return TraceTable { op_code, push_flag, op_bits, op_acc, stack, extension_factor };
     }
 
     /// Returns state of the trace table at the specified `step`.
@@ -75,7 +53,9 @@ impl TraceTable {
             self.op_acc[4][step], self.op_acc[5][step], self.op_acc[6][step],  self.op_acc[7][step],
             self.op_acc[8][step], self.op_acc[9][step], self.op_acc[10][step], self.op_acc[11][step]
         ]);
-        self.stack.fill_state(state, step);
+        for i in 0..self.stack.len() {
+            state.set_stack_value(i, self.stack[i][step]);
+        }
     }
 
     /// Returns the number of states in the trace table.
@@ -90,12 +70,12 @@ impl TraceTable {
 
     /// Returns the number of registers in the trace table.
     pub fn register_count(&self) -> usize {
-        return 1 + self.op_bits.len() + self.op_acc.len() + self.stack.max_depth();
+        return 1 + self.op_bits.len() + self.op_acc.len() + self.stack.len();
     }
 
     /// Returns the number of registers used by the stack.
     pub fn max_stack_depth(&self) -> usize {
-        return self.stack.max_depth();
+        return self.stack.len();
     }
 
     /// Returns register trace at the specified `index`.
@@ -103,7 +83,7 @@ impl TraceTable {
         return match index {
             0     => &self.op_code,
             1..=5 => &self.op_bits[index - 1],
-            _     => self.stack.get_register_trace(index - 6)
+            _     => &self.stack[index - 6]
         };
     }
 
@@ -138,80 +118,27 @@ impl TraceTable {
         polys::eval_fft_twiddles(&mut self.push_flag, &twiddles, true);
 
         // extend op_bits
-        for op_bit in self.op_bits.iter_mut() {
-            polys::interpolate_fft_twiddles(op_bit, &inv_twiddles, true);
-            unsafe { op_bit.set_len(domain_size); }
-            polys::eval_fft_twiddles(op_bit, &twiddles, true);
+        for register in self.op_bits.iter_mut() {
+            debug_assert!(register.capacity() == domain_size, "invalid op_bits register capacity");
+            polys::interpolate_fft_twiddles(register, &inv_twiddles, true);
+            unsafe { register.set_len(domain_size); }
+            polys::eval_fft_twiddles(register, &twiddles, true);
         }
 
         // extend op_acc
-        for acc in self.op_acc.iter_mut() {
-            polys::interpolate_fft_twiddles(acc, &inv_twiddles, true);
-            unsafe { acc.set_len(domain_size); }
-            polys::eval_fft_twiddles(acc, &twiddles, true);
+        for register in self.op_acc.iter_mut() {
+            debug_assert!(register.capacity() == domain_size, "invalid op_acc register capacity");
+            polys::interpolate_fft_twiddles(register, &inv_twiddles, true);
+            unsafe { register.set_len(domain_size); }
+            polys::eval_fft_twiddles(register, &twiddles, true);
         }
 
         // extend stack registers
-        self.stack.extend_registers(&twiddles, &inv_twiddles);
-    }
-
-    // PROGRAM EXECUTION
-    // --------------------------------------------------------------------------------------------
-
-    /// Execute the program contained in the op_code register. This will fill in all other
-    /// registers of the trace table.
-    fn execute_program(&mut self) {
-        
-        // for the first operation, push_flag is always 0
-        self.push_flag[0] = 0;
-
-        for i in 0..(self.len() - 1) {
-            if self.push_flag[i] == 1 {
-                // if the previous operation was a PUSH, current operation must be a constant that
-                // was pushed onto the stack - so, skip it and leave the stack state unchanged
-                self.set_op_bits(opcodes::NOOP, i);
-                self.stack.noop();
-
-                // clear push_flag for the next operation since the current operation is not a PUSH
-                self.push_flag[i + 1] = 0;
-            }
-            else {
-                let op = self.op_code[i];
-                self.set_op_bits(op, i);
-
-                // if the current operation is a PUSH, set push_flag for the next step to 1
-                self.push_flag[i + 1] = if op == opcodes::PUSH { 1 } else { 0 };
-                
-                // update stack state based on the op_code
-                match op {
-                    opcodes::NOOP  => self.stack.noop(),
-
-                    opcodes::PUSH  => self.stack.push(self.op_code[i + 1]),
-                    opcodes::DUP0  => self.stack.dup0(),
-                    opcodes::DUP1  => self.stack.dup1(),
-
-                    opcodes::PULL1 => self.stack.pull1(),
-                    opcodes::PULL2 => self.stack.pull2(),
-
-                    opcodes::DROP  => self.stack.drop(),
-                    opcodes::ADD   => self.stack.add(),
-                    opcodes::SUB   => self.stack.sub(),
-                    opcodes::MUL   => self.stack.mul(),
-
-                    _ => panic!("operation {} is not supported", op)
-                }
-            }
-        }
-
-        // set op_bits for the last step
-        self.set_op_bits(self.op_code[self.len() - 1], self.len() - 1);
-    }
-
-    /// Sets the op_bits registers at the specified `step` to a binary decomposition
-    /// of the `op_code` parameter.
-    fn set_op_bits(&mut self, op_code: u64, step: usize) {
-        for i in 0..self.op_bits.len() {
-            self.op_bits[i][step] = (op_code >> i) & 1;
+        for register in self.stack.iter_mut() {
+            debug_assert!(register.capacity() == domain_size, "invalid stack register capacity");
+            polys::interpolate_fft_twiddles(register, &inv_twiddles, true);
+            unsafe { register.set_len(domain_size); }
+            polys::eval_fft_twiddles(register, &twiddles, true);
         }
     }
 }
