@@ -11,11 +11,10 @@ pub fn eval(c: &mut Criterion) {
 
 pub fn evaluate_quartic_batch(c: &mut Criterion) {
     let n: usize = 1 << 10;
-    let r = field::get_root_of_unity(n as u64);
-    let xs = field::get_power_series(r, n);
+    let x = field::rand();
     let polys = quartic::to_quartic_vec(field::rand_vector(n * 4));
     c.bench_function("Poly evaluation (quartic batch)", |bench| {
-        bench.iter(|| quartic::evaluate_batch(black_box(&polys), black_box(&xs)))
+        bench.iter(|| quartic::evaluate_batch(black_box(&polys), black_box(x)))
     });
 }
 

@@ -1,4 +1,5 @@
 use crate::math::field;
+use crate::utils::uninit_vector;
 
 /// Evaluates degree 3 polynomial `p` at coordinate `x`. This function is about 30% faster than
 /// the `polys::eval` function.
@@ -15,16 +16,15 @@ pub fn eval(p: &[u64], x: u64) -> u64 {
     return y;
 }
 
-/// Evaluates a batch of degree 3 polynomials at provided X coordinates.
-pub fn evaluate_batch(polys: &[[u64; 4]], xs: &[u64]) -> Vec<u64> {
+/// Evaluates a batch of degree 3 polynomials at the provided X coordinate.
+pub fn evaluate_batch(polys: &[[u64; 4]], x: u64) -> Vec<u64> {
     let n = polys.len();
-    debug_assert!(n == xs.len(), "number of polynomials must be equal to number of X coordinates");
-
+    
     let mut result: Vec<u64> = Vec::with_capacity(n);
     unsafe { result.set_len(n); }
 
     for i in 0..n {
-        result[i] = eval(&polys[i], xs[i]);
+        result[i] = eval(&polys[i], x);
     }
 
     return result;
@@ -134,6 +134,23 @@ pub fn interpolate_batch(xs: &[[u64; 4]], ys: &[[u64; 4]]) -> Vec<[u64; 4]> {
     return result;
 }
 
+pub fn transpose(vector: &Vec<u64>, stride: usize) -> Vec<[u64; 4]> {
+    assert!(vector.len() % (4 * stride) == 0, "vector length must be divisible by {}", 4 * stride);
+    let row_count = vector.len() / (4 * stride);
+
+    let mut result = to_quartic_vec(uninit_vector(row_count * 4));
+    for i in 0..row_count {
+        result[i] = [
+            vector[i * stride],
+            vector[(i + row_count) * stride],
+            vector[(i + 2 * row_count) * stride],
+            vector[(i + 3 * row_count) * stride]
+        ];
+    }
+
+    return result;
+}
+
 /// Re-interprets a vector of integers as a vector of quartic elements.
 pub fn to_quartic_vec(vector: Vec<u64>) -> Vec<[u64; 4]> {
     assert!(vector.len() % 4 == 0, "vector length must be divisible by 4");
@@ -148,7 +165,7 @@ pub fn to_quartic_vec(vector: Vec<u64>) -> Vec<[u64; 4]> {
 // ================================================================================================
 #[cfg(test)]
 mod tests {
-    use crate::math::{ field };
+    use crate::math::{ field, polys as polynom };
 
     #[test]
     fn eval() {
@@ -174,16 +191,37 @@ mod tests {
 
     #[test]
     fn evaluate_batch() {
-        let r = field::get_root_of_unity(16);
-        let xs = field::get_power_series(r, 16).iter().step_by(4).map(|x| *x).collect::<Vec<u64>>();
-        
+        let x = field::rand();
         let polys = [
             [7956382178997078105u64,  6172178935026293282,  5971474637801684060, 16793452009046991148],
             [   7956382178997078109, 15205743380705406848, 12475269242634339237,   194846859619262948],
             [   7956382178997078113, 12274564945409730015,  5971474637801684060,  1653291871389032149],
             [   7956382178997078117,  3241000499730616449, 12475269242634339237, 18251897020816760349]
         ];
-        let expected = vec![1u64, 5, 9, 13];
-        assert_eq!(expected, super::evaluate_batch(&polys, &xs));
+
+        let expected = vec![
+            polynom::eval(&polys[0], x),
+            polynom::eval(&polys[1], x),
+            polynom::eval(&polys[2], x),
+            polynom::eval(&polys[3], x)
+        ];
+        assert_eq!(expected, super::evaluate_batch(&polys, x));
+    }
+
+    #[test]
+    fn to_quartic_vec() {
+        let vector = vec![1u64, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        let expected: Vec<[u64; 4]> = vec![[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]];
+        assert_eq!(expected, super::to_quartic_vec(vector));
+    }
+
+    #[test]
+    fn transpose() {
+        let vector = vec![1u64, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        let expected: Vec<[u64; 4]> = vec![[1, 5, 9, 13], [2, 6, 10, 14], [3, 7, 11, 15], [4, 8, 12, 16]];
+        assert_eq!(expected, super::transpose(&vector, 1));
+
+        let expected: Vec<[u64; 4]> = vec![[1, 5, 9, 13], [3, 7, 11, 15]];
+        assert_eq!(expected, super::transpose(&vector, 2));
     }
 }

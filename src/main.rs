@@ -1,5 +1,7 @@
 use std::time::{ Instant };
-use distaff::{ field, fft, polys, quartic, parallel, hash, MerkleTree };
+use distaff::crypto::{ MerkleTree, hash };
+use distaff::{ field, fft, polys, quartic, parallel, utils };
+use distaff::processor::{ opcodes, execute };
 use rand::prelude::*;
 use rand::distributions::Uniform;
 extern crate num_cpus;
@@ -7,13 +9,30 @@ extern crate num_cpus;
 fn main() {
 
     let n: usize = 1 << 20;
+    execute_program();
     //test_merkle_tree(n);
-    test_parallel_fft(n);
+    //test_parallel_fft(n);
     //test_poly_eval_fft(n);
     //test_parallel_mul(n);
     //test_parallel_inv(n);
     //test_quartic_batch(n);
     //test_hash_functions(n);
+}
+
+fn execute_program() {
+
+    let op_count = usize::pow(2, 4) - 1;
+    let mut program = Vec::new();
+    while op_count > program.len() {
+        program.push(opcodes::DUP0);
+        program.push(opcodes::PULL2);
+        program.push(opcodes::ADD);
+    }
+    
+    let now = Instant::now();
+    let result = execute(&program, &[1, 1], 1);
+    let t = now.elapsed().as_millis();
+    println!("------\nExecuted program with hash {:x?} in {} ms, result: {:?}",  result.0, t, result.1);
 }
 
 fn test_merkle_tree(n: usize) {
@@ -96,7 +115,7 @@ fn test_parallel_mul(n: usize) {
         let num_threads = usize::pow(2, i);
         let mut z2 = y.clone();
         let now = Instant::now();
-        parallel::mul_in_place(&x, &mut z2, num_threads);
+        parallel::mul_in_place(&mut z2, &x, num_threads);
         let t = now.elapsed().as_millis();
         println!("Multiplied {} values in place using {} threads in {} ms", z2.len(), num_threads, t);
         for i in 0..n { assert_eq!(z1[i], z2[i]); }
@@ -125,11 +144,10 @@ fn test_parallel_inv(n: usize) {
 
 fn test_quartic_batch(n: usize) {
 
-    let r = field::get_root_of_unity(n as u64);
-    let xs = field::get_power_series(r, n);
+    let x = field::rand();
     let polys = quartic::to_quartic_vec(field::rand_vector(n * 4));
     let now = Instant::now();
-    let ys = quartic::evaluate_batch(&polys, &xs);
+    let ys = quartic::evaluate_batch(&polys, x);
     let t = now.elapsed().as_millis();
     println!("Evaluated {} quartic polynomials in {} ms", ys.len(), t);
 

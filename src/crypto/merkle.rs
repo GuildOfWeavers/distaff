@@ -37,6 +37,11 @@ impl MerkleTree {
         return &self.nodes[1];
     }
 
+    /// Returns leaf nodes of the tree
+    pub fn leaves(&self) -> &[[u64; 4]] {
+        return &self.values;
+    }
+
     /// Computes merkle path the given leaf index.
     pub fn prove(&self, index: usize) -> Vec<[u64; 4]> {
         assert!(index < self.values.len(), "invalid index {}", index);

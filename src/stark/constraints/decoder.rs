@@ -7,7 +7,7 @@ use crate::processor::{ opcodes };
 pub const CONSTRAINT_DEGREES: [usize; 9] = [
     2, 2, 2, 2, 2,  // op_bits are binary
     2,              // push_flag is binary
-    5,              // push_flag is set after a PUSH operation
+    6,              // push_flag is set after a PUSH operation
     2,              // push_flag gets reset on the next step
     2,              // when push_flag = 0, op_bits are a binary decomposition of op_code
 ];

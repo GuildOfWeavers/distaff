@@ -8,7 +8,7 @@ use crate::stark::utils::hash_acc::{
 // ================================================================================================
 
 /// Degree of hash accumulator constraints.
-pub const CONSTRAINT_DEGREES: [usize; STATE_WIDTH] = [3; STATE_WIDTH];
+pub const CONSTRAINT_DEGREES: [usize; STATE_WIDTH] = [6; STATE_WIDTH];
 
 const NUM_ROUNDS_EX: usize = MAX_CONSTRAINT_DEGREE * NUM_ROUNDS;
 
