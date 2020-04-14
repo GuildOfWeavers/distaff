@@ -19,8 +19,7 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64]) {
     let now = Instant::now();
     
     // allocate space to hold constraint evaluations and trace hashes
-    let domain_size = (trace.len() / trace.extension_factor()) * MAX_CONSTRAINT_DEGREE;
-    let mut constraints = ConstraintTable::new(domain_size, trace.max_stack_depth());
+    let mut constraints = ConstraintTable::new(&trace);
     let mut hashed_states = to_quartic_vec(uninit_vector(trace.len() * 4));
 
     // allocate space to hold current and next states for constraint evaluations
@@ -42,7 +41,7 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64]) {
         if i % skip == 0 {
             // copy next trace state (wrapping around the execution trace) and evaluate constraints
             trace.fill_state(&mut next, (i + trace.extension_factor()) % trace.len());
-            constraints.evaluate(&current, &next, i / skip);
+            constraints.evaluate_transition(&current, &next, i / skip);
         }
     }
 
@@ -57,7 +56,12 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64]) {
 
     // 4 ----- compute composition polynomial -----------------------------------------------------
     let now = Instant::now();
-    let c_poly = constraints.get_composition_poly(trace_tree.root(), trace.extension_factor());
+
+    // first set input/output constraints
+    constraints.set_io_constraints(inputs, outputs);
+
+    // then, compute composition polynomial
+    let c_poly = constraints.get_composition_poly(trace_tree.root(), &trace);
     let t = now.elapsed().as_millis();
     println!("Computed composition polynomial in {} ms", t);
 

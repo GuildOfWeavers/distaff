@@ -87,6 +87,11 @@ impl TraceTable {
         };
     }
 
+    /// Returns register trace for stack register specified by the `index`.
+    pub fn get_stack_register_trace(&self, index: usize) -> &[u64] {
+        return &self.stack[index];
+    }
+
     /// Returns `true` if the trace table has been extended.
     pub fn is_extended(&self) -> bool {
         return self.op_code.len() == self.op_code.capacity();

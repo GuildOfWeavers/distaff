@@ -1,5 +1,6 @@
-use crate::math::{ field, parallel, fft, polys };
-use crate::stark::{ TraceState };
+use std::cmp;
+use crate::math::{ field, parallel, fft, polys, field::ONE };
+use crate::stark::{ TraceState, TraceTable };
 use crate::utils::{ uninit_vector, zero_filled_vector };
 use super::{ decoder, stack, hash_acc };
 
@@ -13,24 +14,52 @@ pub struct ConstraintTable {
     pub decoder : Vec<Vec<u64>>,
     pub op_acc  : Vec<Vec<u64>>,
     pub stack   : Vec<Vec<u64>>,
+
+    io_constraints  : [Vec<Vec<u64>>; 3],
+    extension_factor: usize,
 }
 
 // CONSTRAINT TABLE IMPLEMENTATION
 // ================================================================================================
 impl ConstraintTable {
 
-    pub fn new(domain_size: usize, max_stack_depth: usize) -> ConstraintTable {
-        debug_assert!(domain_size.is_power_of_two(), "domain size must be a power of 2");
-        debug_assert!(domain_size % MAX_CONSTRAINT_DEGREE == 0, "domain size must be divisible by 8");
+    pub fn new(trace: &TraceTable) -> ConstraintTable {
+        assert!(trace.is_extended(), "execution trace hasn't been extended yet");
+        
+        let trace_length = trace.len() / trace.extension_factor(); // original trace length
+        let domain_size = trace_length * MAX_CONSTRAINT_DEGREE;
 
         return ConstraintTable {
             decoder : create_vectors(decoder::CONSTRAINT_DEGREES.len(), domain_size),
             op_acc  : create_vectors(hash_acc::CONSTRAINT_DEGREES.len(), domain_size),
-            stack   : create_vectors(max_stack_depth, domain_size),
+            stack   : create_vectors(trace.max_stack_depth(), domain_size),
+            io_constraints  : [ vec![], vec![], vec![] ],
+            extension_factor: trace.extension_factor(),
         };
     }
 
-    pub fn evaluate(&mut self, current: &TraceState, next: &TraceState, step: usize) {
+    pub fn constraint_count(&self) -> usize {
+        return self.decoder.len() + self.op_acc.len() + self.stack.len()
+            + self.io_constraints[0].len() 
+            + self.io_constraints[1].len()
+            + self.io_constraints[2].len();
+    }
+
+    pub fn len(&self) -> usize {
+        return self.decoder[0].len();
+    }
+
+    fn trace_length(&self) -> usize {
+        return self.len() / MAX_CONSTRAINT_DEGREE;
+    }
+
+    fn domain_size(&self) -> usize {
+        return self.trace_length() * self.extension_factor;
+    }
+
+    // CONSTRAINT EVALUATION
+    // --------------------------------------------------------------------------------------------
+    pub fn evaluate_transition(&mut self, current: &TraceState, next: &TraceState, step: usize) {
         let should_be_zero = (step % MAX_CONSTRAINT_DEGREE == 0)
             && (step < self.len() - MAX_CONSTRAINT_DEGREE);
 
@@ -44,18 +73,40 @@ impl ConstraintTable {
         copy_constraints(&stack, &mut self.stack, step, should_be_zero);
     }
 
-    pub fn constraint_count(&self) -> usize {
-        return self.decoder.len() + self.op_acc.len() + self.stack.len();
+    pub fn set_io_constraints(&mut self, inputs: &[u64], outputs: &[u64]) {
+
+        // compute root of unity for the evaluation domain
+        let domain_root = field::get_root_of_unity(self.domain_size() as u64);
+
+        // compute last value in the evaluation domain
+        let last_position = self.domain_size() - self.extension_factor;
+        let x_at_last_step = field::exp(domain_root, last_position as u64);
+
+        // create polynomials for input/output constraints
+        let num_io_constraints = cmp::min(inputs.len(), outputs.len());
+        for i in 0..num_io_constraints {
+            let i_poly = polys::interpolate(&[field::ONE, x_at_last_step], &[inputs[i], outputs[i]]);
+            self.io_constraints[0].push(i_poly);
+        }
+        
+        // create polynomials for input constraints only
+        for i in num_io_constraints..inputs.len() {
+            let i_poly = vec![inputs[i]];
+            self.io_constraints[1].push(i_poly);
+        }
+
+        // create polynomials for output constraints only
+        for i in num_io_constraints..outputs.len() {
+            let i_poly = vec![outputs[i]];
+            self.io_constraints[2].push(i_poly);
+        }
     }
 
-    pub fn len(&self) -> usize {
-        return self.decoder[0].len();
-    }
+    // CONSTRAINT COMPOSITION
+    // -------------------------------------------------------------------------------------------
+    pub fn get_composition_poly(&self, seed: &[u64; 4], trace: &TraceTable) -> Vec<u64> {
 
-    pub fn get_composition_poly(&self, seed: &[u64; 4], extension_factor: usize) -> Vec<u64> {
-
-        let trace_length = self.len() / MAX_CONSTRAINT_DEGREE;
-        let domain_size = trace_length * extension_factor;
+        let domain_size = self.trace_length() * self.extension_factor;
 
         let composition_root = field::get_root_of_unity(self.len() as u64);
         let mut result = zero_filled_vector(self.len(), domain_size);
@@ -74,7 +125,7 @@ impl ConstraintTable {
             if constraints.len() == 0 { continue; }
 
             // adjust degree basis
-            let degree = degree * trace_length;
+            let degree = degree * self.trace_length();
 
             // merge constraint evaluations into random leaner combination of constraints;
             // this computes: result = result + constraint * coefficient
@@ -108,11 +159,53 @@ impl ConstraintTable {
         polys::eval_fft_twiddles(&mut result, &twiddles, true);
 
         // 3 ----- divide linear combination of constraints by zero polynomial --------------------
-        let z_inverse = self.get_inv_zero_poly(domain_root, trace_length, extension_factor);
+        let domain = field::get_power_series(domain_root, domain_size);
+        let z_inverse = self.get_inv_zero_poly(&domain);
         parallel::mul_in_place(&mut result, &z_inverse, 1);
 
-        // 4 ----- merge boundary constraints into linear combination -----------------------------
-        // TODO
+        // 4 ----- merge input/output constraints into the linear combination ---------------------
+        let x_at_last_step = *domain.last().unwrap();
+        let mut stack_register_idx = 0;
+
+        let incremental_degree = domain_size - self.trace_length();
+        let x_root = field::exp(domain_root, incremental_degree as u64);
+        let x_di = field::get_power_series(x_root, domain_size);
+
+        // evaluate and merge input-output constraints into the linear combination
+        if self.io_constraints[0].len() > 0 {
+            // compute inverses of Z(x) evaluations
+            let z_poly = polys::mul(&[field::neg(ONE), ONE], &[field::neg(x_at_last_step), ONE]);
+            let z_values = eval_poly(&z_poly, &twiddles);
+            let z_inverses = parallel::inv(&z_values, 1);
+
+            // B(x) = (P(x) - I(x)) / Z(x)
+            for i_poly in self.io_constraints[0].iter() {
+                // evaluate boundary constraint
+                let p_values = trace.get_stack_register_trace(stack_register_idx);
+                let mut b_values = eval_boundary_constraint(&i_poly, &p_values, &z_inverses, &twiddles);
+
+                // merge constraint evaluations into linear combination
+                parallel::mul_acc(&mut result, &b_values, coefficients.next().unwrap(), 1);
+
+                // adjust evaluation degree and merge the adjusted evaluations into linear combination
+                parallel::mul_in_place(&mut b_values, &x_di, 1);
+                parallel::mul_acc(&mut result, &b_values, coefficients.next().unwrap(), 1);
+
+                stack_register_idx += 1;
+            }
+        }
+        
+        // evaluate and merge input-only constraints into the linear combination
+        if self.io_constraints[1].len() > 0 {
+
+        }
+
+        // evaluate and merge output-only constraints into the linear combination
+        if self.io_constraints[2].len() > 0 {
+
+        }
+
+        // 5 ----- merge program hash constraint into the linear combination ----------------------
 
         return result;
     }
@@ -142,27 +235,22 @@ impl ConstraintTable {
         return result;
     }
 
-    fn get_inv_zero_poly(&self, domain_root: u64, trace_length: usize, extension_factor: usize) -> Vec<u64> {
-
-        // build the domain for Z(x)
-        let domain_size = trace_length * extension_factor;
-        let domain = field::get_power_series(domain_root, domain_size);
+    fn get_inv_zero_poly(&self, domain: &[u64]) -> Vec<u64> {
 
         // compute x^trace_length for all x values in the domain
-        let mut x_to_the_steps = uninit_vector(domain_size);
+        let mut x_to_the_steps = uninit_vector(domain.len());
         for i in 0..x_to_the_steps.len() {
-            x_to_the_steps[i] = domain[(i * trace_length) % domain_size];
+            x_to_the_steps[i] = domain[(i * self.trace_length()) % domain.len()];
         }
 
-        // compute value of x at the last step (in the extended domain)
-        let last_position = (trace_length - 1) * extension_factor;
-        let x_at_last_step = field::exp(domain_root, last_position as u64);
+        // get value of x at the last step
+        let x_at_last_step = *domain.last().unwrap();
 
         // compute z numerators and denominators separately
         let mut numerators = x_to_the_steps;
         parallel::sub_const_in_place(&mut numerators, field::ONE, 1);
 
-        let mut denominators = domain;
+        let mut denominators = domain.to_vec(); // TODO
         parallel::sub_const_in_place(&mut denominators, x_at_last_step, 1);
 
         // invert denominators and multiply the inverses by the numerators
@@ -195,4 +283,22 @@ fn copy_constraints(source: &[u64], target: &mut Vec<Vec<u64>>, step: usize, sho
             target[i][step] = source[i];
         }
     }
+}
+
+fn eval_boundary_constraint(i_poly: &[u64], p_values: &[u64], z_inverses: &[u64], twiddles: &[u64]) -> Vec<u64> {
+    let mut i_values = eval_poly(i_poly, twiddles);
+    // TODO: implement parallel subtraction
+    for i in 0..p_values.len() {
+        i_values[i] = field::sub(p_values[i], i_values[i]);
+    }
+    parallel::mul_in_place(&mut i_values, &z_inverses, 1);
+    return i_values;
+}
+
+fn eval_poly(poly: &[u64], twiddles: &[u64]) -> Vec<u64> {
+    let domain_size = twiddles.len() * 2;
+    let mut values = zero_filled_vector(domain_size, domain_size);
+    values[..poly.len()].copy_from_slice(poly);
+    polys::eval_fft_twiddles(&mut values, &twiddles, true);
+    return values;
 }
