@@ -8,4 +8,4 @@ mod prover;
 pub use prover::{ prove };
 
 mod utils;
-pub use utils::hash_acc::digest as hash_acc;
+pub use utils::{ ProofOptions, hash_acc::digest as hash_acc };

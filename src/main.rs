@@ -2,6 +2,7 @@ use std::time::{ Instant };
 use distaff::crypto::{ MerkleTree, hash };
 use distaff::{ field, fft, polys, quartic, parallel, utils };
 use distaff::processor::{ opcodes, execute };
+use distaff::stark::{ ProofOptions };
 use rand::prelude::*;
 use rand::distributions::Uniform;
 extern crate num_cpus;
@@ -30,7 +31,7 @@ fn execute_program() {
     }
     
     let now = Instant::now();
-    let result = execute(&program, &[1, 1], 1);
+    let result = execute(&program, &[1, 1], 1, &ProofOptions::default());
     let t = now.elapsed().as_millis();
     println!("------\nExecuted program with hash {:x?} in {} ms, result: {:?}",  result.0, t, result.1);
 }

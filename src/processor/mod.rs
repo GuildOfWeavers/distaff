@@ -1,11 +1,9 @@
 use std::time::{ Instant };
-use crate::stark::{ TraceTable, prove };
+use crate::stark::{ TraceTable, ProofOptions, prove };
 
 pub mod opcodes;
 
-const DEFAULT_EXTENSION_FACTOR: usize = 32;
-
-pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize) -> ([u64; 4], Vec<u64>) {
+pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize, options: &ProofOptions) -> ([u64; 4], Vec<u64>) {
 
     // pad the program to make sure the length is a power of two and the last operation is NOOP
     let mut program = program.to_vec();
@@ -19,7 +17,7 @@ pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize) -> ([u64; 4]
 
     // execute the program to create an execution trace
     let now = Instant::now();
-    let mut trace = TraceTable::new(&program, inputs, DEFAULT_EXTENSION_FACTOR);
+    let mut trace = TraceTable::new(&program, inputs, options.extension_factor());
     let t = now.elapsed().as_millis();
     println!("Generated execution trace of {} steps in {} ms", trace.len(), t);
     
@@ -32,7 +30,7 @@ pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize) -> ([u64; 4]
     program_hash.copy_from_slice(&last_state.get_op_acc()[0..4]);
 
     // generate STARK proof
-    prove(&mut trace, inputs, &outputs);
+    prove(&mut trace, inputs, &outputs, options);
 
     return (program_hash, outputs);
 }

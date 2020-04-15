@@ -134,7 +134,7 @@ pub fn interpolate_batch(xs: &[[u64; 4]], ys: &[[u64; 4]]) -> Vec<[u64; 4]> {
     return result;
 }
 
-pub fn transpose(vector: &Vec<u64>, stride: usize) -> Vec<[u64; 4]> {
+pub fn transpose(vector: &[u64], stride: usize) -> Vec<[u64; 4]> {
     assert!(vector.len() % (4 * stride) == 0, "vector length must be divisible by {}", 4 * stride);
     let row_count = vector.len() / (4 * stride);
 
