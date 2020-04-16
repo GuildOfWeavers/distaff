@@ -16,9 +16,11 @@ harness = false
 
 [dependencies]
 rand = "0.7.3"
-num_cpus = "1.12.0"
+blake3 = "0.3.2"
+num_cpus = "1.13.0"
 crossbeam-utils = "0.7.2"
-blake3 = "0.3.1"
+bincode = "1.2.1"
+serde = { version = "1.0.106", features = ["derive"] }
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = "0.3.1"

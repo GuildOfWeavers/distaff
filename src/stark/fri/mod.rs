@@ -21,6 +21,7 @@ pub fn prove(evaluations: &[u64], domain: &[u64], max_degree_plus_1: usize, opti
     assert!(evaluations.len() == domain.len(), "evaluations and domain slices must have the same length");
     assert!(max_degree_plus_1.is_power_of_two(), "max_degree_plus_1 must be a power of 2");
     assert!(max_degree_plus_1 < domain.len(), "domain length must be greater than max_degree_plus_1");
+    assert!(domain.len() / max_degree_plus_1 < MAX_REMAINDER_LENGTH, "degree is too big for the domain");
 
     let idx_generator = QueryIndexGenerator::new(options);
     

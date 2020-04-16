@@ -1,5 +1,6 @@
 use std::slice;
 use std::collections::{ HashMap, BTreeSet };
+use serde::{ Serialize, Deserialize };
 use crate::crypto::{ HashFunction };
 
 // TYPES AND INTERFACES
@@ -9,7 +10,7 @@ pub struct MerkleTree {
     values  : Vec<[u64; 4]>
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BatchMerkleProof {
     values  : Vec<[u64; 4]>,
     nodes   : Vec<Vec<[u64; 4]>>,

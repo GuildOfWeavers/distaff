@@ -1,8 +1,9 @@
+use serde::{ Serialize, Deserialize };
 use crate::crypto::{ BatchMerkleProof };
 
 // TYPES AND INTERFACES
 // ================================================================================================
-#[derive(Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FriProof {
     pub ev_root     : [u64; 4],
     pub ev_proof    : BatchMerkleProof,
@@ -10,7 +11,7 @@ pub struct FriProof {
     pub remainder   : Vec<u64>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FriLayer {
     pub column_root : [u64; 4],
     pub column_proof: BatchMerkleProof,
