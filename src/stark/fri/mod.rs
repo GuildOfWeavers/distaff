@@ -3,8 +3,8 @@ use crate::math::{ field, polys, quartic };
 use crate::crypto::{ MerkleTree, BatchMerkleProof };
 use crate::stark::{ ProofOptions, utils::QueryIndexGenerator };
 
-mod fri_proof;
-pub use fri_proof::{ FriProof, FriLayer };
+mod proof;
+pub use proof::{ FriProof, FriLayer };
 
 // CONSTANTS
 // ================================================================================================

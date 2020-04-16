@@ -1,8 +1,7 @@
 use std::time::{ Instant };
 use crate::math::{ quartic::to_quartic_vec };
 use crate::crypto::{ MerkleTree, hash::blake3 };
-use crate::stark::{ TraceTable, TraceState, ConstraintTable, ProofOptions, MAX_CONSTRAINT_DEGREE };
-use crate::stark::utils::QueryIndexGenerator;
+use crate::stark::{ TraceTable, TraceState, ConstraintTable, ProofOptions, MAX_CONSTRAINT_DEGREE, fri };
 use crate::utils::uninit_vector;
 
 // PROVER FUNCTION
@@ -67,7 +66,8 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
     println!("Computed composition polynomial in {} ms", t);
 
     // 5 ----- generate low-degree proof for composition polynomial -------------------------------
-    let index_generator = QueryIndexGenerator::new(options);
+    let domain = vec![0u64]; // TODO
+    fri::prove(&c_poly, &domain, MAX_CONSTRAINT_DEGREE * trace.len(), options);
     // TODO
 
     // 6 ----- query extended execution trace at pseudo-random positions --------------------------
