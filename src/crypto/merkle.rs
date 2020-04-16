@@ -262,6 +262,16 @@ impl MerkleTree {
     }
 }
 
+// BATCH MERKLE PROOF IMPLEMENTATION
+// ================================================================================================
+impl BatchMerkleProof {
+
+    pub fn values(&self) -> &Vec<[u64; 4]> {
+        return &self.values;
+    }
+    
+}
+
 // HELPER FUNCTIONS
 // ================================================================================================
 

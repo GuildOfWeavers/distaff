@@ -27,7 +27,7 @@ impl QueryIndexGenerator {
     }
 
     pub fn get_fri_indexes(&self, seed: &[u64; 4], max_index: usize) -> Vec<usize> {
-        return self.generate_indexes(seed, self.trace_query_count, max_index);
+        return self.generate_indexes(seed, self.fri_query_count, max_index);
     }
 
     fn generate_indexes(&self, seed: &[u64; 4], num_indexes: usize, max_index: usize) -> Vec<usize> {
@@ -39,7 +39,7 @@ impl QueryIndexGenerator {
         let mut result = Vec::new();
         for _ in 0..1000 {
             let value = index_iter.next().unwrap();
-            if value % self.extension_factor != 0 { continue; }
+            if value % self.extension_factor == 0 { continue; }
             if result.contains(&value) { continue; }
             result.push(value);
             if result.len() >= num_indexes { break; }

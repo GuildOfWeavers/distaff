@@ -7,5 +7,7 @@ pub use constraints::{ ConstraintTable, MAX_CONSTRAINT_DEGREE };
 mod prover;
 pub use prover::{ prove };
 
+mod fri;
+
 mod utils;
 pub use utils::{ ProofOptions, hash_acc::digest as hash_acc };
