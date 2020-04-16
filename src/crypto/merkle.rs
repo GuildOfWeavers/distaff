@@ -9,7 +9,7 @@ pub struct MerkleTree {
     values  : Vec<[u64; 4]>
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BatchMerkleProof {
     values  : Vec<[u64; 4]>,
     nodes   : Vec<Vec<[u64; 4]>>,

@@ -1,6 +1,6 @@
 use std::mem;
 use crate::math::{ field, polys, quartic };
-use crate::crypto::{ MerkleTree, BatchMerkleProof, hash::blake3 };
+use crate::crypto::{ MerkleTree, BatchMerkleProof };
 use crate::stark::{ ProofOptions, utils::QueryIndexGenerator };
 
 mod fri_proof;
@@ -29,7 +29,7 @@ pub fn prove(evaluations: &[u64], domain: &[u64], max_degree_plus_1: usize, opti
     // transpose evaluations into a matrix with 4 columns and
     // put its rows as leaves into a Merkle tree
     let poly_values = quartic::transpose(evaluations, 1);
-    let mut p_tree = MerkleTree::new(poly_values, blake3);
+    let mut p_tree = MerkleTree::new(poly_values, options.hash_function());
 
     // build a Merkle proof against this tree choosing indexes like so:
     // first, generate indexes at the positions which will be later used to query the trace tree;
@@ -60,7 +60,7 @@ pub fn prove(evaluations: &[u64], domain: &[u64], max_degree_plus_1: usize, opti
         let new_poly_values = quartic::transpose(&column, 1);
 
         // put the resulting matrix into a Merkle tree
-        let mut c_tree = MerkleTree::new(new_poly_values, blake3);
+        let mut c_tree = MerkleTree::new(new_poly_values, options.hash_function());
 
         // compute query positions in the column and corresponding positions in the original values
         let positions = idx_generator.get_fri_indexes(c_tree.root(), column.len());
@@ -102,7 +102,8 @@ pub fn prove(evaluations: &[u64], domain: &[u64], max_degree_plus_1: usize, opti
 
 /// Verifies that a polynomial which evaluates to a small number of the provided `evaluations`
 /// has degree at most `max_degree_plus_1` - 1.
-pub fn verify(proof: &FriProof, evaluations: &[u64], root: u64, max_degree_plus_1: usize, options: &ProofOptions) -> Result<bool, String> {
+pub fn verify(proof: &FriProof, evaluations: &[u64], root: u64, max_degree_plus_1: usize, options: &ProofOptions) -> Result<bool, String>
+{
 
     let domain_size = get_root_of_unity_degree(root);
     let idx_generator = QueryIndexGenerator::new(options);
@@ -118,7 +119,7 @@ pub fn verify(proof: &FriProof, evaluations: &[u64], root: u64, max_degree_plus_
     // 1 ----- check correctness of evaluation tree ----------------------------------------------
     let positions = idx_generator.get_trace_indexes(&proof.ev_root, domain_size);
     let augmented_positions = get_augmented_positions(&positions, domain_size);
-    if !MerkleTree::verify_batch(&proof.ev_root, &augmented_positions, &proof.ev_proof, blake3) {
+    if !MerkleTree::verify_batch(&proof.ev_root, &augmented_positions, &proof.ev_proof, options.hash_function()) {
         return Err(String::from("Verification of evaluation Merkle proof failed"));
     }
 
@@ -141,12 +142,12 @@ pub fn verify(proof: &FriProof, evaluations: &[u64], root: u64, max_degree_plus_
         let augmented_positions = get_augmented_positions(&positions, column_length);
 
         // verify Merkle proof for the column
-        if !MerkleTree::verify_batch(&column_root, &augmented_positions, &column_proof, blake3) {
+        if !MerkleTree::verify_batch(&column_root, &augmented_positions, &column_proof, options.hash_function()) {
             return Err(format!("Verification of column Merkle proof failed at depth {}", depth));
         }
 
         // verify Merkle proof for polynomials
-        if !MerkleTree::verify_batch(&p_root, &positions, &poly_proof, blake3) {
+        if !MerkleTree::verify_batch(&p_root, &positions, &poly_proof, options.hash_function()) {
             return Err(format!("Verification of polynomial Merkle proof failed at depth {}", depth));
         }
 
@@ -185,7 +186,7 @@ pub fn verify(proof: &FriProof, evaluations: &[u64], root: u64, max_degree_plus_
 
     // 3 ----- verify the remainder of the FRI proof ----------------------------------------------
     // check that Merkle root matches up
-    let c_tree = MerkleTree::new(quartic::transpose(&proof.remainder, 1), blake3);
+    let c_tree = MerkleTree::new(quartic::transpose(&proof.remainder, 1), options.hash_function());
     if *c_tree.root() != p_root {
         return Err(String::from("Remainder values do not match Merkle root of the last column"));
     }
@@ -313,18 +314,57 @@ mod tests {
         let domain = field::get_power_series(root, domain_size);
         let options = ProofOptions::default();
 
+        // generate proof
         let mut evaluations = field::rand_vector(degree_plus_1);
         evaluations.resize(domain_size, 0);
         polys::eval_fft(&mut evaluations, true);
-
         let proof = super::prove(&evaluations, &domain, degree_plus_1, &options);
 
+        // verify proof
         let idx_generator = QueryIndexGenerator::new(&options);
         let trace_positions = idx_generator.get_trace_indexes(&proof.ev_root, domain_size);
         let sampled_evaluations = trace_positions.into_iter().map(|i| evaluations[i]).collect::<Vec<u64>>();
 
         let result = super::verify(&proof, &sampled_evaluations, root, degree_plus_1, &options);
-
         assert_eq!(Ok(true), result);
+    }
+
+    #[test]
+    fn verify_fail() {
+        let degree_plus_1: usize = 64;
+        let domain_size: usize = 512;
+        let root = field::get_root_of_unity(domain_size as u64);
+        let domain = field::get_power_series(root, domain_size);
+        let options = ProofOptions::default();
+
+        // generate proof
+        let mut evaluations = field::rand_vector(degree_plus_1);
+        evaluations.resize(domain_size, 0);
+        polys::eval_fft(&mut evaluations, true);
+        let proof = super::prove(&evaluations, &domain, degree_plus_1, &options);
+
+        // degree too low
+        let idx_generator = QueryIndexGenerator::new(&options);
+        let trace_positions = idx_generator.get_trace_indexes(&proof.ev_root, domain_size);
+        let sampled_evaluations = trace_positions.into_iter().map(|i| evaluations[i]).collect::<Vec<u64>>();
+
+        let result = super::verify(&proof, &sampled_evaluations, root, degree_plus_1 - 1, &options);
+        let err_msg = format!("Remainder is not a valid degree {} polynomial", 14);
+        assert_eq!(Err(err_msg), result);
+
+        // invalid evaluations
+        let sampled_evaluations = sampled_evaluations[1..].to_vec();
+        let result = super::verify(&proof, &sampled_evaluations, root, degree_plus_1, &options);
+        let err_msg = format!("Verification of evaluation values failed");
+        assert_eq!(Err(err_msg), result);
+
+        // invalid ev_root
+        let mut proof2 = proof.clone();
+        proof2.ev_root = [1, 2, 3, 4];
+        let result = super::verify(&proof2, &sampled_evaluations, root, degree_plus_1, &options);
+        let err_msg = format!("Verification of evaluation Merkle proof failed");
+        assert_eq!(Err(err_msg), result);
+
+        // TODO: add more tests
     }
 }

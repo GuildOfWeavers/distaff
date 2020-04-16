@@ -1,5 +1,8 @@
 use crate::crypto::{ BatchMerkleProof };
 
+// TYPES AND INTERFACES
+// ================================================================================================
+#[derive(Clone)]
 pub struct FriProof {
     pub ev_root     : [u64; 4],
     pub ev_proof    : BatchMerkleProof,
@@ -7,12 +10,15 @@ pub struct FriProof {
     pub remainder   : Vec<u64>,
 }
 
+#[derive(Clone)]
 pub struct FriLayer {
     pub column_root : [u64; 4],
     pub column_proof: BatchMerkleProof,
     pub poly_proof  : BatchMerkleProof,
 }
 
+// FRI PROOF IMPLEMENTATION
+// ================================================================================================
 impl FriProof {
 
     pub fn new(ev_root: &[u64; 4], ev_proof: BatchMerkleProof) -> FriProof {
