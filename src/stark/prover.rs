@@ -85,11 +85,34 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
 
     // 7 ----- query extended execution trace at pseudo-random positions --------------------------
     let now = Instant::now();
+
+    // generate pseudo-random indexes based on the root of the composition Merkle tree
     let idx_generator = QueryIndexGenerator::new(options);
     let positions = idx_generator.get_trace_indexes(&fri_proof.ev_root, trace.len());
-    let trace_proof = trace_tree.prove_batch(&positions);
-    let t = now.elapsed().as_millis();
-    println!("Computed {} trace queries in in {} ms", positions.len(), t);
 
-    return StarkProof::new(trace_tree.root(), trace_proof, fri_proof);
+    // for each queried state, include the next state of the execution trace; this way
+    // the verifier will be able to get two consecutive states for each query.
+    let mut trace_states = Vec::new();
+    let mut augmented_positions = positions.clone();
+    for &position in positions.iter() {
+        // save trace states at these positions to include them into the proof later
+        trace_states.push(trace.get_state(position));
+
+        let next_position = (position + options.extension_factor()) % trace.len();
+        if !augmented_positions.contains(&next_position) {
+            augmented_positions.push(next_position);
+            trace_states.push(trace.get_state(next_position));
+        }
+    }
+
+    // generate Merkle proof for the augmented positions
+    let trace_proof = trace_tree.prove_batch(&augmented_positions);
+
+    // build the proof object
+    let proof = StarkProof::new(trace_tree.root(), trace_proof, trace_states, fri_proof, options.clone());
+
+    let t = now.elapsed().as_millis();
+    println!("Computed {} trace queries and built proof object in {} ms", positions.len(), t);
+
+    return proof;
 }

@@ -44,6 +44,11 @@ impl QueryIndexGenerator {
             result.push(value);
             if result.len() >= num_indexes { break; }
         }
+
+        if result.len() < num_indexes {
+            panic!("needed to generate {} query indexes, but generated only {}", num_indexes, result.len());
+        }
+
         return result;
     }
 }

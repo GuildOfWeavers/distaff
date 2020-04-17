@@ -12,9 +12,9 @@ pub struct MerkleTree {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BatchMerkleProof {
-    values  : Vec<[u64; 4]>,
-    nodes   : Vec<Vec<[u64; 4]>>,
-    depth   : u32
+    pub values  : Vec<[u64; 4]>,
+    pub nodes   : Vec<Vec<[u64; 4]>>,
+    pub depth   : u8
 }
 
 // MERKLE TREE IMPLEMENTATION
@@ -98,7 +98,7 @@ impl MerkleTree {
         }
 
         // add required internal nodes to the proof, skipping redundancies
-        let depth = self.values.len().trailing_zeros();
+        let depth = self.values.len().trailing_zeros() as u8;
         for _ in 1..depth {
             let indexes = next_indexes.clone();
             next_indexes.truncate(0);
@@ -156,7 +156,7 @@ impl MerkleTree {
         let mut v: HashMap<usize, [u64; 4]> = HashMap::new();
 
         // replace odd indexes, offset, and sort in ascending order
-        let offset = usize::pow(2, proof.depth);
+        let offset = usize::pow(2, proof.depth as u32);
         let index_map = map_indexes(indexes, offset - 1);
         let indexes = normalize_indexes(indexes);
         if indexes.len() != proof.nodes.len() { return false; }
@@ -261,16 +261,6 @@ impl MerkleTree {
      
         return *root == *v.get(&1).unwrap();
     }
-}
-
-// BATCH MERKLE PROOF IMPLEMENTATION
-// ================================================================================================
-impl BatchMerkleProof {
-
-    pub fn values(&self) -> &Vec<[u64; 4]> {
-        return &self.values;
-    }
-    
 }
 
 // HELPER FUNCTIONS

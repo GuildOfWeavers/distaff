@@ -11,7 +11,7 @@ const DEFAULT_FRI_QUERY_COUNT: u8   = 32;
 // ================================================================================================
 
 // TODO: validate field values on de-serialization
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ProofOptions {
     extension_factor    : u8,
     trace_query_count   : u8,

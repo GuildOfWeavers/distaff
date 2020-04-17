@@ -153,7 +153,7 @@ pub fn verify(proof: &FriProof, evaluations: &[u64], root: u64, max_degree_plus_
             return Err(format!("Verification of polynomial Merkle proof failed at depth {}", depth));
         }
 
-        // build a set of x and y coordinates for each row polynomial
+        // build a set of x for each row polynomial
         let mut xs = Vec::with_capacity(positions.len());
         for &i in positions.iter() {
             let xe = field::exp(root, i as u64);
@@ -164,10 +164,9 @@ pub fn verify(proof: &FriProof, evaluations: &[u64], root: u64, max_degree_plus_
                 field::mul(quartic_roots[3], xe)
             ]);
         }
-        let ys = poly_proof.values();
 
         // interpolate x and y values into row polynomials
-        let row_polys = quartic::interpolate_batch(&xs, ys);
+        let row_polys = quartic::interpolate_batch(&xs, &poly_proof.values);
 
         // calculate the pseudo-random x coordinate
         let special_x = field::prng(to_bytes(&p_root));
@@ -250,7 +249,7 @@ fn get_augmented_positions(positions: &[usize], column_length: usize) -> Vec<usi
 fn get_column_values(proof: &BatchMerkleProof, positions: &[usize], augmented_positions: &[usize], column_length: usize) -> Vec<u64> {
     let row_length = column_length / 4;
 
-    let values = proof.values();
+    let values = &proof.values;
     let mut result = Vec::new();
     for position in positions {
         let idx = augmented_positions.iter().position(|&v| v == position % row_length).unwrap();
