@@ -36,6 +36,14 @@ impl TraceState {
         };
     }
 
+    pub fn from_raw_state(state: Vec<u64>) -> TraceState {
+        return TraceState {
+            state       : state,
+            op_flags    : [0; NUM_LD_OPS],
+            op_flags_set: false
+        };
+    }
+
     // OP_CODE
     // --------------------------------------------------------------------------------------------
     pub fn get_op_code(&self) -> u64 {

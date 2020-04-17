@@ -47,8 +47,8 @@ fn execute_program() {
     let proof = bincode::deserialize::<StarkProof>(&proof_bytes).unwrap();
     let now = Instant::now();
     match processor::verify(&program_hash, &inputs, &outputs, &proof) {
-        Ok(_) => println!("Execution proof verified in {} ms", now.elapsed().as_millis()),
-        Err(msg) => println!("Failed to verify execution proof: {}", msg)
+        Ok(_) => println!("Execution verified in {} ms", now.elapsed().as_millis()),
+        Err(msg) => println!("Failed to verify execution: {}", msg)
     }
 
 }

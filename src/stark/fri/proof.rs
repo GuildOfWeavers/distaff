@@ -31,4 +31,7 @@ impl FriProof {
         };
     }
 
+    pub fn ev_root(&self) -> &[u64; 4] {
+        return &self.ev_root;
+    }
 }

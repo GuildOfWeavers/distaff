@@ -130,7 +130,7 @@ impl ConstraintTable {
 
             // merge constraint evaluations into random leaner combination of constraints;
             // this computes: result = result + constraint * coefficient
-            for constraint in constraints.into_iter() {
+            for constraint in constraints {
                 parallel::mul_acc(&mut result, constraint, coefficients.next().unwrap(), 1);
             }
             
@@ -144,7 +144,7 @@ impl ConstraintTable {
                 // merge constraint evaluations adjusted by the incremental degree into random
                 // linear combination; this computes:
                 // result = result + constraint * x^incremental_degree * coefficient
-                for constraint in constraints.into_iter() {
+                for constraint in constraints {
                     let constraint = parallel::mul(constraint, &x_di, 1);
                     parallel::mul_acc(&mut result, &constraint, coefficients.next().unwrap(), 1);
                 }

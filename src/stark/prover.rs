@@ -1,4 +1,5 @@
 use std::time::{ Instant };
+use std::collections::BTreeMap;
 use crate::math::{ field, quartic::to_quartic_vec };
 use crate::crypto::{ MerkleTree };
 use crate::utils::uninit_vector;
@@ -90,20 +91,19 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
     let idx_generator = QueryIndexGenerator::new(options);
     let positions = idx_generator.get_trace_indexes(&fri_proof.ev_root, trace.len());
 
-    // for each queried state, include the next state of the execution trace; this way
-    // the verifier will be able to get two consecutive states for each query.
-    let mut trace_states = Vec::new();
-    let mut augmented_positions = positions.clone();
+    // for each queried step, collect the current and the next state of the execution trace;
+    // this way the verifier will be able to get two consecutive states for each query.
+    let mut trace_states = BTreeMap::new();
     for &position in positions.iter() {
-        // save trace states at these positions to include them into the proof later
-        trace_states.push(trace.get_state(position));
-
         let next_position = (position + options.extension_factor()) % trace.len();
-        if !augmented_positions.contains(&next_position) {
-            augmented_positions.push(next_position);
-            trace_states.push(trace.get_state(next_position));
-        }
+
+        trace_states.insert(position, trace.get_state(position));
+        trace_states.insert(next_position, trace.get_state(next_position));
     }
+
+    // sort the positions and corresponding states so that their orders align
+    let augmented_positions = trace_states.keys().cloned().collect::<Vec<usize>>();
+    let trace_states = trace_states.into_iter().map(|(_, v)| v).collect();
 
     // generate Merkle proof for the augmented positions
     let trace_proof = trace_tree.prove_batch(&augmented_positions);
