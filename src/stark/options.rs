@@ -1,4 +1,4 @@
-use serde::{ Serializer, Deserializer, Serialize, Deserialize, ser, de };
+use serde::{ Serialize, Deserialize };
 use crate::crypto::{ HashFunction, hash };
 
 // CONSTANTS
@@ -9,14 +9,15 @@ const DEFAULT_FRI_QUERY_COUNT: u8   = 32;
 
 // TYPES AND INTERFACES
 // ================================================================================================
+
+// TODO: validate field values on de-serialization
 #[derive(Serialize, Deserialize)]
 pub struct ProofOptions {
     extension_factor    : u8,
     trace_query_count   : u8,
     fri_query_count     : u8,
 
-    #[serde(serialize_with = "hash_function_serialize")]
-    #[serde(deserialize_with = "hash_function_deserialize")]
+    #[serde(with = "hash_fn_serialization")]
     hash_function: HashFunction,
 }
 
@@ -79,25 +80,31 @@ impl Default for ProofOptions {
 
 }
 
-// HELPER FUNCTIONS
+// HASH FUNCTION SERIALIZATION / DE-SERIALIZATION
 // ================================================================================================
-fn hash_function_serialize<S>(hf: &HashFunction, s: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer
-{
-    match *hf as usize {
-        f if f == hash::blake3 as usize => s.serialize_u8(0),
-        _ => Err(ser::Error::custom("unsupported hash function"))?
-    }
-}
+mod hash_fn_serialization {
 
-fn hash_function_deserialize<'de, D>(deserializer: D) -> Result<HashFunction, D::Error>
-where
-    D: Deserializer<'de>
-{
-    //let hf_value: u8 = Deserialize::deserialize(deserializer)?;
-    match Deserialize::deserialize(deserializer)? {
-        0u8 => Ok(hash::blake3),
-        _ => Err(de::Error::custom("unsupported hash function"))
+    use serde::{ Serializer, Deserializer, Deserialize, ser, de };
+    use crate::crypto::{ HashFunction, hash };
+
+    pub fn serialize<S>(hf: &HashFunction, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer
+    {
+        match *hf as usize {
+            f if f == hash::blake3 as usize => s.serialize_u8(0),
+            _ => Err(ser::Error::custom("unsupported hash function"))?
+        }
+    }
+    
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<HashFunction, D::Error>
+    where
+        D: Deserializer<'de>
+    {
+        //let hf_value: u8 = Deserialize::deserialize(deserializer)?;
+        match Deserialize::deserialize(deserializer)? {
+            0u8 => Ok(hash::blake3),
+            _ => Err(de::Error::custom("unsupported hash function"))
+        }
     }
 }
