@@ -1,8 +1,7 @@
 use std::time::{ Instant };
 use distaff::crypto::{ MerkleTree, hash };
-use distaff::{ field, fft, polys, quartic, parallel, utils };
+use distaff::{ field, fft, polys, quartic, parallel, ProofOptions };
 use distaff::processor::{ opcodes, execute };
-use distaff::stark::{ ProofOptions };
 use rand::prelude::*;
 use rand::distributions::Uniform;
 extern crate num_cpus;
@@ -22,7 +21,7 @@ fn main() {
 
 fn execute_program() {
 
-    let op_count = usize::pow(2, 4) - 1;
+    let op_count = usize::pow(2, 12) - 1;
     let mut program = Vec::new();
     while op_count > program.len() {
         program.push(opcodes::DUP0);
@@ -31,9 +30,13 @@ fn execute_program() {
     }
     
     let now = Instant::now();
-    let result = execute(&program, &[1, 1], 1, &ProofOptions::default());
+    let (result, program_hash, proof) = execute(&program, &[1, 1], 1, &ProofOptions::default());
     let t = now.elapsed().as_millis();
-    println!("------\nExecuted program with hash {:x?} in {} ms, result: {:?}",  result.0, t, result.1);
+    println!("----------------------");
+    println!("Executed program with hash {:x?} in {} ms, result: {:?}", program_hash, t, result);
+
+    let proof_bytes = bincode::serialize(&proof).unwrap();
+    println!("Execution proof size: {} KB", proof_bytes.len() / 1024);
 }
 
 fn test_merkle_tree(n: usize) {

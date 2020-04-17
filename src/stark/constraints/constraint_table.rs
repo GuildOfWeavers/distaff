@@ -1,5 +1,5 @@
 use std::cmp;
-use crate::math::{ field, parallel, fft, polys, field::ONE };
+use crate::math::{ field, parallel, fft, polys };
 use crate::stark::{ TraceState, TraceTable };
 use crate::utils::{ uninit_vector, zero_filled_vector };
 use super::{ decoder, stack, hash_acc };
@@ -36,6 +36,10 @@ impl ConstraintTable {
             io_constraints  : [ vec![], vec![], vec![] ],
             extension_factor: trace.extension_factor(),
         };
+    }
+
+    pub fn composition_degree(&self) -> usize {
+        return self.len() - self.trace_length() - 1; 
     }
 
     pub fn constraint_count(&self) -> usize {
@@ -104,7 +108,7 @@ impl ConstraintTable {
 
     // CONSTRAINT COMPOSITION
     // -------------------------------------------------------------------------------------------
-    pub fn get_composition_poly(&self, seed: &[u64; 4], trace: &TraceTable) -> Vec<u64> {
+    pub fn combine(&self, seed: &[u64; 4], domain: &[u64]) -> Vec<u64> {
 
         let domain_size = self.trace_length() * self.extension_factor;
 
@@ -117,25 +121,23 @@ impl ConstraintTable {
         let seed = unsafe { &*(seed as *const _ as *const [u8; 32]) };
         let mut coefficients = field::prng_vector(*seed, 2 * self.constraint_count()).into_iter();
 
-        // group constraints by their degree: 0 through 8
-        let constraint_groups = self.group_constraints();
+        // group transition constraints by their degree: 0 through 8
+        let constraint_groups = self.group_transition_constraints();
 
         // adjust the degree of constraints and merge them into a single linear combination
         for (degree, constraints) in constraint_groups.iter().enumerate() {
             if constraints.len() == 0 { continue; }
 
-            // adjust degree basis
-            let degree = degree * self.trace_length();
-
             // merge constraint evaluations into random leaner combination of constraints;
             // this computes: result = result + constraint * coefficient
             for constraint in constraints.into_iter() {
-                parallel::mul_acc(&mut result, &constraint, coefficients.next().unwrap(), 1);
+                parallel::mul_acc(&mut result, constraint, coefficients.next().unwrap(), 1);
             }
-
-            if degree < self.len() {
+            
+            // compute incremental degree, and adjust evaluations by it
+            let incremental_degree = self.get_incremental_degree(degree);
+            if incremental_degree > 0 {
                 // compute x^incremental_degree for all x values in the composition domain
-                let incremental_degree = self.len() - degree;
                 let x_root = field::exp(composition_root, incremental_degree as u64);
                 let x_di = field::get_power_series(x_root, self.len());
 
@@ -159,58 +161,13 @@ impl ConstraintTable {
         polys::eval_fft_twiddles(&mut result, &twiddles, true);
 
         // 3 ----- divide linear combination of constraints by zero polynomial --------------------
-        let domain = field::get_power_series(domain_root, domain_size);
-        let z_inverse = self.get_inv_zero_poly(&domain);
-        parallel::mul_in_place(&mut result, &z_inverse, 1);
-
-        // 4 ----- merge input/output constraints into the linear combination ---------------------
-        let x_at_last_step = *domain.last().unwrap();
-        let mut stack_register_idx = 0;
-
-        let incremental_degree = domain_size - self.trace_length();
-        let x_root = field::exp(domain_root, incremental_degree as u64);
-        let x_di = field::get_power_series(x_root, domain_size);
-
-        // evaluate and merge input-output constraints into the linear combination
-        if self.io_constraints[0].len() > 0 {
-            // compute inverses of Z(x) evaluations
-            let z_poly = polys::mul(&[field::neg(ONE), ONE], &[field::neg(x_at_last_step), ONE]);
-            let z_values = eval_poly(&z_poly, &twiddles);
-            let z_inverses = parallel::inv(&z_values, 1);
-
-            // B(x) = (P(x) - I(x)) / Z(x)
-            for i_poly in self.io_constraints[0].iter() {
-                // evaluate boundary constraint
-                let p_values = trace.get_stack_register_trace(stack_register_idx);
-                let mut b_values = eval_boundary_constraint(&i_poly, &p_values, &z_inverses, &twiddles);
-
-                // merge constraint evaluations into linear combination
-                parallel::mul_acc(&mut result, &b_values, coefficients.next().unwrap(), 1);
-
-                // adjust evaluation degree and merge the adjusted evaluations into linear combination
-                parallel::mul_in_place(&mut b_values, &x_di, 1);
-                parallel::mul_acc(&mut result, &b_values, coefficients.next().unwrap(), 1);
-
-                stack_register_idx += 1;
-            }
-        }
-        
-        // evaluate and merge input-only constraints into the linear combination
-        if self.io_constraints[1].len() > 0 {
-
-        }
-
-        // evaluate and merge output-only constraints into the linear combination
-        if self.io_constraints[2].len() > 0 {
-
-        }
-
-        // 5 ----- merge program hash constraint into the linear combination ----------------------
+        let z_inverses = self.get_inv_z_evaluations(&domain);
+        parallel::mul_in_place(&mut result, &z_inverses, 1);
 
         return result;
     }
 
-    fn group_constraints(&self) -> [Vec<Vec<u64>>; MAX_CONSTRAINT_DEGREE + 1] {
+    fn group_transition_constraints(&self) -> [Vec<Vec<u64>>; MAX_CONSTRAINT_DEGREE + 1] {
         let mut result = [
             Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(),
             Vec::new(), Vec::new(), Vec::new(), Vec::new()
@@ -235,27 +192,33 @@ impl ConstraintTable {
         return result;
     }
 
-    fn get_inv_zero_poly(&self, domain: &[u64]) -> Vec<u64> {
+    fn get_incremental_degree(&self, constraint_degree: usize) -> usize {
+        let constraint_degree = (self.trace_length() - 1) * constraint_degree;
+        let target_degree = self.trace_length() * MAX_CONSTRAINT_DEGREE - 1;
+        return target_degree - constraint_degree - 1;
+    }
 
-        // compute x^trace_length for all x values in the domain
-        let mut x_to_the_steps = uninit_vector(domain.len());
-        for i in 0..x_to_the_steps.len() {
-            x_to_the_steps[i] = domain[(i * self.trace_length()) % domain.len()];
+    /// Computes inverse evaluations of Z(x) polynomial; Z(x) = (x^steps - 1) / (x - x_at_last_step),
+    /// so, inv(Z(x)) = inv(x^steps - 1) * (x - x_at_last_step)
+    fn get_inv_z_evaluations(&self, domain: &[u64]) -> Vec<u64> {
+
+        let steps = self.trace_length();
+
+        // compute (x^steps - 1); TODO: can be parallelized
+        let mut result = uninit_vector(domain.len());
+        for i in 0..result.len() {
+            let x_to_the_steps = domain[(i * steps) % domain.len()];
+            result[i] = field::sub(x_to_the_steps, field::ONE);
         }
 
-        // get value of x at the last step
-        let x_at_last_step = *domain.last().unwrap();
+        // invert the numerators
+        let mut result = parallel::inv(&result, 1);
 
-        // compute z numerators and denominators separately
-        let mut numerators = x_to_the_steps;
-        parallel::sub_const_in_place(&mut numerators, field::ONE, 1);
-
-        let mut denominators = domain.to_vec(); // TODO
-        parallel::sub_const_in_place(&mut denominators, x_at_last_step, 1);
-
-        // invert denominators and multiply the inverses by the numerators
-        let mut result = parallel::inv(&denominators, 1);
-        parallel::mul_in_place(&mut result, &numerators, 1);
+        // multiply the result by (x - x_at_last_step), TODO: can be done in parallel
+        let x_at_last_step = domain[domain.len() - self.extension_factor];
+        for i in 0..result.len() {
+            result[i] = field::mul(result[i], field::sub(domain[i], x_at_last_step));
+        }
 
         return result;
     }
@@ -283,22 +246,4 @@ fn copy_constraints(source: &[u64], target: &mut Vec<Vec<u64>>, step: usize, sho
             target[i][step] = source[i];
         }
     }
-}
-
-fn eval_boundary_constraint(i_poly: &[u64], p_values: &[u64], z_inverses: &[u64], twiddles: &[u64]) -> Vec<u64> {
-    let mut i_values = eval_poly(i_poly, twiddles);
-    // TODO: implement parallel subtraction
-    for i in 0..p_values.len() {
-        i_values[i] = field::sub(p_values[i], i_values[i]);
-    }
-    parallel::mul_in_place(&mut i_values, &z_inverses, 1);
-    return i_values;
-}
-
-fn eval_poly(poly: &[u64], twiddles: &[u64]) -> Vec<u64> {
-    let domain_size = twiddles.len() * 2;
-    let mut values = zero_filled_vector(domain_size, domain_size);
-    values[..poly.len()].copy_from_slice(poly);
-    polys::eval_fft_twiddles(&mut values, &twiddles, true);
-    return values;
 }

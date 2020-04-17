@@ -19,9 +19,10 @@ pub fn prove(evaluations: &[u64], domain: &[u64], max_degree_plus_1: usize, opti
 
     assert!(domain.len().is_power_of_two(), "domain length must be a power of 2");
     assert!(evaluations.len() == domain.len(), "evaluations and domain slices must have the same length");
-    assert!(max_degree_plus_1.is_power_of_two(), "max_degree_plus_1 must be a power of 2");
     assert!(max_degree_plus_1 < domain.len(), "domain length must be greater than max_degree_plus_1");
     assert!(domain.len() / max_degree_plus_1 < MAX_REMAINDER_LENGTH, "degree is too big for the domain");
+    let remainder_degree = get_remainder_degree(max_degree_plus_1);
+    assert!(remainder_degree < MAX_REMAINDER_LENGTH, "remainder degree is too big for remainder domain");
 
     let idx_generator = QueryIndexGenerator::new(options);
     
@@ -260,14 +261,20 @@ fn get_column_values(proof: &BatchMerkleProof, positions: &[usize], augmented_po
     return result;
 }
 
-fn get_root_of_unity_degree(root: u64) -> usize {
+fn get_root_of_unity_degree(mut root: u64) -> usize {
     let mut result = 1;
-    let mut root = root;
     while root != 1 {
         result = result * 2;
         root = field::mul(root, root);
     }
     return result;
+}
+
+fn get_remainder_degree(mut max_degree_plus_1: usize) -> usize {
+    while max_degree_plus_1 % 4 == 0 {
+        max_degree_plus_1 = max_degree_plus_1 / 4;
+    }
+    return max_degree_plus_1;
 }
 
 fn to_bytes(value: &[u64; 4]) -> [u8; 32] {

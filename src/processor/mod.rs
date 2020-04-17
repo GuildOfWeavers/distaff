@@ -1,9 +1,9 @@
 use std::time::{ Instant };
-use crate::stark::{ TraceTable, ProofOptions, prove };
+use crate::stark::{ TraceTable, ProofOptions, StarkProof, prove };
 
 pub mod opcodes;
 
-pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize, options: &ProofOptions) -> ([u64; 4], Vec<u64>) {
+pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize, options: &ProofOptions) -> (Vec<u64>, [u64; 4], StarkProof) {
 
     // pad the program to make sure the length is a power of two and the last operation is NOOP
     let mut program = program.to_vec();
@@ -30,7 +30,7 @@ pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize, options: &Pr
     program_hash.copy_from_slice(&last_state.get_op_acc()[0..4]);
 
     // generate STARK proof
-    prove(&mut trace, inputs, &outputs, options);
+    let proof = prove(&mut trace, inputs, &outputs, options);
 
-    return (program_hash, outputs);
+    return (outputs, program_hash, proof);
 }

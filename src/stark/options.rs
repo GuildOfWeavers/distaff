@@ -3,8 +3,8 @@ use crate::crypto::{ HashFunction, hash::blake3 };
 // CONSTANTS
 // ================================================================================================
 const DEFAULT_EXTENSION_FACTOR: usize  = 32;
-const DEFAULT_TRACE_QUERY_COUNT: usize = 32;
-const DEFAULT_FRI_QUERY_COUNT: usize   = 48;
+const DEFAULT_TRACE_QUERY_COUNT: usize = 48;
+const DEFAULT_FRI_QUERY_COUNT: usize   = 32;
 
 // TYPES AND INTERFACES
 // ================================================================================================
