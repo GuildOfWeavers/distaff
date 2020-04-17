@@ -1,7 +1,7 @@
 use std::time::{ Instant };
 use distaff::crypto::{ MerkleTree, hash };
-use distaff::{ field, fft, polys, quartic, parallel, ProofOptions };
-use distaff::processor::{ opcodes, execute };
+use distaff::{ field, fft, polys, quartic, parallel, ProofOptions, StarkProof };
+use distaff::processor::{ self, opcodes };
 use rand::prelude::*;
 use rand::distributions::Uniform;
 extern crate num_cpus;
@@ -21,7 +21,7 @@ fn main() {
 
 fn execute_program() {
 
-    let op_count = usize::pow(2, 12) - 1;
+    let op_count = usize::pow(2, 10) - 1;
     let mut program = Vec::new();
     while op_count > program.len() {
         program.push(opcodes::DUP0);
@@ -29,14 +29,28 @@ fn execute_program() {
         program.push(opcodes::ADD);
     }
     
+    let options = ProofOptions::default();
+    let inputs = [1, 1];
+
     let now = Instant::now();
-    let (result, program_hash, proof) = execute(&program, &[1, 1], 1, &ProofOptions::default());
-    let t = now.elapsed().as_millis();
+    let (outputs, program_hash, proof) = processor::execute(&program, &inputs, 1, &options);
     println!("----------------------");
-    println!("Executed program with hash {:x?} in {} ms, result: {:?}", program_hash, t, result);
+    println!("Executed program with hash {} in {} ms", 
+        hex::encode(program_hash),
+        now.elapsed().as_millis());
+    println!("Program output: {:?}", outputs);
 
     let proof_bytes = bincode::serialize(&proof).unwrap();
     println!("Execution proof size: {} KB", proof_bytes.len() / 1024);
+
+    println!("----------------------");
+    let proof = bincode::deserialize::<StarkProof>(&proof_bytes).unwrap();
+    let now = Instant::now();
+    match processor::verify(&program_hash, &inputs, &outputs, &proof) {
+        Ok(_) => println!("Execution proof verified in {} ms", now.elapsed().as_millis()),
+        Err(msg) => println!("Failed to verify execution proof: {}", msg)
+    }
+
 }
 
 fn test_merkle_tree(n: usize) {
