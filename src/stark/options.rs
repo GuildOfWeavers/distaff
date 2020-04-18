@@ -1,5 +1,7 @@
 use serde::{ Serialize, Deserialize };
 use crate::crypto::{ HashFunction, hash };
+use crate::utils::pow_log2;
+use super::MAX_CONSTRAINT_DEGREE;
 
 // CONSTANTS
 // ================================================================================================
@@ -64,6 +66,13 @@ impl ProofOptions {
 
     pub fn hash_function(&self) -> HashFunction {
         return self.hash_function;
+    }
+
+    pub fn security_level(&self) -> u32 {
+        let r = (self.extension_factor() / MAX_CONSTRAINT_DEGREE) as u64;
+        let trace_sl = pow_log2(r, self.trace_query_count as u32);
+        // TODO: account for FRI soundness
+        return trace_sl as u32;
     }
 }
 
