@@ -19,44 +19,48 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
     let t = now.elapsed().as_millis();
     println!("Extended execution trace of {} registers to {} steps in {} ms", trace.register_count(), trace.len(), t);
 
-    // 2 ----- evaluate transition constraints and hash extended trace ----------------------------
+    // 2 ----- build Merkle tree from extended execution trace ------------------------------------
+    let now = Instant::now();
+    let mut trace_state = TraceState::new(trace.max_stack_depth());
+    let mut hashed_states = to_quartic_vec(uninit_vector(trace.len() * 4));
+    for i in 0..trace.len() {
+        // TODO: this loop should be parallelized
+        trace.fill_state(&mut trace_state, i);
+        options.hash_function()(&trace_state.registers, &mut hashed_states[i]);
+    }
+    let trace_tree = MerkleTree::new(hashed_states, options.hash_function());
+    let t = now.elapsed().as_millis();
+    println!("Built trace Merkle tree in {} ms", t);
+
+    // 3 ----- evaluate constraints ---------------------------------------------------------------
     let now = Instant::now();
     
-    // allocate space to hold constraint evaluations and trace hashes
-    let mut constraints = ConstraintTable::new(&trace);
-    let mut hashed_states = to_quartic_vec(uninit_vector(trace.len() * 4));
-
+    // allocate space to hold constraint evaluations
+    let mut constraints = ConstraintTable::new(&trace, trace_tree.root(), inputs, outputs);
+    
     // allocate space to hold current and next states for constraint evaluations
     let mut current = TraceState::new(trace.max_stack_depth());
     let mut next = TraceState::new(trace.max_stack_depth());
 
     // we don't need to evaluate constraints over the entire extended execution trace; we need
     // to evaluate them over the domain extended to match max constraint degree - thus, we can
-    // skip most trace states for the purposes of transition constraint evaluation.
+    // skip most trace states for the purposes of constraint evaluation.
     let skip = trace.extension_factor() / MAX_CONSTRAINT_DEGREE;
-    for i in 0..trace.len() {
+    for i in (0..trace.len()).step_by(skip) {
         // TODO: this loop should be parallelized and also potentially optimized to avoid copying
         // next state from the trace table twice
 
-        // copy current state from the trace table and hash it
+        // copy current and next states from the trace table; next state may wrap around the
+        // execution trace (close to the end of the trace)
         trace.fill_state(&mut current, i);
-        options.hash_function()(&current.state, &mut hashed_states[i]);
+        trace.fill_state(&mut next, (i + trace.extension_factor()) % trace.len());
 
-        if i % skip == 0 {
-            // copy next trace state (wrapping around the execution trace) and evaluate constraints
-            trace.fill_state(&mut next, (i + trace.extension_factor()) % trace.len());
-            constraints.evaluate_transition(&current, &next, i / skip);
-        }
+        // evaluate the constraints
+        constraints.evaluate_transition(&current, &next, i / skip);
     }
 
     let t = now.elapsed().as_millis();
     println!("Hashed trace states and evaluated {} transition constraints in {} ms", constraints.constraint_count(), t);
-
-    // 3 ----- build merkle tree of extended execution trace --------------------------------------
-    let now = Instant::now();
-    let trace_tree = MerkleTree::new(hashed_states, options.hash_function());
-    let t = now.elapsed().as_millis();
-    println!("Built trace merkle tree in {} ms", t);
 
     // 4 ----- build evaluation domain for the extended execution trace ---------------------------
     // this domain is used later during constraint composition and low-degree proof generation
@@ -69,10 +73,7 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
     // 5 ----- combine transition constraints into a single polynomial ----------------------------
     let now = Instant::now();
 
-    // first set input/output constraints
-    constraints.set_io_constraints(inputs, outputs);
-
-    // then, compute composition polynomial
+    // compute composition polynomial
     let composition_poly = constraints.combine(trace_tree.root(), &domain);
     let t = now.elapsed().as_millis();
     println!("Computed composition polynomial in {} ms", t);

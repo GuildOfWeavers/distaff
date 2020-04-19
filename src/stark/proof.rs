@@ -33,7 +33,7 @@ impl StarkProof {
             trace_root  : *trace_root,
             domain_depth: trace_proof.depth,
             trace_nodes : trace_proof.nodes,
-            trace_states: trace_states.into_iter().map(|s| s.state).collect(),
+            trace_states: trace_states.into_iter().map(|s| s.registers).collect(),
             ld_proof    : ld_proof,
             options     : options
         };

@@ -1,4 +1,3 @@
-use std::cmp;
 use crate::math::{ field, parallel, fft, polys };
 use crate::stark::{ TraceState, TraceTable };
 use crate::utils::{ uninit_vector, zero_filled_vector };
@@ -11,11 +10,9 @@ pub const MAX_CONSTRAINT_DEGREE: usize = 8;
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct ConstraintTable {
-    pub decoder : Vec<Vec<u64>>,
-    pub op_acc  : Vec<Vec<u64>>,
-    pub stack   : Vec<Vec<u64>>,
-
-    io_constraints  : [Vec<Vec<u64>>; 3],
+    decoder : Vec<Vec<u64>>,
+    op_acc  : Vec<Vec<u64>>,
+    stack   : Vec<Vec<u64>>,
     extension_factor: usize,
 }
 
@@ -23,7 +20,7 @@ pub struct ConstraintTable {
 // ================================================================================================
 impl ConstraintTable {
 
-    pub fn new(trace: &TraceTable) -> ConstraintTable {
+    pub fn new(trace: &TraceTable, trace_root: &[u64; 4], inputs: &[u64], outputs: &[u64]) -> ConstraintTable {
         assert!(trace.is_extended(), "execution trace hasn't been extended yet");
         
         let trace_length = trace.len() / trace.extension_factor(); // original trace length
@@ -33,7 +30,6 @@ impl ConstraintTable {
             decoder : create_vectors(decoder::CONSTRAINT_DEGREES.len(), domain_size),
             op_acc  : create_vectors(hash_acc::CONSTRAINT_DEGREES.len(), domain_size),
             stack   : create_vectors(trace.max_stack_depth(), domain_size),
-            io_constraints  : [ vec![], vec![], vec![] ],
             extension_factor: trace.extension_factor(),
         };
     }
@@ -43,10 +39,7 @@ impl ConstraintTable {
     }
 
     pub fn constraint_count(&self) -> usize {
-        return self.decoder.len() + self.op_acc.len() + self.stack.len()
-            + self.io_constraints[0].len() 
-            + self.io_constraints[1].len()
-            + self.io_constraints[2].len();
+        return self.decoder.len() + self.op_acc.len() + self.stack.len();
     }
 
     pub fn len(&self) -> usize {
@@ -75,35 +68,6 @@ impl ConstraintTable {
 
         let stack = stack::evaluate(&current, &next, self.stack.len());
         copy_constraints(&stack, &mut self.stack, step, should_be_zero);
-    }
-
-    pub fn set_io_constraints(&mut self, inputs: &[u64], outputs: &[u64]) {
-
-        // compute root of unity for the evaluation domain
-        let domain_root = field::get_root_of_unity(self.domain_size() as u64);
-
-        // compute last value in the evaluation domain
-        let last_position = self.domain_size() - self.extension_factor;
-        let x_at_last_step = field::exp(domain_root, last_position as u64);
-
-        // create polynomials for input/output constraints
-        let num_io_constraints = cmp::min(inputs.len(), outputs.len());
-        for i in 0..num_io_constraints {
-            let i_poly = polys::interpolate(&[field::ONE, x_at_last_step], &[inputs[i], outputs[i]]);
-            self.io_constraints[0].push(i_poly);
-        }
-        
-        // create polynomials for input constraints only
-        for i in num_io_constraints..inputs.len() {
-            let i_poly = vec![inputs[i]];
-            self.io_constraints[1].push(i_poly);
-        }
-
-        // create polynomials for output constraints only
-        for i in num_io_constraints..outputs.len() {
-            let i_poly = vec![outputs[i]];
-            self.io_constraints[2].push(i_poly);
-        }
     }
 
     // CONSTRAINT COMPOSITION
