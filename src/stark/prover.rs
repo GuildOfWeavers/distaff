@@ -50,7 +50,7 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
         inputs,
         outputs
     );
-    let mut constraints = ConstraintTable::new(constraint_evaluator);
+    let mut constraints = ConstraintTable::new(constraint_evaluator, trace.extension_factor());
     
     // allocate space to hold current and next states for constraint evaluations
     let mut current = TraceState::new(trace.max_stack_depth());

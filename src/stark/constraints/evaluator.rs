@@ -94,7 +94,7 @@ impl Evaluator {
             }
         }
         else {
-            let mut x_powers = [0u64; MAX_CONSTRAINT_DEGREE + 1];
+            let mut x_powers = [0u64; MAX_CONSTRAINT_DEGREE + 1];   // TODO: group constraints by degree
             let cc = self.coefficients.transition;
     
             for i in 0..evaluations.len() {
@@ -103,8 +103,8 @@ impl Evaluator {
                 if x_powers[self.t_constraint_deg[i]] == 0 {
                     x_powers[self.t_constraint_deg[i]] = field::exp(x, self.t_adjustment_deg[i]);
                 }
-                let x_di = x_powers[self.t_constraint_deg[i]];
-                let adj_eval = field::mul(evaluations[i], x_di);
+                let xp = x_powers[self.t_constraint_deg[i]];
+                let adj_eval = field::mul(evaluations[i], xp);
                 result = field::add(result, field::mul(adj_eval, cc[i * 2 + 1]));
             }
         }
@@ -119,16 +119,75 @@ impl Evaluator {
         return result;
     }
 
-    // BOUNDARY CONSTRAINTS
-    // -------------------------------------------------------------------------------------------
-    pub fn evaluate_boundaries(&self, current: &TraceState, next: &TraceState, x: u64, step: usize) -> u64 {
-        // TODO: implement
-        return 0;
+    /// Computes pseudo-random linear combination of boundary constraints B_i at point x 
+    /// separately for input and output constraints; the constraints are computed as:
+    /// cc_{i * 2} * B_i + cc_{i * 2 + 1} * B_i * x^p for all i, where cc_j are the coefficients
+    /// used in the linear combination and x^p is a degree adjustment factor.
+    pub fn evaluate_boundaries(&self, current: &TraceState, x: u64) -> (u64, u64) {
+        
+        let cc = self.coefficients.inputs;
+        let stack = current.get_stack();
+        
+        // compute adjustment factor
+        let adj_degree = get_incremental_constraint_degree(1, self.trace_length()); // TODO: cache
+        let xp = field::mul(x, adj_degree);
+
+        // 1 ----- compute combination of input constraints ---------------------------------------
+        let mut result_raw = 0;
+        let mut result_adj = 0;
+
+        // separately compute P(x) - input for adjusted and un-adjusted terms
+        for i in 0..self.inputs.len() {
+            let val = field::sub(stack[i], self.inputs[i]);
+            result_raw = field::add(result_raw, field::mul(val, cc[i * 2]));
+            result_adj = field::add(result_adj, field::mul(val, cc[i * 2 + 1]));
+        }
+
+        // raise the degree of adjusted terms and sum all the terms together
+        result_adj = field::mul(result_adj, xp);
+        let i_result = field::add(result_raw, result_adj);
+
+        // 2 ----- compute combination of output constraints ---------------------------------------
+        let mut result_raw = 0;
+        let mut result_adj = 0;
+
+        // separately compute P(x) - output for adjusted and un-adjusted terms
+        for i in 0..self.outputs.len() {
+            let val = field::sub(stack[i], self.outputs[i]);
+            result_raw = field::add(result_raw, field::mul(val, cc[i * 2]));
+            result_adj = field::add(result_adj, field::mul(val, cc[i * 2 + 1]));
+        }
+
+        // raise the degree of adjusted terms and sum all the terms together
+        result_adj = field::mul(result_adj, xp);
+        let o_result = field::add(result_raw, result_adj);
+
+        return (i_result, o_result);
     }
 
+    /// Computes a pseudo-random linear combination of all trace registers P_i at point x as:
+    /// cc_{i * 2} * P_i + cc_{i * 2 + 1} * P_i * x^p for all i, where cc_j are the coefficients
+    /// used in the linear combination and x^p is a degree adjustment factor.
     pub fn combine_trace_registers(&self, current: &TraceState, x: u64) -> u64 {
-        // TODO: implement
-        return 0;
+        
+        let cc = self.coefficients.trace;
+
+        let mut result_raw = 0;
+        let mut result_adj = 0;
+
+        // separately sum up adjusted and un-adjusted terms
+        for i in 0..current.registers.len() {
+            result_raw = field::add(result_raw, field::mul(current.registers[i], cc[i * 2]));
+            result_adj = field::add(result_adj, field::mul(current.registers[i], cc[i * 2 + 1]));
+        }
+
+        // multiply adjusted terms by degree adjustment factor
+        let adj_degree = get_incremental_constraint_degree(1, self.trace_length()); // TODO: cache
+        let xp = field::mul(x, adj_degree);
+        result_adj = field::mul(result_adj, xp);
+
+        // sum both parts together and return
+        return field::add(result_raw, result_adj);
     }
 }
 
