@@ -33,7 +33,7 @@ impl StarkProof {
             trace_root  : *trace_root,
             domain_depth: trace_proof.depth,
             trace_nodes : trace_proof.nodes,
-            trace_states: trace_states.into_iter().map(|s| s.registers).collect(),
+            trace_states: trace_states.into_iter().map(|s| s.registers().to_vec()).collect(),
             ld_proof    : ld_proof,
             options     : options
         };
@@ -75,5 +75,13 @@ impl StarkProof {
             result.push(TraceState::from_raw_state(raw_state.clone()));
         }
         return result;
+    }
+
+    pub fn trace_length(&self) -> usize {
+        return self.domain_size() / self.options.extension_factor();
+    }
+
+    pub fn stack_depth(&self) -> usize {
+        return TraceState::compute_stack_depth(self.trace_states[0].len());
     }
 }

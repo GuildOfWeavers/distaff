@@ -104,35 +104,35 @@ pub fn prove(evaluations: &[u64], domain: &[u64], max_degree_plus_1: usize, opti
 
 /// Verifies that a polynomial which evaluates to a small number of the provided `evaluations`
 /// has degree at most `max_degree_plus_1` - 1.
-pub fn verify(proof: &FriProof, evaluations: &[u64], root: u64, max_degree_plus_1: usize, options: &ProofOptions) -> Result<bool, String>
+pub fn verify(proof: &FriProof, evaluations: &[u64], domain_root: u64, max_degree_plus_1: usize, options: &ProofOptions) -> Result<bool, String>
 {
 
-    let domain_size = get_root_of_unity_degree(root);
+    let domain_size = get_root_of_unity_degree(domain_root);
     let idx_generator = QueryIndexGenerator::new(options);
 
     // powers of the given root of unity 1, p, p^2, p^3 such that p^4 = 1
     let quartic_roots = [
         1,
-        field::exp(root, (domain_size / 4) as u64),
-        field::exp(root, (domain_size / 2) as u64),
-        field::exp(root, (domain_size * 3 / 4) as u64),
+        field::exp(domain_root, (domain_size / 4) as u64),
+        field::exp(domain_root, (domain_size / 2) as u64),
+        field::exp(domain_root, (domain_size * 3 / 4) as u64),
     ];
 
     // 1 ----- check correctness of evaluation tree ----------------------------------------------
     let positions = idx_generator.get_trace_indexes(&proof.ev_root, domain_size);
     let augmented_positions = get_augmented_positions(&positions, domain_size);
     if !MerkleTree::verify_batch(&proof.ev_root, &augmented_positions, &proof.ev_proof, options.hash_function()) {
-        return Err(String::from("Verification of evaluation Merkle proof failed"));
+        return Err(String::from("verification of evaluation Merkle proof failed"));
     }
 
     let ev_checks = get_column_values(&proof.ev_proof, &positions, &augmented_positions, domain_size);
     if evaluations != &ev_checks[..] {
-        return Err(String::from("Verification of evaluation values failed"));
+        return Err(String::from("verification of evaluation values failed"));
     }
 
     // 2 ----- verify the recursive components of the FRI proof -----------------------------------
     // make the variables mutable
-    let mut root = root;
+    let mut domain_root = domain_root;
     let mut p_root = proof.ev_root;
     let mut column_length = domain_size / 4;
     let mut max_degree_plus_1 = max_degree_plus_1;
@@ -145,18 +145,18 @@ pub fn verify(proof: &FriProof, evaluations: &[u64], root: u64, max_degree_plus_
 
         // verify Merkle proof for the column
         if !MerkleTree::verify_batch(&column_root, &augmented_positions, &column_proof, options.hash_function()) {
-            return Err(format!("Verification of column Merkle proof failed at depth {}", depth));
+            return Err(format!("verification of column Merkle proof failed at depth {}", depth));
         }
 
         // verify Merkle proof for polynomials
         if !MerkleTree::verify_batch(&p_root, &positions, &poly_proof, options.hash_function()) {
-            return Err(format!("Verification of polynomial Merkle proof failed at depth {}", depth));
+            return Err(format!("verification of polynomial Merkle proof failed at depth {}", depth));
         }
 
         // build a set of x for each row polynomial
         let mut xs = Vec::with_capacity(positions.len());
         for &i in positions.iter() {
-            let xe = field::exp(root, i as u64);
+            let xe = field::exp(domain_root, i as u64);
             xs.push([
                 field::mul(quartic_roots[0], xe),
                 field::mul(quartic_roots[1], xe),
@@ -175,12 +175,12 @@ pub fn verify(proof: &FriProof, evaluations: &[u64], root: u64, max_degree_plus_
         let p_evaluations = quartic::evaluate_batch(&row_polys, special_x);
         let column_values = get_column_values(&column_proof, &positions, &augmented_positions, column_length);
         if p_evaluations != column_values {
-            return Err(format!("Row polynomial didn't evaluate to column value at depth {}", depth));
+            return Err(format!("row polynomial didn't evaluate to column value at depth {}", depth));
         }
 
         // update variables for the next iteration of the loop
         p_root = *column_root;
-        root = field::exp(root, 4);
+        domain_root = field::exp(domain_root, 4);
         max_degree_plus_1 = max_degree_plus_1 / 4;
         column_length = column_length / 4;
     }
@@ -189,17 +189,17 @@ pub fn verify(proof: &FriProof, evaluations: &[u64], root: u64, max_degree_plus_
     // check that Merkle root matches up
     let c_tree = MerkleTree::new(quartic::transpose(&proof.remainder, 1), options.hash_function());
     if *c_tree.root() != p_root {
-        return Err(String::from("Remainder values do not match Merkle root of the last column"));
+        return Err(String::from("remainder values do not match Merkle root of the last column"));
     }
 
     // make sure the remainder values satisfy the degree
-    return verify_remainder(&proof.remainder, max_degree_plus_1, root, options.extension_factor());
+    return verify_remainder(&proof.remainder, max_degree_plus_1, domain_root, options.extension_factor());
 }
 
-fn verify_remainder(remainder: &[u64], max_degree_plus_1: usize, root: u64, extension_factor: usize) -> Result<bool, String> {
+fn verify_remainder(remainder: &[u64], max_degree_plus_1: usize, domain_root: u64, extension_factor: usize) -> Result<bool, String> {
 
     if max_degree_plus_1 > remainder.len() {
-        return Err(String::from("Remainder degree is greater than number of remainder values"));
+        return Err(String::from("remainder degree is greater than number of remainder values"));
     }
 
     // exclude points which should be skipped during evaluation
@@ -211,7 +211,7 @@ fn verify_remainder(remainder: &[u64], max_degree_plus_1: usize, root: u64, exte
     }
 
     // pick a subset of points from the remainder and interpolate them into a polynomial
-    let domain = field::get_power_series(root, remainder.len());
+    let domain = field::get_power_series(domain_root, remainder.len());
     let mut xs = Vec::with_capacity(max_degree_plus_1);
     let mut ys = Vec::with_capacity(max_degree_plus_1);
     for i in 0..max_degree_plus_1 {
@@ -225,7 +225,7 @@ fn verify_remainder(remainder: &[u64], max_degree_plus_1: usize, root: u64, exte
     for i in max_degree_plus_1..positions.len() {
         let p = positions[i];
         if polys::eval(&poly, domain[p]) != remainder[p] {
-            return Err(format!("Remainder is not a valid degree {} polynomial", max_degree_plus_1 - 1));
+            return Err(format!("remainder is not a valid degree {} polynomial", max_degree_plus_1 - 1));
         }
     }
 

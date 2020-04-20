@@ -26,7 +26,7 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
     for i in 0..trace.len() {
         // TODO: this loop should be parallelized
         trace.fill_state(&mut trace_state, i);
-        options.hash_function()(&trace_state.registers, &mut hashed_states[i]);
+        options.hash_function()(trace_state.registers(), &mut hashed_states[i]);
     }
     let trace_tree = MerkleTree::new(hashed_states, options.hash_function());
     let t = now.elapsed().as_millis();

@@ -61,7 +61,7 @@ impl Evaluator {
     }
 
     pub fn constraint_count(&self) -> usize {
-        return self.t_constraint_deg.len();
+        return self.t_constraint_deg.len() + self.inputs.len() + self.outputs.len();
     }
 
     pub fn domain_size(&self) -> usize {
@@ -176,9 +176,10 @@ impl Evaluator {
         let mut result_adj = 0;
 
         // separately sum up adjusted and un-adjusted terms
-        for i in 0..current.registers.len() {
-            result_raw = field::add(result_raw, field::mul(current.registers[i], cc[i * 2]));
-            result_adj = field::add(result_adj, field::mul(current.registers[i], cc[i * 2 + 1]));
+        let registers = current.registers();
+        for i in 0..registers.len() {
+            result_raw = field::add(result_raw, field::mul(registers[i], cc[i * 2]));
+            result_adj = field::add(result_adj, field::mul(registers[i], cc[i * 2 + 1]));
         }
 
         // multiply adjusted terms by degree adjustment factor

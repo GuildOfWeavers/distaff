@@ -12,11 +12,14 @@ const OP_ACC_IDX    : usize = 2;
 const OP_BITS_IDX   : usize = OP_ACC_IDX + ACC_WIDTH;
 const STACK_IDX     : usize = OP_BITS_IDX + NUM_OP_BITS;
 
+const STATIC_REGISTER_COUNT: usize = 2 + NUM_OP_BITS + ACC_WIDTH;
+
 // TYPES AND INTERFACES
 // ================================================================================================
 #[derive(Debug, PartialEq)]
 pub struct TraceState {
-    pub registers   : Vec<u64>,
+    registers       : Vec<u64>,
+    state_width     : usize,
     op_flags        : [u64; NUM_LD_OPS],
     op_flags_set    : bool,
 }
@@ -26,19 +29,28 @@ pub struct TraceState {
 impl TraceState {
 
     pub fn new(stack_depth: usize) -> TraceState {
-        let stack_depth = cmp::max(stack_depth, MIN_STACK_DEPTH);
-        let state_width = 2 + NUM_OP_BITS + ACC_WIDTH + stack_depth;
+        let state_width = STATIC_REGISTER_COUNT + stack_depth;
+        let num_registers = STATIC_REGISTER_COUNT + cmp::max(stack_depth, MIN_STACK_DEPTH);
         
         return TraceState {
-            registers   : vec![0; state_width],
+            registers   : vec![0; num_registers],
+            state_width : state_width,
             op_flags    : [0; NUM_LD_OPS],
             op_flags_set: false
         };
     }
 
-    pub fn from_raw_state(state: Vec<u64>) -> TraceState {
+    pub fn from_raw_state(mut state: Vec<u64>) -> TraceState {
+        let state_width = state.len();
+        let stack_depth = state_width - STATIC_REGISTER_COUNT;
+
+        if stack_depth < MIN_STACK_DEPTH {
+            state.resize(state.len() + (MIN_STACK_DEPTH - stack_depth), 0);
+        }
+
         return TraceState {
             registers   : state,
+            state_width : state_width,
             op_flags    : [0; NUM_LD_OPS],
             op_flags_set: false
         };
@@ -144,6 +156,16 @@ impl TraceState {
 
     pub fn set_stack_value(&mut self, index: usize, value: u64) {
         self.registers[STACK_IDX + index] = value;
+    }
+
+    pub fn compute_stack_depth(trace_register_count: usize) -> usize {
+        return trace_register_count - STATIC_REGISTER_COUNT;
+    }
+
+    // RAW STATE
+    // --------------------------------------------------------------------------------------------
+    pub fn registers(&self) -> &[u64] {
+        return &self.registers[..self.state_width];
     }
 }
 
