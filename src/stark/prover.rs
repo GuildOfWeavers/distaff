@@ -5,7 +5,7 @@ use crate::crypto::{ MerkleTree };
 use crate::utils::uninit_vector;
 
 use super::trace::{ TraceTable, TraceState };
-use super::constraints::{ ConstraintTable, MAX_CONSTRAINT_DEGREE };
+use super::constraints::{ ConstraintEvaluator, ConstraintTable, MAX_CONSTRAINT_DEGREE };
 use super::{ ProofOptions, StarkProof, fri, utils::QueryIndexGenerator };
 
 // PROVER FUNCTION
@@ -32,11 +32,25 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
     let t = now.elapsed().as_millis();
     println!("Built trace Merkle tree in {} ms", t);
 
-    // 3 ----- evaluate constraints ---------------------------------------------------------------
+    // 3 ----- build evaluation domain for the extended execution trace ---------------------------
+    let now = Instant::now();
+    let root = field::get_root_of_unity(trace.len() as u64);
+    let domain = field::get_power_series(root, trace.len());
+    let t = now.elapsed().as_millis();
+    println!("Built evaluation domain of {} elements in {} ms", domain.len() , t);
+
+    // 4 ----- evaluate constraints ---------------------------------------------------------------
     let now = Instant::now();
     
-    // allocate space to hold constraint evaluations
-    let mut constraints = ConstraintTable::new(&trace, trace_tree.root(), inputs, outputs);
+    // initialize constraint evaluator and allocate space to hold constraint evaluations
+    let constraint_evaluator = ConstraintEvaluator::new(
+        trace_tree.root(), 
+        trace.len() / trace.extension_factor(),
+        trace.max_stack_depth(),
+        inputs,
+        outputs
+    );
+    let mut constraints = ConstraintTable::new(constraint_evaluator);
     
     // allocate space to hold current and next states for constraint evaluations
     let mut current = TraceState::new(trace.max_stack_depth());
@@ -45,8 +59,8 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
     // we don't need to evaluate constraints over the entire extended execution trace; we need
     // to evaluate them over the domain extended to match max constraint degree - thus, we can
     // skip most trace states for the purposes of constraint evaluation.
-    let skip = trace.extension_factor() / MAX_CONSTRAINT_DEGREE;
-    for i in (0..trace.len()).step_by(skip) {
+    let stride = trace.extension_factor() / MAX_CONSTRAINT_DEGREE;
+    for i in (0..trace.len()).step_by(stride) {
         // TODO: this loop should be parallelized and also potentially optimized to avoid copying
         // next state from the trace table twice
 
@@ -56,32 +70,24 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
         trace.fill_state(&mut next, (i + trace.extension_factor()) % trace.len());
 
         // evaluate the constraints
-        constraints.evaluate_transition(&current, &next, i / skip);
+        constraints.evaluate(&current, &next, domain[i], i / stride);
     }
 
     let t = now.elapsed().as_millis();
-    println!("Hashed trace states and evaluated {} transition constraints in {} ms", constraints.constraint_count(), t);
-
-    // 4 ----- build evaluation domain for the extended execution trace ---------------------------
-    // this domain is used later during constraint composition and low-degree proof generation
-    let now = Instant::now();
-    let root = field::get_root_of_unity(trace.len() as u64);
-    let domain = field::get_power_series(root, trace.len());
-    let t = now.elapsed().as_millis();
-    println!("Built evaluation domain of {} elements in {} ms", domain.len() , t);
+    println!("Evaluated {} constraints in {} ms", constraints.constraint_count(), t);
 
     // 5 ----- combine transition constraints into a single polynomial ----------------------------
     let now = Instant::now();
 
-    // compute composition polynomial
-    let composition_poly = constraints.combine(trace_tree.root(), &domain);
+    // compute composition polynomial evaluations
+    let composed_evaluations = constraints.compose(&domain);
     let t = now.elapsed().as_millis();
     println!("Computed composition polynomial in {} ms", t);
 
     // 6 ----- generate low-degree proof for composition polynomial -------------------------------
     let now = Instant::now();
     let composition_degree_plus_1 = constraints.composition_degree() + 1;
-    let fri_proof = fri::prove(&composition_poly, &domain, composition_degree_plus_1, options);
+    let fri_proof = fri::prove(&composed_evaluations, &domain, composition_degree_plus_1, options);
     let t = now.elapsed().as_millis();
     println!("Generated low-degree proof for composition polynomial in {} ms", t);
 
@@ -92,8 +98,8 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
     let idx_generator = QueryIndexGenerator::new(options);
     let positions = idx_generator.get_trace_indexes(&fri_proof.ev_root, trace.len());
 
-    // for each queried step, collect the current and the next state of the execution trace;
-    // this way the verifier will be able to get two consecutive states for each query.
+    // for each queried step, collect the current and the next states of the execution trace;
+    // this way, the verifier will be able to get two consecutive states for each query.
     let mut trace_states = BTreeMap::new();
     for &position in positions.iter() {
         let next_position = (position + options.extension_factor()) % trace.len();
