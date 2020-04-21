@@ -1,7 +1,7 @@
 use crate::math::field;
 use crate::stark::TraceState;
 use crate::utils::uninit_vector;
-use super::{ decoder2, decoder, stack };
+use super::{ decoder, stack };
 
 // CONSTANTS
 // ================================================================================================
@@ -10,12 +10,12 @@ pub const MAX_CONSTRAINT_DEGREE: usize = 8;
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct Evaluator {
-    decoder         : decoder2::Decoder,
+    decoder         : decoder::Decoder,
+    stack           : stack::Stack,
 
     coefficients    : Coefficients,
     domain_size     : usize,
     extension_factor: usize,
-    stack_depth     : usize,
 
     t_constraint_deg: Vec<usize>,
     t_adjustment_deg: Vec<u64>,
@@ -59,11 +59,11 @@ impl Evaluator {
         };
 
         return Evaluator {
-            decoder         : decoder2::Decoder::new(ext_factor),
+            decoder         : decoder::Decoder::new(ext_factor),
+            stack           : stack::Stack::new(stack_depth),
             coefficients    : Coefficients::new(trace_root),
             domain_size     : domain_size,
             extension_factor: ext_factor,
-            stack_depth     : stack_depth,
             t_constraint_deg: t_constraint_deg,
             t_adjustment_deg: t_adjustment_deg,
             t_evaluations   : t_evaluations,
@@ -74,6 +74,10 @@ impl Evaluator {
 
     pub fn constraint_count(&self) -> usize {
         return self.t_constraint_deg.len() + self.inputs.len() + self.outputs.len();
+    }
+
+    fn transition_constraint_count(&self) -> usize {
+        return self.t_constraint_deg.len();
     }
 
     pub fn domain_size(&self) -> usize {
@@ -88,38 +92,46 @@ impl Evaluator {
         return (MAX_CONSTRAINT_DEGREE - 1) * self.trace_length() - 1;
     }
 
-    // TRANSITION CONSTRAINTS
+    // CONSTRAINT EVALUATORS
     // -------------------------------------------------------------------------------------------
+
+    /// Computes pseudo-random linear combination of transition constraints D_i at point x as:
+    /// cc_{i * 2} * D_i + cc_{i * 2 + 1} * D_i * x^p for all i, where cc_j are the coefficients
+    /// used in the linear combination and x^p is a degree adjustment factor (different for each degree).
     pub fn evaluate_transition(&self, current: &TraceState, next: &TraceState, x: u64, step: usize) -> u64 {
-        let mut result = 0;
+        
+        // evaluate transition constraints
+        let mut evaluations = vec![0; self.transition_constraint_count()];
+        self.decoder.evaluate(&current, &next, step, &mut evaluations);
+        self.stack.evaluate(&current, &next, &mut evaluations[self.decoder.constraint_count()..]);
 
-        let op_dec = decoder::evaluate(&current, &next);
-        let op_acc = self.decoder.evaluate(&current, &next, step);
-        let stack = stack::evaluate(&current, &next, self.stack_depth);
-        let evaluations = [ &op_dec[..], &op_acc[..], &stack[..self.stack_depth] ].concat(); // TODO: build more efficiently
-
+        // if the constraints should evaluate to all zeros at this step,
+        // make sure they do, and return
         let should_be_zero = (step % self.extension_factor == 0) && (step < self.domain_size - self.extension_factor);
-
         if should_be_zero {
             for i in 0..evaluations.len() {
                 assert!(evaluations[i] == 0, "transition constraint at step {} didn't evaluate to 0", step / self.extension_factor);
             }
+            return 0;
         }
-        else {
-            let mut x_powers = [0u64; MAX_CONSTRAINT_DEGREE + 1];   // TODO: group constraints by degree
-            let cc = self.coefficients.transition;
-    
-            for i in 0..evaluations.len() {
-                result = field::add(result, field::mul(evaluations[i], cc[i * 2]));
-    
-                if x_powers[self.t_constraint_deg[i]] == 0 {
-                    x_powers[self.t_constraint_deg[i]] = field::exp(x, self.t_adjustment_deg[i]);
-                }
-                let xp = x_powers[self.t_constraint_deg[i]];
-                let adj_eval = field::mul(evaluations[i], xp);
-                result = field::add(result, field::mul(adj_eval, cc[i * 2 + 1]));
+
+        // compute a pseudo-random linear combination of all transition constraints
+        let mut result = 0;
+        
+        let mut x_powers = [0u64; MAX_CONSTRAINT_DEGREE + 1];   // TODO: group constraints by degree
+        let cc = self.coefficients.transition;
+
+        for i in 0..evaluations.len() {
+            result = field::add(result, field::mul(evaluations[i], cc[i * 2]));
+
+            if x_powers[self.t_constraint_deg[i]] == 0 {
+                x_powers[self.t_constraint_deg[i]] = field::exp(x, self.t_adjustment_deg[i]);
             }
+            let xp = x_powers[self.t_constraint_deg[i]];
+            let adj_eval = field::mul(evaluations[i], xp);
+            result = field::add(result, field::mul(adj_eval, cc[i * 2 + 1]));
         }
+        
 
         if cfg!(debug_assertions) {
             let mutable_self = unsafe { &mut *(self as *const _ as *mut Evaluator) };
@@ -237,7 +249,6 @@ impl Coefficients {
 fn get_transition_constraint_degrees(stack_depth: usize) -> Vec<usize> {
     let degrees = [
         &decoder::CONSTRAINT_DEGREES[..],
-        &decoder2::CONSTRAINT_DEGREES[..],
         &stack::CONSTRAINT_DEGREES[..stack_depth]
     ].concat();
     return degrees;

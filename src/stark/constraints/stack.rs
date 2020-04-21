@@ -7,34 +7,45 @@ use crate::processor::{ opcodes };
 // ================================================================================================
 pub const CONSTRAINT_DEGREES: [usize; MAX_STACK_DEPTH] = [5; MAX_STACK_DEPTH];
 
-// EVALUATOR FUNCTION
+// TYPES AND INTERFACES
 // ================================================================================================
-pub fn evaluate(current: &TraceState, next: &TraceState, stack_depth: usize) -> Vec<u64> {
+pub struct Stack {
+    stack_depth: usize,
+}
 
-    let op_flags = current.get_op_flags();
-    let current_stack = current.get_stack();
-    let mut expected_stack = vec![0u64; cmp::max(stack_depth, MIN_STACK_DEPTH)];
+// STACK CONSTRAINT EVALUATOR IMPLEMENTATION
+// ================================================================================================
+impl Stack {
 
-    mul_acc(&mut expected_stack,  current_stack, op_flags[opcodes::NOOP as usize]);
-
-    op_pull1(&mut expected_stack, current_stack, op_flags[opcodes::PULL1 as usize]);
-    op_pull2(&mut expected_stack, current_stack, op_flags[opcodes::PULL2 as usize]);
-
-    op_push(&mut expected_stack,  current_stack, next.get_op_code(), op_flags[opcodes::PUSH as usize]);
-    op_dup0(&mut expected_stack,  current_stack, op_flags[opcodes::DUP0 as usize]);
-    op_dup1(&mut expected_stack,  current_stack, op_flags[opcodes::DUP1 as usize]);
-
-    op_drop(&mut expected_stack,  current_stack, op_flags[opcodes::DROP as usize]);
-    op_add(&mut expected_stack,   current_stack, op_flags[opcodes::ADD as usize]);
-    op_sub(&mut expected_stack,   current_stack, op_flags[opcodes::SUB as usize]);
-    op_mul(&mut expected_stack,   current_stack, op_flags[opcodes::MUL as usize]);
-
-    let next_stack = next.get_stack();
-    expected_stack.truncate(stack_depth);
-    for i in 0..stack_depth {
-        expected_stack[i] = sub(next_stack[i], expected_stack[i]);
+    pub fn new(stack_depth: usize) -> Stack {
+        return Stack { stack_depth };
     }
-    return expected_stack;
+
+    pub fn evaluate(&self, current: &TraceState, next: &TraceState, result: &mut [u64]) {
+
+        let op_flags = current.get_op_flags();
+        let current_stack = current.get_stack();
+        let mut expected_stack = vec![0u64; cmp::max(self.stack_depth, MIN_STACK_DEPTH)];
+    
+        mul_acc(&mut expected_stack,  current_stack, op_flags[opcodes::NOOP as usize]);
+    
+        op_pull1(&mut expected_stack, current_stack, op_flags[opcodes::PULL1 as usize]);
+        op_pull2(&mut expected_stack, current_stack, op_flags[opcodes::PULL2 as usize]);
+    
+        op_push(&mut expected_stack,  current_stack, next.get_op_code(), op_flags[opcodes::PUSH as usize]);
+        op_dup0(&mut expected_stack,  current_stack, op_flags[opcodes::DUP0 as usize]);
+        op_dup1(&mut expected_stack,  current_stack, op_flags[opcodes::DUP1 as usize]);
+    
+        op_drop(&mut expected_stack,  current_stack, op_flags[opcodes::DROP as usize]);
+        op_add(&mut expected_stack,   current_stack, op_flags[opcodes::ADD as usize]);
+        op_sub(&mut expected_stack,   current_stack, op_flags[opcodes::SUB as usize]);
+        op_mul(&mut expected_stack,   current_stack, op_flags[opcodes::MUL as usize]);
+    
+        let next_stack = next.get_stack();
+        for i in 0..self.stack_depth {
+            result[i] = sub(next_stack[i], expected_stack[i]);
+        }
+    }
 }
 
 // OPERATIONS
