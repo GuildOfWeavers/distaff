@@ -11,7 +11,7 @@ use super::{ ProofOptions, StarkProof, fri, utils::QueryIndexGenerator };
 // PROVER FUNCTION
 // ================================================================================================
 
-pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &ProofOptions) -> StarkProof {
+pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], outputs: &[u64], options: &ProofOptions) -> StarkProof {
 
     // 1 ----- extend execution trace -------------------------------------------------------------
     let now = Instant::now();
@@ -48,6 +48,7 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
         trace.len() / trace.extension_factor(),
         trace.max_stack_depth(),
         MAX_CONSTRAINT_DEGREE,
+        program_hash,
         inputs,
         outputs
     );

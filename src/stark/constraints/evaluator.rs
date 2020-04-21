@@ -21,9 +21,11 @@ pub struct Evaluator {
     t_degree_groups : Vec<(u64, Vec<usize>)>,
     t_evaluations   : Vec<Vec<u64>>,
 
+    b_constraint_num: usize,
+    program_hash    : [u64; 4],
     inputs          : Vec<u64>,
     outputs         : Vec<u64>,
-    b_constraint_num: usize,
+    b_degree_incr   : u64,
 }
 
 pub struct Coefficients {
@@ -42,6 +44,7 @@ impl Evaluator {
         trace_length: usize,
         stack_depth : usize,
         ext_factor  : usize,
+        program_hash: &[u64; 4],
         inputs      : &[u64],
         outputs     : &[u64]) -> Evaluator
     {
@@ -71,9 +74,11 @@ impl Evaluator {
             t_constraint_num: t_constraint_degrees.len(),
             t_degree_groups : group_transition_constraints(t_constraint_degrees, trace_length),
             t_evaluations   : t_evaluations,
+            b_constraint_num: inputs.len() + outputs.len() + program_hash.len(),
+            program_hash    : *program_hash,
             inputs          : inputs.to_vec(),
             outputs         : outputs.to_vec(),
-            b_constraint_num: inputs.len() + outputs.len()
+            b_degree_incr   : get_incremental_constraint_degree(1, trace_length),
         };
     }
 
@@ -159,40 +164,51 @@ impl Evaluator {
         let stack = current.get_stack();
         
         // compute adjustment factor
-        let adj_degree = get_incremental_constraint_degree(1, self.trace_length()); // TODO: cache
-        let xp = field::mul(x, adj_degree);
+        let xp = field::mul(x, self.b_degree_incr);
 
         // 1 ----- compute combination of input constraints ---------------------------------------
-        let mut result_raw = 0;
+        let mut i_result = 0;
         let mut result_adj = 0;
 
         // separately compute P(x) - input for adjusted and un-adjusted terms
         for i in 0..self.inputs.len() {
             let val = field::sub(stack[i], self.inputs[i]);
-            result_raw = field::add(result_raw, field::mul(val, cc[i * 2]));
+            i_result = field::add(i_result, field::mul(val, cc[i * 2]));
             result_adj = field::add(result_adj, field::mul(val, cc[i * 2 + 1]));
         }
 
         // raise the degree of adjusted terms and sum all the terms together
-        result_adj = field::mul(result_adj, xp);
-        let i_result = field::add(result_raw, result_adj);
+        i_result = field::add(i_result, field::mul(result_adj, xp));
 
         // 2 ----- compute combination of output constraints ---------------------------------------
-        let mut result_raw = 0;
+        let mut f_result = 0;
         let mut result_adj = 0;
 
         // separately compute P(x) - output for adjusted and un-adjusted terms
         for i in 0..self.outputs.len() {
             let val = field::sub(stack[i], self.outputs[i]);
-            result_raw = field::add(result_raw, field::mul(val, cc[i * 2]));
+            f_result = field::add(f_result, field::mul(val, cc[i * 2]));
             result_adj = field::add(result_adj, field::mul(val, cc[i * 2 + 1]));
         }
 
         // raise the degree of adjusted terms and sum all the terms together
-        result_adj = field::mul(result_adj, xp);
-        let o_result = field::add(result_raw, result_adj);
+        f_result = field::add(f_result, field::mul(result_adj, xp));
 
-        return (i_result, o_result);
+        // 3 ----- compute combination of program hash constraints --------------------------------
+        let mut result_adj = 0;
+
+        // because we check program hash at the last step, we add the constraints to the
+        // constraint evaluations to the output constraint combination
+        let program_hash = current.get_program_hash();
+        for i in 0..self.program_hash.len() {
+            let val = field::sub(program_hash[i], self.program_hash[i]);
+            f_result = field::add(f_result, field::mul(val, cc[i * 2]));
+            result_adj = field::add(result_adj, field::mul(val, cc[i * 2 + 1]));
+        }
+
+        f_result = field::add(f_result, field::mul(result_adj, xp));
+
+        return (i_result, f_result);
     }
 
     /// Computes a pseudo-random linear combination of all trace registers P_i at point x as:
@@ -213,8 +229,7 @@ impl Evaluator {
         }
 
         // multiply adjusted terms by degree adjustment factor
-        let adj_degree = get_incremental_constraint_degree(1, self.trace_length()); // TODO: cache
-        let xp = field::mul(x, adj_degree);
+        let xp = field::mul(x, self.b_degree_incr);
         result_adj = field::mul(result_adj, xp);
 
         // sum both parts together and return

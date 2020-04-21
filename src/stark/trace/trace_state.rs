@@ -86,6 +86,10 @@ impl TraceState {
         self.registers[OP_ACC_IDX..(OP_ACC_IDX + ACC_WIDTH)].copy_from_slice(&value);
     }
 
+    pub fn get_program_hash(&self) -> &[u64] {
+        return &self.registers[OP_ACC_IDX..(OP_ACC_IDX + 4)];
+    }
+
     // OP_BITS
     // --------------------------------------------------------------------------------------------
     pub fn get_op_bits(&self) -> &[u64] {

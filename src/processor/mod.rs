@@ -26,14 +26,16 @@ pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize, options: &Pr
     let last_state = trace.get_state(trace.len() - 1);
     let outputs = last_state.get_stack()[0..num_outputs].to_vec();
 
+    // TODO: validate inputs
+
     // copy the hash of the program
     let mut program_hash = [0u64; 4];
     program_hash.copy_from_slice(&last_state.get_op_acc()[0..4]);
-    let program_hash = unsafe { *(&program_hash as *const _ as *const [u8; 32]) };
-
+    
     // generate STARK proof
-    let proof = stark::prove(&mut trace, inputs, &outputs, options);
+    let proof = stark::prove(&mut trace, &program_hash, inputs, &outputs, options);
 
+    let program_hash = unsafe { *(&program_hash as *const _ as *const [u8; 32]) };
     return (outputs, program_hash, proof);
 }
 

@@ -40,11 +40,13 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
     }
 
     // initialize constraint evaluator
+    let program_hash = unsafe { &*(program_hash as *const _ as *const [u64; 4]) };
     let constraint_evaluator = ConstraintEvaluator::new(
         proof.trace_root(), 
         proof.trace_length(),
         proof.stack_depth(),
         options.extension_factor(),
+        program_hash,
         inputs,
         outputs
     );
