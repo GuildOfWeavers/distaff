@@ -1,37 +1,33 @@
 use std::time::{ Instant };
 use crate::stark;
-use crate::stark::{ ProofOptions, StarkProof };
+use crate::stark::{ ProofOptions, StarkProof, MAX_INPUTS, MAX_OUTPUTS };
 
 pub mod opcodes;
 
 pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize, options: &ProofOptions) -> (Vec<u64>, [u8; 32], StarkProof) {
 
-    // pad the program to make sure the length is a power of two and the last operation is NOOP
-    let mut program = program.to_vec();
-    let trace_length = if program.len() == program.len().next_power_of_two() {
-        program.len().next_power_of_two() * 2
-    }
-    else {
-        program.len().next_power_of_two()
-    };
-    program.resize(trace_length, opcodes::NOOP);
+    assert!(inputs.len() <= MAX_INPUTS,
+        "Expected no more than {} inputs, but received {}", MAX_INPUTS, inputs.len());
+    assert!(num_outputs <= MAX_OUTPUTS, 
+        "Cannot produce more than {} outputs, but requested {}", MAX_OUTPUTS, num_outputs);
+
+    // pad the program with the appropriate number of NOOPs
+    let program = pad_program(program);
 
     // execute the program to create an execution trace
     let now = Instant::now();
     let mut trace = stark::TraceTable::new(&program, inputs, options.extension_factor());
     let t = now.elapsed().as_millis();
     println!("Generated execution trace of {} steps in {} ms", trace.len(), t);
-    
+
     // copy the stack state the the last step to return as output
     let last_state = trace.get_state(trace.len() - 1);
     let outputs = last_state.get_stack()[0..num_outputs].to_vec();
 
-    // TODO: validate inputs
-
     // copy the hash of the program
     let mut program_hash = [0u64; 4];
     program_hash.copy_from_slice(&last_state.get_op_acc()[0..4]);
-    
+
     // generate STARK proof
     let proof = stark::prove(&mut trace, &program_hash, inputs, &outputs, options);
 
@@ -42,4 +38,25 @@ pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize, options: &Pr
 pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &StarkProof) -> Result<bool, String> {
 
     return stark::verify(program_hash, inputs, outputs, proof);
+}
+
+/// Pads the program with the appropriate number of NOOPs to ensure that:
+/// 1. The length of the program is at least 16;
+/// 2. The length of the program is a power of 2;
+/// 3. The program terminates with a NOOP.
+pub fn pad_program(program: &[u64]) -> Vec<u64> {
+    let mut program = program.to_vec();
+    let trace_length = if program.len() == program.len().next_power_of_two() {
+        if program[program.len() - 1] == opcodes::NOOP {
+            program.len()
+        }
+        else {
+            program.len().next_power_of_two() * 2
+        }
+    }
+    else {
+        program.len().next_power_of_two()
+    };
+    program.resize(trace_length, opcodes::NOOP);
+    return program;
 }
