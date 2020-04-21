@@ -1,12 +1,13 @@
 use crate::math::{ field, parallel, fft, polys };
 use crate::stark::{ TraceState };
 use crate::utils::{ uninit_vector, zero_filled_vector };
-use super::{ ConstraintEvaluator };
+use super::{ ConstraintEvaluator, MAX_CONSTRAINT_DEGREE };
 
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct ConstraintTable {
     evaluator       : ConstraintEvaluator,
+    domain_stride   : usize,
     trace_reg_comb  : Vec<u64>,
     init_bound_comb : Vec<u64>,
     final_bound_comb: Vec<u64>,
@@ -26,6 +27,7 @@ impl ConstraintTable {
             init_bound_comb : zero_filled_vector(composition_domain_size, evaluation_domain_size),
             final_bound_comb: zero_filled_vector(composition_domain_size, evaluation_domain_size),
             transition_comb : zero_filled_vector(composition_domain_size, evaluation_domain_size),
+            domain_stride   : extension_factor / MAX_CONSTRAINT_DEGREE,
         };
     }
 
@@ -44,6 +46,7 @@ impl ConstraintTable {
     // CONSTRAINT EVALUATION
     // --------------------------------------------------------------------------------------------
     pub fn evaluate(&mut self, current: &TraceState, next: &TraceState, x: u64, step: usize) {
+        let step = step / self.domain_stride;
         self.trace_reg_comb[step] = self.evaluator.combine_trace_registers(current, x);
         let (init_bound, last_bound) = self.evaluator.evaluate_boundaries(current, x);
         self.init_bound_comb[step] = init_bound;

@@ -44,6 +44,7 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
         proof.trace_root(), 
         proof.trace_length(),
         proof.stack_depth(),
+        options.extension_factor(),
         inputs,
         outputs
     );

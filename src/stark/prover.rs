@@ -47,6 +47,7 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
         trace_tree.root(), 
         trace.len() / trace.extension_factor(),
         trace.max_stack_depth(),
+        MAX_CONSTRAINT_DEGREE,
         inputs,
         outputs
     );
@@ -70,7 +71,7 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
         trace.fill_state(&mut next, (i + trace.extension_factor()) % trace.len());
 
         // evaluate the constraints
-        constraints.evaluate(&current, &next, domain[i], i / stride);
+        constraints.evaluate(&current, &next, domain[i], i);
     }
 
     let t = now.elapsed().as_millis();

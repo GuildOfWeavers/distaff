@@ -1,7 +1,7 @@
 use crate::math::field;
 use crate::stark::TraceState;
 use crate::utils::uninit_vector;
-use super::{ decoder, stack, hash_acc };
+use super::{ decoder2, decoder, stack };
 
 // CONSTANTS
 // ================================================================================================
@@ -10,8 +10,11 @@ pub const MAX_CONSTRAINT_DEGREE: usize = 8;
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct Evaluator {
+    decoder         : decoder2::Decoder,
+
     coefficients    : Coefficients,
     domain_size     : usize,
+    extension_factor: usize,
     stack_depth     : usize,
 
     t_constraint_deg: Vec<usize>,
@@ -33,9 +36,16 @@ pub struct Coefficients {
 // ================================================================================================
 impl Evaluator {
 
-    pub fn new(trace_root: &[u64; 4], trace_length: usize, stack_depth: usize, inputs: &[u64], outputs: &[u64]) -> Evaluator {
+    pub fn new(
+        trace_root  : &[u64; 4],
+        trace_length: usize,
+        stack_depth : usize,
+        ext_factor  : usize,
+        inputs      : &[u64],
+        outputs     : &[u64]) -> Evaluator
+    {
 
-        let domain_size = trace_length * MAX_CONSTRAINT_DEGREE;
+        let domain_size = trace_length * ext_factor;
 
         let t_constraint_deg = get_transition_constraint_degrees(stack_depth);
         let t_adjustment_deg = t_constraint_deg[..].iter().map(|&d| 
@@ -49,8 +59,10 @@ impl Evaluator {
         };
 
         return Evaluator {
+            decoder         : decoder2::Decoder::new(ext_factor),
             coefficients    : Coefficients::new(trace_root),
             domain_size     : domain_size,
+            extension_factor: ext_factor,
             stack_depth     : stack_depth,
             t_constraint_deg: t_constraint_deg,
             t_adjustment_deg: t_adjustment_deg,
@@ -69,11 +81,11 @@ impl Evaluator {
     }
 
     pub fn trace_length(&self) -> usize {
-        return self.domain_size / MAX_CONSTRAINT_DEGREE;
+        return self.domain_size / self.extension_factor;
     }
 
     pub fn composition_degree(&self) -> usize {
-        return self.domain_size - self.trace_length() - 1;
+        return (MAX_CONSTRAINT_DEGREE - 1) * self.trace_length() - 1;
     }
 
     // TRANSITION CONSTRAINTS
@@ -82,15 +94,15 @@ impl Evaluator {
         let mut result = 0;
 
         let op_dec = decoder::evaluate(&current, &next);
-        let op_acc = hash_acc::evaluate(&current, &next, step);
+        let op_acc = self.decoder.evaluate(&current, &next, step);
         let stack = stack::evaluate(&current, &next, self.stack_depth);
         let evaluations = [ &op_dec[..], &op_acc[..], &stack[..self.stack_depth] ].concat(); // TODO: build more efficiently
 
-        let should_be_zero = (step % MAX_CONSTRAINT_DEGREE == 0) && (step < self.domain_size - MAX_CONSTRAINT_DEGREE);
+        let should_be_zero = (step % self.extension_factor == 0) && (step < self.domain_size - self.extension_factor);
 
         if should_be_zero {
             for i in 0..evaluations.len() {
-                assert!(evaluations[i] == 0, "transition constraint at step {} didn't evaluate to 0", step / MAX_CONSTRAINT_DEGREE);
+                assert!(evaluations[i] == 0, "transition constraint at step {} didn't evaluate to 0", step / self.extension_factor);
             }
         }
         else {
@@ -225,7 +237,7 @@ impl Coefficients {
 fn get_transition_constraint_degrees(stack_depth: usize) -> Vec<usize> {
     let degrees = [
         &decoder::CONSTRAINT_DEGREES[..],
-        &hash_acc::CONSTRAINT_DEGREES[..],
+        &decoder2::CONSTRAINT_DEGREES[..],
         &stack::CONSTRAINT_DEGREES[..stack_depth]
     ].concat();
     return degrees;
