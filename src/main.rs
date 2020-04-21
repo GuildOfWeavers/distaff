@@ -1,8 +1,14 @@
 use std::env;
-use std::time::{ Instant };
+use std::io::Write;
+use std::time::Instant;
 use distaff::{ ProofOptions, StarkProof, processor, processor::opcodes, field, hash_acc };
 
 fn main() {
+
+    // configure logging
+    env_logger::Builder::new()
+        .format(|buf, record| writeln!(buf, "{}", record.args()))
+        .filter_level(log::LevelFilter::Debug).init();
 
     // read the length of Fibonacci sequence from command line or use 6 as default
     let args: Vec<String> = env::args().collect();

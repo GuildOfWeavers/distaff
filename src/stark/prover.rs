@@ -1,4 +1,5 @@
-use std::time::{ Instant };
+use std::time::Instant;
+use log::debug;
 use std::collections::BTreeMap;
 use crate::math::{ field, quartic::to_quartic_vec };
 use crate::crypto::{ MerkleTree };
@@ -16,8 +17,10 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
     // 1 ----- extend execution trace -------------------------------------------------------------
     let now = Instant::now();
     trace.extend();
-    let t = now.elapsed().as_millis();
-    println!("Extended execution trace of {} registers to {} steps in {} ms", trace.register_count(), trace.len(), t);
+    debug!("Extended execution trace of {} registers to {} steps in {} ms",
+        trace.register_count(),
+        trace.len(), 
+        now.elapsed().as_millis());
 
     // 2 ----- build Merkle tree from extended execution trace ------------------------------------
     let now = Instant::now();
@@ -29,15 +32,16 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
         options.hash_function()(trace_state.registers(), &mut hashed_states[i]);
     }
     let trace_tree = MerkleTree::new(hashed_states, options.hash_function());
-    let t = now.elapsed().as_millis();
-    println!("Built trace Merkle tree in {} ms", t);
+    debug!("Built trace Merkle tree in {} ms", 
+        now.elapsed().as_millis());
 
     // 3 ----- build evaluation domain for the extended execution trace ---------------------------
     let now = Instant::now();
     let root = field::get_root_of_unity(trace.len() as u64);
     let domain = field::get_power_series(root, trace.len());
-    let t = now.elapsed().as_millis();
-    println!("Built evaluation domain of {} elements in {} ms", domain.len() , t);
+    debug!("Built evaluation domain of {} elements in {} ms",
+        domain.len(),
+        now.elapsed().as_millis());
 
     // 4 ----- evaluate constraints ---------------------------------------------------------------
     let now = Instant::now();
@@ -75,23 +79,24 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
         constraints.evaluate(&current, &next, domain[i], i);
     }
 
-    let t = now.elapsed().as_millis();
-    println!("Evaluated {} constraints in {} ms", constraints.constraint_count(), t);
+    debug!("Evaluated {} constraints in {} ms",
+        constraints.constraint_count(),
+        now.elapsed().as_millis());
 
     // 5 ----- combine transition constraints into a single polynomial ----------------------------
     let now = Instant::now();
 
     // compute composition polynomial evaluations
     let composed_evaluations = constraints.compose(&domain);
-    let t = now.elapsed().as_millis();
-    println!("Computed composition polynomial in {} ms", t);
+    debug!("Computed composition polynomial in {} ms",
+        now.elapsed().as_millis());
 
     // 6 ----- generate low-degree proof for composition polynomial -------------------------------
     let now = Instant::now();
     let composition_degree_plus_1 = constraints.composition_degree() + 1;
     let fri_proof = fri::prove(&composed_evaluations, &domain, composition_degree_plus_1, options);
-    let t = now.elapsed().as_millis();
-    println!("Generated low-degree proof for composition polynomial in {} ms", t);
+    debug!("Generated low-degree proof for composition polynomial in {} ms",
+        now.elapsed().as_millis());
 
     // 7 ----- query extended execution trace at pseudo-random positions --------------------------
     let now = Instant::now();
@@ -120,8 +125,9 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
     // build the proof object
     let proof = StarkProof::new(trace_tree.root(), trace_proof, trace_states, fri_proof, options.clone());
 
-    let t = now.elapsed().as_millis();
-    println!("Computed {} trace queries and built proof object in {} ms", positions.len(), t);
+    debug!("Computed {} trace queries and built proof object in {} ms",
+        positions.len(),
+        now.elapsed().as_millis());
 
     return proof;
 }

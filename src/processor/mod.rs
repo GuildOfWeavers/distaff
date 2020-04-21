@@ -1,9 +1,14 @@
-use std::time::{ Instant };
-use crate::stark;
-use crate::stark::{ ProofOptions, StarkProof, MAX_INPUTS, MAX_OUTPUTS };
+use log::debug;
+use std::time::Instant;
+use crate::stark::{ self, ProofOptions, StarkProof, MAX_INPUTS, MAX_OUTPUTS };
 
 pub mod opcodes;
 
+/// Executes the specified `program` and returns the result together with program hash
+/// and STARK-based proof of execution.
+/// 
+/// * `inputs` specify the initial stack state the with inputs[0] being the top of the stack;
+/// * `num_outputs` specifies the number of elements from the top of the stack to be returned;
 pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize, options: &ProofOptions) -> (Vec<u64>, [u8; 32], StarkProof) {
 
     assert!(inputs.len() <= MAX_INPUTS,
@@ -17,8 +22,9 @@ pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize, options: &Pr
     // execute the program to create an execution trace
     let now = Instant::now();
     let mut trace = stark::TraceTable::new(&program, inputs, options.extension_factor());
-    let t = now.elapsed().as_millis();
-    println!("Generated execution trace of {} steps in {} ms", trace.len(), t);
+    debug!("Generated execution trace of {} steps in {} ms",
+        trace.len(),
+        now.elapsed().as_millis());
 
     // copy the stack state the the last step to return as output
     let last_state = trace.get_state(trace.len() - 1);
@@ -35,6 +41,8 @@ pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize, options: &Pr
     return (outputs, program_hash, proof);
 }
 
+/// Verifies that if a program with the specified `program_hash` is executed with the 
+/// provided `inputs`, the result is equal to the `outputs`.
 pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &StarkProof) -> Result<bool, String> {
 
     return stark::verify(program_hash, inputs, outputs, proof);
