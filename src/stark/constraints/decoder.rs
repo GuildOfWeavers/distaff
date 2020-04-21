@@ -12,7 +12,7 @@ use crate::stark::utils::hash_acc::{
 const NUM_CONSTRAINTS: usize = STATE_WIDTH + 9;
 
 /// Degree of operation decoder constraints.
-pub const CONSTRAINT_DEGREES: [usize; NUM_CONSTRAINTS] = [
+const CONSTRAINT_DEGREES: [usize; NUM_CONSTRAINTS] = [
     2, 2, 2, 2, 2,      // op_bits are binary
     2,                  // push_flag is binary
     6,                  // push_flag is set after a PUSH operation
@@ -50,6 +50,10 @@ impl Decoder {
 
     pub fn constraint_count(&self) -> usize {
         return NUM_CONSTRAINTS;
+    }
+
+    pub fn constraint_degrees() -> &'static [usize] {
+        return &CONSTRAINT_DEGREES;
     }
 
     // EVALUATOR FUNCTION

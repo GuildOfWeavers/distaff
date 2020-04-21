@@ -5,7 +5,7 @@ use crate::processor::{ opcodes };
 
 // CONSTANTS
 // ================================================================================================
-pub const CONSTRAINT_DEGREES: [usize; MAX_STACK_DEPTH] = [5; MAX_STACK_DEPTH];
+const CONSTRAINT_DEGREES: [usize; MAX_STACK_DEPTH] = [5; MAX_STACK_DEPTH];
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -21,6 +21,12 @@ impl Stack {
         return Stack { stack_depth };
     }
 
+    pub fn constraint_degrees(stack_depth: usize) -> &'static [usize] {
+        return &CONSTRAINT_DEGREES[..stack_depth];
+    }
+
+    // EVALUATOR FUNCTION
+    // --------------------------------------------------------------------------------------------
     pub fn evaluate(&self, current: &TraceState, next: &TraceState, result: &mut [u64]) {
 
         let op_flags = current.get_op_flags();
