@@ -1,6 +1,6 @@
 #[cfg(test)]
 
-use crate::{ ProofOptions, opcodes, hash_acc, utils };
+use crate::{ ProofOptions, opcodes, hash_acc, utils::CopyInto };
 
 #[test]
 fn execute_verify() {
@@ -12,8 +12,7 @@ fn execute_verify() {
         opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
         opcodes::NOOP
     ];
-    let expected_hash = hash_acc(&program[..(program.len() - 1)]);
-    let expected_hash = utils::quartic_to_bytes(expected_hash);
+    let expected_hash = hash_acc(&program[..(program.len() - 1)]).copy_into();
 
     let options = ProofOptions::default();
     let inputs = [1, 0];
@@ -37,8 +36,7 @@ fn execute_verify_fail() {
         opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
         opcodes::NOOP
     ];
-    let expected_hash = hash_acc(&program[..(program.len() - 1)]);
-    let expected_hash = utils::quartic_to_bytes(expected_hash);
+    let expected_hash = hash_acc(&program[..(program.len() - 1)]).copy_into();
 
     let options = ProofOptions::default();
     let inputs = [1, 0];

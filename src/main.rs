@@ -1,7 +1,7 @@
 use std::env;
 use std::io::Write;
 use std::time::Instant;
-use distaff::{ ProofOptions, StarkProof, processor, processor::opcodes, field, hash_acc, utils };
+use distaff::{ ProofOptions, StarkProof, processor, processor::opcodes, field, hash_acc, utils::CopyInto };
 
 fn main() {
 
@@ -17,8 +17,7 @@ fn main() {
     // generate the program and expected results
     let program = generate_fibonacci_program(n);
     let expected_result = compute_fibonacci(n);
-    let expected_hash = hash_acc(&program[..(program.len() - 1)]);
-    let expected_hash = utils::quartic_to_bytes(expected_hash);
+    let expected_hash = hash_acc(&program[..(program.len() - 1)]).copy_into();
     println!("Generated a program to compute {}-th Fibonacci term; expected result: {}", 
         n,
         expected_result);

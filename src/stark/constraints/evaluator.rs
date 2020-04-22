@@ -1,6 +1,6 @@
 use crate::math::field;
 use crate::stark::TraceState;
-use crate::utils::{ uninit_vector, quartic_to_bytes };
+use crate::utils::{ uninit_vector, CopyInto };
 use super::{ decoder::Decoder, stack::Stack };
 
 // CONSTANTS
@@ -267,7 +267,7 @@ impl Coefficients {
     pub fn new(seed: &[u64; 4]) -> Coefficients {
 
         // generate a pseudo-random list of coefficients
-        let coefficients = field::prng_vector(quartic_to_bytes(*seed), 256 + 256 + 32 + 32);
+        let coefficients = field::prng_vector(seed.copy_into(), 256 + 256 + 32 + 32);
         
         // copy coefficients to their respective segments
         let mut trace = [0u64; 256];

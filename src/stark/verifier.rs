@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use crate::{ math::field, crypto::MerkleTree, utils };
+use crate::{ math::field, crypto::MerkleTree, utils::CopyInto };
 use super::{ StarkProof, ConstraintEvaluator, fri, utils::QueryIndexGenerator };
 
 // VERIFIER FUNCTION
@@ -44,7 +44,7 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
         proof.trace_length(),
         proof.stack_depth(),
         options.extension_factor(),
-        &utils::quartic_from_bytes(*program_hash),
+        &program_hash.copy_into(),
         inputs,
         outputs
     );

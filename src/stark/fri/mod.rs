@@ -1,5 +1,5 @@
 use std::mem;
-use crate::utils;
+use crate::utils::CopyInto;
 use crate::math::{ field, polys, quartic };
 use crate::crypto::{ MerkleTree, BatchMerkleProof };
 use crate::stark::{ ProofOptions, utils::QueryIndexGenerator };
@@ -56,7 +56,7 @@ pub fn prove(evaluations: &[u64], domain: &[u64], max_degree_plus_1: usize, opti
         let polys = quartic::interpolate_batch(&xs, p_tree.leaves());
 
         // select a pseudo-random x coordinate and evaluate each row polynomial at that coordinate
-        let special_x = field::prng(utils::quartic_to_bytes(*p_tree.root()));
+        let special_x = field::prng(p_tree.root().copy_into());
         let column = quartic::evaluate_batch(&polys, special_x);
 
         // break the column in a polynomial value matrix for the next layer
@@ -170,7 +170,7 @@ pub fn verify(proof: &FriProof, evaluations: &[u64], domain_root: u64, max_degre
         let row_polys = quartic::interpolate_batch(&xs, &poly_proof.values);
 
         // calculate the pseudo-random x coordinate
-        let special_x = field::prng(utils::quartic_to_bytes(p_root));
+        let special_x = field::prng(p_root.copy_into());
 
         // check that when the polynomials are evaluated at x, the result is equal to the corresponding column value
         let p_evaluations = quartic::evaluate_batch(&row_polys, special_x);

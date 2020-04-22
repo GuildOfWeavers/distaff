@@ -1,6 +1,6 @@
 use rand::prelude::*;
 use rand::distributions::Uniform;
-use crate::{ stark::ProofOptions, utils };
+use crate::{ stark::ProofOptions, CopyInto };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -32,9 +32,8 @@ impl QueryIndexGenerator {
 
     fn generate_indexes(&self, seed: &[u64; 4], num_indexes: usize, max_index: usize) -> Vec<usize> {
 
-        let seed = utils::quartic_to_bytes(*seed);
         let range = Uniform::from(0..max_index);
-        let mut index_iter = StdRng::from_seed(seed).sample_iter(range);
+        let mut index_iter = StdRng::from_seed(seed.copy_into()).sample_iter(range);
 
         let mut result = Vec::new();
         for _ in 0..1000 {
