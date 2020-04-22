@@ -5,7 +5,7 @@ use crate::processor::{ opcodes };
 
 // CONSTANTS
 // ================================================================================================
-const CONSTRAINT_DEGREES: [usize; MAX_STACK_DEPTH] = [5; MAX_STACK_DEPTH];
+const CONSTRAINT_DEGREES: [usize; MAX_STACK_DEPTH] = [6; MAX_STACK_DEPTH];
 
 // TYPES AND INTERFACES
 // ================================================================================================

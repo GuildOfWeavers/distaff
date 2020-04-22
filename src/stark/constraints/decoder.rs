@@ -8,14 +8,13 @@ use crate::stark::utils::hash_acc::{
 
 // CONSTANTS
 // ================================================================================================
-
 const NUM_CONSTRAINTS: usize = STATE_WIDTH + 9;
 
 /// Degree of operation decoder constraints.
 const CONSTRAINT_DEGREES: [usize; NUM_CONSTRAINTS] = [
     2, 2, 2, 2, 2,      // op_bits are binary
     2,                  // push_flag is binary
-    6,                  // push_flag is set after a PUSH operation
+    5,                  // push_flag is set after a PUSH operation
     2,                  // push_flag gets reset on the next step
     2,                  // when push_flag = 0, op_bits are a binary decomposition of op_code
     6, 6, 6, 6, 6, 6,   // op_code hash accumulator constraints
@@ -59,6 +58,10 @@ impl Decoder {
     // EVALUATOR FUNCTION
     // --------------------------------------------------------------------------------------------
     pub fn evaluate(&self, current: &TraceState, next: &TraceState, step: usize, result: &mut [u64]) {
+
+        // TODO: degree of expanded op_bits is assumed to be 5, but in reality can be less than 5
+        // if opcodes used in the program don't touch some op_bits. Thus, all degrees that assume
+        // op_flag values to have degree 5, may be off.
 
         // 5 constraints, degree 2: op_bits must be binary
         let op_bits = current.get_op_bits();

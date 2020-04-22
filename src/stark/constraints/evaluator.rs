@@ -65,6 +65,13 @@ impl Evaluator {
             Vec::new()
         };
 
+        // target degree for boundary constraints is 1 more than composition degree because
+        // when composition polynomial is constructed, adjusted boundary constraints are
+        // divided by degree 1 polynomial
+        let boundary_constraint_degree = trace_length - 1;
+        let target_degree = (MAX_CONSTRAINT_DEGREE - 1) * trace_length;
+        let b_degree_incr = target_degree - boundary_constraint_degree;
+
         return Evaluator {
             decoder         : Decoder::new(ext_factor),
             stack           : Stack::new(stack_depth),
@@ -78,7 +85,7 @@ impl Evaluator {
             program_hash    : *program_hash,
             inputs          : inputs.to_vec(),
             outputs         : outputs.to_vec(),
-            b_degree_incr   : get_incremental_constraint_degree(1, trace_length),
+            b_degree_incr   : b_degree_incr as u64,
         };
     }
 
@@ -98,6 +105,10 @@ impl Evaluator {
         return (MAX_CONSTRAINT_DEGREE - 1) * self.trace_length() - 1;
     }
 
+    pub fn transition_evaluations(&self) -> &Vec<Vec<u64>> {
+        return &self.t_evaluations;
+    }
+
     // CONSTRAINT EVALUATORS
     // -------------------------------------------------------------------------------------------
 
@@ -110,6 +121,10 @@ impl Evaluator {
         let mut evaluations = vec![0; self.t_constraint_num];
         self.decoder.evaluate(&current, &next, step, &mut evaluations);
         self.stack.evaluate(&current, &next, &mut evaluations[self.decoder.constraint_count()..]);
+
+        // when in debug mode, save transition evaluations before they are combined
+        #[cfg(debug_assertions)]
+        self.save_transition_evaluations(&evaluations, step);
 
         // if the constraints should evaluate to all zeros at this step,
         // make sure they do, and return
@@ -143,14 +158,6 @@ impl Evaluator {
             result = field::add(result, field::mul(result_adj, xp));
         }
 
-        // if we are in debug mode, record all constraint evaluations
-        if cfg!(debug_assertions) {
-            let mutable_self = unsafe { &mut *(self as *const _ as *mut Evaluator) };
-            for i in 0..evaluations.len() {
-                mutable_self.t_evaluations[i][step] = evaluations[i];
-            }
-        }
-
         return result;
     }
 
@@ -164,7 +171,7 @@ impl Evaluator {
         let stack = current.get_stack();
         
         // compute adjustment factor
-        let xp = field::mul(x, self.b_degree_incr);
+        let xp = field::exp(x, self.b_degree_incr);
 
         // 1 ----- compute combination of input constraints ---------------------------------------
         let mut i_result = 0;
@@ -228,8 +235,10 @@ impl Evaluator {
             result_adj = field::add(result_adj, field::mul(registers[i], cc[i * 2 + 1]));
         }
 
-        // multiply adjusted terms by degree adjustment factor
-        let xp = field::mul(x, self.b_degree_incr);
+        // multiply adjusted terms by degree adjustment factor; the incremental degree here
+        // is 1 less than incremental degree for boundary constraints because trace register
+        // combination is not divided by zero polynomials during composition.
+        let xp = field::exp(x, self.b_degree_incr - 1);
         result_adj = field::mul(result_adj, xp);
 
         // sum both parts together and return
@@ -241,6 +250,13 @@ impl Evaluator {
     fn should_evaluate_to_zero_at(&self, step: usize) -> bool {
         return (step & (self.extension_factor - 1) == 0) // same as: step % extension_factor == 0
             && (step != self.domain_size - self.extension_factor);
+    }
+
+    fn save_transition_evaluations(&self, evaluations: &[u64], step: usize) {
+        let mutable_self = unsafe { &mut *(self as *const _ as *mut Evaluator) };
+        for i in 0..evaluations.len() {
+            mutable_self.t_evaluations[i][step] = evaluations[i];
+        }
     }
 }
 
@@ -284,18 +300,17 @@ fn group_transition_constraints(degrees: Vec<usize>, trace_length: usize) -> Vec
         groups[degree].push(i);
     }
 
+    // target degree for transition constraints should be equal 
+    // to the maximum degree of a polynomial in the composition domain
+    let target_degree = trace_length * MAX_CONSTRAINT_DEGREE - 1;
+
     let mut result = Vec::new();
     for (degree, constraints) in groups.iter().enumerate() {
         if constraints.len() == 0 { continue; }
-        let incremental_degree = get_incremental_constraint_degree(degree, trace_length);
+        let constraint_degree = (trace_length - 1) * degree;    
+        let incremental_degree = (target_degree - constraint_degree - 1) as u64;
         result.push((incremental_degree, constraints.clone()));
     }
 
     return result;
-}
-
-fn get_incremental_constraint_degree(degree: usize, trace_length: usize) -> u64 {
-    let target_degree = trace_length * MAX_CONSTRAINT_DEGREE - 1;
-    let constraint_degree = (trace_length - 1) * degree;
-    return (target_degree - constraint_degree - 1) as u64;
 }

@@ -22,7 +22,7 @@ pub fn pow_log2(base: u64, mut exponent: u32) -> u64 {
     return u64::pow(2, twos) * (64 - u64::pow(base, exponent).leading_zeros() as u64 - 1);
 }
 
-pub fn infer_evaluation_degree(evaluations: &[u64]) -> u64 {
+pub fn infer_degree(evaluations: &[u64]) -> u64 {
 
     let mut evaluations = evaluations.to_vec();
     polys::interpolate_fft(&mut evaluations, true);
