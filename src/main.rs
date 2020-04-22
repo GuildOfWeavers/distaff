@@ -17,7 +17,7 @@ fn main() {
     // generate the program and expected results
     let program = generate_fibonacci_program(n);
     let expected_result = compute_fibonacci(n);
-    let expected_hash = hash_acc(&program[..(program.len() - 1)]).copy_into();
+    let expected_hash = hash_acc::digest(&program[..(program.len() - 1)]).copy_into();
     println!("Generated a program to compute {}-th Fibonacci term; expected result: {}", 
         n,
         expected_result);

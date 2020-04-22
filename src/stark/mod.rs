@@ -13,4 +13,4 @@ pub use options::ProofOptions;
 pub use proof::{ StarkProof };
 pub use prover::{ prove };
 pub use verifier::{ verify };
-pub use utils::{ hash_acc::digest as hash_acc };
+pub use utils::hash_acc;

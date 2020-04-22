@@ -1,14 +1,15 @@
 use crate::math::{ field, fft, polys };
 use crate::processor::opcodes;
-use super::{ TraceState, decoder, stack, hash_acc };
+use crate::stark::{ hash_acc::STATE_WIDTH as ACC_STATE_WIDTH };
+use super::{ TraceState, decoder, stack, NUM_OP_BITS };
 
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct TraceTable {
     op_code     : Vec<u64>,
     push_flag   : Vec<u64>,
-    op_bits     : [Vec<u64>; 5],
-    op_acc      : [Vec<u64>; hash_acc::STATE_WIDTH],
+    op_bits     : [Vec<u64>; NUM_OP_BITS],
+    op_acc      : [Vec<u64>; ACC_STATE_WIDTH],
     stack       : Vec<Vec<u64>>,
 
     extension_factor: usize
@@ -27,8 +28,7 @@ impl TraceTable {
         assert!(program[program.len() - 1] == opcodes::NOOP, "last operation of a program must be NOOP");
 
         // create trace table object
-        let (op_code, push_flag, op_bits) = decoder::process(program, extension_factor);
-        let op_acc = hash_acc::digest(program, extension_factor);
+        let (op_code, push_flag, op_bits, op_acc) = decoder::process(program, extension_factor);
         let stack = stack::execute(program, inputs, extension_factor);
         return TraceTable { op_code, push_flag, op_bits, op_acc, stack, extension_factor };
     }

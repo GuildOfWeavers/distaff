@@ -253,9 +253,11 @@ impl Evaluator {
     }
 
     fn save_transition_evaluations(&self, evaluations: &[u64], step: usize) {
-        let mutable_self = unsafe { &mut *(self as *const _ as *mut Evaluator) };
-        for i in 0..evaluations.len() {
-            mutable_self.t_evaluations[i][step] = evaluations[i];
+        unsafe {
+            let mutable_self = &mut *(self as *const _ as *mut Evaluator);
+            for i in 0..evaluations.len() {
+                mutable_self.t_evaluations[i][step] = evaluations[i];
+            }
         }
     }
 }

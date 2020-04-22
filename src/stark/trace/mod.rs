@@ -1,7 +1,6 @@
 mod trace_state;
 mod trace_table;
 mod decoder;
-mod hash_acc;
 mod stack;
 
 pub use trace_state::TraceState;

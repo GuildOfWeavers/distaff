@@ -1,10 +1,16 @@
 use crate::processor::opcodes;
+use crate::field;
+use crate::stark::utils::hash_acc::{ self, STATE_WIDTH as ACC_STATE_WIDTH, NUM_ROUNDS };
 use crate::utils::zero_filled_vector;
 use super::{ NUM_OP_BITS };
 
+// TYPES AND INTERFACES
+// ================================================================================================
+type DecoderResult = (Vec<u64>, Vec<u64>, [Vec<u64>; NUM_OP_BITS], [Vec<u64>; ACC_STATE_WIDTH]);
+
 // TRACE BUILDER
 // ================================================================================================
-pub fn process(program: &[u64], extension_factor: usize) -> (Vec<u64>, Vec<u64>, [Vec<u64>; NUM_OP_BITS]) {
+pub fn process(program: &[u64], extension_factor: usize) -> DecoderResult {
 
     let trace_length = program.len();
     let domain_size = trace_length * extension_factor;
@@ -44,7 +50,61 @@ pub fn process(program: &[u64], extension_factor: usize) -> (Vec<u64>, Vec<u64>,
         i += 1;
     }
 
-    return (op_code, push_flag, op_bits);
+    let op_acc = hash_program(&op_code, extension_factor);
+
+    return (op_code, push_flag, op_bits, op_acc);
+}
+
+// OPERATION ACCUMULATOR
+// ================================================================================================
+pub fn hash_program(op_codes: &[u64], extension_factor: usize) -> [Vec<u64>; ACC_STATE_WIDTH] {
+    
+    let trace_length = op_codes.len();
+    let domain_size = trace_length * extension_factor;
+
+    let mut registers = [
+        zero_filled_vector(trace_length, domain_size),
+        zero_filled_vector(trace_length, domain_size),
+        zero_filled_vector(trace_length, domain_size),
+        zero_filled_vector(trace_length, domain_size),
+        zero_filled_vector(trace_length, domain_size),
+        zero_filled_vector(trace_length, domain_size),
+        zero_filled_vector(trace_length, domain_size),
+        zero_filled_vector(trace_length, domain_size),
+        zero_filled_vector(trace_length, domain_size),
+        zero_filled_vector(trace_length, domain_size),
+        zero_filled_vector(trace_length, domain_size),
+        zero_filled_vector(trace_length, domain_size),
+    ];
+
+    let mut state = [0; ACC_STATE_WIDTH];
+    for register in registers.iter_mut() {
+        register[0] = 0;
+    }
+
+    for i in 0..(op_codes.len() - 1) {
+        // inject op_code into the state
+        state[0] = field::add(state[0], op_codes[i]);
+        state[1] = field::mul(state[1], op_codes[i]);
+
+        let step = i % NUM_ROUNDS;
+
+        // apply Rescue round
+        hash_acc::add_constants(&mut state, step, 0);
+        hash_acc::apply_sbox(&mut state);
+        hash_acc::apply_mds(&mut state);
+
+        hash_acc::add_constants(&mut state, step, ACC_STATE_WIDTH);
+        hash_acc::apply_inv_sbox(&mut state);
+        hash_acc::apply_mds(&mut state);
+
+        // copy updated state into registers for the next step
+        for j in 0..ACC_STATE_WIDTH {
+            registers[j][i + 1] = state[j];
+        }
+    }
+
+    return registers;
 }
 
 // HELPER FUNCTIONS

@@ -1,7 +1,7 @@
 use std::fmt;
 use std::cmp;
 use crate::math::field::{ add, sub, mul, ONE };
-use crate::stark::{ utils::hash_acc::STATE_WIDTH as ACC_WIDTH };
+use crate::stark::hash_acc::STATE_WIDTH as ACC_STATE_WIDTH;
 use super::{ NUM_OP_BITS, NUM_LD_OPS, MIN_STACK_DEPTH };
 
 // CONSTANTS
@@ -9,10 +9,10 @@ use super::{ NUM_OP_BITS, NUM_LD_OPS, MIN_STACK_DEPTH };
 const OP_CODE_IDX   : usize = 0;
 const PUSH_FLAG_IDX : usize = 1;
 const OP_ACC_IDX    : usize = 2;
-const OP_BITS_IDX   : usize = OP_ACC_IDX + ACC_WIDTH;
+const OP_BITS_IDX   : usize = OP_ACC_IDX + ACC_STATE_WIDTH;
 const STACK_IDX     : usize = OP_BITS_IDX + NUM_OP_BITS;
 
-const STATIC_REGISTER_COUNT: usize = 2 + NUM_OP_BITS + ACC_WIDTH;
+const STATIC_REGISTER_COUNT: usize = 2 + NUM_OP_BITS + ACC_STATE_WIDTH;
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -79,11 +79,11 @@ impl TraceState {
     // OP_ACC
     // --------------------------------------------------------------------------------------------
     pub fn get_op_acc(&self) -> &[u64] {
-        return &self.registers[OP_ACC_IDX..(OP_ACC_IDX + ACC_WIDTH)];
+        return &self.registers[OP_ACC_IDX..(OP_ACC_IDX + ACC_STATE_WIDTH)];
     }
 
-    pub fn set_op_acc(&mut self, value: [u64; ACC_WIDTH]) {
-        self.registers[OP_ACC_IDX..(OP_ACC_IDX + ACC_WIDTH)].copy_from_slice(&value);
+    pub fn set_op_acc(&mut self, value: [u64; ACC_STATE_WIDTH]) {
+        self.registers[OP_ACC_IDX..(OP_ACC_IDX + ACC_STATE_WIDTH)].copy_from_slice(&value);
     }
 
     pub fn get_program_hash(&self) -> &[u64] {
@@ -115,9 +115,11 @@ impl TraceState {
     // --------------------------------------------------------------------------------------------
     pub fn get_op_flags(&self) -> [u64; NUM_LD_OPS] {
         if !self.op_flags_set {
-            let mutable_self = unsafe { &mut *(self as *const _ as *mut TraceState) };
-            mutable_self.set_op_flags();
-            mutable_self.op_flags_set = true;
+            unsafe {
+                let mutable_self = &mut *(self as *const _ as *mut TraceState);
+                mutable_self.set_op_flags();
+                mutable_self.op_flags_set = true;
+            }
         }
         return self.op_flags;
     }
@@ -143,9 +145,8 @@ impl TraceState {
                 op_flags[j] = mul(op_flags[j], op_bits[i]);
             }
 
-            let segment_slice = unsafe { &*(&op_flags[0..segment_length] as *const [u64]) };
             for j in (segment_length..NUM_LD_OPS).step_by(segment_length) {
-                op_flags[j..(j + segment_length)].copy_from_slice(segment_slice);
+                op_flags.copy_within(0..segment_length, j);
             }
         }
 
