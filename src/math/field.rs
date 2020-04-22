@@ -1,5 +1,6 @@
 use rand::prelude::*;
 use rand::distributions::{Distribution, Uniform};
+use crate::utils::uninit_vector;
 
 // Field modulus = 2^64 - 45 * 2^32 + 1
 pub const M: u64 = 18446743880436023297;
@@ -98,8 +99,7 @@ pub fn inv(x: u64) -> u64 {
 
 /// Computes multiplicative inverses of all slice elements using batch inversion method.
 pub fn inv_many(values: &[u64]) -> Vec<u64> {
-    let mut result = Vec::with_capacity(values.len());
-    unsafe { result.set_len(values.len()); }
+    let mut result = uninit_vector(values.len());
     inv_many_fill(values, &mut result);
     return result;
 }

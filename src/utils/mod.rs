@@ -35,3 +35,15 @@ pub fn infer_degree(evaluations: &[u64]) -> u64 {
 
     return 0;
 }
+
+// TYPE CONVERSIONS
+// ================================================================================================
+pub fn quartic_to_bytes(value: [u64; 4]) -> [u8; 32] {
+    // TODO: there must be a better way to do this
+    return unsafe { *(&value as *const _ as *const [u8; 32]) };
+}
+
+pub fn quartic_from_bytes(value: [u8; 32]) -> [u64; 4] {
+    // TODO: there must be a better way to do this
+    return unsafe { *(&value as *const _ as *const [u64; 4]) };
+}

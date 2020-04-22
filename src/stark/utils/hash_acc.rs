@@ -7,7 +7,7 @@ pub const NUM_ROUNDS: usize = 16;
 
 // HASH FUNCTION
 // ================================================================================================
-pub fn digest(values: &[u64]) -> [u64; STATE_WIDTH] {
+pub fn digest(values: &[u64]) -> [u64; 4] {
 
     let mut state = [0; STATE_WIDTH];
 
@@ -26,7 +26,10 @@ pub fn digest(values: &[u64]) -> [u64; STATE_WIDTH] {
         apply_mds(&mut state);
     }
 
-    return state;
+    // TODO: a better way to initialize result from state
+    let mut result = [0; 4];
+    result.copy_from_slice(&state[..4]);
+    return result;
 }
 
 // HELPER FUNCTIONS

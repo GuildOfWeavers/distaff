@@ -1,7 +1,7 @@
 #[cfg(test)]
 
-use crate::{ ProofOptions, opcodes, hash_acc };
-    
+use crate::{ ProofOptions, opcodes, hash_acc, utils };
+
 #[test]
 fn execute_verify() {
     let program = [
@@ -13,7 +13,7 @@ fn execute_verify() {
         opcodes::NOOP
     ];
     let expected_hash = hash_acc(&program[..(program.len() - 1)]);
-    let expected_hash = unsafe { *(&expected_hash as *const _ as *const [u8; 32]) };
+    let expected_hash = utils::quartic_to_bytes(expected_hash);
 
     let options = ProofOptions::default();
     let inputs = [1, 0];
@@ -38,7 +38,7 @@ fn execute_verify_fail() {
         opcodes::NOOP
     ];
     let expected_hash = hash_acc(&program[..(program.len() - 1)]);
-    let expected_hash = unsafe { *(&expected_hash as *const _ as *const [u8; 32]) };
+    let expected_hash = utils::quartic_to_bytes(expected_hash);
 
     let options = ProofOptions::default();
     let inputs = [1, 0];

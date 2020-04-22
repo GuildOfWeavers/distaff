@@ -1,6 +1,7 @@
 use log::debug;
 use std::time::Instant;
 use crate::stark::{ self, ProofOptions, StarkProof, MAX_INPUTS, MAX_OUTPUTS };
+use crate::utils;
 
 mod tests;
 pub mod opcodes;
@@ -37,9 +38,7 @@ pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize, options: &Pr
 
     // generate STARK proof
     let proof = stark::prove(&mut trace, &program_hash, inputs, &outputs, options);
-
-    let program_hash = unsafe { *(&program_hash as *const _ as *const [u8; 32]) };
-    return (outputs, program_hash, proof);
+    return (outputs, utils::quartic_to_bytes(program_hash), proof);
 }
 
 /// Verifies that if a program with the specified `program_hash` is executed with the 

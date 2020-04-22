@@ -1,4 +1,5 @@
 use crate::math::{ field, fft };
+use crate::utils::uninit_vector;
 
 // POLYNOMIAL EVALUATION
 // ================================================================================================
@@ -183,8 +184,7 @@ fn get_last_non_zero_index(vec: &[u64]) -> usize {
 
 fn get_zero_roots(xs: &[u64]) -> Vec<u64> {
     let mut n = xs.len() + 1;
-    let mut result = Vec::with_capacity(n);
-    unsafe { result.set_len(n); }
+    let mut result = uninit_vector(n);
     
     n -= 1;
     result[n] = 1;

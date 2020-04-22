@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
-use crate::math::{ field };
-use crate::crypto::{ MerkleTree };
+use crate::{ math::field, crypto::MerkleTree, utils };
 use super::{ StarkProof, ConstraintEvaluator, fri, utils::QueryIndexGenerator };
 
 // VERIFIER FUNCTION
@@ -40,13 +39,12 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
     }
 
     // initialize constraint evaluator
-    let program_hash = unsafe { &*(program_hash as *const _ as *const [u64; 4]) };
     let constraint_evaluator = ConstraintEvaluator::new(
         proof.trace_root(), 
         proof.trace_length(),
         proof.stack_depth(),
         options.extension_factor(),
-        program_hash,
+        &utils::quartic_from_bytes(*program_hash),
         inputs,
         outputs
     );
