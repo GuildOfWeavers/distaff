@@ -309,7 +309,7 @@ mod tests {
         // check against lower degree
         let degree_plus_1 = degree_plus_1 - 1;
         let result = super::verify_remainder(&remainder, degree_plus_1, root, extension_factor);
-        let err_msg = format!("Remainder is not a valid degree {} polynomial", degree_plus_1 - 1);
+        let err_msg = format!("remainder is not a valid degree {} polynomial", degree_plus_1 - 1);
         assert_eq!(Err(err_msg), result);
     }
 
@@ -356,20 +356,20 @@ mod tests {
         let sampled_evaluations = trace_positions.into_iter().map(|i| evaluations[i]).collect::<Vec<u64>>();
 
         let result = super::verify(&proof, &sampled_evaluations, root, degree_plus_1 - 1, &options);
-        let err_msg = format!("Remainder is not a valid degree {} polynomial", 14);
+        let err_msg = format!("remainder is not a valid degree {} polynomial", 14);
         assert_eq!(Err(err_msg), result);
 
         // invalid evaluations
         let sampled_evaluations = sampled_evaluations[1..].to_vec();
         let result = super::verify(&proof, &sampled_evaluations, root, degree_plus_1, &options);
-        let err_msg = format!("Verification of evaluation values failed");
+        let err_msg = format!("verification of evaluation values failed");
         assert_eq!(Err(err_msg), result);
 
         // invalid ev_root
         let mut proof2 = proof.clone();
         proof2.ev_root = [1, 2, 3, 4];
         let result = super::verify(&proof2, &sampled_evaluations, root, degree_plus_1, &options);
-        let err_msg = format!("Verification of evaluation Merkle proof failed");
+        let err_msg = format!("verification of evaluation Merkle proof failed");
         assert_eq!(Err(err_msg), result);
 
         // TODO: add more tests

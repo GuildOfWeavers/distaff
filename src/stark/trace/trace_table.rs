@@ -113,20 +113,22 @@ impl TraceTable {
         let twiddles = fft::get_twiddles(root, domain_size);
 
         // extend op_code
+        debug_assert!(self.op_code.capacity() == domain_size, "invalid op_code register capacity");
         polys::interpolate_fft_twiddles(&mut self.op_code, &inv_twiddles, true);
-        unsafe { self.op_code.set_len(domain_size); }
+        unsafe { self.op_code.set_len(self.op_code.capacity()); }
         polys::eval_fft_twiddles(&mut self.op_code, &twiddles, true);
 
         // extend push_flag
+        debug_assert!(self.push_flag.capacity() == domain_size, "invalid push_flag register capacity");
         polys::interpolate_fft_twiddles(&mut self.push_flag, &inv_twiddles, true);
-        unsafe { self.push_flag.set_len(domain_size); }
+        unsafe { self.push_flag.set_len(self.push_flag.capacity()); }
         polys::eval_fft_twiddles(&mut self.push_flag, &twiddles, true);
 
         // extend op_bits
         for register in self.op_bits.iter_mut() {
             debug_assert!(register.capacity() == domain_size, "invalid op_bits register capacity");
             polys::interpolate_fft_twiddles(register, &inv_twiddles, true);
-            unsafe { register.set_len(domain_size); }
+            unsafe { register.set_len(register.capacity()); }
             polys::eval_fft_twiddles(register, &twiddles, true);
         }
 
@@ -134,7 +136,7 @@ impl TraceTable {
         for register in self.op_acc.iter_mut() {
             debug_assert!(register.capacity() == domain_size, "invalid op_acc register capacity");
             polys::interpolate_fft_twiddles(register, &inv_twiddles, true);
-            unsafe { register.set_len(domain_size); }
+            unsafe { register.set_len(register.capacity()); }
             polys::eval_fft_twiddles(register, &twiddles, true);
         }
 
@@ -142,7 +144,7 @@ impl TraceTable {
         for register in self.stack.iter_mut() {
             debug_assert!(register.capacity() == domain_size, "invalid stack register capacity");
             polys::interpolate_fft_twiddles(register, &inv_twiddles, true);
-            unsafe { register.set_len(domain_size); }
+            unsafe { register.set_len(register.capacity()); }
             polys::eval_fft_twiddles(register, &twiddles, true);
         }
     }

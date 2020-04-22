@@ -2,6 +2,7 @@ use log::debug;
 use std::time::Instant;
 use crate::stark::{ self, ProofOptions, StarkProof, MAX_INPUTS, MAX_OUTPUTS };
 
+mod tests;
 pub mod opcodes;
 
 /// Executes the specified `program` and returns the result together with program hash
