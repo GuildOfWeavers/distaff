@@ -1,6 +1,7 @@
 use log::debug;
+use std::cmp;
 use std::time::Instant;
-use crate::stark::{ self, ProofOptions, StarkProof, MAX_INPUTS, MAX_OUTPUTS };
+use crate::stark::{ self, ProofOptions, StarkProof, MAX_INPUTS, MAX_OUTPUTS, MIN_TRACE_LENGTH };
 use crate::utils::CopyInto;
 
 mod tests;
@@ -65,6 +66,6 @@ pub fn pad_program(program: &[u64]) -> Vec<u64> {
     else {
         program.len().next_power_of_two()
     };
-    program.resize(trace_length, opcodes::NOOP);
+    program.resize(cmp::max(trace_length, MIN_TRACE_LENGTH), opcodes::NOOP);
     return program;
 }

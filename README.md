@@ -21,6 +21,29 @@ If the program is executed successfully, the function returns a tuple with 3 ele
 * `program_hash: [u8; 32]` - an array of 32 bytes representing a hash of the program.
 * `proof: StarkProof` - proof of program execution. `StarkProof` implements `serde`'s `Serialize` and `Deserialize` traits - so, it can be easily serialized and de-serialized.
 
+#### Program execution example
+Here is a simple example of executing a program which pushes two numbers onto the stack and computes their sum:
+```Rust
+use distaff::{ ProofOptions, processor, processor::opcodes };
+
+// this is our program
+let program = [
+    opcodes::PUSH, 1,
+    opcodes::PUSH, 2,
+    opcodes::ADD
+];
+
+// let's execute it
+let (outputs, program_hash, proof) = processor::execute(
+        &program,
+        &[],        // we won't initialize the stack with any inputs
+        1,          // a single item form the stack will be returned
+        &ProofOptions::default()); // we'll be using default options
+
+// the output should be 3
+assert_eq!(vec![3], outputs);
+```
+
 ### Verifying program execution
 To verify program execution, you can use `processor::verify()` function. The function takes the following parameters:
 
@@ -36,6 +59,21 @@ Verifying execution proof of a program basically means the following:
 > If a program with the provided hash is executed against the provided inputs, the execution will result in the provided outputs.
 
 Notice how the verifier need to know only the hash of the program - not what the actual program was.
+
+#### Verifying execution example
+Here is a simple example of verifying execution of the program from the previous example:
+```Rust
+use distaff::{ processor };
+
+let program_hash =  /* value from previous example */;
+let proof =         /* value from previous example */;
+
+// let's verify program execution
+match processor::verify(&program_hash, &[], &[3], &proof) {
+    Ok(_) => println!("Execution verified!"),
+    Err(msg) => println!("Execution verification failed...", msg)
+}
+```
 
 ## Design
 

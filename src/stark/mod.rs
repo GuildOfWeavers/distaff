@@ -7,7 +7,7 @@ mod proof;
 mod fri;
 mod utils;
 
-pub use trace::{ TraceTable, TraceState, MIN_STACK_DEPTH, MAX_STACK_DEPTH, MAX_INPUTS, MAX_OUTPUTS };
+pub use trace::{ TraceTable, TraceState, MIN_STACK_DEPTH, MAX_STACK_DEPTH, MAX_INPUTS, MAX_OUTPUTS, MIN_TRACE_LENGTH };
 pub use constraints::{ ConstraintEvaluator, ConstraintTable, MAX_CONSTRAINT_DEGREE };
 pub use options::ProofOptions;
 pub use proof::{ StarkProof };
