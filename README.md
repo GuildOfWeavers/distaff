@@ -56,9 +56,9 @@ The function returns `Result<bool, String>` which will be `Ok<true>` if verifica
 
 Verifying execution proof of a program basically means the following:
 
-> If a program with the provided hash is executed against the provided inputs, the execution will result in the provided outputs.
+> If a program with the provided hash is executed against the provided inputs, it will produce the provided outputs.
 
-Notice how the verifier need to know only the hash of the program - not what the actual program was.
+Notice how the verifier needs to know only the hash of the program - not what the actual program was.
 
 #### Verifying execution example
 Here is a simple example of verifying execution of the program from the previous example:
@@ -77,12 +77,12 @@ match processor::verify(&program_hash, &[], &[3], &proof) {
 
 ## Design
 
-Distaff VM is a simple [stack machine](https://en.wikipedia.org/wiki/Stack_machine). This means you can push values onto the stack and perform operations with them. 
+Distaff VM is a simple [stack machine](https://en.wikipedia.org/wiki/Stack_machine). This means all values live on the stack and all operations work with values near the top of the stack. 
 
 ### The stack
 Currently, Distaff VM stack can be up to 32 items deep (this will be increased in the future). However, the more stack space a program uses, the longer it will take to execute, and the larger the execution proof will be. So, it pays to use stack space judiciously.
 
-Values on the stack must be elements of a [prime field](https://en.wikipedia.org/wiki/Finite_field) with modulus `18446743880436023297` (which can also be written as 2<sup>64</sup> - 45 * 2<sup>32</sup> + 1). This means that all valid values are in the range between `0` and `18446743880436023296` - this covers almost all 64-bit integers.
+Values on the stack must be elements of a [prime field](https://en.wikipedia.org/wiki/Finite_field) with modulus `18446743880436023297` (which can also be written as 2<sup>64</sup> - 45 * 2<sup>32</sup> + 1). This means that all valid values are in the range between `0` and `18446743880436023296` - this covers almost all 64-bit integers.   
 
 All arithmetic operations (addition, subtraction, multiplication) also happen in the same prime field. This means that overflow happens after a value exceeds field modulus. So, for example: `18446743880436023296 + 1 = 0`.
 
@@ -98,38 +98,84 @@ Values remaining on the stack after a program is executed can be returned as pro
 
 ### Program hash
 
-As described [here](#Executing-a-program), one of the values produced by Distaff VM after executing a program is program hash. This hash is a reduction of all instructions of the program into a single 32-byte value. The hash is generated as follows:
+As described [here](#Executing-a-program), one of the values produced by Distaff VM after executing a program is program hash. This hash is a reduction of all program instructions into a single 32-byte value. The hash is generated as follows:
 
-1. First, the program is padded with `NOOP` operations to make sure it is of appropriate length. The appropriate length is defined as follows:
-   1. A program must contain at least 16 operations.
-   2. The length of the program must be a power of 2 (16, 32, 64 etc.).
+1. First, the program is padded with `NOOP` operations. The padding ensures that:
+   1. The program consists of at least 16 operations.
+   2. The number of operations is a power of 2 (16, 32, 64 etc.).
 2. Then, a modified version of [Rescue](https://eprint.iacr.org/2019/426) hash function is used to sequentially hash all instructions together (see [code](https://github.com/GuildOfWeavers/distaff/blob/master/src/stark/utils/hash_acc.rs)). Security implications of this modification have not been analyzed. It is likely that this modification greatly reduces security of Rescue, and the hashing scheme will need to be changed in the future.
 
 ### Instruction set
-Eventually, Distaff will have up to 40 (or more) instructions which will let you write sophisticated programs. For now, only the following 10 instructions have been implemented.
+Eventually, Distaff will have up to 40 (or more) instructions which will let you write sophisticated programs. For now, only the following 10 instructions have been implemented:
 
-| Operation | Opcode   | Description                            |
-| --------- | :------: | -------------------------------------- |
-| NOOP      | 00000000 | Does not change the state of the stack. |
-| PULL1     | 00001100 | Moves the second to the top stack item (item with index `1`) to the top of the stack. |
-| PULL2     | 00001101 | Moves the third to the top stack item (item with index `2`) to the top of the stack. |
-| PUSH      | 00010000 | Pushes the value of the next opcode onto the stack. The value can be any field element. |
-| DUP0      | 00010001 | Pushes a copy of the top stack item onto the stack (duplicates the top stack item). |
-| DUP1      | 00010010 | Pushes a copy of the second to the top stack item onto the stack. |
-| DROP      | 00011000 | Removes the top item from the stack. |
-| ADD       | 00011001 | Pops top two items from the stack, adds them, and pushes the result back onto the stack. |
-| SUB       | 00011010 | Pops top two items from the stack, subtracts the top item from the second to the top item, and pushes the result back onto the stack. |
-| MUL       | 00011011 | Pops top two items from the stack, multiplies them, and pushes the result back onto the stack. |
+| Instruction | Opcode   | Description                            |
+| ----------- | :------: | -------------------------------------- |
+| NOOP        | 00000000 | Does not change the state of the stack. |
+| PULL1       | 00001100 | Moves the second from the top stack item (item with index `1`) to the top of the stack. |
+| PULL2       | 00001101 | Moves the third from the top stack item (item with index `2`) to the top of the stack. |
+| PUSH        | 00010000 | Pushes the value of the next opcode onto the stack. The value can be any field element. |
+| DUP0        | 00010001 | Pushes a copy of the top stack item onto the stack (duplicates the top stack item). |
+| DUP1        | 00010010 | Pushes a copy of the second from the top stack item onto the stack. |
+| DROP        | 00011000 | Removes the top item from the stack. |
+| ADD         | 00011001 | Pops top two items from the stack, adds them, and pushes the result back onto the stack. |
+| SUB         | 00011010 | Pops top two items from the stack, subtracts the top item from the second to the top item, and pushes the result back onto the stack. |
+| MUL         | 00011011 | Pops top two items from the stack, multiplies them, and pushes the result back onto the stack. |
 
 If you'd like to check out some of the potential future instructions, look [here](https://github.com/GuildOfWeavers/distaff/blob/master/src/processor/opcodes.rs).
 
-## Fibonacci calculator
+#### Turing-completeness
+Distaff VM is unlikely to be [Turing-complete](https://en.wikipedia.org/wiki/Turing_completeness) in the foreseeable future. However, conditional execution (`if..else` statements), and maybe even bounded loops, will be supported.
 
-TODO
+#### Memory
+Currently, Distaff VM has no random access memory - all values live on the stack. However, in the future, a memory module may be added, if it doesn't introduce too much computational overhead.
+
+## Fibonacci calculator
+Let's write a simple program for Distaff VM. This program will compute the 5-th [Fibonacci number](https://en.wikipedia.org/wiki/Fibonacci_number):
+
+```
+PUSH 0      // stack state: 0
+PUSH 1      // stack state: 1 0
+DUP0        // stack state: 1 1 0
+PULL2       // stack state: 0 1 1
+ADD         // stack state: 1 1
+DUP0        // stack state: 1 1 1
+PULL2       // stack state: 1 1 1
+ADD         // stack state: 2 1
+DUP0        // stack state: 2 2 1
+PULL2       // stack state: 1 2 2
+ADD         // stack state: 3 2
+```
+Notice that except for the first 2 operations which initialize the stack, the sequence of `DUP0 PULL2 ADD` operations repeats over and over. In fact, we can repeat these operations an arbitrary number of times to compute an arbitrary Fibonacci number. In Rust, it would like like this:
+```Rust
+use distaff::{ ProofOptions, processor, processor::opcodes };
+
+// set the number of terms to compute
+let n = 50;
+
+// build the program
+let mut program = Vec::new();
+for _ in 0..(n - 1) {
+    program.push(opcodes::DUP0);
+    program.push(opcodes::PULL2);
+    program.push(opcodes::ADD);
+}
+
+// execute the program
+let (outputs, program_hash, proof) = processor::execute(
+        &program,
+        &[1, 0],    // initialize the stack with these inputs
+        1,          // top stack item is the output
+        &ProofOptions::default());
+
+// the output should be the 50th Fibonacci number
+assert_eq!(vec![12586269025], outputs);
+```
+Above, we used public inputs to initialize the stack rather than using `PUSH` operations. This makes the program a bit simpler, and also allows us to run the program from arbitrary starting points without changing program hash.
+
+This program is rather efficient: the stack never gets more than 3 items deep.
 
 ## Performance
-
-Some very informal benchmarks run on Intel Core i5-7300U @ 2.60GHz (single thread):
+Here are some very informal benchmarks of running the Fibonacci calculator on Intel Core i5-7300U @ 2.60GHz (single thread) for a given number of operations (remember, it takes 3 operations to compute a single Fibonacci term):
 
 | Operation Count | Execution time | Execution RAM  | Verification time | Proof size |
 | --------------- | :------------: | :------------: | :---------------: | :--------: |
@@ -141,11 +187,16 @@ Some very informal benchmarks run on Intel Core i5-7300U @ 2.60GHz (single threa
 | 2<sup>18</sup>  | 44 sec         | 2.6 GB         | 3 ms              | 212 KB     |
 | 2<sup>20</sup>  | 6.8 min        | > 5.5 GB       | 4 ms              | 254 KB     |
 
-1: RAM on my machine maxed out at 5.5 GB, but for efficient execution ~12 GB would be needed. This probably explains why proving time is so poor for 2<sup>20</sup> case. If there was sufficient RAM available, execution time would have likely been slightly over 3 mins.
+A few notes about the results:
+1. Execution time is dominated by the proof generation time. In fact, the time needed to run the program is only about 0.1% of the time needed to generate the proof.
+2. RAM on my machine maxed out at 5.5 GB, but for efficient execution ~12 GB would be needed. This probably explains why proving time is so poor for 2<sup>20</sup> case. If there was sufficient RAM available, execution time would have likely been just slightly over 3 mins.
 
 ## References
+Proofs of execution generated by Distaff VM are based on STARKs. A STARK is a novel proof-of-computation scheme that allows you to create an efficiently verifiable proof that a computation was executed correctly. The scheme was developed by Eli-Ben Sasson and team at Technion-Israel Institute of Technology. STARKs do not require an initial trusted setup, and rely on very few cryptographic assumptions.
 
-* STARKs whitepaper: [Scalable, transparent, and post-quantum secure computational integrity](https://eprint.iacr.org/2018/046.pdf)
+Here are some resources to learn more about STARKs:
+
+* STARKs whitepaper: [Scalable, transparent, and post-quantum secure computational integrity](https://eprint.iacr.org/2018/046)
 
 Vitalik Buterin's blog series on zk-STARKs:
 * [STARKs, part 1: Proofs with Polynomials](https://vitalik.ca/general/2017/11/09/starks_part_1.html)

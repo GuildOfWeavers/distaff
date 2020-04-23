@@ -3,6 +3,8 @@ name = "distaff"
 version = "0.1.0"
 authors = ["Bobbin Threadbare <bobbinth@protonmail.com>"]
 edition = "2018"
+description="Zero-knowledge virtual machine written in Rust"
+readme="https://github.com/GuildOfWeavers/distaff/blob/master/README.md"
 repository = "https://github.com/GuildOfWeavers/distaff"
 license = "MIT"
 
