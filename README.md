@@ -80,9 +80,9 @@ match processor::verify(&program_hash, &[], &[3], &proof) {
 Distaff VM is a simple [stack machine](https://en.wikipedia.org/wiki/Stack_machine). This means you can push values onto the stack and perform operations with them. 
 
 ### The stack
-Currently, the stack can be up to 32 items deep (this will be increased in the future). However, the more stack space a program is using, the longer it will take to execute, and the larger the execution proof will be. So, it pays to use stack space judiciously.
+Currently, Distaff VM stack can be up to 32 items deep (this will be increased in the future). However, the more stack space a program uses, the longer it will take to execute, and the larger the execution proof will be. So, it pays to use stack space judiciously.
 
-Values on the stack must be elements of a [prime field](https://en.wikipedia.org/wiki/Finite_field) with modulus `18446743880436023297` (which can be written as 2<sup>64</sup> - 45 * 2<sup>32</sup> + 1). This means that all values must be between `0` and `18446743880436023296` - this covers pretty much all 64-bit integers.
+Values on the stack must be elements of a [prime field](https://en.wikipedia.org/wiki/Finite_field) with modulus `18446743880436023297` (which can also be written as 2<sup>64</sup> - 45 * 2<sup>32</sup> + 1). This means that all valid values are in the range between `0` and `18446743880436023296` - this covers almost all 64-bit integers.
 
 All arithmetic operations (addition, subtraction, multiplication) also happen in the same prime field. This means that overflow happens after a value exceeds field modulus. So, for example: `18446743880436023296 + 1 = 0`.
 
@@ -92,13 +92,18 @@ Currently, there are 2 ways to get values onto the stack:
 1. You can initialize the stack with a set of inputs as described [here](#Executing-a-program). These inputs are the public inputs into the program. This means, that they must be shared with a verifier for them to verify program execution.
 2. You can use `PUSH` operations to push values onto the stack as shown [here](#Program-execution-example). These values become a part of the program itself, and, therefore, cannot be changed between program executions. You can think of them as constants.
 
-A way to provide secret inputs for programs which can change between program executions is not yet available, but will be provided in the future.
+A way to specify secret inputs which can change between program executions is not yet available, but will be provided in the future.
 
-Values remaining on the stack after a program is executed can be returned as program outputs. You can specify exactly how many values (from the top of the stack) should be returned. Currently, this number of values is limited to 8. A way to return a large number of values (hundreds or thousands) will be provided in the future.
+Values remaining on the stack after a program is executed can be returned as program outputs. You can specify exactly how many values (from the top of the stack) should be returned. Currently, the number of outputs is limited to 8. A way to return a large number of values (hundreds or thousands) is not yet available, but will be provided in the future.
 
 ### Program hash
 
-TODO
+As described [here](#Executing-a-program), one of the values produced by Distaff VM after executing a program is program hash. This hash is a reduction of all instructions of the program into a single 32-byte value. The hash is generated as follows:
+
+1. First, the program is padded with `NOOP` operations to make sure it is of appropriate length. The appropriate length is defined as follows:
+   1. A program must contain at least 16 operations.
+   2. The length of the program must be a power of 2 (16, 32, 64 etc.).
+2. Then, a modified version of [Rescue](https://eprint.iacr.org/2019/426) hash function is used to sequentially hash all instructions together (see [code](https://github.com/GuildOfWeavers/distaff/blob/master/src/stark/utils/hash_acc.rs)). Security implications of this modification have not been analyzed. It is likely that this modification greatly reduces security of Rescue, and the hashing scheme will need to be changed in the future.
 
 ### Instruction set
 Eventually, Distaff will have up to 40 (or more) instructions which will let you write sophisticated programs. For now, only the following 10 instructions have been implemented.
@@ -126,17 +131,17 @@ TODO
 
 Some very informal benchmarks run on Intel Core i5-7300U @ 2.60GHz (single thread):
 
-| Operation Count | Proving time | Verification time | Proof size | Proof RAM  |
-| --------------- | :----------: | :---------------: | :--------: | :--------: |
-| 2<sup>8</sup>   | 60 ms        | 2 ms              | 64 KB      | negligible |
-| 2<sup>10</sup>  | 150 ms       | 2 ms              | 86 KB      | negligible |
-| 2<sup>12</sup>  | 520 ms       | 2 ms              | 114 KB     | negligible |
-| 2<sup>14</sup>  | 2.2 sec      | 3 ms              | 142 KB     | 130 MB     |
-| 2<sup>16</sup>  | 9.8 sec      | 3 ms              | 178 KB     | 640 MB     |
-| 2<sup>18</sup>  | 44 sec       | 3 ms              | 212 KB     | 2.6 GB     |
-| 2<sup>20</sup>  | 6.8 min      | 4 ms              | 254 KB     | > 5.5 GB<sup>1</sup> |
+| Operation Count | Execution time | Execution RAM  | Verification time | Proof size |
+| --------------- | :------------: | :------------: | :---------------: | :--------: |
+| 2<sup>8</sup>   | 60 ms          | negligible     | 2 ms              | 64 KB      |
+| 2<sup>10</sup>  | 150 ms         | negligible     | 2 ms              | 86 KB      |
+| 2<sup>12</sup>  | 520 ms         | negligible     | 2 ms              | 114 KB     |
+| 2<sup>14</sup>  | 2.2 sec        | 130 MB         | 3 ms              | 142 KB     |
+| 2<sup>16</sup>  | 9.8 sec        | 640 MB         | 3 ms              | 178 KB     |
+| 2<sup>18</sup>  | 44 sec         | 2.6 GB         | 3 ms              | 212 KB     |
+| 2<sup>20</sup>  | 6.8 min        | > 5.5 GB       | 4 ms              | 254 KB     |
 
-1: RAM on my machine maxed out at 5.5 GB, but for efficient execution ~12 GB would be needed. This probably explains why proving time is so poor for 2<sup>20</sup> case. If there was sufficient RAM available, proving time would have likely been slightly ove 3 mins.
+1: RAM on my machine maxed out at 5.5 GB, but for efficient execution ~12 GB would be needed. This probably explains why proving time is so poor for 2<sup>20</sup> case. If there was sufficient RAM available, execution time would have likely been slightly over 3 mins.
 
 ## References
 

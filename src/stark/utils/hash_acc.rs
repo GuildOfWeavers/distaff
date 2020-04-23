@@ -7,6 +7,16 @@ pub const NUM_ROUNDS: usize = 16;
 
 // HASH FUNCTION
 // ================================================================================================
+
+/// Hashes a list of u64 values into a single 32-byte value using a modified version of 
+/// [Rescue](https://eprint.iacr.org/2019/426) hash function. The modifications are:
+/// 
+/// 1. First and last steps of the permutation are removed to make the permutation fully-foldable.
+/// 2. A single round is executed for each value in the list with constants cycling every 16 
+/// rounds. This means that a new value is injected into the state at the beginning of each round.
+/// 
+/// The last modification differs significantly form how the function was originally designed,
+/// and likely compromises security.
 pub fn digest(values: &[u64]) -> [u64; 4] {
 
     let mut state = [0; STATE_WIDTH];
