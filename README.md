@@ -1,5 +1,5 @@
 # Distaff
-Distaff is a zero-knowledge virtual machine written in Rust. For any program executed on Distaff, a STARK-based proof of execution is automatically generated. This proof can then be used by anyone to verify that a program was executed correctly without the need for re-executing the program or even knowing what the program was.
+Distaff is a zero-knowledge virtual machine written in Rust. For any program executed on Distaff VM, a STARK-based proof of execution is automatically generated. This proof can then be used by anyone to verify that a program was executed correctly without the need for re-executing the program or even knowing what the program was.
 
 ### Status
 **DO NOT USE IN PRODUCTION.** Distaff is in a very early alpha. This means that current functionality is limited, and there are known and unknown bugs and security flaws.
@@ -71,19 +71,41 @@ let proof =         /* value from previous example */;
 // let's verify program execution
 match processor::verify(&program_hash, &[], &[3], &proof) {
     Ok(_) => println!("Execution verified!"),
-    Err(msg) => println!("Execution verification failed...", msg)
+    Err(msg) => println!("Execution verification failed: {}", msg)
 }
 ```
 
 ## Design
 
-Distaff is a stack machine. 
+Distaff VM is a simple [stack machine](https://en.wikipedia.org/wiki/Stack_machine). This means you can push values onto the stack and perform operations with them. 
+
+### The stack
+Currently, the stack can be up to 32 items deep (this will be increased in the future). However, the more stack space a program is using, the longer it will take to execute, and the larger the execution proof will be. So, it pays to use stack space judiciously.
+
+Values on the stack must be elements of a [prime field](https://en.wikipedia.org/wiki/Finite_field) with modulus `18446743880436023297` (which can be written as 2<sup>64</sup> - 45 * 2<sup>32</sup> + 1). This means that all values must be between `0` and `18446743880436023296` - this covers pretty much all 64-bit integers.
+
+All arithmetic operations (addition, subtraction, multiplication) also happen in the same prime field. This means that overflow happens after a value exceeds field modulus. So, for example: `18446743880436023296 + 1 = 0`.
+
+### Inputs / outputs
+Currently, there are 2 ways to get values onto the stack:
+
+1. You can initialize the stack with a set of inputs as described [here](#Executing-a-program). These inputs are the public inputs into the program. This means, that they must be shared with a verifier for them to verify program execution.
+2. You can use `PUSH` operations to push values onto the stack as shown [here](#Program-execution-example). These values become a part of the program itself, and, therefore, cannot be changed between program executions. You can think of them as constants.
+
+A way to provide secret inputs for programs which can change between program executions is not yet available, but will be provided in the future.
+
+Values remaining on the stack after a program is executed can be returned as program outputs. You can specify exactly how many values (from the top of the stack) should be returned. Currently, this number of values is limited to 8. A way to return a large number of values (hundreds or thousands) will be provided in the future.
+
+### Program hash
+
+TODO
 
 ### Instruction set
+Eventually, Distaff will have up to 40 (or more) instructions which will let you write sophisticated programs. For now, only the following 10 instructions have been implemented.
 
 | Operation | Opcode   | Description                            |
 | --------- | :------: | -------------------------------------- |
-| NOOP      | 00000000 | Does not change the state of the stack |
+| NOOP      | 00000000 | Does not change the state of the stack. |
 | PULL1     | 00001100 | Moves the second to the top stack item (item with index `1`) to the top of the stack. |
 | PULL2     | 00001101 | Moves the third to the top stack item (item with index `2`) to the top of the stack. |
 | PUSH      | 00010000 | Pushes the value of the next opcode onto the stack. The value can be any field element. |
@@ -93,6 +115,12 @@ Distaff is a stack machine.
 | ADD       | 00011001 | Pops top two items from the stack, adds them, and pushes the result back onto the stack. |
 | SUB       | 00011010 | Pops top two items from the stack, subtracts the top item from the second to the top item, and pushes the result back onto the stack. |
 | MUL       | 00011011 | Pops top two items from the stack, multiplies them, and pushes the result back onto the stack. |
+
+If you'd like to check out some of the potential future instructions, look [here](https://github.com/GuildOfWeavers/distaff/blob/master/src/processor/opcodes.rs).
+
+## Fibonacci calculator
+
+TODO
 
 ## Performance
 
