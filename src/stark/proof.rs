@@ -27,7 +27,7 @@ impl StarkProof {
         trace_proof : BatchMerkleProof, 
         trace_states: Vec<TraceState>,
         ld_proof    : FriProof,
-        options     : ProofOptions ) -> StarkProof
+        options     : &ProofOptions ) -> StarkProof
     {
         return StarkProof {
             trace_root  : *trace_root,
@@ -35,7 +35,7 @@ impl StarkProof {
             trace_nodes : trace_proof.nodes,
             trace_states: trace_states.into_iter().map(|s| s.registers().to_vec()).collect(),
             ld_proof    : ld_proof,
-            options     : options
+            options     : options.clone()
         };
     }
 

@@ -19,14 +19,14 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
     trace.extend();
     debug!("Extended execution trace of {} registers to {} steps in {} ms",
         trace.register_count(),
-        trace.len(), 
+        trace.domain_size(), 
         now.elapsed().as_millis());
 
     // 2 ----- build Merkle tree from extended execution trace ------------------------------------
     let now = Instant::now();
     let mut trace_state = TraceState::new(trace.max_stack_depth());
-    let mut hashed_states = to_quartic_vec(uninit_vector(trace.len() * 4));
-    for i in 0..trace.len() {
+    let mut hashed_states = to_quartic_vec(uninit_vector(trace.domain_size() * 4));
+    for i in 0..trace.domain_size() {
         // TODO: this loop should be parallelized
         trace.fill_state(&mut trace_state, i);
         options.hash_function()(trace_state.registers(), &mut hashed_states[i]);
@@ -37,8 +37,8 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
 
     // 3 ----- build evaluation domain for the extended execution trace ---------------------------
     let now = Instant::now();
-    let root = field::get_root_of_unity(trace.len() as u64);
-    let domain = field::get_power_series(root, trace.len());
+    let root = field::get_root_of_unity(trace.domain_size() as u64);
+    let domain = field::get_power_series(root, trace.domain_size());
     debug!("Built evaluation domain of {} elements in {} ms",
         domain.len(),
         now.elapsed().as_millis());
@@ -46,17 +46,18 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
     // 4 ----- evaluate constraints ---------------------------------------------------------------
     let now = Instant::now();
     
-    // initialize constraint evaluator and allocate space to hold constraint evaluations
+    // initialize constraint evaluator
     let constraint_evaluator = ConstraintEvaluator::new(
         trace_tree.root(), 
-        trace.len() / trace.extension_factor(),
+        trace.unextended_length(),
         trace.max_stack_depth(),
         MAX_CONSTRAINT_DEGREE,
         program_hash,
         inputs,
-        outputs
-    );
-    let mut constraints = ConstraintTable::new(constraint_evaluator, trace.extension_factor());
+        outputs);
+
+    // allocate space to hold constraint evaluations
+    let mut constraints = ConstraintTable::new(constraint_evaluator, domain);
     
     // allocate space to hold current and next states for constraint evaluations
     let mut current = TraceState::new(trace.max_stack_depth());
@@ -65,18 +66,17 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
     // we don't need to evaluate constraints over the entire extended execution trace; we need
     // to evaluate them over the domain extended to match max constraint degree - thus, we can
     // skip most trace states for the purposes of constraint evaluation.
-    let stride = trace.extension_factor() / MAX_CONSTRAINT_DEGREE;
-    for i in (0..trace.len()).step_by(stride) {
+    for i in (0..trace.domain_size()).step_by(constraints.domain_stride()) {
         // TODO: this loop should be parallelized and also potentially optimized to avoid copying
         // next state from the trace table twice
 
         // copy current and next states from the trace table; next state may wrap around the
         // execution trace (close to the end of the trace)
         trace.fill_state(&mut current, i);
-        trace.fill_state(&mut next, (i + trace.extension_factor()) % trace.len());
+        trace.fill_state(&mut next, (i + trace.extension_factor()) % trace.domain_size());
 
         // evaluate the constraints
-        constraints.evaluate(&current, &next, domain[i], i);
+        constraints.evaluate(&current, &next, i);
     }
 
     debug!("Evaluated {} constraints in {} ms",
@@ -85,16 +85,18 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
 
     // 5 ----- combine transition constraints into a single polynomial ----------------------------
     let now = Instant::now();
-
-    // compute composition polynomial evaluations
-    let composed_evaluations = constraints.compose(&domain);
+    let composed_evaluations = constraints.compose();
     debug!("Computed composition polynomial in {} ms",
         now.elapsed().as_millis());
 
     // 6 ----- generate low-degree proof for composition polynomial -------------------------------
     let now = Instant::now();
     let composition_degree_plus_1 = constraints.composition_degree() + 1;
-    let fri_proof = fri::prove(&composed_evaluations, &domain, composition_degree_plus_1, options);
+    let fri_proof = fri::prove(
+        &composed_evaluations,
+        constraints.domain(),
+        composition_degree_plus_1,
+        options);
     debug!("Generated low-degree proof for composition polynomial in {} ms",
         now.elapsed().as_millis());
 
@@ -103,13 +105,13 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
 
     // generate pseudo-random indexes based on the root of the composition Merkle tree
     let idx_generator = QueryIndexGenerator::new(options);
-    let positions = idx_generator.get_trace_indexes(&fri_proof.ev_root, trace.len());
+    let positions = idx_generator.get_trace_indexes(&fri_proof.ev_root, trace.domain_size());
 
     // for each queried step, collect the current and the next states of the execution trace;
     // this way, the verifier will be able to get two consecutive states for each query.
     let mut trace_states = BTreeMap::new();
     for &position in positions.iter() {
-        let next_position = (position + options.extension_factor()) % trace.len();
+        let next_position = (position + options.extension_factor()) % trace.domain_size();
 
         trace_states.insert(position, trace.get_state(position));
         trace_states.insert(next_position, trace.get_state(next_position));
@@ -123,7 +125,7 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
     let trace_proof = trace_tree.prove_batch(&augmented_positions);
 
     // build the proof object
-    let proof = StarkProof::new(trace_tree.root(), trace_proof, trace_states, fri_proof, options.clone());
+    let proof = StarkProof::new(trace_tree.root(), trace_proof, trace_states, fri_proof, &options);
 
     debug!("Computed {} trace queries and built proof object in {} ms",
         positions.len(),

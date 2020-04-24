@@ -26,11 +26,11 @@ pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize, options: &Pr
     let now = Instant::now();
     let mut trace = stark::TraceTable::new(&program, inputs, options.extension_factor());
     debug!("Generated execution trace of {} steps in {} ms",
-        trace.len(),
+        trace.unextended_length(),
         now.elapsed().as_millis());
 
     // copy the stack state the the last step to return as output
-    let last_state = trace.get_state(trace.len() - 1);
+    let last_state = trace.get_state(trace.unextended_length() - 1);
     let outputs = last_state.get_stack()[0..num_outputs].to_vec();
 
     // copy the hash of the program

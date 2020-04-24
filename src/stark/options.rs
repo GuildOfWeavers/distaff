@@ -110,7 +110,6 @@ mod hash_fn_serialization {
     where
         D: Deserializer<'de>
     {
-        //let hf_value: u8 = Deserialize::deserialize(deserializer)?;
         match Deserialize::deserialize(deserializer)? {
             0u8 => Ok(hash::blake3),
             _ => Err(de::Error::custom("unsupported hash function"))

@@ -58,9 +58,14 @@ impl TraceTable {
         }
     }
 
-    /// Returns the number of states in the trace table.
-    pub fn len(&self) -> usize {
-        return self.op_code.len();
+    /// Returns the number of states in the un-extended trace table.
+    pub fn unextended_length(&self) -> usize {
+        return self.op_code.capacity() / self.extension_factor();
+    }
+
+    /// Returns the number of states in the extended trace table.
+    pub fn domain_size(&self) -> usize {
+        return self.op_code.capacity();
     }
 
     /// Returns `extension_factor` for the trace table.
@@ -104,11 +109,11 @@ impl TraceTable {
     /// trace table construction. A trace table can be extended only once.
     pub fn extend(&mut self) {
         assert!(!self.is_extended(), "trace table has already been extended");
-        let domain_size = self.len() * self.extension_factor();
+        let domain_size = self.domain_size();
 
         // build vectors of twiddles and inv_twiddles needed for FFT
-        let root = field::get_root_of_unity(self.len() as u64);
-        let inv_twiddles = fft::get_inv_twiddles(root, self.len());
+        let root = field::get_root_of_unity(self.unextended_length() as u64);
+        let inv_twiddles = fft::get_inv_twiddles(root, self.unextended_length());
         let root = field::get_root_of_unity(domain_size as u64);
         let twiddles = fft::get_twiddles(root, domain_size);
 
