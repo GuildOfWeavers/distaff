@@ -36,6 +36,16 @@ pub fn infer_degree(evaluations: &[u64]) -> u64 {
     return 0;
 }
 
+pub fn remove_leading_zeros(values: &[u64]) -> Vec<u64> {
+    for i in (0..values.len()).rev() {
+        if values[i] != 0 {
+            return values[0..(i + 1)].to_vec();
+        }
+    }
+
+    return [].to_vec();
+}
+
 // TYPE CONVERSIONS
 // ================================================================================================
 pub trait CopyInto<T> {

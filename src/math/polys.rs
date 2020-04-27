@@ -1,5 +1,6 @@
+use std::mem;
 use crate::math::{ field, fft };
-use crate::utils::uninit_vector;
+use crate::utils::{ uninit_vector, zero_filled_vector };
 
 // POLYNOMIAL EVALUATION
 // ================================================================================================
@@ -193,6 +194,45 @@ pub fn syn_div_in_place(a: &mut [u64], b: u64) {
     }
 }
 
+/// Divides polynomial `a` by polynomial (x^degree - 1) / (x - exceptions[i]) for all i using
+/// Synthetic division method and stores the result in `a`; if the polynomials don't divide evenly,
+/// the remainder is ignored.
+pub fn syn_div_expanded_in_place(a: &mut [u64], degree: usize, exceptions: &[u64]) {
+
+    // allocate space for the result
+    let mut result = zero_filled_vector(a.len(), a.len() + exceptions.len());
+
+    // compute a / (x^degree - 1)
+    result.copy_from_slice(&a);
+    let degree_offset = a.len() - degree;
+    for i in (0..degree_offset).rev() {
+        result[i] = field::add(result[i], result[i + degree]);
+    }
+
+    // multiply result by (x - exceptions[i]) in place
+    for &exception in exceptions {
+
+        // exception term is negative
+        let exception = field::neg(exception);
+
+        // extend length of result since we are raising degree
+        unsafe { result.set_len(result.len() + 1); }
+
+        let mut next_term = result[0];
+        result[0] = 0;
+        for i in 0..(result.len() - 1) {
+            result[i] = field::add(result[i], field::mul(next_term, exception));
+            mem::swap(&mut next_term, &mut result[i + 1]);
+        }
+    }
+
+    // copy result back into `a` skipping remainder terms
+    a[..(degree_offset + exceptions.len())].copy_from_slice(&result[degree..]);
+
+    // fill the rest of the result with 0
+    for i in (degree_offset + exceptions.len())..a.len() { a[i] = 0; }
+}
+
 // HELPER FUNCTIONS
 // ================================================================================================
 fn get_last_non_zero_index(vec: &[u64]) -> usize {
@@ -224,7 +264,9 @@ fn get_zero_roots(xs: &[u64]) -> Vec<u64> {
 // ================================================================================================
 #[cfg(test)]
 mod tests {
+
     use crate::math::field;
+    use crate::utils::remove_leading_zeros;
 
     #[test]
     fn eval() {
@@ -344,10 +386,34 @@ mod tests {
         let poly = super::mul(&[2, 1], &[3, 1]);
 
         let result = super::syn_div(&poly, 3);
-        let mut expected = super::div(&poly, &[3, 1]);
-        // syn_div() does not get rid of leading zeros
-        expected.resize(result.len(), 0);
+        let expected = super::div(&poly, &[3, 1]);
 
-        assert_eq!(expected, result);
+        assert_eq!(expected, remove_leading_zeros(&result));
+    }
+
+    #[test]
+    fn syn_div_expanded_in_place() {
+
+        // build the polynomial
+        let ys = vec![0, 1, 2, 3, 0, 5, 6, 7, 0, 9, 10, 11, 12, 13, 14, 15];
+        let mut poly = ys.clone();
+        super::interpolate_fft(&mut poly, true);
+
+        // build the divisor polynomial
+        let root = field::get_root_of_unity(poly.len() as u64);
+        let domain = field::get_power_series(root, poly.len());
+
+        let z_poly = vec![field::neg(field::ONE), 0, 0, 0, 1];
+        let z_degree = z_poly.len() - 1;
+        let z_poly = super::div(&z_poly, &[field::neg(domain[12]), 1]);
+        
+        // compute the result
+        let mut result = poly.clone();
+        super::syn_div_expanded_in_place(&mut result, z_degree, &[domain[12]]);
+
+        let expected = super::div(&poly, &z_poly);
+
+        assert_eq!(expected, remove_leading_zeros(&result));
+        assert_eq!(poly, remove_leading_zeros(&super::mul(&expected, &z_poly)));
     }
 }
