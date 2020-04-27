@@ -81,8 +81,8 @@ impl ConstraintTable {
     // -------------------------------------------------------------------------------------------
     pub fn compose(&mut self) -> Vec<u64> {
 
-        let composition_root = field::get_root_of_unity(self.domain.len() as u64);
-        let inv_twiddles = fft::get_inv_twiddles(composition_root, self.domain.len());
+        let composition_root = field::get_root_of_unity(self.composition_domain_size() as u64);
+        let inv_twiddles = fft::get_inv_twiddles(composition_root, self.composition_domain_size());
 
         // 1 ----- trace register combination -----------------------------------------------------
         // interpolate linear combination of trace registers into a polynomial, and copy the
