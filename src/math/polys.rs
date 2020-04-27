@@ -177,16 +177,20 @@ pub fn div(a: &[u64], b: &[u64]) -> Vec<u64> {
 /// if the polynomials don't divide evenly, the remainder is ignored.
 pub fn syn_div(a: &[u64], b: u64) -> Vec<u64> {
     let mut result = a.to_vec();
+    syn_div_in_place(&mut result, b);
+    return result;
+}
 
+/// Divides polynomial `a` by binomial (x + `b`) using Synthetic division method and stores the
+/// result in `a`; if the polynomials don't divide evenly, the remainder is ignored.
+pub fn syn_div_in_place(a: &mut [u64], b: u64) {
     let b = field::neg(b);
     let mut c = 0;
     for i in (0..a.len()).rev() {
-        let temp = field::add(result[i], field::mul(b, c));
-        result[i] = c;
+        let temp = field::add(a[i], field::mul(b, c));
+        a[i] = c;
         c = temp;
     }
-
-    return result;
 }
 
 // HELPER FUNCTIONS

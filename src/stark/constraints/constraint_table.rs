@@ -86,27 +86,29 @@ impl ConstraintTable {
         result.copy_from_slice(&self.trace_reg_comb);
 
         // 2 ----- boundary constraints for the initial step --------------------------------------
-        // extend constraint evaluations to the full evaluation domain, divide them by zero poly
-        // Z(x) = (x - 1), and add them to the result
-        extend_evaluations(&mut self.init_bound_comb, &inv_twiddles, &twiddles);
-        let z_inverses = self.get_init_bound_inv_z();
-        parallel::mul_in_place(&mut self.init_bound_comb, &z_inverses, 1);
+        // divide constraint evaluations by Z(x) = (x - 1), extend them to evaluation domain, and
+        // add them to the result
+        polys::interpolate_fft_twiddles(&mut self.init_bound_comb, &inv_twiddles, true);
+        polys::syn_div_in_place(&mut self.init_bound_comb, field::neg(field::ONE));
+        unsafe { self.init_bound_comb.set_len(self.init_bound_comb.capacity()); }
+        polys::eval_fft_twiddles(&mut self.init_bound_comb, &twiddles, true);
         parallel::add_in_place(&mut result, &self.init_bound_comb, 1);
 
         // 3 ----- boundary constraints for the final step ----------------------------------------
-        // extend constraint evaluations to the full evaluation domain, divide them by zero poly
-        // Z(x) = (x - x_at_last_step), and add them to the result
-        extend_evaluations(&mut self.final_bound_comb, &inv_twiddles, &twiddles);
-        let last_step_z = self.get_final_bound_z();
-        let z_inverses = parallel::inv(&last_step_z, 1);
-        parallel::mul_in_place(&mut self.final_bound_comb, &z_inverses, 1);
+        // divide constraint evaluations by Z(x) = (x - x_at_last_step), extend them to evaluation
+        // domain, and add them to the result
+        polys::interpolate_fft_twiddles(&mut self.final_bound_comb, &inv_twiddles, true);
+        let x_at_last_step = self.get_x_at_last_step();
+        polys::syn_div_in_place(&mut self.final_bound_comb, field::neg(x_at_last_step));
+        unsafe { self.final_bound_comb.set_len(self.final_bound_comb.capacity()); }
+        polys::eval_fft_twiddles(&mut self.final_bound_comb, &twiddles, true);
         parallel::add_in_place(&mut result, &self.final_bound_comb, 1);
 
         // 4 ----- transition constraints ---------------------------------------------------------
         // extend constraint evaluations to the full evaluation domain, divide them by zero poly
         // Z(x) = (x^steps - 1) / (x - x_at_last_step), and add them to the result
         extend_evaluations(&mut self.transition_comb, &inv_twiddles, &twiddles);
-        let z_inverses = self.get_transition_inv_z(&last_step_z);
+        let z_inverses = self.get_transition_inv_z();
         parallel::mul_in_place(&mut self.transition_comb, &z_inverses, 1);
         parallel::add_in_place(&mut result, &self.transition_comb, 1);
 
@@ -115,38 +117,14 @@ impl ConstraintTable {
 
     // ZERO POLYNOMIALS
     // -------------------------------------------------------------------------------------------
-
-    /// Computes inverse evaluations of Z(x) polynomial for init boundary constraints; 
-    /// Z(x) = (x - 1), so, inv(Z(x)) = inv(x - 1)
-    fn get_init_bound_inv_z(&self) -> Vec<u64> {
     
-        // compute (x - 1) for all values in the domain
-        let mut result = self.domain.to_vec();
-        parallel::sub_const_in_place(&mut result, field::ONE, 1);
-
-        // invert the result
-        result = parallel::inv(&result, 1);
-
-        return result;
-    }
-    
-    /// Computes evaluations of Z(x) polynomial for final boundary constraints;
-    /// Z(x) = (x - x_at_last_step)
-    fn get_final_bound_z(&self) -> Vec<u64> {
-    
-        let extension_factor = self.domain.len() / self.evaluator.trace_length();
-
-        // compute (x - 1) for all values in the domain
-        let mut result = self.domain.to_vec();
-        let x_at_last_step =self. domain[self.domain.len() - extension_factor];
-        parallel::sub_const_in_place(&mut result, x_at_last_step, 1);
-
-        return result;
-    }
-
     /// Computes inverse evaluations of Z(x) polynomial for transition constraints; Z(x) = 
     /// (x^steps - 1) / (x - x_at_last_step), so, inv(Z(x)) = inv(x^steps - 1) * (x - x_at_last_step)
-    fn get_transition_inv_z(&self, last_step_z: &[u64]) -> Vec<u64> {
+    fn get_transition_inv_z(&self) -> Vec<u64> {
+
+        // compute (x - x_at_last_step)
+        let mut last_step_z = self.domain.clone();
+        parallel::sub_const_in_place(&mut last_step_z, self.get_x_at_last_step(), 1);
 
         // compute (x^steps - 1); TODO: can be parallelized
         let steps = self.evaluator.trace_length();
@@ -160,9 +138,16 @@ impl ConstraintTable {
         let mut result = parallel::inv(&result, 1);
 
         // multiply the result by (x - x_at_last_step)
-        parallel::mul_in_place(&mut result, last_step_z, 1);
+        parallel::mul_in_place(&mut result, &last_step_z, 1);
 
         return result;
+    }
+
+    // HELPER METHODS
+    // -------------------------------------------------------------------------------------------
+    fn get_x_at_last_step(&self) -> u64 {
+        let extension_factor = self.domain.len() / self.evaluator.trace_length();
+        return self.domain[self.domain.len() - extension_factor];
     }
 }
 
