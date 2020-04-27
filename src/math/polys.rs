@@ -150,7 +150,7 @@ pub fn mul_by_const(p: &[u64], k: u64) -> Vec<u64> {
     return result;
 }
 
-/// Divides polynomial `a` by polynomial `b`; if the polynomials don't divide evenly
+/// Divides polynomial `a` by polynomial `b`; if the polynomials don't divide evenly,
 /// the remainder is ignored.
 pub fn div(a: &[u64], b: &[u64]) -> Vec<u64> {
     
@@ -168,6 +168,22 @@ pub fn div(a: &[u64], b: &[u64]) -> Vec<u64> {
             a[i + j] = field::sub(a[i + j], field::mul(b[j], quot));
         }
         apos = apos.wrapping_sub(1);
+    }
+
+    return result;
+}
+
+/// Divides polynomial `a` by binomial (x + `b`) using Synthetic division method;
+/// if the polynomials don't divide evenly, the remainder is ignored.
+pub fn syn_div(a: &[u64], b: u64) -> Vec<u64> {
+    let mut result = a.to_vec();
+
+    let b = field::neg(b);
+    let mut c = 0;
+    for i in (0..a.len()).rev() {
+        let temp = field::add(result[i], field::mul(b, c));
+        result[i] = c;
+        c = temp;
     }
 
     return result;
@@ -317,5 +333,17 @@ mod tests {
         let poly2 = [384863712573444386, 7682273369345308472, 13294661765012277990];
         let pr = vec![11269864713250585702];
         assert_eq!(pr, super::div(&poly1, &poly2));
+    }
+
+    #[test]
+    fn syn_div() {
+        let poly = super::mul(&[2, 1], &[3, 1]);
+
+        let result = super::syn_div(&poly, 3);
+        let mut expected = super::div(&poly, &[3, 1]);
+        // syn_div() does not get rid of leading zeros
+        expected.resize(result.len(), 0);
+
+        assert_eq!(expected, result);
     }
 }

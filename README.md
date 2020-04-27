@@ -188,7 +188,7 @@ Here are some very informal benchmarks of running the Fibonacci calculator on In
 | 2<sup>20</sup>  | 6.8 min        | > 5.5 GB       | 4 ms              | 254 KB     |
 
 A few notes about the results:
-1. Execution time is dominated by the proof generation time. In fact, the time needed to run the program is only about 0.1% of the time needed to generate the proof.
+1. Execution time is dominated by the proof generation time. In fact, the time needed to run the program is only about 0.05% of the time needed to generate the proof.
 2. For 2<sup>20</sup> case, RAM on my machine maxed out at 5.5 GB, but for efficient execution ~12 GB would be needed. This probably explains why proving time is so poor in this case as compared to other cases. If there was sufficient RAM available, execution time would have likely been just slightly over 3 mins.
 3. The benchmarks use default proof options which target 96-bit security level. The security level can be increased by either increasing execution time or proof size. In general, there is a trade-off between proof time and proof size (i.e. you can reduce proof size by increasing execution time, up to a point).
 
