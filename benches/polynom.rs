@@ -1,11 +1,11 @@
 use criterion::{ black_box, criterion_group, Criterion };
-use distaff::{ field, polys, quartic };
+use distaff::{ field, polynom, quartic };
 
 pub fn eval(c: &mut Criterion) {
     let p = field::rand_vector(1024);
     let x = field::rand();
     c.bench_function("Poly eval", |bench| {
-        bench.iter(|| polys::eval(black_box(&p), black_box(x)))
+        bench.iter(|| polynom::eval(black_box(&p), black_box(x)))
     });
 }
 

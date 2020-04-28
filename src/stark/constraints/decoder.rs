@@ -1,4 +1,4 @@
-use crate::math::{ field::{ self, sub, add, mul }, polys, fft };
+use crate::math::{ field::{ self, sub, add, mul }, polynom, fft };
 use crate::processor::{ opcodes };
 use crate::utils::zero_filled_vector;
 use crate::stark::{ TraceState };
@@ -147,9 +147,9 @@ pub fn extend_constants(extension_factor: usize) -> Vec<Vec<u64>> {
         let mut extended_constant = zero_filled_vector(NUM_ROUNDS, domain_size);
         extended_constant.copy_from_slice(constant);
 
-        polys::interpolate_fft_twiddles(&mut extended_constant, &inv_twiddles, true);
+        polynom::interpolate_fft_twiddles(&mut extended_constant, &inv_twiddles, true);
         unsafe { extended_constant.set_len(extended_constant.capacity()); }
-        polys::eval_fft_twiddles(&mut extended_constant, &twiddles, true);
+        polynom::eval_fft_twiddles(&mut extended_constant, &twiddles, true);
 
         result.push(extended_constant);
     }

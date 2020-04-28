@@ -1,4 +1,4 @@
-use crate::math::{ field, parallel, fft, polys };
+use crate::math::{ field, parallel, fft, polynom };
 use crate::stark::{ TraceState };
 use crate::utils::{ uninit_vector, zero_filled_vector };
 use super::{ ConstraintEvaluator, MAX_CONSTRAINT_DEGREE };
@@ -87,7 +87,7 @@ impl ConstraintTable {
         // 1 ----- trace register combination -----------------------------------------------------
         // interpolate linear combination of trace registers into a polynomial, and copy the
         // polynomial into the result
-        polys::interpolate_fft_twiddles(&mut self.trace_reg_comb, &inv_twiddles, true);
+        polynom::interpolate_fft_twiddles(&mut self.trace_reg_comb, &inv_twiddles, true);
         
         let mut result = zero_filled_vector(self.composition_domain_size(), self.domain.len());
         result[0..self.composition_domain_size()].copy_from_slice(&self.trace_reg_comb);
@@ -95,31 +95,31 @@ impl ConstraintTable {
         // 2 ----- boundary constraints for the initial step --------------------------------------
         // interpolate initial step boundary constraint combination into a polynomial, divide the 
         // polynomial by Z(x) = (x - 1), and add it to the result
-        polys::interpolate_fft_twiddles(&mut self.init_bound_comb, &inv_twiddles, true);
-        polys::syn_div_in_place(&mut self.init_bound_comb, field::neg(field::ONE));
+        polynom::interpolate_fft_twiddles(&mut self.init_bound_comb, &inv_twiddles, true);
+        polynom::syn_div_in_place(&mut self.init_bound_comb, field::neg(field::ONE));
         parallel::add_in_place(&mut result, &self.init_bound_comb, 1);
 
         // 3 ----- boundary constraints for the final step ----------------------------------------
         // interpolate final step boundary constraint combination into a polynomial, divide the 
         // polynomial by Z(x) = (x - x_at_last_step), and add it to the result
-        polys::interpolate_fft_twiddles(&mut self.final_bound_comb, &inv_twiddles, true);
+        polynom::interpolate_fft_twiddles(&mut self.final_bound_comb, &inv_twiddles, true);
         let x_at_last_step = self.get_x_at_last_step();
-        polys::syn_div_in_place(&mut self.final_bound_comb, field::neg(x_at_last_step));
+        polynom::syn_div_in_place(&mut self.final_bound_comb, field::neg(x_at_last_step));
         parallel::add_in_place(&mut result, &self.final_bound_comb, 1);
 
         // 4 ----- transition constraints ---------------------------------------------------------
         // interpolate transition constraint combination into a polynomial, divide the polynomial
         // by Z(x) = (x^steps - 1) / (x - x_at_last_step), and add it to the result
         let trace_length = self.trace_length();
-        polys::interpolate_fft_twiddles(&mut self.transition_comb, &inv_twiddles, true);
-        polys::syn_div_expanded_in_place(&mut self.transition_comb, trace_length, &[x_at_last_step]);
+        polynom::interpolate_fft_twiddles(&mut self.transition_comb, &inv_twiddles, true);
+        polynom::syn_div_expanded_in_place(&mut self.transition_comb, trace_length, &[x_at_last_step]);
         parallel::add_in_place(&mut result, &self.transition_comb, 1);
 
         // 5 ----- evaluate combination polynomial on evaluation domain ---------------------------
         let domain_root = field::get_root_of_unity(self.domain.len() as u64);
         let twiddles = fft::get_twiddles(domain_root, self.domain.len());
         unsafe { result.set_len(result.capacity()); }
-        polys::eval_fft_twiddles(&mut result, &twiddles, true);
+        polynom::eval_fft_twiddles(&mut result, &twiddles, true);
 
         return result;
     }

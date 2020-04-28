@@ -1,6 +1,6 @@
 use std::mem;
 use crate::utils::CopyInto;
-use crate::math::{ field, polys, quartic };
+use crate::math::{ field, polynom, quartic };
 use crate::crypto::{ MerkleTree, BatchMerkleProof };
 use crate::stark::{ ProofOptions, utils::QueryIndexGenerator };
 
@@ -220,12 +220,12 @@ fn verify_remainder(remainder: &[u64], max_degree_plus_1: usize, domain_root: u6
         xs.push(domain[p]);
         ys.push(remainder[p]);
     }
-    let poly = polys::interpolate(&xs, &ys);
+    let poly = polynom::interpolate(&xs, &ys);
 
     // check that polynomial evaluates correctly for all other points in the remainder
     for i in max_degree_plus_1..positions.len() {
         let p = positions[i];
-        if polys::eval(&poly, domain[p]) != remainder[p] {
+        if polynom::eval(&poly, domain[p]) != remainder[p] {
             return Err(format!("remainder is not a valid degree {} polynomial", max_degree_plus_1 - 1));
         }
     }
@@ -282,7 +282,7 @@ fn get_remainder_degree(mut max_degree_plus_1: usize) -> usize {
 #[cfg(test)]
 mod tests {
     
-    use crate::{ field, polys };
+    use crate::{ field, polynom };
     use crate::stark::{ ProofOptions, utils::QueryIndexGenerator };
 
     #[test]
@@ -293,7 +293,7 @@ mod tests {
 
         let mut remainder = field::rand_vector(degree_plus_1);
         remainder.resize(degree_plus_1 * 2, 0);
-        polys::eval_fft(&mut remainder, true);
+        polynom::eval_fft(&mut remainder, true);
 
         // check against exact degree
         let result = super::verify_remainder(&remainder, degree_plus_1, root, extension_factor);
@@ -321,7 +321,7 @@ mod tests {
         // generate proof
         let mut evaluations = field::rand_vector(degree_plus_1);
         evaluations.resize(domain_size, 0);
-        polys::eval_fft(&mut evaluations, true);
+        polynom::eval_fft(&mut evaluations, true);
         let proof = super::prove(&evaluations, &domain, degree_plus_1, &options);
 
         // verify proof
@@ -344,7 +344,7 @@ mod tests {
         // generate proof
         let mut evaluations = field::rand_vector(degree_plus_1);
         evaluations.resize(domain_size, 0);
-        polys::eval_fft(&mut evaluations, true);
+        polynom::eval_fft(&mut evaluations, true);
         let proof = super::prove(&evaluations, &domain, degree_plus_1, &options);
 
         // degree too low

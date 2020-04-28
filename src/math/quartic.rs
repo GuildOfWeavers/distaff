@@ -165,7 +165,7 @@ pub fn to_quartic_vec(vector: Vec<u64>) -> Vec<[u64; 4]> {
 // ================================================================================================
 #[cfg(test)]
 mod tests {
-    use crate::math::{ field, polys as polynom };
+    use crate::math::{ field, polynom };
 
     #[test]
     fn eval() {

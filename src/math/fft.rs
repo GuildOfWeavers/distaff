@@ -111,7 +111,7 @@ fn butterfly_twiddle(values: &mut [u64], twiddle: u64, offset: usize, stride: us
 // ================================================================================================
 #[cfg(test)]
 mod tests {
-    use crate::math::{ field, polys };
+    use crate::math::{ field, polynom };
 
     #[test]
     fn fft_in_place() {
@@ -154,7 +154,7 @@ mod tests {
         let mut p = field::rand_vector(1024);
         let g = field::get_root_of_unity(1024);
         let roots = field::get_power_series(g, 1024);
-        let expected = roots.iter().map(|x| polys::eval(&p, *x)).collect::<Vec<u64>>();
+        let expected = roots.iter().map(|x| polynom::eval(&p, *x)).collect::<Vec<u64>>();
         let twiddles = super::get_twiddles(g, 1024);
         super::fft_in_place(&mut p, &twiddles, 1, 1, 0, 1);
         super::permute(&mut p);

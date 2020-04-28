@@ -1,4 +1,4 @@
-use crate::math::{ polys };
+use crate::math::{ polynom };
 
 pub fn uninit_vector(length: usize) -> Vec<u64> {
     let mut vector = Vec::with_capacity(length);
@@ -25,7 +25,7 @@ pub fn pow_log2(base: u64, mut exponent: u32) -> u64 {
 pub fn infer_degree(evaluations: &[u64]) -> u64 {
 
     let mut evaluations = evaluations.to_vec();
-    polys::interpolate_fft(&mut evaluations, true);
+    polynom::interpolate_fft(&mut evaluations, true);
     
     for i in (0..evaluations.len()).rev() {
         if evaluations[i] != 0 {
