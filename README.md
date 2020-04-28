@@ -179,17 +179,17 @@ Here are some very informal benchmarks of running the Fibonacci calculator on In
 
 | Operation Count | Execution time | Execution RAM  | Verification time | Proof size |
 | --------------- | :------------: | :------------: | :---------------: | :--------: |
-| 2<sup>8</sup>   | 60 ms          | negligible     | 2 ms              | 64 KB      |
-| 2<sup>10</sup>  | 150 ms         | negligible     | 2 ms              | 86 KB      |
-| 2<sup>12</sup>  | 520 ms         | negligible     | 2 ms              | 114 KB     |
-| 2<sup>14</sup>  | 2.2 sec        | 130 MB         | 3 ms              | 142 KB     |
-| 2<sup>16</sup>  | 9.8 sec        | 640 MB         | 3 ms              | 178 KB     |
-| 2<sup>18</sup>  | 44 sec         | 2.6 GB         | 3 ms              | 212 KB     |
-| 2<sup>20</sup>  | 6.8 min        | > 5.5 GB       | 4 ms              | 254 KB     |
+| 2<sup>8</sup>   | 40 ms          | negligible     | 2 ms              | 66 KB      |
+| 2<sup>10</sup>  | 120 ms         | negligible     | 2 ms              | 87 KB      |
+| 2<sup>12</sup>  | 450 ms         | negligible     | 2 ms              | 114 KB     |
+| 2<sup>14</sup>  | 2 sec          | 130 MB         | 3 ms              | 140 KB     |
+| 2<sup>16</sup>  | 8.6 sec        | 640 MB         | 3 ms              | 174 KB     |
+| 2<sup>18</sup>  | 38 sec         | 2.6 GB         | 3 ms              | 214 KB     |
+| 2<sup>20</sup>  | 6.3 min        | > 5.6 GB       | 4 ms              | 250 KB     |
 
 A few notes about the results:
 1. Execution time is dominated by the proof generation time. In fact, the time needed to run the program is only about 0.05% of the time needed to generate the proof.
-2. For 2<sup>20</sup> case, RAM on my machine maxed out at 5.5 GB, but for efficient execution ~12 GB would be needed. This probably explains why proving time is so poor in this case as compared to other cases. If there was sufficient RAM available, execution time would have likely been just slightly over 3 mins.
+2. For 2<sup>20</sup> case, RAM on my machine maxed out at 5.6 GB, but for efficient execution ~12 GB would be needed. This probably explains why proving time is so poor in this case as compared to other cases. If there was sufficient RAM available, execution time would have likely been just around 3 mins.
 3. The benchmarks use default proof options which target 96-bit security level. The security level can be increased by either increasing execution time or proof size. In general, there is a trade-off between proof time and proof size (i.e. you can reduce proof size by increasing execution time, up to a point).
 
 ## References
