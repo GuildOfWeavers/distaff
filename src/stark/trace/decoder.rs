@@ -1,16 +1,30 @@
+use std::ops::Range;
 use crate::processor::opcodes;
 use crate::field;
 use crate::stark::utils::hash_acc::{ self, STATE_WIDTH as ACC_STATE_WIDTH, NUM_ROUNDS };
 use crate::utils::zero_filled_vector;
 use super::{ NUM_OP_BITS };
 
-// TYPES AND INTERFACES
+// CONSTANTS
 // ================================================================================================
-type DecoderResult = (Vec<u64>, Vec<u64>, [Vec<u64>; NUM_OP_BITS], [Vec<u64>; ACC_STATE_WIDTH]);
+pub const NUM_REGISTERS: usize = 2 + NUM_OP_BITS + ACC_STATE_WIDTH;
+
+pub const OP_CODE_IDX     : usize = 0;
+pub const PUSH_FLAG_IDX   : usize = 1;
+pub const OP_BITS_RANGE   : Range<usize> = Range { start: 2, end:  7 };
+pub const OP_ACC_RANGE    : Range<usize> = Range { start: 7, end: 19 };
+
+pub const PROG_HASH_RANGE : Range<usize> = Range { start: 7, end: 11 };
 
 // TRACE BUILDER
 // ================================================================================================
-pub fn process(program: &[u64], extension_factor: usize) -> DecoderResult {
+
+/// Builds decoder execution trace; the trace consists of the following registers:
+/// op_code: 1 register
+/// push_flag: 1 register
+/// op_bits: 5 registers
+/// op_acc: 12 registers
+pub fn process(program: &[u64], extension_factor: usize) -> Vec<Vec<u64>> {
 
     let trace_length = program.len();
     let domain_size = trace_length * extension_factor;
@@ -25,7 +39,7 @@ pub fn process(program: &[u64], extension_factor: usize) -> DecoderResult {
 
     // initialize push_flags and op_bits registers
     let mut push_flag = zero_filled_vector(trace_length, domain_size);
-    let mut op_bits: [Vec<u64>; NUM_OP_BITS] = [
+    let mut op_bits = vec![
         zero_filled_vector(trace_length, domain_size),
         zero_filled_vector(trace_length, domain_size),
         zero_filled_vector(trace_length, domain_size),
@@ -50,19 +64,28 @@ pub fn process(program: &[u64], extension_factor: usize) -> DecoderResult {
         i += 1;
     }
 
-    let op_acc = hash_program(&op_code, extension_factor);
+    // create op_acc register traces
+    let op_acc = hash_program(&op_code, domain_size);
 
-    return (op_code, push_flag, op_bits, op_acc);
+    // move all registers into a single vector
+    let mut registers = vec![op_code, push_flag];
+    for register in op_bits.into_iter() { registers.push(register); }
+    for register in op_acc.into_iter() { registers.push(register); }
+
+    assert!(registers.len() == NUM_REGISTERS, "inconsistent number of decoder registers");
+    return registers;
 }
 
-// OPERATION ACCUMULATOR
+// HELPER FUNCTIONS
 // ================================================================================================
-pub fn hash_program(op_codes: &[u64], extension_factor: usize) -> [Vec<u64>; ACC_STATE_WIDTH] {
+
+/// Uses a modified version of Rescue hash function to reduce all op_codes into a single hash value
+fn hash_program(op_codes: &[u64], domain_size: usize) -> Vec<Vec<u64>> {
     
     let trace_length = op_codes.len();
-    let domain_size = trace_length * extension_factor;
 
-    let mut registers = [
+    // allocate space for the registers
+    let mut registers = vec![
         zero_filled_vector(trace_length, domain_size),
         zero_filled_vector(trace_length, domain_size),
         zero_filled_vector(trace_length, domain_size),
@@ -76,12 +99,9 @@ pub fn hash_program(op_codes: &[u64], extension_factor: usize) -> [Vec<u64>; ACC
         zero_filled_vector(trace_length, domain_size),
         zero_filled_vector(trace_length, domain_size),
     ];
+    assert!(registers.len() == ACC_STATE_WIDTH, "inconsistent number of opcode accumulator registers");
 
     let mut state = [0; ACC_STATE_WIDTH];
-    for register in registers.iter_mut() {
-        register[0] = 0;
-    }
-
     for i in 0..(op_codes.len() - 1) {
         // inject op_code into the state
         state[0] = field::add(state[0], op_codes[i]);
@@ -107,12 +127,9 @@ pub fn hash_program(op_codes: &[u64], extension_factor: usize) -> [Vec<u64>; ACC
     return registers;
 }
 
-// HELPER FUNCTIONS
-// ================================================================================================
-
 /// Sets the op_bits registers at the specified `step` to the binary decomposition
 /// of the `op_code` parameter.
-fn set_op_bits(op_bits: &mut [Vec<u64>; NUM_OP_BITS], op_code: u64, step: usize) {
+fn set_op_bits(op_bits: &mut Vec<Vec<u64>>, op_code: u64, step: usize) {
     for i in 0..op_bits.len() {
         op_bits[i][step] = (op_code >> i) & 1;
     }

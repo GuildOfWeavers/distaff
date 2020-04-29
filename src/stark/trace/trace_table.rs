@@ -1,18 +1,15 @@
-use crate::math::{ field, fft, polynom };
+use crate::math::{ field, fft, polynom, quartic::to_quartic_vec };
+use crate::crypto::{ MerkleTree, HashFunction };
 use crate::processor::opcodes;
-use crate::stark::{ hash_acc::STATE_WIDTH as ACC_STATE_WIDTH };
-use super::{ TraceState, decoder, stack, NUM_OP_BITS };
+use crate::utils::uninit_vector;
+use super::{ TraceState, decoder, stack };
 
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct TraceTable {
-    op_code     : Vec<u64>,
-    push_flag   : Vec<u64>,
-    op_bits     : [Vec<u64>; NUM_OP_BITS],
-    op_acc      : [Vec<u64>; ACC_STATE_WIDTH],
-    stack       : Vec<Vec<u64>>,
-
-    extension_factor: usize
+    registers   : Vec<Vec<u64>>,
+    polys       : Vec<Vec<u64>>,
+    ext_factor  : usize,
 }
 
 // TRACE TABLE IMPLEMENTATION
@@ -27,10 +24,17 @@ impl TraceTable {
         assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
         assert!(program[program.len() - 1] == opcodes::NOOP, "last operation of a program must be NOOP");
 
-        // create trace table object
-        let (op_code, push_flag, op_bits, op_acc) = decoder::process(program, extension_factor);
-        let stack = stack::execute(program, inputs, extension_factor);
-        return TraceTable { op_code, push_flag, op_bits, op_acc, stack, extension_factor };
+        // create different segments of the trace
+        let decoder_registers = decoder::process(program, extension_factor);
+        let stack_registers = stack::execute(program, inputs, extension_factor);
+
+        // move all trace registers into a single vector
+        let mut registers = Vec::new();
+        for register in decoder_registers.into_iter() { registers.push(register); }
+        for register in stack_registers.into_iter() { registers.push(register); }
+
+        let polys = Vec::with_capacity(registers.len());
+        return TraceTable { registers, polys, ext_factor: extension_factor };
     }
 
     /// Returns state of the trace table at the specified `step`.
@@ -42,68 +46,50 @@ impl TraceTable {
 
     /// Copies trace table state at the specified `step` to the passed in `state` object.
     pub fn fill_state(&self, state: &mut TraceState, step: usize) {
-        state.set_op_code(self.op_code[step]);
-        state.set_push_flag(self.push_flag[step]);
-        state.set_op_bits([
-            self.op_bits[0][step], self.op_bits[1][step], self.op_bits[2][step],
-            self.op_bits[3][step], self.op_bits[4][step]
-        ]);
-        state.set_op_acc([
-            self.op_acc[0][step], self.op_acc[1][step], self.op_acc[2][step],  self.op_acc[3][step],
-            self.op_acc[4][step], self.op_acc[5][step], self.op_acc[6][step],  self.op_acc[7][step],
-            self.op_acc[8][step], self.op_acc[9][step], self.op_acc[10][step], self.op_acc[11][step]
-        ]);
-        for i in 0..self.stack.len() {
-            state.set_stack_value(i, self.stack[i][step]);
+        for i in 0..self.registers.len() {
+            state.set_register(i, self.registers[i][step]);
         }
     }
 
     /// Returns the number of states in the un-extended trace table.
     pub fn unextended_length(&self) -> usize {
-        return self.op_code.capacity() / self.extension_factor();
+        return self.registers[0].capacity() / self.ext_factor;
     }
 
     /// Returns the number of states in the extended trace table.
     pub fn domain_size(&self) -> usize {
-        return self.op_code.capacity();
+        return self.registers[0].capacity();
     }
 
     /// Returns `extension_factor` for the trace table.
     pub fn extension_factor(&self) -> usize {
-        return self.extension_factor;
+        return self.ext_factor;
     }
 
     /// Returns the number of registers in the trace table.
     pub fn register_count(&self) -> usize {
-        return 1 + self.op_bits.len() + self.op_acc.len() + self.stack.len();
+        return self.registers.len();
     }
 
     /// Returns the number of registers used by the stack.
     pub fn max_stack_depth(&self) -> usize {
-        return self.stack.len();
+        return self.registers.len() - decoder::NUM_REGISTERS;
     }
 
-    /// Returns register trace at the specified `index`.
+    /// Returns trace of the register at the specified `index`.
     pub fn get_register_trace(&self, index: usize) -> &[u64] {
-        return match index {
-            0     => &self.op_code,
-            1..=5 => &self.op_bits[index - 1],
-            _     => &self.stack[index - 6]
-        };
+        return &self.registers[index];
     }
 
-    /// Returns register trace for stack register specified by the `index`.
+    /// Returns trace of the stack register at the specified `index`.
     pub fn get_stack_register_trace(&self, index: usize) -> &[u64] {
-        return &self.stack[index];
+        return &self.registers[index + decoder::NUM_REGISTERS];
     }
 
     /// Returns `true` if the trace table has been extended.
     pub fn is_extended(&self) -> bool {
-        return self.op_code.len() == self.op_code.capacity();
+        return self.registers[0].len() == self.registers[0].capacity();
     }
-
-    // INTERPOLATION AND EXTENSION
-    // --------------------------------------------------------------------------------------------
 
     /// Extends all registers of the trace table by the `extension_factor` specified during
     /// trace table construction. A trace table can be extended only once.
@@ -117,40 +103,46 @@ impl TraceTable {
         let root = field::get_root_of_unity(domain_size as u64);
         let twiddles = fft::get_twiddles(root, domain_size);
 
-        // extend op_code
-        debug_assert!(self.op_code.capacity() == domain_size, "invalid op_code register capacity");
-        polynom::interpolate_fft_twiddles(&mut self.op_code, &inv_twiddles, true);
-        unsafe { self.op_code.set_len(self.op_code.capacity()); }
-        polynom::eval_fft_twiddles(&mut self.op_code, &twiddles, true);
-
-        // extend push_flag
-        debug_assert!(self.push_flag.capacity() == domain_size, "invalid push_flag register capacity");
-        polynom::interpolate_fft_twiddles(&mut self.push_flag, &inv_twiddles, true);
-        unsafe { self.push_flag.set_len(self.push_flag.capacity()); }
-        polynom::eval_fft_twiddles(&mut self.push_flag, &twiddles, true);
-
-        // extend op_bits
-        for register in self.op_bits.iter_mut() {
-            debug_assert!(register.capacity() == domain_size, "invalid op_bits register capacity");
+        // extend all registers
+        for register in self.registers.iter_mut() {
+            debug_assert!(register.capacity() == domain_size, "invalid capacity for register");
+            // interpolate register trace into a polynomial
             polynom::interpolate_fft_twiddles(register, &inv_twiddles, true);
+
+            // save the polynomial for later use
+            self.polys.push(register.clone());
+
+            // evaluate the polynomial over extended domain
             unsafe { register.set_len(register.capacity()); }
             polynom::eval_fft_twiddles(register, &twiddles, true);
         }
+    }
 
-        // extend op_acc
-        for register in self.op_acc.iter_mut() {
-            debug_assert!(register.capacity() == domain_size, "invalid op_acc register capacity");
-            polynom::interpolate_fft_twiddles(register, &inv_twiddles, true);
-            unsafe { register.set_len(register.capacity()); }
-            polynom::eval_fft_twiddles(register, &twiddles, true);
+    /// Puts the trace table into a Merkle tree such that each state of the table becomes
+    /// a distinct leaf in the tree; all registers at a given step are hashed together to
+    /// form a single leaf value.
+    pub fn to_merkle_tree(&self, hash: HashFunction) -> MerkleTree {
+        let mut trace_state = vec![0; self.register_count()];
+        let mut hashed_states = to_quartic_vec(uninit_vector(self.domain_size() * 4));
+        // TODO: this loop should be parallelized
+        for i in 0..self.domain_size() {
+            for j in 0..trace_state.len() {
+                trace_state[j] = self.registers[j][i];
+            }
+            hash(&trace_state, &mut hashed_states[i]);
         }
+        return MerkleTree::new(hashed_states, hash);
+    }
 
-        // extend stack registers
-        for register in self.stack.iter_mut() {
-            debug_assert!(register.capacity() == domain_size, "invalid stack register capacity");
-            polynom::interpolate_fft_twiddles(register, &inv_twiddles, true);
-            unsafe { register.set_len(register.capacity()); }
-            polynom::eval_fft_twiddles(register, &twiddles, true);
+    /// Evaluates trace polynomials at the specified point `z`; trace table must
+    /// be extended first.
+    pub fn eval_polys_at(&self, z: u64) -> Vec<u64> {
+        assert!(self.is_extended(), "trace table has not been extended yet");
+
+        let mut result = Vec::new();
+        for poly in self.polys.iter() {
+            result.push(polynom::eval(poly, z));
         }
+        return result;
     }
 }

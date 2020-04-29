@@ -1,9 +1,7 @@
 use std::time::Instant;
 use log::debug;
 use std::collections::BTreeMap;
-use crate::math::{ field, quartic::to_quartic_vec };
-use crate::crypto::{ MerkleTree };
-use crate::utils::uninit_vector;
+use crate::math::{ field };
 
 use super::trace::{ TraceTable, TraceState };
 use super::constraints::{ ConstraintEvaluator, ConstraintTable, MAX_CONSTRAINT_DEGREE };
@@ -24,14 +22,7 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
 
     // 2 ----- build Merkle tree from extended execution trace ------------------------------------
     let now = Instant::now();
-    let mut trace_state = TraceState::new(trace.max_stack_depth());
-    let mut hashed_states = to_quartic_vec(uninit_vector(trace.domain_size() * 4));
-    for i in 0..trace.domain_size() {
-        // TODO: this loop should be parallelized
-        trace.fill_state(&mut trace_state, i);
-        options.hash_function()(trace_state.registers(), &mut hashed_states[i]);
-    }
-    let trace_tree = MerkleTree::new(hashed_states, options.hash_function());
+    let trace_tree = trace.to_merkle_tree(options.hash_function());
     debug!("Built trace Merkle tree in {} ms", 
         now.elapsed().as_millis());
 

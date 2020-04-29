@@ -1,18 +1,11 @@
 use std::fmt;
 use std::cmp;
 use crate::math::field::{ add, sub, mul, ONE };
-use crate::stark::hash_acc::STATE_WIDTH as ACC_STATE_WIDTH;
-use super::{ NUM_OP_BITS, NUM_LD_OPS, MIN_STACK_DEPTH };
+use super::{ decoder, NUM_LD_OPS, MIN_STACK_DEPTH };
 
 // CONSTANTS
 // ================================================================================================
-const OP_CODE_IDX   : usize = 0;
-const PUSH_FLAG_IDX : usize = 1;
-const OP_ACC_IDX    : usize = 2;
-const OP_BITS_IDX   : usize = OP_ACC_IDX + ACC_STATE_WIDTH;
-const STACK_IDX     : usize = OP_BITS_IDX + NUM_OP_BITS;
-
-const STATIC_REGISTER_COUNT: usize = 2 + NUM_OP_BITS + ACC_STATE_WIDTH;
+const NUM_STATIC_REGISTER: usize = decoder::NUM_REGISTERS;
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -29,8 +22,8 @@ pub struct TraceState {
 impl TraceState {
 
     pub fn new(stack_depth: usize) -> TraceState {
-        let state_width = STATIC_REGISTER_COUNT + stack_depth;
-        let num_registers = STATIC_REGISTER_COUNT + cmp::max(stack_depth, MIN_STACK_DEPTH);
+        let state_width = NUM_STATIC_REGISTER + stack_depth;
+        let num_registers = NUM_STATIC_REGISTER + cmp::max(stack_depth, MIN_STACK_DEPTH);
         
         return TraceState {
             registers   : vec![0; num_registers],
@@ -42,7 +35,7 @@ impl TraceState {
 
     pub fn from_raw_state(mut state: Vec<u64>) -> TraceState {
         let state_width = state.len();
-        let stack_depth = state_width - STATIC_REGISTER_COUNT;
+        let stack_depth = state_width - NUM_STATIC_REGISTER;
 
         if stack_depth < MIN_STACK_DEPTH {
             state.resize(state.len() + (MIN_STACK_DEPTH - stack_depth), 0);
@@ -56,49 +49,26 @@ impl TraceState {
         };
     }
 
-    // OP_CODE
+    // PUBLIC ACCESSORS
     // --------------------------------------------------------------------------------------------
     pub fn get_op_code(&self) -> u64 {
-        return self.registers[OP_CODE_IDX];
+        return self.registers[decoder::OP_CODE_IDX];
     }
 
-    pub fn set_op_code(&mut self, value: u64) {
-        self.registers[OP_CODE_IDX] = value;
-    }
-
-    // PUSH_FLAG
-    // --------------------------------------------------------------------------------------------
     pub fn get_push_flag(&self) -> u64 {
-        return self.registers[PUSH_FLAG_IDX];
+        return self.registers[decoder::PUSH_FLAG_IDX];
     }
 
-    pub fn set_push_flag(&mut self, value: u64) {
-        self.registers[PUSH_FLAG_IDX] = value;
-    }
-
-    // OP_ACC
-    // --------------------------------------------------------------------------------------------
     pub fn get_op_acc(&self) -> &[u64] {
-        return &self.registers[OP_ACC_IDX..(OP_ACC_IDX + ACC_STATE_WIDTH)];
-    }
-
-    pub fn set_op_acc(&mut self, value: [u64; ACC_STATE_WIDTH]) {
-        self.registers[OP_ACC_IDX..(OP_ACC_IDX + ACC_STATE_WIDTH)].copy_from_slice(&value);
+        return &self.registers[decoder::OP_ACC_RANGE];
     }
 
     pub fn get_program_hash(&self) -> &[u64] {
-        return &self.registers[OP_ACC_IDX..(OP_ACC_IDX + 4)];
+        return &self.registers[decoder::PROG_HASH_RANGE];
     }
 
-    // OP_BITS
-    // --------------------------------------------------------------------------------------------
     pub fn get_op_bits(&self) -> &[u64] {
-        return &self.registers[OP_BITS_IDX..(OP_BITS_IDX + NUM_OP_BITS)];
-    }
-
-    pub fn set_op_bits(&mut self, op_bits: [u64; NUM_OP_BITS]) {
-        self.registers[OP_BITS_IDX..(OP_BITS_IDX + NUM_OP_BITS)].copy_from_slice(&op_bits);
-        self.op_flags_set = false;
+        return &self.registers[decoder::OP_BITS_RANGE];
     }
 
     pub fn get_op_bits_value(&self) -> u64 {
@@ -111,8 +81,6 @@ impl TraceState {
         return value;
     }
 
-    // OP_FLAGS
-    // --------------------------------------------------------------------------------------------
     pub fn get_op_flags(&self) -> [u64; NUM_LD_OPS] {
         if !self.op_flags_set {
             unsafe {
@@ -124,6 +92,27 @@ impl TraceState {
         return self.op_flags;
     }
 
+    pub fn get_stack(&self) -> &[u64] {
+        return &self.registers[NUM_STATIC_REGISTER..];
+    }
+
+    pub fn compute_stack_depth(trace_register_count: usize) -> usize {
+        return trace_register_count - NUM_STATIC_REGISTER;
+    }
+
+    // RAW STATE
+    // --------------------------------------------------------------------------------------------
+    pub fn registers(&self) -> &[u64] {
+        return &self.registers[..self.state_width];
+    }
+
+    pub fn set_register(&mut self, index: usize, value: u64) {
+        self.registers[index] = value;
+        self.op_flags_set = false;
+    }
+
+    // HELPER METHODS
+    // --------------------------------------------------------------------------------------------
     fn set_op_flags(&mut self) {
         // TODO: needs to be optimized
 
@@ -151,26 +140,6 @@ impl TraceState {
         }
 
         self.op_flags = op_flags;
-    }
-
-    // STACK
-    // --------------------------------------------------------------------------------------------
-    pub fn get_stack(&self) -> &[u64] {
-        return &self.registers[STACK_IDX..];
-    }
-
-    pub fn set_stack_value(&mut self, index: usize, value: u64) {
-        self.registers[STACK_IDX + index] = value;
-    }
-
-    pub fn compute_stack_depth(trace_register_count: usize) -> usize {
-        return trace_register_count - STATIC_REGISTER_COUNT;
-    }
-
-    // RAW STATE
-    // --------------------------------------------------------------------------------------------
-    pub fn registers(&self) -> &[u64] {
-        return &self.registers[..self.state_width];
     }
 }
 
