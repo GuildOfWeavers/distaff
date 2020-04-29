@@ -105,6 +105,10 @@ impl Evaluator {
         return (MAX_CONSTRAINT_DEGREE - 1) * self.trace_length() - 1;
     }
 
+    pub fn extension_factor(&self) -> usize {
+        return self.extension_factor;
+    }
+
     pub fn transition_evaluations(&self) -> &Vec<Vec<u64>> {
         return &self.t_evaluations;
     }
