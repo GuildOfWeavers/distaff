@@ -44,6 +44,10 @@ impl ConstraintPolys {
         return self.polys.len();
     }
 
+    pub fn get_poly(&self, index: usize) -> &[u64] {
+        return &self.polys[index];
+    }
+
     pub fn domain(&self) -> &[u64] {
         return &self.domain;
     }
@@ -60,7 +64,7 @@ impl ConstraintPolys {
         let twiddles = fft::get_twiddles(root, domain_size);
 
         for poly in self.evaluations.iter_mut() {
-            debug_assert!(poly.capacity() == domain_size, "invalid capacity constraint polynomial evaluation");
+            debug_assert!(poly.capacity() == domain_size, "invalid capacity for constraint polynomial evaluation");
             unsafe { poly.set_len(poly.capacity()); }
             polynom::eval_fft_twiddles(poly, &twiddles, true);
         }

@@ -81,6 +81,13 @@ impl TraceTable {
         return &self.registers[index];
     }
 
+    /// Returns polynomial of the register at the specified `index`; can be called only
+    /// after the trace table has been extended.
+    pub fn get_register_poly(&self, index: usize) -> &[u64] {
+        assert!(self.is_extended(), "trace table has not been extended yet");
+        return &self.polys[index];
+    }
+
     /// Returns trace of the stack register at the specified `index`.
     pub fn get_stack_register_trace(&self, index: usize) -> &[u64] {
         return &self.registers[index + decoder::NUM_REGISTERS];
@@ -134,8 +141,8 @@ impl TraceTable {
         return MerkleTree::new(hashed_states, hash);
     }
 
-    /// Evaluates trace polynomials at the specified point `z`; trace table must
-    /// be extended first.
+    /// Evaluates trace polynomials at the specified point `z`; can be called only after
+    /// the trace table has been extended
     pub fn eval_polys_at(&self, z: u64) -> Vec<u64> {
         assert!(self.is_extended(), "trace table has not been extended yet");
 
