@@ -14,3 +14,4 @@ pub const MAX_OUTPUTS       : usize = 8;
 pub const MIN_STACK_DEPTH   : usize = 8;
 pub const MAX_STACK_DEPTH   : usize = 32;
 pub const MIN_TRACE_LENGTH  : usize = 16;
+pub const MAX_REGISTER_COUNT: usize = 128;

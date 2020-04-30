@@ -2,7 +2,7 @@ use crate::math::{ field, fft, polynom, quartic::to_quartic_vec };
 use crate::crypto::{ MerkleTree, HashFunction };
 use crate::processor::opcodes;
 use crate::utils::uninit_vector;
-use super::{ TraceState, decoder, stack };
+use super::{ TraceState, decoder, stack, MAX_REGISTER_COUNT };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -32,6 +32,9 @@ impl TraceTable {
         let mut registers = Vec::new();
         for register in decoder_registers.into_iter() { registers.push(register); }
         for register in stack_registers.into_iter() { registers.push(register); }
+
+        assert!(registers.len() < MAX_REGISTER_COUNT,
+            "execution trace cannot have more than {} registers", MAX_REGISTER_COUNT);
 
         let polys = Vec::with_capacity(registers.len());
         return TraceTable { registers, polys, ext_factor: extension_factor };
