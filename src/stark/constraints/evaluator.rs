@@ -1,11 +1,7 @@
 use crate::math::field;
-use crate::stark::TraceState;
-use crate::utils::{ uninit_vector, CopyInto };
-use super::{ decoder::Decoder, stack::Stack };
-
-// CONSTANTS
-// ================================================================================================
-pub const MAX_CONSTRAINT_DEGREE: usize = 8;
+use crate::stark::{ TraceState };
+use crate::utils::{ uninit_vector };
+use super::{ decoder::Decoder, stack::Stack, MAX_CONSTRAINT_DEGREE, CompositionCoefficients };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -13,7 +9,7 @@ pub struct Evaluator {
     decoder         : Decoder,
     stack           : Stack,
 
-    coefficients    : Coefficients,
+    coefficients    : CompositionCoefficients,
     domain_size     : usize,
     extension_factor: usize,
 
@@ -25,14 +21,7 @@ pub struct Evaluator {
     program_hash    : [u64; 4],
     inputs          : Vec<u64>,
     outputs         : Vec<u64>,
-    b_degree_incr   : u64,
-}
-
-pub struct Coefficients {
-    pub trace       : [u64; 256],
-    pub transition  : [u64; 256],
-    pub inputs      : [u64; 32],
-    pub outputs     : [u64; 32],
+    b_degree_adj    : u64,
 }
 
 // EVALUATOR IMPLEMENTATION
@@ -70,12 +59,12 @@ impl Evaluator {
         // divided by degree 1 polynomial
         let boundary_constraint_degree = trace_length - 1;
         let target_degree = (MAX_CONSTRAINT_DEGREE - 1) * trace_length;
-        let b_degree_incr = target_degree - boundary_constraint_degree;
+        let b_degree_adj = target_degree - boundary_constraint_degree;
 
         return Evaluator {
             decoder         : Decoder::new(ext_factor),
             stack           : Stack::new(stack_depth),
-            coefficients    : Coefficients::new(trace_root),
+            coefficients    : CompositionCoefficients::new(trace_root),
             domain_size     : domain_size,
             extension_factor: ext_factor,
             t_constraint_num: t_constraint_degrees.len(),
@@ -85,7 +74,7 @@ impl Evaluator {
             program_hash    : *program_hash,
             inputs          : inputs.to_vec(),
             outputs         : outputs.to_vec(),
-            b_degree_incr   : b_degree_incr as u64,
+            b_degree_adj    : b_degree_adj as u64,
         };
     }
 
@@ -175,7 +164,7 @@ impl Evaluator {
         let stack = current.get_stack();
         
         // compute adjustment factor
-        let xp = field::exp(x, self.b_degree_incr);
+        let xp = field::exp(x, self.b_degree_adj);
 
         // 1 ----- compute combination of input constraints ---------------------------------------
         let mut i_result = 0;
@@ -242,7 +231,7 @@ impl Evaluator {
         // multiply adjusted terms by degree adjustment factor; the incremental degree here
         // is 1 less than incremental degree for boundary constraints because trace register
         // combination is not divided by zero polynomials during composition.
-        let xp = field::exp(x, self.b_degree_incr - 1);
+        let xp = field::exp(x, self.b_degree_adj - 1);
         result_adj = field::mul(result_adj, xp);
 
         // sum both parts together and return
@@ -263,33 +252,6 @@ impl Evaluator {
                 mutable_self.t_evaluations[i][step] = evaluations[i];
             }
         }
-    }
-}
-
-// COEFFICIENTS IMPLEMENTATION
-// ================================================================================================
-impl Coefficients {
-
-    pub fn new(seed: &[u64; 4]) -> Coefficients {
-
-        // generate a pseudo-random list of coefficients
-        let coefficients = field::prng_vector(seed.copy_into(), 256 + 256 + 32 + 32);
-        
-        // copy coefficients to their respective segments
-        let mut trace = [0u64; 256];
-        trace.copy_from_slice(&coefficients[0..256]);
-
-        let mut transition = [0u64; 256];
-        transition.copy_from_slice(&coefficients[256..512]);
-
-        let mut inputs = [0u64; 32];
-        inputs.copy_from_slice(&coefficients[512..544]);
-
-        let mut outputs = [0u64; 32];
-        outputs.copy_from_slice(&coefficients[544..576]);
-
-        return Coefficients { trace, transition, inputs, outputs };
-
     }
 }
 
