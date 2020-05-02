@@ -211,33 +211,6 @@ impl Evaluator {
         return (i_result, f_result);
     }
 
-    /// Computes a pseudo-random linear combination of all trace registers P_i at point x as:
-    /// cc_{i * 2} * P_i + cc_{i * 2 + 1} * P_i * x^p for all i, where cc_j are the coefficients
-    /// used in the linear combination and x^p is a degree adjustment factor.
-    pub fn combine_trace_registers(&self, current: &TraceState, x: u64) -> u64 {
-        
-        let cc = self.coefficients.trace;
-
-        let mut result_raw = 0;
-        let mut result_adj = 0;
-
-        // separately sum up adjusted and un-adjusted terms
-        let registers = current.registers();
-        for i in 0..registers.len() {
-            result_raw = field::add(result_raw, field::mul(registers[i], cc[i * 2]));
-            result_adj = field::add(result_adj, field::mul(registers[i], cc[i * 2 + 1]));
-        }
-
-        // multiply adjusted terms by degree adjustment factor; the incremental degree here
-        // is 1 less than incremental degree for boundary constraints because trace register
-        // combination is not divided by zero polynomials during composition.
-        let xp = field::exp(x, self.b_degree_adj - 1);
-        result_adj = field::mul(result_adj, xp);
-
-        // sum both parts together and return
-        return field::add(result_raw, result_adj);
-    }
-
     // HELPER METHODS
     // -------------------------------------------------------------------------------------------
     fn should_evaluate_to_zero_at(&self, step: usize) -> bool {

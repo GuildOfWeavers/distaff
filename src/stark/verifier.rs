@@ -59,7 +59,7 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
         let next_step = (step + options.extension_factor()) % proof.domain_size();
         let next = trace_states.get(&next_step).unwrap();
 
-        let p_value = constraint_evaluator.combine_trace_registers(&current, x);
+        let p_value = 0; // TODO: constraint_evaluator.combine_trace_registers(&current, x);
         let (i_value, f_value) = constraint_evaluator.evaluate_boundaries(&current, x);
         let t_value = constraint_evaluator.evaluate_transition(&current, &next, x, step);
 

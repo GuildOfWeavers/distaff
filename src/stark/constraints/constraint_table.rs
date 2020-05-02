@@ -9,7 +9,6 @@ pub struct ConstraintTable {
     evaluator       : ConstraintEvaluator,
     domain          : Vec<u64>,
     domain_stride   : usize,
-    trace_reg_comb  : Vec<u64>,
     init_bound_comb : Vec<u64>,
     final_bound_comb: Vec<u64>,
     transition_comb : Vec<u64>,
@@ -32,7 +31,6 @@ impl ConstraintTable {
         return ConstraintTable {
             evaluator       : evaluator,
             domain          : evaluation_domain,
-            trace_reg_comb  : uninit_vector(composition_domain_size),
             init_bound_comb : uninit_vector(composition_domain_size),
             final_bound_comb: uninit_vector(composition_domain_size),
             transition_comb : uninit_vector(composition_domain_size),
@@ -70,7 +68,6 @@ impl ConstraintTable {
         let x = self.domain[domain_step];
         let step = domain_step / self.domain_stride;
 
-        self.trace_reg_comb[step] = self.evaluator.combine_trace_registers(current, x);
         let (init_bound, last_bound) = self.evaluator.evaluate_boundaries(current, x);
         self.init_bound_comb[step] = init_bound;
         self.final_bound_comb[step] = last_bound;
@@ -83,21 +80,15 @@ impl ConstraintTable {
 
         let composition_root = field::get_root_of_unity(self.composition_domain_size() as u64);
         let inv_twiddles = fft::get_inv_twiddles(composition_root, self.composition_domain_size());
-
-        // 1 ----- trace register combination -----------------------------------------------------
-        // interpolate linear combination of trace registers into a polynomial, and copy the
-        // polynomial into the result
-        polynom::interpolate_fft_twiddles(&mut self.trace_reg_comb, &inv_twiddles, true);
         
         let mut result = zero_filled_vector(self.composition_domain_size(), self.domain.len());
-        result[0..self.composition_domain_size()].copy_from_slice(&self.trace_reg_comb);
-
+        
         // 2 ----- boundary constraints for the initial step --------------------------------------
         // interpolate initial step boundary constraint combination into a polynomial, divide the 
         // polynomial by Z(x) = (x - 1), and add it to the result
         polynom::interpolate_fft_twiddles(&mut self.init_bound_comb, &inv_twiddles, true);
         polynom::syn_div_in_place(&mut self.init_bound_comb, field::neg(field::ONE));
-        parallel::add_in_place(&mut result, &self.init_bound_comb, 1);
+        result[0..self.composition_domain_size()].copy_from_slice(&self.init_bound_comb);
 
         // 3 ----- boundary constraints for the final step ----------------------------------------
         // interpolate final step boundary constraint combination into a polynomial, divide the 

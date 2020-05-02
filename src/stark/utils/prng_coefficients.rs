@@ -8,7 +8,6 @@ pub struct ConstraintCoefficients {
     pub inputs      : [u64; 2 * MAX_INPUTS],
     pub outputs     : [u64; 2 * MAX_OUTPUTS],
     pub transition  : [u64; 2 * MAX_TRANSITION_CONSTRAINTS],
-    pub trace       : [u64; 2 * MAX_REGISTER_COUNT],    // TODO: remove
 }
 
 pub struct CompositionCoefficients {
@@ -27,7 +26,7 @@ impl ConstraintCoefficients {
 
         // generate a pseudo-random list of coefficients
         let coefficients = field::prng_vector(seed.copy_into(),
-            2 * (MAX_INPUTS + MAX_OUTPUTS + MAX_TRANSITION_CONSTRAINTS + MAX_REGISTER_COUNT));
+            2 * (MAX_INPUTS + MAX_OUTPUTS + MAX_TRANSITION_CONSTRAINTS));
         
         // copy coefficients to their respective segments
         let end_index = 2 * MAX_INPUTS;
@@ -40,15 +39,10 @@ impl ConstraintCoefficients {
         outputs.copy_from_slice(&coefficients[start_index..end_index]);
 
         let start_index = end_index;
-        let end_index = start_index + 2 * MAX_TRANSITION_CONSTRAINTS;
         let mut transition = [0u64; 2 * MAX_TRANSITION_CONSTRAINTS];
-        transition.copy_from_slice(&coefficients[start_index..end_index]);
+        transition.copy_from_slice(&coefficients[start_index..]);
 
-        let start_index = end_index;
-        let mut trace = [0u64; 2 * MAX_REGISTER_COUNT];
-        trace.copy_from_slice(&coefficients[start_index..]);
-
-        return ConstraintCoefficients { inputs, outputs, transition, trace };
+        return ConstraintCoefficients { inputs, outputs, transition };
     }
 }
 
