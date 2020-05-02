@@ -22,20 +22,6 @@ pub fn pow_log2(base: u64, mut exponent: u32) -> u64 {
     return u64::pow(2, twos) * (64 - u64::pow(base, exponent).leading_zeros() as u64 - 1);
 }
 
-pub fn infer_degree(evaluations: &[u64]) -> u64 {
-
-    let mut evaluations = evaluations.to_vec();
-    polynom::interpolate_fft(&mut evaluations, true);
-    
-    for i in (0..evaluations.len()).rev() {
-        if evaluations[i] != 0 {
-            return i as u64;
-        }
-    }
-
-    return 0;
-}
-
 pub fn remove_leading_zeros(values: &[u64]) -> Vec<u64> {
     for i in (0..values.len()).rev() {
         if values[i] != 0 {

@@ -233,6 +233,22 @@ pub fn syn_div_expanded_in_place(a: &mut [u64], degree: usize, exceptions: &[u64
     for i in (degree_offset + exceptions.len())..a.len() { a[i] = 0; }
 }
 
+// DEGREE INFERENCE
+// ================================================================================================
+pub fn degree_of(poly: &[u64]) -> usize {
+    // TODO: use get_last_non_zero_index() ?
+    for i in (0..poly.len()).rev() {
+        if poly[i] != 0 { return i; }
+    }
+    return 0;
+}
+
+pub fn infer_degree(evaluations: &[u64]) -> usize {
+    let mut poly = evaluations.to_vec();
+    interpolate_fft(&mut poly, true);
+    return degree_of(&poly);
+}
+
 // HELPER FUNCTIONS
 // ================================================================================================
 fn get_last_non_zero_index(vec: &[u64]) -> usize {

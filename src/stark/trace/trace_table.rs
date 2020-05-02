@@ -227,7 +227,7 @@ impl TraceTable {
 #[cfg(test)]
 mod tests {
 
-    use crate::{ crypto::hash::blake3, processor::opcodes, utils::{ CopyInto, infer_degree } };
+    use crate::{ crypto::hash::blake3, processor::opcodes, utils::CopyInto };
     use crate::stark::{ TraceTable, CompositionCoefficients };
     use crate::math::{ field, polynom, parallel };
 
@@ -267,7 +267,7 @@ mod tests {
         let composition_poly = trace.get_composition_poly(z, target_degree, &cc);
         let mut actual_evaluations = composition_poly.clone();
         polynom::eval_fft(&mut actual_evaluations, true);
-        assert_eq!(target_degree as u64, infer_degree(&actual_evaluations));
+        assert_eq!(target_degree, polynom::infer_degree(&actual_evaluations));
 
         // compute expected evaluations
         let domain_size = target_degree.next_power_of_two();
