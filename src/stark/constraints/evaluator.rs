@@ -1,7 +1,7 @@
 use crate::math::field;
-use crate::stark::{ TraceState };
+use crate::stark::{ TraceState, ConstraintCoefficients };
 use crate::utils::{ uninit_vector };
-use super::{ decoder::Decoder, stack::Stack, MAX_CONSTRAINT_DEGREE, CompositionCoefficients };
+use super::{ decoder::Decoder, stack::Stack, MAX_CONSTRAINT_DEGREE };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -9,7 +9,7 @@ pub struct Evaluator {
     decoder         : Decoder,
     stack           : Stack,
 
-    coefficients    : CompositionCoefficients,
+    coefficients    : ConstraintCoefficients,
     domain_size     : usize,
     extension_factor: usize,
 
@@ -64,7 +64,7 @@ impl Evaluator {
         return Evaluator {
             decoder         : Decoder::new(ext_factor),
             stack           : Stack::new(stack_depth),
-            coefficients    : CompositionCoefficients::new(trace_root),
+            coefficients    : ConstraintCoefficients::new(trace_root),
             domain_size     : domain_size,
             extension_factor: ext_factor,
             t_constraint_num: t_constraint_degrees.len(),
