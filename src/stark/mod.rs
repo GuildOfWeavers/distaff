@@ -19,13 +19,15 @@ pub use trace::{
 pub use constraints::{
     ConstraintEvaluator,
     ConstraintTable,
+    ConstraintPoly,
     MAX_CONSTRAINT_DEGREE,
     MAX_TRANSITION_CONSTRAINTS };
 
 pub use utils::{
     hash_acc,
     ConstraintCoefficients,
-    CompositionCoefficients };
+    CompositionCoefficients,
+    DeepValues };
 
 pub use options::ProofOptions;
 pub use proof::{ StarkProof };

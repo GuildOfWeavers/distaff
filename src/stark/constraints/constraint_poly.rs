@@ -45,8 +45,24 @@ impl ConstraintPoly {
         return MerkleTree::new(evaluations, hash);
     }
 
+    pub fn eval_at(&self, z: u64) -> u64 {
+        return polynom::eval(&self.poly, z);
+    }
+
     pub fn get_composition_poly(&self, z: u64, cc: &CompositionCoefficients) -> Vec<u64> {
-        // TODO: implement
-        return vec![];
+        
+        let mut composition_poly = self.poly.clone();
+
+        // compute C(x) = (A(x) - A(z)) / (x - z)
+        let z_value = polynom::eval(&self.poly, z);
+        composition_poly[0] = field::sub(composition_poly[0], z_value);
+        polynom::syn_div_in_place(&mut composition_poly, field::neg(z));
+
+        // TODO: parallelize
+        for i in 0..composition_poly.len() {
+            composition_poly[i] = field::mul(composition_poly[i], cc.constraints);
+        }
+
+        return composition_poly;
     }
 }
