@@ -87,7 +87,7 @@ impl ConstraintTable {
         // interpolate initial step boundary constraint combination into a polynomial, divide the 
         // polynomial by Z(x) = (x - 1), and add it to the result
         polynom::interpolate_fft_twiddles(&mut self.i_evaluations, &inv_twiddles, true);
-        polynom::syn_div_in_place(&mut self.i_evaluations, field::neg(field::ONE));
+        polynom::syn_div_in_place(&mut self.i_evaluations, field::ONE);
         combined_poly.copy_from_slice(&self.i_evaluations);
 
         // 2 ----- boundary constraints for the final step ----------------------------------------
@@ -95,7 +95,7 @@ impl ConstraintTable {
         // polynomial by Z(x) = (x - x_at_last_step), and add it to the result
         polynom::interpolate_fft_twiddles(&mut self.f_evaluations, &inv_twiddles, true);
         let x_at_last_step = self.get_x_at_last_step();
-        polynom::syn_div_in_place(&mut self.f_evaluations, field::neg(x_at_last_step));
+        polynom::syn_div_in_place(&mut self.f_evaluations, x_at_last_step);
         parallel::add_in_place(&mut combined_poly, &self.f_evaluations, 1);
 
         // 3 ----- transition constraints ---------------------------------------------------------

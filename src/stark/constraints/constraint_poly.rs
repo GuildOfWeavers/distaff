@@ -56,7 +56,7 @@ impl ConstraintPoly {
         // compute C(x) = (A(x) - A(z)) / (x - z)
         let z_value = polynom::eval(&self.poly, z);
         composition_poly[0] = field::sub(composition_poly[0], z_value);
-        polynom::syn_div_in_place(&mut composition_poly, field::neg(z));
+        polynom::syn_div_in_place(&mut composition_poly, z);
 
         // TODO: parallelize
         for i in 0..composition_poly.len() {

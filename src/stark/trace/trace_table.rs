@@ -197,8 +197,8 @@ impl TraceTable {
 
         // divide the two composition polynomials by (x - z) and (x - z * g)
         // respectively and add the resulting polynomials together
-        polynom::syn_div_in_place(&mut t1_composition, field::neg(z));
-        polynom::syn_div_in_place(&mut t2_composition, field::neg(next_z));
+        polynom::syn_div_in_place(&mut t1_composition, z);
+        polynom::syn_div_in_place(&mut t2_composition, next_z);
         parallel::add_in_place(&mut t1_composition, &t2_composition, 1);
 
         // adjust the degree of the polynomial to match the degree parameter by computing
