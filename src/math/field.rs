@@ -172,7 +172,12 @@ pub fn get_root_of_unity(order: u64) -> u64 {
 
 /// Generates a vector with values [1, b, b^2, b^3, b^4, ..., b^length].
 pub fn get_power_series(b: u64, length: usize) -> Vec<u64> {
-    return (0..length).map(|i| exp(b, i as u64)).collect::<Vec<u64>>();
+    let mut result = uninit_vector(length);
+    result[0] = 1;
+    for i in 1..result.len() {
+        result[i] = mul(result[i - 1], b);
+    }    
+    return result;
 }
 
 // RANDOMNESS
