@@ -1,9 +1,11 @@
+use serde::{ Serialize, Deserialize };
 use crate::math::{ field };
 use crate::stark::{ TraceTable, ConstraintPoly };
 use crate::utils::{ CopyInto };
 
 // TYPES AND INTERFACES
 // ================================================================================================
+#[derive(Clone, Serialize, Deserialize)]
 pub struct DeepValues {
     pub z               : u64,
     pub trace_at_z      : Vec<u64>,

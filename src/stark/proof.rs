@@ -1,7 +1,7 @@
 use serde::{ Serialize, Deserialize };
 use crate::math::quartic::to_quartic_vec;
 use crate::crypto::{ BatchMerkleProof };
-use crate::stark::{ fri::FriProof, TraceState, ProofOptions };
+use crate::stark::{ fri::FriProof, TraceState, DeepValues, ProofOptions };
 use crate::utils::uninit_vector;
 
 // TYPES AND INTERFACES
@@ -10,12 +10,15 @@ use crate::utils::uninit_vector;
 // TODO: custom serialization should reduce size by 5% - 10%
 #[derive(Clone, Serialize, Deserialize)]
 pub struct StarkProof {
-    trace_root  : [u64; 4],
-    domain_depth: u8,
-    trace_nodes : Vec<Vec<[u64; 4]>>,
-    trace_states: Vec<Vec<u64>>,
-    ld_proof    : FriProof,
-    options     : ProofOptions
+    trace_root      : [u64; 4],
+    domain_depth    : u8,
+    trace_nodes     : Vec<Vec<[u64; 4]>>,
+    trace_states    : Vec<Vec<u64>>,
+    constraint_root : [u64; 4],
+    constraint_proof: BatchMerkleProof,
+    deep_values     : DeepValues,
+    ld_proof        : FriProof,
+    options         : ProofOptions
 }
 
 // STARK PROOF IMPLEMENTATION
@@ -23,19 +26,25 @@ pub struct StarkProof {
 impl StarkProof {
 
     pub fn new(
-        trace_root  : &[u64; 4],
-        trace_proof : BatchMerkleProof, 
-        trace_states: Vec<TraceState>,
-        ld_proof    : FriProof,
-        options     : &ProofOptions ) -> StarkProof
+        trace_root      : &[u64; 4],
+        trace_proof     : BatchMerkleProof, 
+        trace_states    : Vec<TraceState>,
+        constraint_root : &[u64; 4],
+        constraint_proof: BatchMerkleProof,
+        deep_values     : DeepValues,
+        ld_proof        : FriProof,
+        options         : &ProofOptions ) -> StarkProof
     {
         return StarkProof {
-            trace_root  : *trace_root,
-            domain_depth: trace_proof.depth,
-            trace_nodes : trace_proof.nodes,
-            trace_states: trace_states.into_iter().map(|s| s.registers().to_vec()).collect(),
-            ld_proof    : ld_proof,
-            options     : options.clone()
+            trace_root      : *trace_root,
+            domain_depth    : trace_proof.depth,
+            trace_nodes     : trace_proof.nodes,
+            trace_states    : trace_states.into_iter().map(|s| s.registers().to_vec()).collect(),
+            constraint_root : *constraint_root,
+            constraint_proof: constraint_proof,
+            deep_values     : deep_values,
+            ld_proof        : ld_proof,
+            options         : options.clone()
         };
     }
 

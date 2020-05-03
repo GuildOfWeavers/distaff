@@ -33,7 +33,7 @@ impl ConstraintPoly {
     pub fn to_merkle_tree(&self, hash: HashFunction) -> MerkleTree {
 
         let domain_root = field::get_root_of_unity(self.domain.len() as u64);
-        let twiddles = fft::get_twiddles(domain_root, self.domain.len());
+        let twiddles = fft::get_twiddles(domain_root, self.domain.len());   // TODO: don't re-build twiddles
     
         // evaluate constraint polynomial over the evaluation domain
         let mut evaluations = vec![0; self.domain.len()];

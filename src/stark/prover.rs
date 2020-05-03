@@ -1,11 +1,11 @@
 use std::time::Instant;
 use log::debug;
 use std::collections::BTreeMap;
-use crate::math::{ field };
+use crate::math::{ field, polynom, parallel };
 
 use super::trace::{ TraceTable, TraceState };
 use super::constraints::{ ConstraintEvaluator, ConstraintTable, MAX_CONSTRAINT_DEGREE };
-use super::{ ProofOptions, StarkProof, fri, utils::QueryIndexGenerator };
+use super::{ ProofOptions, StarkProof, fri, utils::QueryIndexGenerator, CompositionCoefficients, DeepValues };
 
 // PROVER FUNCTION
 // ================================================================================================
@@ -74,24 +74,54 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
         constraints.constraint_count(),
         now.elapsed().as_millis());
 
-    // 5 ----- combine transition constraints into a single polynomial ----------------------------
+    // 5 ----- convert constraint evaluations into a polynomial -----------------------------------
     let now = Instant::now();
-    let composed_evaluations = constraints.compose();
-    debug!("Computed composition polynomial in {} ms",
+    let constraint_poly = constraints.into_combination_poly();
+    debug!("Converted constraint evaluations into a single polynomial of degree {} in {} ms",
+        constraint_poly.degree(),
         now.elapsed().as_millis());
 
-    // 6 ----- generate low-degree proof for composition polynomial -------------------------------
+    // 6 ----- build Merkle tree from constraint polynomial evaluations ---------------------------
     let now = Instant::now();
-    let composition_degree_plus_1 = constraints.composition_degree() + 1;
+    let constraint_tree = constraint_poly.to_merkle_tree(options.hash_function());
+    debug!("Evaluated constraint polynomial and built constraint Merkle tree in {} ms",
+        now.elapsed().as_millis());
+
+    // 7 ----- build and evaluate deep composition polynomial -------------------------------------
+    let now = Instant::now();
+
+    // use constraint tree root to determine deep point z and coefficients for random linear
+    // combinations used to build deep composition polynomial
+    let deep_values = DeepValues::new(constraint_tree.root(), &trace, &constraint_poly);
+    let coefficients = CompositionCoefficients::new(constraint_tree.root());
+
+    // build constraint and trace composition polynomials and add them together
+    let composition_degree = constraint_poly.degree() - 1;
+    let t_composition_poly = trace.get_composition_poly(deep_values.z, composition_degree, &coefficients); // TODO
+    let c_composition_poly = constraint_poly.get_composition_poly(deep_values.z, &coefficients); // TODO
+    let composition_poly = parallel::add(&t_composition_poly, &c_composition_poly, 1);
+
+    // evaluate the composition polynomial
+    let mut composed_evaluations = composition_poly;
+    composed_evaluations.resize(trace.domain_size(), 0);
+    polynom::eval_fft(&mut composed_evaluations, true);  // TODO: use twiddles
+
+    debug!("Built composition polynomial and evaluated it over domain of {} elements in {} ms",
+        composed_evaluations.len(),
+        now.elapsed().as_millis());
+
+    // 8 ----- generate low-degree proof for composition polynomial -------------------------------
+    let now = Instant::now();
+    let composition_degree_plus_1 = composed_evaluations.len() - trace.unextended_length(); // TODO: compute correctly
     let fri_proof = fri::prove(
         &composed_evaluations,
-        constraints.domain(),
+        constraint_poly.domain(),
         composition_degree_plus_1,
         options);
     debug!("Generated low-degree proof for composition polynomial in {} ms",
         now.elapsed().as_millis());
 
-    // 7 ----- query extended execution trace at pseudo-random positions --------------------------
+    // 9 ----- query extended execution trace at pseudo-random positions --------------------------
     let now = Instant::now();
 
     // generate pseudo-random indexes based on the root of the composition Merkle tree
@@ -112,11 +142,16 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
     let augmented_positions = trace_states.keys().cloned().collect::<Vec<usize>>();
     let trace_states = trace_states.into_iter().map(|(_, v)| v).collect();
 
-    // generate Merkle proof for the augmented positions
-    let trace_proof = trace_tree.prove_batch(&augmented_positions);
-
     // build the proof object
-    let proof = StarkProof::new(trace_tree.root(), trace_proof, trace_states, fri_proof, &options);
+    let proof = StarkProof::new(
+        trace_tree.root(),
+        trace_tree.prove_batch(&augmented_positions),
+        trace_states,
+        constraint_tree.root(),
+        constraint_tree.prove_batch(&[1, 2, 3, 4]), // TODO
+        deep_values,
+        fri_proof,
+        &options);
 
     debug!("Computed {} trace queries and built proof object in {} ms",
         positions.len(),
