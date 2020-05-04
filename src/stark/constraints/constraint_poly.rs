@@ -1,12 +1,13 @@
 use crate::crypto::{ HashFunction, MerkleTree };
 use crate::math::{ field, fft, polynom, quartic::to_quartic_vec };
-use crate::stark::{ utils::CompositionCoefficients };
+use crate::stark::{ utils::CompositionCoefficients, MAX_CONSTRAINT_DEGREE };
 
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct ConstraintPoly {
     domain      : Vec<u64>,
     poly        : Vec<u64>,
+    degree      : usize,
 }
 
 // CONSTRAINT POLY IMPLEMENTATION
@@ -19,7 +20,13 @@ impl ConstraintPoly {
         assert!(domain.len().is_power_of_two(), "domain size must be a power of two");
         assert!(domain.len() > poly.len(), "domain size must be greater than poly length");
 
-        return ConstraintPoly { domain, poly };
+        let trace_length = poly.len() / MAX_CONSTRAINT_DEGREE;
+        let degree = poly.len() - trace_length;
+        assert!(degree == polynom::degree_of(&poly),
+            "expected polynomial of degree {} but received degree {}",
+            degree, polynom::degree_of(&poly));
+
+        return ConstraintPoly { domain, poly, degree };
     }
 
     pub fn domain(&self) -> &[u64] {
@@ -27,7 +34,7 @@ impl ConstraintPoly {
     }
 
     pub fn degree(&self) -> usize {
-        return polynom::degree_of(&self.poly);
+        return self.degree;
     }
 
     pub fn to_merkle_tree(&self, hash: HashFunction) -> MerkleTree {

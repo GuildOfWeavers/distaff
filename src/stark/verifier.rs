@@ -79,7 +79,7 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
     }
 
     // 3 ----- Verify log-degree proof -------------------------------------------------------------
-    let composition_degree_plus_1 = constraint_evaluator.composition_degree() + 1;
+    let composition_degree_plus_1 = 16; // TODO
     return match fri::verify(&ld_proof, &evaluations, domain_root, composition_degree_plus_1, options) {
         Ok(result) => Ok(result),
         Err(msg) => Err(format!("verification of low-degree proof failed: {}", msg))

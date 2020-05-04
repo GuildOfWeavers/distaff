@@ -20,50 +20,51 @@ impl ConstraintTable {
 
     pub fn new(evaluator: ConstraintEvaluator, evaluation_domain: Vec<u64>) -> ConstraintTable {
 
-        let composition_domain_size = evaluator.domain_size();
+        let constraint_domain_size = evaluator.domain_size();
         let evaluation_domain_size = evaluation_domain.len();
         let extension_factor = evaluation_domain.len() / evaluator.trace_length();
         let domain_stride = extension_factor / MAX_CONSTRAINT_DEGREE;
 
-        assert!(composition_domain_size == evaluation_domain_size / domain_stride,
-            "composition and evaluation domains are inconsistent");
+        assert!(constraint_domain_size == evaluation_domain_size / domain_stride,
+            "constraint and evaluation domains are inconsistent");
 
         return ConstraintTable {
             evaluator       : evaluator,
             domain          : evaluation_domain,
-            i_evaluations   : uninit_vector(composition_domain_size),
-            f_evaluations   : uninit_vector(composition_domain_size),
-            t_evaluations   : uninit_vector(composition_domain_size),
+            i_evaluations   : uninit_vector(constraint_domain_size),
+            f_evaluations   : uninit_vector(constraint_domain_size),
+            t_evaluations   : uninit_vector(constraint_domain_size),
             domain_stride   : domain_stride,
         };
     }
 
-    pub fn composition_degree(&self) -> usize {
-        return self.evaluator.composition_degree();
-    }
-
+    /// Returns the total number of transition and boundary constraints.
     pub fn constraint_count(&self) -> usize {
         return self.evaluator.constraint_count();
     }
 
+    /// Returns the full evaluation domain.
     pub fn domain(&self) -> &[u64] {
         return &self.domain;
     }
 
+    /// Returns the size of the constraint domain = trace_length * MAX_CONSTRAINT_DEGREE
+    pub fn constraint_domain_size(&self) -> usize {
+        return self.evaluator.domain_size();
+    }
+
+    /// Returns (evaluation domain size) / (constraint domain size)
     pub fn domain_stride(&self) -> usize {
         return self.domain_stride;
     }
 
-    pub fn composition_domain_size(&self) -> usize {
-        return self.evaluator.domain_size();
-    }
-
+    /// Returns the length of the un-extended execution trace.
     pub fn trace_length(&self) -> usize {
         return self.evaluator.trace_length();
     }
 
-    // CONSTRAINT EVALUATION
-    // --------------------------------------------------------------------------------------------
+    /// Evaluates transition and boundary constraints at the specified step; constraints
+    /// are evaluated over the constraint domain.
     pub fn evaluate(&mut self, current: &TraceState, next: &TraceState, domain_step: usize) {
         let x = self.domain[domain_step];
         let step = domain_step / self.domain_stride;
@@ -74,14 +75,14 @@ impl ConstraintTable {
         self.t_evaluations[step] = self.evaluator.evaluate_transition(current, next, x, step);
     }
 
-    // CONSTRAINT COMPOSITION
-    // -------------------------------------------------------------------------------------------
+    /// Interpolates all constraint evaluations into polynomials and combines all these 
+    /// polynomials into a single polynomial using a random linear combination.
     pub fn into_combination_poly(mut self) -> ConstraintPoly {
 
-        let composition_root = field::get_root_of_unity(self.composition_domain_size() as u64);
-        let inv_twiddles = fft::get_inv_twiddles(composition_root, self.composition_domain_size());
+        let combination_root = field::get_root_of_unity(self.constraint_domain_size() as u64);
+        let inv_twiddles = fft::get_inv_twiddles(combination_root, self.constraint_domain_size());
         
-        let mut combined_poly = uninit_vector(self.composition_domain_size());
+        let mut combined_poly = uninit_vector(self.constraint_domain_size());
         
         // 1 ----- boundary constraints for the initial step --------------------------------------
         // interpolate initial step boundary constraint combination into a polynomial, divide the 

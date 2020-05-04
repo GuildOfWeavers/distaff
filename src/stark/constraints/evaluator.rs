@@ -54,11 +54,9 @@ impl Evaluator {
             Vec::new()
         };
 
-        // target degree for boundary constraints is 1 more than composition degree because
-        // when composition polynomial is constructed, adjusted boundary constraints are
-        // divided by degree 1 polynomial
+        // determine boundary constraint adjustment degree
+        let target_degree = get_boundary_constraint_target_degree(trace_length);
         let boundary_constraint_degree = trace_length - 1;
-        let target_degree = (MAX_CONSTRAINT_DEGREE - 1) * trace_length;
         let b_degree_adj = target_degree - boundary_constraint_degree;
 
         return Evaluator {
@@ -88,10 +86,6 @@ impl Evaluator {
 
     pub fn trace_length(&self) -> usize {
         return self.domain_size / self.extension_factor;
-    }
-
-    pub fn composition_degree(&self) -> usize {
-        return (MAX_CONSTRAINT_DEGREE - 1) * self.trace_length() - 1;
     }
 
     pub fn extension_factor(&self) -> usize {
@@ -240,17 +234,33 @@ fn group_transition_constraints(degrees: Vec<usize>, trace_length: usize) -> Vec
         groups[degree].push(i);
     }
 
-    // target degree for transition constraints should be equal 
-    // to the maximum degree of a polynomial in the composition domain
-    let target_degree = trace_length * MAX_CONSTRAINT_DEGREE - 1;
+    let target_degree = get_transition_constraint_target_degree(trace_length);
 
     let mut result = Vec::new();
     for (degree, constraints) in groups.iter().enumerate() {
         if constraints.len() == 0 { continue; }
         let constraint_degree = (trace_length - 1) * degree;    
-        let incremental_degree = (target_degree - constraint_degree - 1) as u64;
+        let incremental_degree = (target_degree - constraint_degree) as u64;
         result.push((incremental_degree, constraints.clone()));
     }
 
     return result;
+}
+
+/// target degree for boundary constraints is set so that when divided by boundary
+/// constraint divisor (degree 1 polynomial), the degree will be equal to
+/// deg(combination domain) - deg(trace)
+fn get_boundary_constraint_target_degree(trace_length: usize) -> usize {
+    let combination_degree = (MAX_CONSTRAINT_DEGREE - 1) * trace_length;
+    let divisor_degree = 1;
+    return combination_degree + divisor_degree;
+}
+
+/// target degree for transition constraints is set so when divided transition 
+/// constraint divisor (deg(trace) - 1 polynomial), the degree will be equal to
+/// deg(combination domain) - deg(trace)
+fn get_transition_constraint_target_degree(trace_length: usize) -> usize {
+    let combination_degree = (MAX_CONSTRAINT_DEGREE - 1) * trace_length;
+    let divisor_degree = trace_length - 1;
+    return combination_degree + divisor_degree;
 }
