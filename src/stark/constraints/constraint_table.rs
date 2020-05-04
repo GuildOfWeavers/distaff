@@ -113,6 +113,7 @@ impl ConstraintTable {
     // HELPER METHODS
     // -------------------------------------------------------------------------------------------
     fn get_x_at_last_step(&self) -> u64 {
-        return self.domain[self.domain.len() - self.evaluator.extension_factor()];
+        let extension_factor = self.domain.len() / self.trace_length();
+        return self.domain[self.domain.len() - extension_factor];
     }
 }

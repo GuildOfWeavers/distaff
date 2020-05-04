@@ -2,6 +2,7 @@ use std::time::Instant;
 use log::debug;
 use std::collections::BTreeMap;
 use crate::math::{ field, polynom, parallel };
+use crate::utils::{ CopyInto };
 
 use super::trace::{ TraceTable, TraceState };
 use super::constraints::{ ConstraintEvaluator, ConstraintTable, MAX_CONSTRAINT_DEGREE };
@@ -92,7 +93,8 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
 
     // use constraint tree root to determine deep point z and coefficients for random linear
     // combinations used to build deep composition polynomial
-    let deep_values = DeepValues::new(constraint_tree.root(), &trace, &constraint_poly);
+    let z = field::prng(constraint_tree.root().copy_into());
+    let deep_values = DeepValues::new(z, &trace, &constraint_poly);
     let coefficients = CompositionCoefficients::new(constraint_tree.root());
 
     // build constraint and trace composition polynomials and add them together

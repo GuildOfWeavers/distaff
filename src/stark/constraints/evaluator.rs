@@ -148,6 +148,38 @@ impl Evaluator {
         return result;
     }
 
+    pub fn evaluate_transition_at(&self, current: &TraceState, next: &TraceState, x: u64) -> u64 {
+        // evaluate transition constraints
+        let mut evaluations = vec![0; self.t_constraint_num];
+        self.decoder.evaluate_at(&current, &next, x, &mut evaluations);
+        self.stack.evaluate(&current, &next, &mut evaluations[self.decoder.constraint_count()..]);
+
+        // TODO: move out into a separate function
+        // compute a pseudo-random linear combination of all transition constraints
+        let cc = self.coefficients.transition;
+        let mut result = 0;
+
+        let mut i = 0;
+        for (incremental_degree, constraints) in self.t_degree_groups.iter() {
+
+            // for each group of constraints with the same degree, separately compute
+            // combinations of D(x) and D(x) * x^p
+            let mut result_adj = 0;
+            for &constraint_idx in constraints.iter() {
+                let evaluation = evaluations[constraint_idx];
+                result = field::add(result, field::mul(evaluation, cc[i * 2]));
+                result_adj = field::add(result_adj, field::mul(evaluation, cc[i * 2 + 1]));
+                i += 1;
+            }
+
+            // increase the degree of D(x) * x^p
+            let xp = field::exp(x, *incremental_degree);
+            result = field::add(result, field::mul(result_adj, xp));
+        }
+
+        return result;
+    }
+
     /// Computes pseudo-random linear combination of boundary constraints B_i at point x 
     /// separately for input and output constraints; the constraints are computed as:
     /// cc_{i * 2} * B_i + cc_{i * 2 + 1} * B_i * x^p for all i, where cc_j are the coefficients

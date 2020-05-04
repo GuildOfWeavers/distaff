@@ -1,7 +1,6 @@
 use serde::{ Serialize, Deserialize };
 use crate::math::{ field };
 use crate::stark::{ TraceTable, ConstraintPoly };
-use crate::utils::{ CopyInto };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -17,10 +16,7 @@ pub struct DeepValues {
 // ================================================================================================
 impl DeepValues {
 
-    pub fn new(seed: &[u64; 4], trace: &TraceTable, c_poly: &ConstraintPoly) -> DeepValues {
-
-        // use seed to determine pseudo-random deep point z
-        let z = field::prng(seed.copy_into());
+    pub fn new(z: u64, trace: &TraceTable, c_poly: &ConstraintPoly) -> DeepValues {
 
         // compute mask offset for z
         let g = field::get_root_of_unity(trace.unextended_length() as u64);
