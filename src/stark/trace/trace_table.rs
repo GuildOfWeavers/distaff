@@ -104,17 +104,15 @@ impl TraceTable {
 
     /// Extends all registers of the trace table by the `extension_factor` specified during
     /// trace table construction. A trace table can be extended only once.
-    pub fn extend(&mut self) {
+    pub fn extend(&mut self, twiddles: &[u64]) {
         assert!(!self.is_extended(), "trace table has already been extended");
-        let domain_size = self.domain_size();
 
-        // build vectors of twiddles and inv_twiddles needed for FFT
+        // build inverse twiddles needed for FFT interpolation
         let root = field::get_root_of_unity(self.unextended_length() as u64);
         let inv_twiddles = fft::get_inv_twiddles(root, self.unextended_length());
-        let root = field::get_root_of_unity(domain_size as u64);
-        let twiddles = fft::get_twiddles(root, domain_size);
-
+        
         // extend all registers
+        let domain_size = self.domain_size();
         for register in self.registers.iter_mut() {
             debug_assert!(register.capacity() == domain_size, "invalid capacity for register");
             // interpolate register trace into a polynomial
@@ -132,7 +130,7 @@ impl TraceTable {
     /// Puts the trace table into a Merkle tree such that each state of the table becomes
     /// a distinct leaf in the tree; all registers at a given step are hashed together to
     /// form a single leaf value.
-    pub fn to_merkle_tree(&self, hash: HashFunction) -> MerkleTree {
+    pub fn build_merkle_tree(&self, hash: HashFunction) -> MerkleTree {
         let mut trace_state = vec![0; self.register_count()];
         let mut hashed_states = to_quartic_vec(uninit_vector(self.domain_size() * 4));
         // TODO: this loop should be parallelized
@@ -229,14 +227,15 @@ mod tests {
 
     use crate::{ crypto::hash::blake3, processor::opcodes, utils::CopyInto };
     use crate::stark::{ TraceTable, CompositionCoefficients };
-    use crate::math::{ field, polynom, parallel };
+    use crate::math::{ field, polynom, parallel, fft };
 
     const EXT_FACTOR: usize = 32;
 
     #[test]
     fn eval_polys_at() {
         let mut trace = build_trace_table();
-        trace.extend();
+        let lde_root = field::get_root_of_unity(trace.domain_size() as u64);
+        trace.extend(&fft::get_twiddles(lde_root, trace.domain_size()));
 
         let g = field::get_root_of_unity(trace.unextended_length() as u64);
 
@@ -253,10 +252,11 @@ mod tests {
     fn get_composition_poly() {
 
         let mut trace = build_trace_table();
-        trace.extend();
+        let lde_root = field::get_root_of_unity(trace.domain_size() as u64);
+        trace.extend(&fft::get_twiddles(lde_root, trace.domain_size()));
 
         // compute trace composition polynomial
-        let t_tree = trace.to_merkle_tree(blake3);
+        let t_tree = trace.build_merkle_tree(blake3);
         let z = field::prng(t_tree.root().copy_into());
         let cc = CompositionCoefficients::new(t_tree.root());
         let target_degree = (trace.unextended_length() - 2) * 8 - 1;

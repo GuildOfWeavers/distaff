@@ -1,7 +1,7 @@
 use std::time::Instant;
 use log::debug;
 use std::collections::BTreeMap;
-use crate::math::{ field, polynom, parallel };
+use crate::math::{ field, polynom, parallel, fft };
 use crate::utils::{ CopyInto };
 
 use super::trace::{ TraceTable, TraceState };
@@ -15,7 +15,15 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
 
     // 1 ----- extend execution trace -------------------------------------------------------------
     let now = Instant::now();
-    trace.extend();
+
+    // build LDE domain and LDE twiddles (for FFT evaluation over LDE domain)
+    let lde_root = field::get_root_of_unity(trace.domain_size() as u64);
+    let lde_domain = field::get_power_series(lde_root, trace.domain_size());
+    let mut lde_twiddles = lde_domain[..(lde_domain.len() / 2)].to_vec();
+    fft::permute(&mut lde_twiddles);
+
+    // extend the execution trace registers to LDE domain
+    trace.extend(&lde_twiddles);
     debug!("Extended execution trace of {} registers to {} steps in {} ms",
         trace.register_count(),
         trace.domain_size(), 
@@ -23,19 +31,11 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
 
     // 2 ----- build Merkle tree from extended execution trace ------------------------------------
     let now = Instant::now();
-    let trace_tree = trace.to_merkle_tree(options.hash_function());
+    let trace_tree = trace.build_merkle_tree(options.hash_function());
     debug!("Built trace Merkle tree in {} ms", 
         now.elapsed().as_millis());
 
-    // 3 ----- build evaluation domain for the extended execution trace ---------------------------
-    let now = Instant::now();
-    let root = field::get_root_of_unity(trace.domain_size() as u64);
-    let domain = field::get_power_series(root, trace.domain_size());
-    debug!("Built evaluation domain of {} elements in {} ms",
-        domain.len(),
-        now.elapsed().as_millis());
-
-    // 4 ----- evaluate constraints ---------------------------------------------------------------
+    // 3 ----- evaluate constraints ---------------------------------------------------------------
     let now = Instant::now();
     
     // initialize constraint evaluator
@@ -49,7 +49,7 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
         outputs);
 
     // allocate space to hold constraint evaluations
-    let mut constraints = ConstraintTable::new(constraint_evaluator, domain);
+    let mut constraints = ConstraintTable::new(constraint_evaluator, lde_domain);
     
     // allocate space to hold current and next states for constraint evaluations
     let mut current = TraceState::new(trace.max_stack_depth());
@@ -75,20 +75,20 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
         constraints.constraint_count(),
         now.elapsed().as_millis());
 
-    // 5 ----- convert constraint evaluations into a polynomial -----------------------------------
+    // 4 ----- convert constraint evaluations into a polynomial -----------------------------------
     let now = Instant::now();
     let constraint_poly = constraints.into_combination_poly();
     debug!("Converted constraint evaluations into a single polynomial of degree {} in {} ms",
         constraint_poly.degree(),
         now.elapsed().as_millis());
 
-    // 6 ----- build Merkle tree from constraint polynomial evaluations ---------------------------
+    // 5 ----- build Merkle tree from constraint polynomial evaluations ---------------------------
     let now = Instant::now();
     let constraint_tree = constraint_poly.to_merkle_tree(options.hash_function());
     debug!("Evaluated constraint polynomial and built constraint Merkle tree in {} ms",
         now.elapsed().as_millis());
 
-    // 7 ----- build and evaluate deep composition polynomial -------------------------------------
+    // 6 ----- build and evaluate deep composition polynomial -------------------------------------
     let now = Instant::now();
 
     // use constraint tree root to determine deep point z and coefficients for random linear
@@ -112,7 +112,7 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
         composed_evaluations.len(),
         now.elapsed().as_millis());
 
-    // 8 ----- generate low-degree proof for composition polynomial -------------------------------
+    // 7 ----- generate low-degree proof for composition polynomial -------------------------------
     let now = Instant::now();
     let composition_degree_plus_1 = composed_evaluations.len() - trace.unextended_length(); // TODO: compute correctly
     let fri_proof = fri::prove(
@@ -123,7 +123,7 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
     debug!("Generated low-degree proof for composition polynomial in {} ms",
         now.elapsed().as_millis());
 
-    // 9 ----- query extended execution trace at pseudo-random positions --------------------------
+    // 8 ----- query extended execution trace at pseudo-random positions --------------------------
     let now = Instant::now();
 
     // generate pseudo-random indexes based on the root of the composition Merkle tree
