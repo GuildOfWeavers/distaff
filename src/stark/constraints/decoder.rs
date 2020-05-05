@@ -27,13 +27,14 @@ pub struct Decoder {
     rescue_ark  : Vec<[u64; 2 * STATE_WIDTH]>,
     rescue_polys: Vec<Vec<u64>>,
     hash_cycle  : usize,
+    trace_length: usize,
 }
 
 // DECODER CONSTRAINT EVALUATOR IMPLEMENTATION
 // ================================================================================================
 impl Decoder {
 
-    pub fn new(extension_factor: usize) -> Decoder {
+    pub fn new(trace_length: usize, extension_factor: usize) -> Decoder {
         let (rescue_polys, ark_evaluations) = extend_constants(extension_factor);
         
         let hash_cycle = NUM_ROUNDS * extension_factor;
@@ -45,7 +46,7 @@ impl Decoder {
             }
         }
 
-        return Decoder { rescue_ark, rescue_polys, hash_cycle };
+        return Decoder { rescue_ark, rescue_polys, hash_cycle, trace_length };
     }
 
     pub fn constraint_count(&self) -> usize {
@@ -72,10 +73,12 @@ impl Decoder {
         self.decode_opcode(current, next, result);
 
         // 12 constraints to hash op_code
+        let num_cycles = (self.trace_length / NUM_ROUNDS) as u64;
         let mut rescue_ark = [0u64; 2 * STATE_WIDTH];
         for i in 0..rescue_ark.len() {
-            rescue_ark[i] = polynom::eval(&self.rescue_polys[i], x);
+            rescue_ark[i] = polynom::eval(&self.rescue_polys[i], field::exp(x, num_cycles));
         }
+
         self.hash_opcode(current, next, &rescue_ark, &mut result[9..]);
     }
 

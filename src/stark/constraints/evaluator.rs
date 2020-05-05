@@ -28,30 +28,6 @@ pub struct Evaluator {
 // ================================================================================================
 impl Evaluator {
 
-    pub fn from_proof(proof: &StarkProof, program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64]) -> Evaluator {
-        
-        let stack_depth = proof.stack_depth();
-        let trace_length = proof.trace_length();
-        let extension_factor = proof.options().extension_factor();
-        let t_constraint_degrees = get_transition_constraint_degrees(stack_depth);
-
-        return Evaluator {
-            decoder         : Decoder::new(extension_factor),
-            stack           : Stack::new(stack_depth),
-            coefficients    : ConstraintCoefficients::new(proof.trace_root()),
-            domain_size     : proof.domain_size(),
-            extension_factor: extension_factor,
-            t_constraint_num: t_constraint_degrees.len(),
-            t_degree_groups : group_transition_constraints(t_constraint_degrees, trace_length),
-            t_evaluations   : Vec::new(),
-            b_constraint_num: inputs.len() + outputs.len() + program_hash.len(),
-            program_hash    : program_hash.copy_into(),
-            inputs          : inputs.to_vec(),
-            outputs         : outputs.to_vec(),
-            b_degree_adj    : get_boundary_constraint_adjustment_degree(trace_length),
-        };
-    }
-
     pub fn from_trace(trace: &TraceTable, trace_root: &[u64; 4], program_hash: &[u64; 4], inputs: &[u64], outputs: &[u64]) -> Evaluator {
 
         let stack_depth = trace.max_stack_depth();
@@ -70,7 +46,7 @@ impl Evaluator {
         };
 
         return Evaluator {
-            decoder         : Decoder::new(extension_factor),
+            decoder         : Decoder::new(trace_length, extension_factor),
             stack           : Stack::new(stack_depth),
             coefficients    : ConstraintCoefficients::new(trace_root),
             domain_size     : domain_size,
@@ -80,6 +56,30 @@ impl Evaluator {
             t_evaluations   : t_evaluations,
             b_constraint_num: inputs.len() + outputs.len() + program_hash.len(),
             program_hash    : *program_hash,
+            inputs          : inputs.to_vec(),
+            outputs         : outputs.to_vec(),
+            b_degree_adj    : get_boundary_constraint_adjustment_degree(trace_length),
+        };
+    }
+
+    pub fn from_proof(proof: &StarkProof, program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64]) -> Evaluator {
+        
+        let stack_depth = proof.stack_depth();
+        let trace_length = proof.trace_length();
+        let extension_factor = proof.options().extension_factor();
+        let t_constraint_degrees = get_transition_constraint_degrees(stack_depth);
+
+        return Evaluator {
+            decoder         : Decoder::new(trace_length, extension_factor),
+            stack           : Stack::new(stack_depth),
+            coefficients    : ConstraintCoefficients::new(proof.trace_root()),
+            domain_size     : proof.domain_size(),
+            extension_factor: extension_factor,
+            t_constraint_num: t_constraint_degrees.len(),
+            t_degree_groups : group_transition_constraints(t_constraint_degrees, trace_length),
+            t_evaluations   : Vec::new(),
+            b_constraint_num: inputs.len() + outputs.len() + program_hash.len(),
+            program_hash    : program_hash.copy_into(),
             inputs          : inputs.to_vec(),
             outputs         : outputs.to_vec(),
             b_degree_adj    : get_boundary_constraint_adjustment_degree(trace_length),

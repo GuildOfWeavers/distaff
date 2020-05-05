@@ -66,6 +66,8 @@ impl ConstraintTable {
     /// Evaluates transition and boundary constraints at the specified step; constraints
     /// are evaluated over the constraint domain.
     pub fn evaluate(&mut self, current: &TraceState, next: &TraceState, domain_step: usize) {
+        debug_assert!(domain_step % self.domain_stride == 0, "domain step must be a multiple of domain stride");
+
         let x = self.domain[domain_step];
         let step = domain_step / self.domain_stride;
 
