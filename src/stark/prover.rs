@@ -1,11 +1,12 @@
 use std::time::Instant;
 use log::debug;
 use std::collections::BTreeMap;
-use crate::math::{ field, polynom, parallel, fft };
+use crate::math::{ field, polynom, fft };
+use crate::crypto::{ MerkleTree };
 use crate::utils::{ CopyInto };
 
 use super::trace::{ TraceTable, TraceState };
-use super::constraints::{ ConstraintEvaluator, ConstraintTable };
+use super::constraints::{ ConstraintEvaluator, ConstraintTable, ConstraintPoly, MAX_CONSTRAINT_DEGREE };
 use super::{ ProofOptions, StarkProof, fri, utils::QueryIndexGenerator, CompositionCoefficients, DeepValues };
 
 // PROVER FUNCTION
@@ -47,7 +48,7 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
         outputs);
 
     // allocate space to hold constraint evaluations
-    let mut constraints = ConstraintTable::new(constraint_evaluator, lde_domain);
+    let mut constraints = ConstraintTable::new(constraint_evaluator, lde_domain.clone()); // TODO: don't clone
     
     // allocate space to hold current and next states for constraint evaluations
     let mut current = TraceState::new(trace.max_stack_depth());
@@ -82,29 +83,21 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
 
     // 5 ----- build Merkle tree from constraint polynomial evaluations ---------------------------
     let now = Instant::now();
-    let constraint_tree = constraint_poly.to_merkle_tree(options.hash_function());
+    let constraint_tree = constraint_poly.build_merkle_tree(options.hash_function());
     debug!("Evaluated constraint polynomial and built constraint Merkle tree in {} ms",
         now.elapsed().as_millis());
 
     // 6 ----- build and evaluate deep composition polynomial -------------------------------------
     let now = Instant::now();
 
-    // use constraint tree root to determine deep point z and coefficients for random linear
-    // combinations used to build deep composition polynomial
-    let z = field::prng(constraint_tree.root().copy_into());
-    let deep_values = DeepValues::new(z, &trace, &constraint_poly);
-    let coefficients = CompositionCoefficients::new(constraint_tree.root());
+    // combine trace and constraint polynomials into the final deep composition polynomial
+    let (composition_poly, deep_values) = build_composition_poly(&trace, constraint_poly, &constraint_tree);
 
-    // build constraint and trace composition polynomials and add them together
-    let composition_degree = constraint_poly.degree() - 1;
-    let t_composition_poly = trace.get_composition_poly(deep_values.z, composition_degree, &coefficients); // TODO
-    let c_composition_poly = constraint_poly.get_composition_poly(deep_values.z, &coefficients); // TODO
-    let composition_poly = parallel::add(&t_composition_poly, &c_composition_poly, 1);
-
-    // evaluate the composition polynomial
+    // evaluate the composition polynomial over LDE domain
     let mut composed_evaluations = composition_poly;
-    composed_evaluations.resize(trace.domain_size(), 0);
-    polynom::eval_fft(&mut composed_evaluations, true);  // TODO: use twiddles
+    debug_assert!(composed_evaluations.capacity() == lde_domain.len(), "invalid composition polynomial capacity");
+    unsafe { composed_evaluations.set_len(composed_evaluations.capacity()); }
+    polynom::eval_fft_twiddles(&mut composed_evaluations, &lde_twiddles, true);
 
     debug!("Built composition polynomial and evaluated it over domain of {} elements in {} ms",
         composed_evaluations.len(),
@@ -112,11 +105,10 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
 
     // 7 ----- generate low-degree proof for composition polynomial -------------------------------
     let now = Instant::now();
-    let composition_degree_plus_1 = composed_evaluations.len() - trace.unextended_length(); // TODO: compute correctly
     let fri_proof = fri::prove(
         &composed_evaluations,
-        constraint_poly.domain(),
-        composition_degree_plus_1,
+        &lde_domain,
+        get_composition_degree(trace.unextended_length()) + 1,
         options);
     debug!("Generated low-degree proof for composition polynomial in {} ms",
         now.elapsed().as_millis());
@@ -126,7 +118,7 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
     // TODO: solve proof of work
 
     // generate pseudo-random query positions
-    let idx_generator = QueryIndexGenerator::new(options);
+    let idx_generator = QueryIndexGenerator::new(options); // TODO
     let positions = idx_generator.get_trace_indexes(&fri_proof.ev_root, trace.domain_size());    
 
     // 9 ----- query extended execution trace and constraint evaluations at these positions -------
@@ -168,4 +160,27 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
         now.elapsed().as_millis());
 
     return proof;
+}
+
+// HELPER FUNCTIONS
+// ================================================================================================
+
+fn build_composition_poly(trace: &TraceTable, constraint_poly: ConstraintPoly, constraint_tree: &MerkleTree) -> (Vec<u64>, DeepValues) {
+
+    // pseudo-randomly selection deep point z and coefficients for the composition
+    let z = field::prng(constraint_tree.root().copy_into());
+    let coefficients = CompositionCoefficients::new(constraint_tree.root());
+
+    // divide out deep point from trace polynomials and merge them into a single polynomial
+    let composition_degree = get_composition_degree(trace.unextended_length());
+    let (mut result, s1, s2) = trace.get_composition_poly(z, composition_degree, &coefficients);
+
+    // divide out deep point from constraint polynomial and merge it into the result
+    let constraints_at_z = constraint_poly.merge_into(&mut result, z, &coefficients);
+
+    return (result, DeepValues { trace_at_z: s1, trace_at_next_z: s2, constraints_at_z });
+}
+
+fn get_composition_degree(trace_length: usize) -> usize {
+    return (MAX_CONSTRAINT_DEGREE - 1) * trace_length - 1;
 }

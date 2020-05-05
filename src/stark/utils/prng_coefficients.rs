@@ -50,12 +50,15 @@ impl CompositionCoefficients {
 
     pub fn new(seed: &[u64; 4]) -> CompositionCoefficients {
         // generate a pseudo-random list of coefficients
-        let coefficients = field::prng_vector(seed.copy_into(), 4 * MAX_REGISTER_COUNT + 3);
+        let coefficients = field::prng_vector(seed.copy_into(), 4 * MAX_REGISTER_COUNT + 3 + 1);
+
+        // skip the first value because it is used up by deep point z
+        let start_index = 1;
 
         // copy coefficients to their respective segments
-        let end_index = 2 * MAX_REGISTER_COUNT;
+        let end_index = start_index + 2 * MAX_REGISTER_COUNT;
         let mut trace1 = [0u64; 2 * MAX_REGISTER_COUNT];
-        trace1.copy_from_slice(&coefficients[..end_index]);
+        trace1.copy_from_slice(&coefficients[start_index..end_index]);
 
         let start_index = end_index;
         let end_index = start_index + 2 * MAX_REGISTER_COUNT;

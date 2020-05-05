@@ -112,11 +112,11 @@ impl StarkProof {
         return self.deep_values.constraints_at_z;
     }
 
-    pub fn get_state_at_z1(&self) -> TraceState {
+    pub fn get_state_at_z(&self) -> TraceState {
         return TraceState::from_raw_state(self.deep_values.trace_at_z.clone());
     }
 
-    pub fn get_state_at_z2(&self) -> TraceState {
+    pub fn get_state_at_next_z(&self) -> TraceState {
         return TraceState::from_raw_state(self.deep_values.trace_at_next_z.clone());
     }
 }

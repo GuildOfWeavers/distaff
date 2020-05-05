@@ -13,13 +13,13 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
     // 1 ----- Verify deep point evaluation -------------------------------------------------------
     let constraint_evaluation_at_z = evaluate_constraints(
         ConstraintEvaluator::from_proof(proof, program_hash, inputs, outputs),
-        proof.get_state_at_z1(),
-        proof.get_state_at_z2(),
+        proof.get_state_at_z(),
+        proof.get_state_at_next_z(),
         proof.get_deep_point_z()
     );
 
     if constraint_evaluation_at_z != proof.get_constraint_evaluation_at_z() {
-        return Err(String::from("verification deep point evaluation failed"));
+        return Err(String::from("verification of deep point evaluation failed"));
     }
 
     // 2 ----- Verify proof of work and determine query positions ---------------------------------

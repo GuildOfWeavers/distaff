@@ -4,9 +4,8 @@ use crate::stark::{ TraceTable, ConstraintPoly };
 
 // TYPES AND INTERFACES
 // ================================================================================================
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DeepValues {
-    pub z               : u64,
     pub trace_at_z      : Vec<u64>,
     pub trace_at_next_z : Vec<u64>,
     pub constraints_at_z: u64,
@@ -29,7 +28,7 @@ impl DeepValues {
         // compute combined constraint evaluations at z
         let constraints_at_z = c_poly.eval_at(z);
 
-        return DeepValues { z, trace_at_z, trace_at_next_z, constraints_at_z };
+        return DeepValues { trace_at_z, trace_at_next_z, constraints_at_z };
     }
 
 }

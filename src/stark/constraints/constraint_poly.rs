@@ -1,13 +1,13 @@
 use crate::crypto::{ HashFunction, MerkleTree };
-use crate::math::{ field, fft, polynom, quartic::to_quartic_vec };
-use crate::stark::{ utils::CompositionCoefficients, MAX_CONSTRAINT_DEGREE };
+use crate::math::{ field, fft, polynom, parallel, quartic::to_quartic_vec };
+use crate::stark::{ MAX_CONSTRAINT_DEGREE, utils::CompositionCoefficients };
 
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct ConstraintPoly {
     domain      : Vec<u64>,
     poly        : Vec<u64>,
-    degree      : usize,
+    degree      : usize,     // TODO: remove?
 }
 
 // CONSTRAINT POLY IMPLEMENTATION
@@ -37,7 +37,7 @@ impl ConstraintPoly {
         return self.degree;
     }
 
-    pub fn to_merkle_tree(&self, hash: HashFunction) -> MerkleTree {
+    pub fn build_merkle_tree(&self, hash: HashFunction) -> MerkleTree {
 
         let domain_root = field::get_root_of_unity(self.domain.len() as u64);
         let twiddles = fft::get_twiddles(domain_root, self.domain.len());   // TODO: don't re-build twiddles
@@ -54,6 +54,21 @@ impl ConstraintPoly {
 
     pub fn eval_at(&self, z: u64) -> u64 {
         return polynom::eval(&self.poly, z);
+    }
+
+    pub fn merge_into(mut self, result: &mut Vec<u64>, z: u64, cc: &CompositionCoefficients) -> u64 {
+
+        // evaluate the polynomial at point z
+        let z_value = polynom::eval(&self.poly, z);
+
+        // compute C(x) = (P(x) - P(z)) / (x - z)
+        self.poly[0] = field::sub(self.poly[0], z_value);
+        polynom::syn_div_in_place(&mut self.poly, z);
+
+        // add C(x) * cc into the result
+        parallel::mul_acc(result, &self.poly, cc.constraints, 1);
+
+        return z_value;
     }
 
     pub fn get_composition_poly(&self, z: u64, cc: &CompositionCoefficients) -> Vec<u64> {

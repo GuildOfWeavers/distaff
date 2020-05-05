@@ -1,7 +1,7 @@
 use crate::math::{ field, fft, polynom, parallel, quartic::to_quartic_vec };
 use crate::crypto::{ MerkleTree, HashFunction };
 use crate::processor::opcodes;
-use crate::utils::{ uninit_vector };
+use crate::utils::{ uninit_vector, zero_filled_vector };
 use crate::stark::{ CompositionCoefficients };
 use super::{ TraceState, decoder, stack, MAX_REGISTER_COUNT };
 
@@ -162,7 +162,7 @@ impl TraceTable {
     /// T2_i(x) = (T_i(x) - T_i(z * g)) / (x - z * g) are computed for all i and combined
     /// together into a single polynomial using a pseudo-random linear combination;
     /// 3. Then the degree of the polynomial is adjusted to match the specified degree
-    pub fn get_composition_poly(&self, z: u64, degree: usize, cc: &CompositionCoefficients) -> Vec<u64> {
+    pub fn get_composition_poly(&self, z: u64, degree: usize, cc: &CompositionCoefficients) -> (Vec<u64>, Vec<u64>, Vec<u64>) {
 
         let trace_length = self.unextended_length();
         assert!(self.is_extended(), "trace table has not been extended yet");
@@ -202,7 +202,7 @@ impl TraceTable {
         // adjust the degree of the polynomial to match the degree parameter by computing
         // C(x) = T(x) * k_1 + T(x) * x^incremental_degree * k_2
         let incremental_degree = degree - (trace_length - 2);
-        let mut composition_poly = vec![0; degree.next_power_of_two()];
+        let mut composition_poly = zero_filled_vector(degree.next_power_of_two(), self.domain_size());
         // this is equivalent to T(x) * k_1
         parallel::mul_acc(
             &mut composition_poly[..trace_length],
@@ -216,7 +216,7 @@ impl TraceTable {
             cc.t2_degree,
             1);
         
-        return composition_poly;
+        return (composition_poly, deep_state1, deep_state2);
     }
 }
 
@@ -264,7 +264,7 @@ mod tests {
         let g = field::get_root_of_unity(trace.unextended_length() as u64);
         let zg = field::mul(z, g);
 
-        let composition_poly = trace.get_composition_poly(z, target_degree, &cc);
+        let (composition_poly, ..) = trace.get_composition_poly(z, target_degree, &cc);
         let mut actual_evaluations = composition_poly.clone();
         polynom::eval_fft(&mut actual_evaluations, true);
         assert_eq!(target_degree, polynom::infer_degree(&actual_evaluations));
