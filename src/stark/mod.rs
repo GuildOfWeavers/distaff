@@ -26,10 +26,9 @@ pub use constraints::{
 pub use utils::{
     hash_acc,
     ConstraintCoefficients,
-    CompositionCoefficients,
-    DeepValues };
+    CompositionCoefficients };
 
 pub use options::ProofOptions;
-pub use proof::{ StarkProof };
+pub use proof::{ StarkProof, DeepValues };
 pub use prover::{ prove };
 pub use verifier::{ verify };

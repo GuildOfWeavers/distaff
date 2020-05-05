@@ -1,7 +1,7 @@
 use std::time::Instant;
 use log::debug;
 use std::collections::BTreeMap;
-use crate::math::{ field, polynom, fft };
+use crate::math::{ field, polynom, fft, quartic::to_quartic_vec };
 use crate::crypto::{ MerkleTree };
 use crate::utils::{ CopyInto };
 
@@ -76,14 +76,20 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
 
     // 4 ----- convert constraint evaluations into a polynomial -----------------------------------
     let now = Instant::now();
-    let constraint_poly = constraints.into_combination_poly();
+    let constraint_poly = constraints.combine_polys();
     debug!("Converted constraint evaluations into a single polynomial of degree {} in {} ms",
         constraint_poly.degree(),
         now.elapsed().as_millis());
 
     // 5 ----- build Merkle tree from constraint polynomial evaluations ---------------------------
     let now = Instant::now();
-    let constraint_tree = constraint_poly.build_merkle_tree(options.hash_function());
+    
+    // evaluate constraint polynomial over the evaluation domain
+    let constraint_evaluations = constraint_poly.eval(&lde_twiddles);
+
+    // put evaluations into a Merkle tree; 4 evaluations per leaf
+    let constraint_evaluations = to_quartic_vec(constraint_evaluations);
+    let constraint_tree = MerkleTree::new(constraint_evaluations, options.hash_function());
     debug!("Evaluated constraint polynomial and built constraint Merkle tree in {} ms",
         now.elapsed().as_millis());
 
@@ -105,10 +111,12 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
 
     // 7 ----- generate low-degree proof for composition polynomial -------------------------------
     let now = Instant::now();
+    let composition_degree = get_composition_degree(trace.unextended_length());
+    debug_assert!(composition_degree == polynom::infer_degree(&composed_evaluations));
     let fri_proof = fri::prove(
         &composed_evaluations,
         &lde_domain,
-        get_composition_degree(trace.unextended_length()) + 1,
+        composition_degree + 1,
         options);
     debug!("Generated low-degree proof for composition polynomial in {} ms",
         now.elapsed().as_millis());

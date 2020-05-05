@@ -7,7 +7,7 @@ use super::{ TraceState, StarkProof, ConstraintEvaluator, fri, utils::QueryIndex
 pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &StarkProof) -> Result<bool, String> {
 
     let options = proof.options();
-    let degree_proof = proof.ld_proof();
+    let degree_proof = proof.degree_proof();
     let domain_root = field::get_root_of_unity(proof.domain_size() as u64);
 
     // 1 ----- Verify deep point evaluation -------------------------------------------------------

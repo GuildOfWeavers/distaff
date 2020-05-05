@@ -1,7 +1,7 @@
 use serde::{ Serialize, Deserialize };
 use crate::math::{ field, quartic::to_quartic_vec};
 use crate::crypto::{ BatchMerkleProof };
-use crate::stark::{ fri::FriProof, TraceState, DeepValues, ProofOptions };
+use crate::stark::{ fri::FriProof, TraceState, ProofOptions };
 use crate::utils::{ uninit_vector, CopyInto };
 
 // TYPES AND INTERFACES
@@ -17,8 +17,15 @@ pub struct StarkProof {
     constraint_root : [u64; 4],
     constraint_proof: BatchMerkleProof,
     deep_values     : DeepValues,
-    ld_proof        : FriProof,
+    degree_proof    : FriProof,
     options         : ProofOptions
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DeepValues {
+    pub trace_at_z      : Vec<u64>,
+    pub trace_at_next_z : Vec<u64>,
+    pub constraints_at_z: u64,
 }
 
 // STARK PROOF IMPLEMENTATION
@@ -32,7 +39,7 @@ impl StarkProof {
         constraint_root : &[u64; 4],
         constraint_proof: BatchMerkleProof,
         deep_values     : DeepValues,
-        ld_proof        : FriProof,
+        degree_proof    : FriProof,
         options         : &ProofOptions ) -> StarkProof
     {
         return StarkProof {
@@ -43,7 +50,7 @@ impl StarkProof {
             constraint_root : *constraint_root,
             constraint_proof: constraint_proof,
             deep_values     : deep_values,
-            ld_proof        : ld_proof,
+            degree_proof    : degree_proof,
             options         : options.clone()
         };
     }
@@ -82,8 +89,8 @@ impl StarkProof {
         return self.constraint_proof.clone();
     }
 
-    pub fn ld_proof(&self) -> &FriProof {
-        return &self.ld_proof;
+    pub fn degree_proof(&self) -> &FriProof {
+        return &self.degree_proof;
     }
 
     pub fn trace_states(&self) -> Vec<TraceState> {
