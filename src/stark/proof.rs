@@ -1,8 +1,8 @@
 use serde::{ Serialize, Deserialize };
-use crate::math::quartic::to_quartic_vec;
+use crate::math::{ field, quartic::to_quartic_vec};
 use crate::crypto::{ BatchMerkleProof };
 use crate::stark::{ fri::FriProof, TraceState, DeepValues, ProofOptions };
-use crate::utils::uninit_vector;
+use crate::utils::{ uninit_vector, CopyInto };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -74,6 +74,14 @@ impl StarkProof {
          };
     }
 
+    pub fn constraint_root(&self) -> &[u64; 4] {
+        return &self.constraint_root;
+    }
+
+    pub fn constraint_proof(&self) -> BatchMerkleProof {
+        return self.constraint_proof.clone();
+    }
+
     pub fn ld_proof(&self) -> &FriProof {
         return &self.ld_proof;
     }
@@ -92,5 +100,23 @@ impl StarkProof {
 
     pub fn stack_depth(&self) -> usize {
         return TraceState::compute_stack_depth(self.trace_states[0].len());
+    }
+
+    // DEEP VALUES
+    // -------------------------------------------------------------------------------------------
+    pub fn get_deep_point_z(&self) -> u64 {
+        return field::prng(self.constraint_root.copy_into());
+    }
+
+    pub fn get_constraint_evaluation_at_z(&self) -> u64 {
+        return self.deep_values.constraints_at_z;
+    }
+
+    pub fn get_state_at_z1(&self) -> TraceState {
+        return TraceState::from_raw_state(self.deep_values.trace_at_z.clone());
+    }
+
+    pub fn get_state_at_z2(&self) -> TraceState {
+        return TraceState::from_raw_state(self.deep_values.trace_at_next_z.clone());
     }
 }

@@ -5,7 +5,7 @@ use crate::math::{ field, polynom, parallel, fft };
 use crate::utils::{ CopyInto };
 
 use super::trace::{ TraceTable, TraceState };
-use super::constraints::{ ConstraintEvaluator, ConstraintTable, MAX_CONSTRAINT_DEGREE };
+use super::constraints::{ ConstraintEvaluator, ConstraintTable };
 use super::{ ProofOptions, StarkProof, fri, utils::QueryIndexGenerator, CompositionCoefficients, DeepValues };
 
 // PROVER FUNCTION
@@ -39,11 +39,9 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
     let now = Instant::now();
     
     // initialize constraint evaluator
-    let constraint_evaluator = ConstraintEvaluator::new(
+    let constraint_evaluator = ConstraintEvaluator::from_trace(
+        &trace,
         trace_tree.root(), 
-        trace.unextended_length(),
-        trace.max_stack_depth(),
-        MAX_CONSTRAINT_DEGREE,
         program_hash,
         inputs,
         outputs);
@@ -123,34 +121,44 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
     debug!("Generated low-degree proof for composition polynomial in {} ms",
         now.elapsed().as_millis());
 
-    // 8 ----- query extended execution trace at pseudo-random positions --------------------------
-    let now = Instant::now();
+    // 8 ----- solve proof of work to determine query positions -----------------------------------
 
-    // generate pseudo-random indexes based on the root of the composition Merkle tree
+    // TODO: solve proof of work
+
+    // generate pseudo-random query positions
     let idx_generator = QueryIndexGenerator::new(options);
-    let positions = idx_generator.get_trace_indexes(&fri_proof.ev_root, trace.domain_size());
+    let positions = idx_generator.get_trace_indexes(&fri_proof.ev_root, trace.domain_size());    
+
+    // 9 ----- query extended execution trace and constraint evaluations at these positions -------
+    let now = Instant::now();
 
     // for each queried step, collect the current and the next states of the execution trace;
     // this way, the verifier will be able to get two consecutive states for each query.
     let mut trace_states = BTreeMap::new();
     for &position in positions.iter() {
-        let next_position = (position + options.extension_factor()) % trace.domain_size();
-
         trace_states.insert(position, trace.get_state(position));
-        trace_states.insert(next_position, trace.get_state(next_position));
     }
 
     // sort the positions and corresponding states so that their orders align
-    let augmented_positions = trace_states.keys().cloned().collect::<Vec<usize>>();
+    let positions = trace_states.keys().cloned().collect::<Vec<usize>>();
     let trace_states = trace_states.into_iter().map(|(_, v)| v).collect();
+
+    // build a list of constraint positions
+    let mut constraint_positions = Vec::with_capacity(positions.len());
+    for &position in positions.iter() {
+        let cp = position / 4;
+        if !constraint_positions.contains(&cp) {
+            constraint_positions.push(cp);
+        }
+    }
 
     // build the proof object
     let proof = StarkProof::new(
         trace_tree.root(),
-        trace_tree.prove_batch(&augmented_positions),
+        trace_tree.prove_batch(&positions),
         trace_states,
         constraint_tree.root(),
-        constraint_tree.prove_batch(&[1, 2, 3, 4]), // TODO
+        constraint_tree.prove_batch(&constraint_positions),
         deep_values,
         fri_proof,
         &options);
