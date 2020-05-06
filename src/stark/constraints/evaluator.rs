@@ -28,9 +28,10 @@ pub struct Evaluator {
 // ================================================================================================
 impl Evaluator {
 
-    pub fn from_trace(trace: &TraceTable, trace_root: &[u64; 4], program_hash: &[u64; 4], inputs: &[u64], outputs: &[u64]) -> Evaluator {
+    pub fn from_trace(trace: &TraceTable, trace_root: &[u64; 4], inputs: &[u64], outputs: &[u64]) -> Evaluator {
 
         let stack_depth = trace.max_stack_depth();
+        let program_hash = trace.get_program_hash();
         let trace_length = trace.unextended_length();
         let extension_factor = MAX_CONSTRAINT_DEGREE;
         let t_constraint_degrees = get_transition_constraint_degrees(stack_depth);
@@ -55,7 +56,7 @@ impl Evaluator {
             t_degree_groups : group_transition_constraints(t_constraint_degrees, trace_length),
             t_evaluations   : t_evaluations,
             b_constraint_num: inputs.len() + outputs.len() + program_hash.len(),
-            program_hash    : *program_hash,
+            program_hash    : program_hash,
             inputs          : inputs.to_vec(),
             outputs         : outputs.to_vec(),
             b_degree_adj    : get_boundary_constraint_adjustment_degree(trace_length),

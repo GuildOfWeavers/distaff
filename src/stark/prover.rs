@@ -6,13 +6,13 @@ use crate::crypto::{ MerkleTree };
 use crate::utils::{ CopyInto };
 
 use super::trace::{ TraceTable, TraceState };
-use super::constraints::{ ConstraintEvaluator, ConstraintTable, ConstraintPoly, MAX_CONSTRAINT_DEGREE };
+use super::constraints::{ ConstraintTable, ConstraintPoly, MAX_CONSTRAINT_DEGREE };
 use super::{ ProofOptions, StarkProof, fri, utils::QueryIndexGenerator, CompositionCoefficients, DeepValues };
 
 // PROVER FUNCTION
 // ================================================================================================
 
-pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], outputs: &[u64], options: &ProofOptions) -> StarkProof {
+pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &ProofOptions) -> StarkProof {
 
     // 1 ----- extend execution trace -------------------------------------------------------------
     let now = Instant::now();
@@ -39,16 +39,8 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
     // 3 ----- evaluate constraints ---------------------------------------------------------------
     let now = Instant::now();
     
-    // initialize constraint evaluator
-    let constraint_evaluator = ConstraintEvaluator::from_trace(
-        &trace,
-        trace_tree.root(), 
-        program_hash,
-        inputs,
-        outputs);
-
-    // allocate space to hold constraint evaluations
-    let mut constraints = ConstraintTable::new(constraint_evaluator, lde_domain.clone()); // TODO: don't clone
+    // initialize constraint evaluation table
+    let mut constraints = ConstraintTable::new(&trace, trace_tree.root(), inputs, outputs);
     
     // allocate space to hold current and next states for constraint evaluations
     let mut current = TraceState::new(trace.max_stack_depth());
@@ -57,7 +49,8 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
     // we don't need to evaluate constraints over the entire extended execution trace; we need
     // to evaluate them over the domain extended to match max constraint degree - thus, we can
     // skip most trace states for the purposes of constraint evaluation.
-    for i in (0..trace.domain_size()).step_by(constraints.domain_stride()) {
+    let stride = trace.extension_factor() / MAX_CONSTRAINT_DEGREE;
+    for i in (0..trace.domain_size()).step_by(stride) {
         // TODO: this loop should be parallelized and also potentially optimized to avoid copying
         // next state from the trace table twice
 
@@ -67,7 +60,7 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
         trace.fill_state(&mut next, (i + trace.extension_factor()) % trace.domain_size());
 
         // evaluate the constraints
-        constraints.evaluate(&current, &next, i);
+        constraints.evaluate(&current, &next, lde_domain[i], i / stride);
     }
 
     debug!("Evaluated {} constraints in {} ms",

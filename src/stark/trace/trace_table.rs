@@ -41,6 +41,22 @@ impl TraceTable {
         return TraceTable { registers, polys, ext_factor: extension_factor };
     }
 
+    /// Returns hash value of the executed program.
+    pub fn get_program_hash(&self) -> [u64; 4] {
+        let last_step = if self.is_extended() {
+            self.domain_size() - self.extension_factor()
+        }
+        else {
+            self.unextended_length() - 1
+        };
+
+        let mut result = [0u64; 4];
+        for (i, j) in decoder::PROG_HASH_RANGE.enumerate() {
+            result[i] = self.registers[j][last_step];
+        }
+        return result;
+    }
+
     /// Returns state of the trace table at the specified `step`.
     pub fn get_state(&self, step: usize) -> TraceState {
         let mut result = TraceState::new(self.max_stack_depth());
@@ -172,8 +188,8 @@ impl TraceTable {
         let next_z = field::mul(z, g);
 
         // compute state of registers at deep points z and z * g
-        let deep_state1 = self.eval_polys_at(z);
-        let deep_state2 = self.eval_polys_at(next_z);
+        let trace_state1 = self.eval_polys_at(z);
+        let trace_state2 = self.eval_polys_at(next_z);
 
         let mut t1_composition = vec![0; trace_length];
         let mut t2_composition = vec![0; trace_length];
@@ -183,13 +199,13 @@ impl TraceTable {
             // compute T1(x) = (T(x) - T(z)), multiply it by a pseudo-random coefficient,
             // and add the result into composition polynomial
             parallel::mul_acc(&mut t1_composition, &self.polys[i], cc.trace1[i], 1);
-            let adjusted_tz = field::mul(deep_state1[i], cc.trace1[i]);
+            let adjusted_tz = field::mul(trace_state1[i], cc.trace1[i]);
             t1_composition[0] = field::sub(t1_composition[0], adjusted_tz);
 
             // compute T2(x) = (T(x) - T(z * g)), multiply it by a pseudo-random
             // coefficient, and add the result into composition polynomial
             parallel::mul_acc(&mut t2_composition, &self.polys[i], cc.trace2[i], 1);
-            let adjusted_tz = field::mul(deep_state2[i], cc.trace2[i]);
+            let adjusted_tz = field::mul(trace_state2[i], cc.trace2[i]);
             t2_composition[0] = field::sub(t2_composition[0], adjusted_tz);
         }
 
@@ -216,7 +232,7 @@ impl TraceTable {
             cc.t2_degree,
             1);
         
-        return (composition_poly, deep_state1, deep_state2);
+        return (composition_poly, trace_state1, trace_state2);
     }
 }
 

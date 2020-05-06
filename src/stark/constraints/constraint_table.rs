@@ -1,14 +1,12 @@
 use crate::math::{ field, parallel, fft, polynom };
-use crate::stark::{ TraceState };
+use crate::stark::{ TraceTable, TraceState };
 use crate::utils::{ uninit_vector };
-use super::{ ConstraintEvaluator, ConstraintPoly, MAX_CONSTRAINT_DEGREE };
+use super::{ ConstraintEvaluator, ConstraintPoly };
 
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct ConstraintTable {
     evaluator       : ConstraintEvaluator,
-    domain          : Vec<u64>,
-    domain_stride   : usize,
     i_evaluations   : Vec<u64>, // combined evaluations of boundary constraints at the first step
     f_evaluations   : Vec<u64>, // combined evaluations of boundary constraints at the last step
     t_evaluations   : Vec<u64>, // combined evaluations of transition constraints
@@ -18,23 +16,14 @@ pub struct ConstraintTable {
 // ================================================================================================
 impl ConstraintTable {
 
-    pub fn new(evaluator: ConstraintEvaluator, evaluation_domain: Vec<u64>) -> ConstraintTable {
-
-        let constraint_domain_size = evaluator.domain_size();
-        let evaluation_domain_size = evaluation_domain.len();
-        let extension_factor = evaluation_domain.len() / evaluator.trace_length();
-        let domain_stride = extension_factor / MAX_CONSTRAINT_DEGREE;
-
-        assert!(constraint_domain_size == evaluation_domain_size / domain_stride,
-            "constraint and evaluation domains are inconsistent");
-
+    pub fn new(trace: &TraceTable, trace_root: &[u64; 4], inputs: &[u64], outputs: &[u64]) -> ConstraintTable {
+        let evaluator = ConstraintEvaluator::from_trace(trace, trace_root, inputs, outputs);
+        let evaluation_domain_size = evaluator.domain_size();
         return ConstraintTable {
             evaluator       : evaluator,
-            domain          : evaluation_domain,
-            i_evaluations   : uninit_vector(constraint_domain_size),
-            f_evaluations   : uninit_vector(constraint_domain_size),
-            t_evaluations   : uninit_vector(constraint_domain_size),
-            domain_stride   : domain_stride,
+            i_evaluations   : uninit_vector(evaluation_domain_size),
+            f_evaluations   : uninit_vector(evaluation_domain_size),
+            t_evaluations   : uninit_vector(evaluation_domain_size),
         };
     }
 
@@ -43,19 +32,9 @@ impl ConstraintTable {
         return self.evaluator.constraint_count();
     }
 
-    /// Returns the full evaluation domain.
-    pub fn domain(&self) -> &[u64] {
-        return &self.domain;
-    }
-
-    /// Returns the size of the constraint domain = trace_length * MAX_CONSTRAINT_DEGREE
-    pub fn constraint_domain_size(&self) -> usize {
+    /// Returns the size of the evaluation domain = trace_length * MAX_CONSTRAINT_DEGREE
+    pub fn evaluation_domain_size(&self) -> usize {
         return self.evaluator.domain_size();
-    }
-
-    /// Returns (evaluation domain size) / (constraint domain size)
-    pub fn domain_stride(&self) -> usize {
-        return self.domain_stride;
     }
 
     /// Returns the length of the un-extended execution trace.
@@ -63,14 +42,8 @@ impl ConstraintTable {
         return self.evaluator.trace_length();
     }
 
-    /// Evaluates transition and boundary constraints at the specified step; constraints
-    /// are evaluated over the constraint domain.
-    pub fn evaluate(&mut self, current: &TraceState, next: &TraceState, domain_step: usize) {
-        debug_assert!(domain_step % self.domain_stride == 0, "domain step must be a multiple of domain stride");
-
-        let x = self.domain[domain_step];
-        let step = domain_step / self.domain_stride;
-
+    /// Evaluates transition and boundary constraints at the specified step.
+    pub fn evaluate(&mut self, current: &TraceState, next: &TraceState, x: u64, step: usize) {
         let (init_bound, last_bound) = self.evaluator.evaluate_boundaries(current, x);
         self.i_evaluations[step] = init_bound;
         self.f_evaluations[step] = last_bound;
@@ -81,10 +54,10 @@ impl ConstraintTable {
     /// polynomials into a single polynomial using pseudo-random linear combination.
     pub fn combine_polys(mut self) -> ConstraintPoly {
 
-        let combination_root = field::get_root_of_unity(self.constraint_domain_size() as u64);
-        let inv_twiddles = fft::get_inv_twiddles(combination_root, self.constraint_domain_size());
+        let combination_root = field::get_root_of_unity(self.evaluation_domain_size() as u64);
+        let inv_twiddles = fft::get_inv_twiddles(combination_root, self.evaluation_domain_size());
         
-        let mut combined_poly = uninit_vector(self.constraint_domain_size());
+        let mut combined_poly = uninit_vector(self.evaluation_domain_size());
         
         // 1 ----- boundary constraints for the initial step --------------------------------------
         // interpolate initial step boundary constraint combination into a polynomial, divide the 
