@@ -1,26 +1,10 @@
 use std::mem;
 use crate::math::{ field, quartic };
-use crate::crypto::{ MerkleTree, BatchMerkleProof };
+use crate::crypto::{ MerkleTree };
 use crate::stark::{ ProofOptions };
 use crate::utils::CopyInto;
 
-use super::{ MAX_REMAINDER_LENGTH };
-
-// TYPES AND INTERFACES
-// ================================================================================================
-#[derive(Debug, Clone)]
-pub struct FriProof {
-    pub layers      : Vec<FriLayer>,
-    pub rem_root    : [u64; 4],
-    pub rem_values  : Vec<u64>,
-}
-
-#[derive(Debug, Clone)]
-pub struct FriLayer {
-    pub root : [u64; 4],
-    pub proof: BatchMerkleProof,
-}
-
+use super::{ FriProof, FriLayer, MAX_REMAINDER_LENGTH };
 
 // PROVER FUNCTIONS
 // ================================================================================================

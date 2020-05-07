@@ -5,16 +5,13 @@ use super::{ ProofOptions };
 
 pub mod hash_acc;
 
-mod index_generator;
-pub use index_generator::QueryIndexGenerator;
-
 mod prng_coefficients;
 pub use prng_coefficients::{ ConstraintCoefficients, CompositionCoefficients };
 
 pub fn compute_query_positions(seed: &[u64; 4], domain_size: usize, options: &ProofOptions) -> Vec<usize> {
     let range = Uniform::from(0..domain_size);
     let mut index_iter = StdRng::from_seed(seed.copy_into()).sample_iter(range);
-    let num_queries = options.trace_query_count();
+    let num_queries = options.num_queries();
 
     let mut result = Vec::new();
     for _ in 0..1000 {

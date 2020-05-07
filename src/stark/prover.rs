@@ -1,13 +1,12 @@
 use std::time::Instant;
 use log::debug;
-use std::collections::BTreeMap;
 use crate::math::{ field, polynom, fft, quartic::to_quartic_vec };
 use crate::crypto::{ MerkleTree };
 use crate::utils::{ CopyInto };
 
 use super::trace::{ TraceTable, TraceState };
 use super::constraints::{ ConstraintTable, ConstraintPoly, MAX_CONSTRAINT_DEGREE };
-use super::{ ProofOptions, StarkProof, fri, utils::QueryIndexGenerator, CompositionCoefficients, DeepValues };
+use super::{ ProofOptions, StarkProof, fri, CompositionCoefficients, DeepValues, utils::compute_query_positions };
 
 // PROVER FUNCTION
 // ================================================================================================
@@ -102,39 +101,38 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
         composed_evaluations.len(),
         now.elapsed().as_millis());
 
-    // 7 ----- generate low-degree proof for composition polynomial -------------------------------
+    // 7 ----- compute FRI layers for the composition polynomial ----------------------------------
     let now = Instant::now();
     let composition_degree = get_composition_degree(trace.unextended_length());
     debug_assert!(composition_degree == polynom::infer_degree(&composed_evaluations));
-    let fri_proof = fri::prove(
-        &composed_evaluations,
-        &lde_domain,
-        composition_degree + 1,
-        options);
-    debug!("Generated low-degree proof for composition polynomial in {} ms",
+    let fri_layers = fri::reduce(&composed_evaluations, &lde_domain, options);
+    debug!("Computed {} FRI layers for composition polynomial in {} ms",
+        fri_layers.len(),
         now.elapsed().as_millis());
 
-    // 8 ----- solve proof of work to determine query positions -----------------------------------
+    // 8 ----- generate query positions -----------------------------------------------------------
+    let now = Instant::now();
+    let last_layer = &fri_layers[fri_layers.len() - 1];
 
     // TODO: solve proof of work
 
     // generate pseudo-random query positions
-    let idx_generator = QueryIndexGenerator::new(options); // TODO
-    let positions = idx_generator.get_trace_indexes(&fri_proof.ev_root, trace.domain_size());    
+    let positions = compute_query_positions(last_layer.root(), lde_domain.len(), options);
+    debug!("Generated {} query positions in {} ms",
+        positions.len(),
+        now.elapsed().as_millis());
 
-    // 9 ----- query extended execution trace and constraint evaluations at these positions -------
+    // 9 ----- build proof object -----------------------------------------------------------------
     let now = Instant::now();
 
-    // for each queried step, collect the current and the next states of the execution trace;
-    // this way, the verifier will be able to get two consecutive states for each query.
-    let mut trace_states = BTreeMap::new();
-    for &position in positions.iter() {
-        trace_states.insert(position, trace.get_state(position));
-    }
+    // generate FRI proof
+    let fri_proof = fri::build_proof(fri_layers, &positions);
 
-    // sort the positions and corresponding states so that their orders align
-    let positions = trace_states.keys().cloned().collect::<Vec<usize>>();
-    let trace_states = trace_states.into_iter().map(|(_, v)| v).collect();
+    // copy trace states at the queried positions
+    let mut trace_states = Vec::new();
+    for &position in positions.iter() {
+        trace_states.push(trace.get_state(position));
+    }
 
     // build a list of constraint positions
     let mut constraint_positions = Vec::with_capacity(positions.len());
@@ -156,10 +154,7 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
         fri_proof,
         &options);
 
-    debug!("Computed {} trace queries and built proof object in {} ms",
-        positions.len(),
-        now.elapsed().as_millis());
-
+    debug!("Built proof object in {} ms", now.elapsed().as_millis());
     return proof;
 }
 

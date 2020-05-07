@@ -4,7 +4,7 @@ use crate::math::{ field, polynom, quartic };
 use crate::crypto::{ MerkleTree, BatchMerkleProof };
 use crate::stark::{ ProofOptions };
 
-use super::prover::{ FriProof };
+use super::{ FriProof };
 
 // VERIFIER
 // ================================================================================================
@@ -125,7 +125,6 @@ fn verify_remainder(remainder: &[u64], max_degree_plus_1: usize, domain_root: u6
 
     return Ok(true);
 }
-
 
 // HELPER FUNCTIONS
 // ================================================================================================
