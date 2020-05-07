@@ -178,7 +178,6 @@ pub fn sha3(values: &[u64], result: &mut [u64]) {
     let values = unsafe { slice::from_raw_parts(values.as_ptr() as *const u8, values.len() * 8) };
     let mut sha256 = sha3::Sha3_256::new();
     sha256.input(&values);
-    sha256.input(&values);
     let hash = sha256.result();
     let result: &mut [u8; 32] = unsafe { &mut *(result as *const _ as *mut [u8; 32]) };
     result.copy_from_slice(hash.as_ref());
