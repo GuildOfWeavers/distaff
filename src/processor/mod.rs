@@ -25,7 +25,8 @@ pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize, options: &Pr
     // execute the program to create an execution trace
     let now = Instant::now();
     let mut trace = stark::TraceTable::new(&program, inputs, options.extension_factor());
-    debug!("Generated execution trace of {} steps in {} ms",
+    debug!("Generated execution trace of {} registers and {} steps in {} ms",
+        trace.register_count(),
         trace.unextended_length(),
         now.elapsed().as_millis());
 

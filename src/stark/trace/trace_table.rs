@@ -113,6 +113,16 @@ impl TraceTable {
         return &self.registers[index + decoder::NUM_REGISTERS];
     }
 
+    /// Returns values of all registers at the specified `positions`.
+    pub fn get_register_values_at(&self, positions: &[usize]) -> Vec<Vec<u64>> {
+        let mut result = Vec::with_capacity(positions.len());
+        for &i in positions.iter() {
+            let row = self.registers.iter().map(|r| r[i]).collect();
+            result.push(row);
+        }
+        return result;
+    }
+
     /// Returns `true` if the trace table has been extended.
     pub fn is_extended(&self) -> bool {
         return self.registers[0].len() == self.registers[0].capacity();
@@ -122,6 +132,7 @@ impl TraceTable {
     /// trace table construction. A trace table can be extended only once.
     pub fn extend(&mut self, twiddles: &[u64]) {
         assert!(!self.is_extended(), "trace table has already been extended");
+        assert!(twiddles.len() * 2 == self.domain_size(), "invalid number of twiddles");
 
         // build inverse twiddles needed for FFT interpolation
         let root = field::get_root_of_unity(self.unextended_length() as u64);

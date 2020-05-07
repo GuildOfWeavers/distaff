@@ -6,7 +6,7 @@ use crate::utils::{ CopyInto };
 
 use super::trace::{ TraceTable, TraceState };
 use super::constraints::{ ConstraintTable, ConstraintPoly, MAX_CONSTRAINT_DEGREE };
-use super::{ ProofOptions, StarkProof, fri, CompositionCoefficients, DeepValues, utils::compute_query_positions };
+use super::{ ProofOptions, StarkProof, CompositionCoefficients, DeepValues, fri, utils };
 
 // PROVER FUNCTION
 // ================================================================================================
@@ -19,13 +19,12 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
     // build LDE domain and LDE twiddles (for FFT evaluation over LDE domain)
     let lde_root = field::get_root_of_unity(trace.domain_size() as u64);
     let lde_domain = field::get_power_series(lde_root, trace.domain_size());
-    let mut lde_twiddles = lde_domain[..(lde_domain.len() / 2)].to_vec();
-    fft::permute(&mut lde_twiddles);
+    let lde_twiddles = twiddles_from_domain(&lde_domain);
 
     // extend the execution trace registers to LDE domain
     trace.extend(&lde_twiddles);
-    debug!("Extended execution trace of {} registers to {} steps in {} ms",
-        trace.register_count(),
+    debug!("Extended execution trace from {} to {} steps in {} ms",
+        trace.unextended_length(),
         trace.domain_size(), 
         now.elapsed().as_millis());
 
@@ -62,8 +61,9 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
         constraints.evaluate(&current, &next, lde_domain[i], i / stride);
     }
 
-    debug!("Evaluated {} constraints in {} ms",
+    debug!("Evaluated {} constraints over domain of {} elements in {} ms",
         constraints.constraint_count(),
+        constraints.evaluation_domain_size(),
         now.elapsed().as_millis());
 
     // 4 ----- convert constraint evaluations into a polynomial -----------------------------------
@@ -89,7 +89,8 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
     let now = Instant::now();
 
     // combine trace and constraint polynomials into the final deep composition polynomial
-    let (composition_poly, deep_values) = build_composition_poly(&trace, constraint_poly, &constraint_tree);
+    let seed = constraint_tree.root();
+    let (composition_poly, deep_values) = build_composition_poly(&trace, constraint_poly, seed);
 
     // evaluate the composition polynomial over LDE domain
     let mut composed_evaluations = composition_poly;
@@ -103,23 +104,32 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
 
     // 7 ----- compute FRI layers for the composition polynomial ----------------------------------
     let now = Instant::now();
-    let composition_degree = get_composition_degree(trace.unextended_length());
+    let composition_degree = utils::get_composition_degree(trace.unextended_length());
     debug_assert!(composition_degree == polynom::infer_degree(&composed_evaluations));
     let fri_layers = fri::reduce(&composed_evaluations, &lde_domain, options);
-    debug!("Computed {} FRI layers for composition polynomial in {} ms",
+    debug!("Computed {} FRI layers from composition polynomial evaluations in {} ms",
         fri_layers.len(),
         now.elapsed().as_millis());
 
     // 8 ----- generate query positions -----------------------------------------------------------
     let now = Instant::now();
-    let last_layer = &fri_layers[fri_layers.len() - 1];
 
+    // combine all FRI layer roots into a single vector
+    let mut fri_roots: Vec<u64> = Vec::new();
+    for layer in fri_layers.iter() {
+        layer.root().iter().for_each(|&v| fri_roots.push(v));
+    }
+
+    // derive a seed from the combined roots
+    let mut seed = [0u64; 4];
+    options.hash_function()(&fri_roots, &mut seed);
     // TODO: solve proof of work
 
     // generate pseudo-random query positions
-    let positions = compute_query_positions(last_layer.root(), lde_domain.len(), options);
-    debug!("Generated {} query positions in {} ms",
+    let positions = utils::compute_query_positions(&seed, lde_domain.len(), options);
+    debug!("Generated {} query positions from seed {} in {} ms",
         positions.len(),
+        hex::encode(seed.copy_into()),
         now.elapsed().as_millis());
 
     // 9 ----- build proof object -----------------------------------------------------------------
@@ -128,26 +138,17 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
     // generate FRI proof
     let fri_proof = fri::build_proof(fri_layers, &positions);
 
-    // copy trace states at the queried positions
-    let mut trace_states = Vec::new();
-    for &position in positions.iter() {
-        trace_states.push(trace.get_state(position));
-    }
+    // built a list of trace evaluations at queried positions
+    let trace_evaluations = trace.get_register_values_at(&positions);
 
     // build a list of constraint positions
-    let mut constraint_positions = Vec::with_capacity(positions.len());
-    for &position in positions.iter() {
-        let cp = position / 4;
-        if !constraint_positions.contains(&cp) {
-            constraint_positions.push(cp);
-        }
-    }
+    let constraint_positions = utils::map_trace_to_constraint_positions(&positions);
 
     // build the proof object
     let proof = StarkProof::new(
         trace_tree.root(),
         trace_tree.prove_batch(&positions),
-        trace_states,
+        trace_evaluations,
         constraint_tree.root(),
         constraint_tree.prove_batch(&constraint_positions),
         deep_values,
@@ -160,23 +161,24 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
 
 // HELPER FUNCTIONS
 // ================================================================================================
+fn twiddles_from_domain(domain: &[u64]) -> Vec<u64> {
+    let mut twiddles = domain[..(domain.len() / 2)].to_vec();
+    fft::permute(&mut twiddles);
+    return twiddles;
+}
 
-fn build_composition_poly(trace: &TraceTable, constraint_poly: ConstraintPoly, constraint_tree: &MerkleTree) -> (Vec<u64>, DeepValues) {
+fn build_composition_poly(trace: &TraceTable, constraint_poly: ConstraintPoly, seed: &[u64; 4]) -> (Vec<u64>, DeepValues) {
 
     // pseudo-randomly selection deep point z and coefficients for the composition
-    let z = field::prng(constraint_tree.root().copy_into());
-    let coefficients = CompositionCoefficients::new(constraint_tree.root());
+    let z = field::prng(seed.copy_into());
+    let coefficients = CompositionCoefficients::new(seed);
 
     // divide out deep point from trace polynomials and merge them into a single polynomial
-    let composition_degree = get_composition_degree(trace.unextended_length());
+    let composition_degree = utils::get_composition_degree(trace.unextended_length());
     let (mut result, s1, s2) = trace.get_composition_poly(z, composition_degree, &coefficients);
 
     // divide out deep point from constraint polynomial and merge it into the result
     let constraints_at_z = constraint_poly.merge_into(&mut result, z, &coefficients);
 
     return (result, DeepValues { trace_at_z: s1, trace_at_next_z: s2, constraints_at_z });
-}
-
-fn get_composition_degree(trace_length: usize) -> usize {
-    return (MAX_CONSTRAINT_DEGREE - 1) * trace_length - 1;
 }

@@ -26,10 +26,17 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
     }
 
     // 2 ----- Verify proof of work and determine query positions ---------------------------------
+    let mut fri_roots: Vec<u64> = Vec::new();
+    for layer in degree_proof.layers.iter() {
+        layer.root.iter().for_each(|&v| fri_roots.push(v));
+    }
+    degree_proof.rem_root.iter().for_each(|&v| fri_roots.push(v));
+
+    let mut seed = [0u64; 4];
+    options.hash_function()(&fri_roots, &mut seed);
     // TODO: verify proof of work
 
-    let positions = compute_query_positions(&degree_proof.rem_root, lde_domain_size, options);
-    //positions.sort();
+    let positions = compute_query_positions(&seed, lde_domain_size, options);
 
     // 3 ----- Verify trace and constraint Merkle proofs ------------------------------------------
     
@@ -60,14 +67,14 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
     let t_incremental_degree = (get_composition_degree(proof.trace_length()) - (proof.trace_length() - 2)) as u64;
     let trace_at_z1 = proof.get_state_at_z().registers().to_vec();
     let trace_at_z2 = proof.get_state_at_next_z().registers().to_vec();
-    let trace_states = proof.trace_states();
+    let trace_states = proof.trace_evaluations();
 
     let c_evaluations = get_constraint_evaluations(&proof.constraint_proof(), &positions, &constraint_positions);
 
     let mut evaluations = Vec::new();
     for (i, &position) in positions.iter().enumerate() {
         let x = field::exp(lde_root, position as u64);
-        let registers = trace_states[i].registers();
+        let registers = &trace_states[i];
 
         let mut t1_composition = 0;
         let mut t2_composition = 0;
