@@ -4,8 +4,17 @@ use crate::math::{ field, polynom, quartic };
 use crate::crypto::{ MerkleTree, BatchMerkleProof };
 use crate::stark::{ ProofOptions, utils::QueryIndexGenerator };
 
+#[cfg(test)]
+mod tests;
+
 mod proof;
 pub use proof::{ FriProof, FriLayer };
+
+mod prover;
+pub use prover::{ reduce, build_proof };
+
+mod verifier;
+pub use verifier::{ verify as verify2 };
 
 // CONSTANTS
 // ================================================================================================
@@ -275,100 +284,4 @@ fn get_remainder_degree(mut max_degree_plus_1: usize) -> usize {
         max_degree_plus_1 = max_degree_plus_1 / 4;
     }
     return max_degree_plus_1;
-}
-
-// TESTS
-// ================================================================================================
-#[cfg(test)]
-mod tests {
-    
-    use crate::{ field, polynom };
-    use crate::stark::{ ProofOptions, utils::QueryIndexGenerator };
-
-    #[test]
-    fn verify_remainder() {
-        let degree_plus_1: usize = 32;
-        let root = field::get_root_of_unity((degree_plus_1 * 2) as u64);
-        let extension_factor = 16;
-
-        let mut remainder = field::rand_vector(degree_plus_1);
-        remainder.resize(degree_plus_1 * 2, 0);
-        polynom::eval_fft(&mut remainder, true);
-
-        // check against exact degree
-        let result = super::verify_remainder(&remainder, degree_plus_1, root, extension_factor);
-        assert_eq!(Ok(true), result);
-
-        // check against higher degree
-        let result = super::verify_remainder(&remainder, degree_plus_1 + 1, root, extension_factor);
-        assert_eq!(Ok(true), result);
-
-        // check against lower degree
-        let degree_plus_1 = degree_plus_1 - 1;
-        let result = super::verify_remainder(&remainder, degree_plus_1, root, extension_factor);
-        let err_msg = format!("remainder is not a valid degree {} polynomial", degree_plus_1 - 1);
-        assert_eq!(Err(err_msg), result);
-    }
-
-    #[test]
-    fn prove_verify() {
-        let degree_plus_1: usize = 64;
-        let domain_size: usize = 512;
-        let root = field::get_root_of_unity(domain_size as u64);
-        let domain = field::get_power_series(root, domain_size);
-        let options = ProofOptions::default();
-
-        // generate proof
-        let mut evaluations = field::rand_vector(degree_plus_1);
-        evaluations.resize(domain_size, 0);
-        polynom::eval_fft(&mut evaluations, true);
-        let proof = super::prove(&evaluations, &domain, degree_plus_1, &options);
-
-        // verify proof
-        let idx_generator = QueryIndexGenerator::new(&options);
-        let trace_positions = idx_generator.get_trace_indexes(&proof.ev_root, domain_size);
-        let sampled_evaluations = trace_positions.into_iter().map(|i| evaluations[i]).collect::<Vec<u64>>();
-
-        let result = super::verify(&proof, &sampled_evaluations, root, degree_plus_1, &options);
-        assert_eq!(Ok(true), result);
-    }
-
-    #[test]
-    fn verify_fail() {
-        let degree_plus_1: usize = 64;
-        let domain_size: usize = 512;
-        let root = field::get_root_of_unity(domain_size as u64);
-        let domain = field::get_power_series(root, domain_size);
-        let options = ProofOptions::default();
-
-        // generate proof
-        let mut evaluations = field::rand_vector(degree_plus_1);
-        evaluations.resize(domain_size, 0);
-        polynom::eval_fft(&mut evaluations, true);
-        let proof = super::prove(&evaluations, &domain, degree_plus_1, &options);
-
-        // degree too low
-        let idx_generator = QueryIndexGenerator::new(&options);
-        let trace_positions = idx_generator.get_trace_indexes(&proof.ev_root, domain_size);
-        let sampled_evaluations = trace_positions.into_iter().map(|i| evaluations[i]).collect::<Vec<u64>>();
-
-        let result = super::verify(&proof, &sampled_evaluations, root, degree_plus_1 - 1, &options);
-        let err_msg = format!("remainder is not a valid degree {} polynomial", 14);
-        assert_eq!(Err(err_msg), result);
-
-        // invalid evaluations
-        let sampled_evaluations = sampled_evaluations[1..].to_vec();
-        let result = super::verify(&proof, &sampled_evaluations, root, degree_plus_1, &options);
-        let err_msg = format!("verification of evaluation values failed");
-        assert_eq!(Err(err_msg), result);
-
-        // invalid ev_root
-        let mut proof2 = proof.clone();
-        proof2.ev_root = [1, 2, 3, 4];
-        let result = super::verify(&proof2, &sampled_evaluations, root, degree_plus_1, &options);
-        let err_msg = format!("verification of evaluation Merkle proof failed");
-        assert_eq!(Err(err_msg), result);
-
-        // TODO: add more tests
-    }
 }
