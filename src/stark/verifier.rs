@@ -31,7 +31,10 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
 
     let mut seed = [0u64; 4];
     hash_fn(&fri_roots, &mut seed);
-    // TODO: verify proof of work
+    let seed = match utils::verify_pow_nonce(seed, proof.pow_nonce(), &options) {
+        Ok(seed) => seed,
+        Err(msg) => return Err(msg)
+    };
 
     let t_positions = utils::compute_query_positions(&seed, proof.domain_size(), options);
     let c_positions = utils::map_trace_to_constraint_positions(&t_positions);
@@ -56,7 +59,7 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
     let c_composition = compose_constraints(&proof, &t_positions, &c_positions, z, &coefficients);
     let evaluations = t_composition.iter().zip(c_composition).map(|(&t, c)| field::add(t, c)).collect::<Vec<u64>>();
     
-    // 5 ----- Verify log-degree proof -------------------------------------------------------------
+    // 5 ----- Verify low-degree proof -------------------------------------------------------------
     let max_degree = utils::get_composition_degree(proof.trace_length());
     return match fri::verify(&degree_proof, &evaluations, &t_positions, max_degree, options) {
         Ok(result) => Ok(result),

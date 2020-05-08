@@ -123,7 +123,9 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
     // derive a seed from the combined roots
     let mut seed = [0u64; 4];
     options.hash_function()(&fri_roots, &mut seed);
-    // TODO: solve proof of work
+
+    // apply proof-of-work to get a new seed
+    let (seed, pow_nonce) = utils::find_pow_nonce(seed, &options);
 
     // generate pseudo-random query positions
     let positions = utils::compute_query_positions(&seed, lde_domain.len(), options);
@@ -153,6 +155,7 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
         constraint_tree.prove_batch(&constraint_positions),
         deep_values,
         fri_proof,
+        pow_nonce,
         &options);
 
     debug!("Built proof object in {} ms", now.elapsed().as_millis());

@@ -18,6 +18,7 @@ pub struct StarkProof {
     constraint_proof    : BatchMerkleProof,
     deep_values         : DeepValues,
     degree_proof        : FriProof,
+    pow_nonce           : u64,
     options             : ProofOptions
 }
 
@@ -40,6 +41,7 @@ impl StarkProof {
         constraint_proof    : BatchMerkleProof,
         deep_values         : DeepValues,
         degree_proof        : FriProof,
+        pow_nonce           : u64,
         options             : &ProofOptions ) -> StarkProof
     {
         return StarkProof {
@@ -51,6 +53,7 @@ impl StarkProof {
             constraint_proof    : constraint_proof,
             deep_values         : deep_values,
             degree_proof        : degree_proof,
+            pow_nonce           : pow_nonce,
             options             : options.clone()
         };
     }
@@ -103,6 +106,10 @@ impl StarkProof {
 
     pub fn stack_depth(&self) -> usize {
         return TraceState::compute_stack_depth(self.trace_evaluations[0].len());
+    }
+
+    pub fn pow_nonce(&self) -> u64 {
+        return self.pow_nonce;
     }
 
     // DEEP VALUES

@@ -8,6 +8,9 @@ pub mod hash_acc;
 mod prng_coefficients;
 pub use prng_coefficients::{ ConstraintCoefficients, CompositionCoefficients };
 
+mod proof_of_work;
+pub use proof_of_work::{ find_pow_nonce, verify_pow_nonce };
+
 pub fn get_composition_degree(trace_length: usize) -> usize {
     return (MAX_CONSTRAINT_DEGREE - 1) * trace_length - 1;
 }
