@@ -20,6 +20,7 @@ harness = false
 hex = "0.4.2"
 rand = "0.7.3"
 blake3 = "0.3.2"
+sha3 = "0.8.2"
 crossbeam-utils = "0.7.2"
 bincode = "1.2.1"
 serde = { version = "1.0.106", features = ["derive"] }
