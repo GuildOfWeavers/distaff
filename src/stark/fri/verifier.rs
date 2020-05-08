@@ -4,21 +4,21 @@ use crate::math::{ field, polynom, quartic };
 use crate::crypto::{ MerkleTree, BatchMerkleProof };
 use crate::stark::{ ProofOptions };
 
-use super::{ FriProof };
+use super::{ FriProof, utils };
 
 // VERIFIER
 // ================================================================================================
 
 pub fn verify(
-    proof            : &FriProof,
-    p_evaluations    : &[u64],
-    positions        : &[usize],
-    domain_root      : u64,
-    max_degree_plus_1: usize,
-    options          : &ProofOptions) -> Result<bool, String>
+    proof       : &FriProof,
+    evaluations : &[u64],
+    positions   : &[usize],
+    max_degree  : usize,
+    options     : &ProofOptions) -> Result<bool, String>
 {
 
-    let domain_size = get_root_of_unity_degree(domain_root);
+    let domain_size = usize::pow(2, proof.layers[0].proof.depth as u32) * 4;
+    let domain_root = field::get_root_of_unity(domain_size as u64);
 
     // powers of the given root of unity 1, p, p^2, p^3 such that p^4 = 1
     let quartic_roots = [
@@ -31,17 +31,15 @@ pub fn verify(
     // 1 ----- verify the recursive components of the FRI proof -----------------------------------
     let mut domain_root = domain_root;
     let mut domain_size = domain_size;
-    let mut max_degree_plus_1 = max_degree_plus_1;
+    let mut max_degree_plus_1 = max_degree + 1;
     let mut positions = positions.to_vec();
-    let mut p_evaluations = p_evaluations.to_vec();
+    let mut evaluations = evaluations.to_vec();
 
-    for depth in 0..proof.layers.len() {
+    for (depth, layer) in proof.layers.iter().enumerate() {
 
-        let layer = &proof.layers[depth];
-
-        let mut augmented_positions = get_augmented_positions(&positions, domain_size);
+        let mut augmented_positions = utils::get_augmented_positions(&positions, domain_size);
         let column_values = get_column_values(&layer.proof, &positions, &augmented_positions, domain_size);
-        if p_evaluations != column_values {
+        if evaluations != column_values {
             return Err(format!("evaluations did not match column value at depth {}", depth));
         }
 
@@ -69,7 +67,7 @@ pub fn verify(
         let special_x = field::prng(layer.root.copy_into());
 
         // check that when the polynomials are evaluated at x, the result is equal to the corresponding column value
-        p_evaluations = quartic::evaluate_batch(&row_polys, special_x);
+        evaluations = quartic::evaluate_batch(&row_polys, special_x);
 
         // update variables for the next iteration of the loop
         domain_root = field::exp(domain_root, 4);
@@ -80,9 +78,9 @@ pub fn verify(
 
     // 2 ----- verify the remainder of the FRI proof ----------------------------------------------
     
-    for (&position, evaluation) in positions.iter().zip(p_evaluations) {
+    for (&position, evaluation) in positions.iter().zip(evaluations) {
         if proof.rem_values[position] != evaluation {
-            return Err(String::from("remainder values do not match Merkle root of the last column"));
+            return Err(String::from("remainder values are inconsistent with values of the last column"));
         }
     }
 
@@ -128,18 +126,6 @@ fn verify_remainder(remainder: &[u64], max_degree_plus_1: usize, domain_root: u6
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn get_augmented_positions(positions: &[usize], column_length: usize) -> Vec<usize> {
-    let row_length = column_length / 4;
-    let mut result = Vec::new();
-    for i in 0..positions.len() {
-        let ap = positions[i] % row_length;
-        if !result.contains(&ap) {
-            result.push(ap);
-        }
-    }    
-    return result;
-}
-
 fn get_column_values(proof: &BatchMerkleProof, positions: &[usize], augmented_positions: &[usize], column_length: usize) -> Vec<u64> {
     let row_length = column_length / 4;
 
@@ -151,15 +137,6 @@ fn get_column_values(proof: &BatchMerkleProof, positions: &[usize], augmented_po
         result.push(value);
     }
 
-    return result;
-}
-
-fn get_root_of_unity_degree(mut root: u64) -> usize {
-    let mut result = 1;
-    while root != 1 {
-        result = result * 2;
-        root = field::mul(root, root);
-    }
     return result;
 }
 

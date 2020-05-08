@@ -12,6 +12,11 @@ pub fn get_composition_degree(trace_length: usize) -> usize {
     return (MAX_CONSTRAINT_DEGREE - 1) * trace_length - 1;
 }
 
+pub fn get_incremental_trace_degree(trace_length: usize) -> usize {
+    let composition_degree = get_composition_degree(trace_length);
+    return composition_degree - (trace_length - 2);
+}
+
 pub fn compute_query_positions(seed: &[u64; 4], domain_size: usize, options: &ProofOptions) -> Vec<usize> {
     let range = Uniform::from(0..domain_size);
     let mut index_iter = StdRng::from_seed(seed.copy_into()).sample_iter(range);

@@ -2,7 +2,7 @@ use crate::math::{ field, fft, polynom, parallel, quartic::to_quartic_vec };
 use crate::crypto::{ MerkleTree, HashFunction };
 use crate::processor::opcodes;
 use crate::utils::{ uninit_vector, zero_filled_vector };
-use crate::stark::{ CompositionCoefficients };
+use crate::stark::{ CompositionCoefficients, utils };
 use super::{ TraceState, decoder, stack, MAX_REGISTER_COUNT };
 
 // TYPES AND INTERFACES
@@ -182,18 +182,17 @@ impl TraceTable {
         return result;
     }
 
-    /// Combines trace polynomials for all registers into a single composition polynomial of the
-    /// specified degree. The combination is done as follows:
+    /// Combines trace polynomials for all registers into a single composition polynomial.
+    /// The combination is done as follows:
     /// 1. First, state of trace registers at deep points z and z * g are computed;
     /// 2. Then, polynomials T1_i(x) = (T_i(x) - T_i(z)) / (x - z) and 
     /// T2_i(x) = (T_i(x) - T_i(z * g)) / (x - z * g) are computed for all i and combined
     /// together into a single polynomial using a pseudo-random linear combination;
     /// 3. Then the degree of the polynomial is adjusted to match the specified degree
-    pub fn get_composition_poly(&self, z: u64, degree: usize, cc: &CompositionCoefficients) -> (Vec<u64>, Vec<u64>, Vec<u64>) {
+    pub fn get_composition_poly(&self, z: u64, cc: &CompositionCoefficients) -> (Vec<u64>, Vec<u64>, Vec<u64>) {
 
         let trace_length = self.unextended_length();
         assert!(self.is_extended(), "trace table has not been extended yet");
-        assert!(trace_length < degree, "composition degree must be greater than trace length");
         
         let g = field::get_root_of_unity(trace_length as u64);
         let next_z = field::mul(z, g);
@@ -228,8 +227,9 @@ impl TraceTable {
 
         // adjust the degree of the polynomial to match the degree parameter by computing
         // C(x) = T(x) * k_1 + T(x) * x^incremental_degree * k_2
-        let incremental_degree = degree - (trace_length - 2);
-        let mut composition_poly = zero_filled_vector(degree.next_power_of_two(), self.domain_size());
+        let poly_size = utils::get_composition_degree(trace_length).next_power_of_two();
+        let mut composition_poly = zero_filled_vector(poly_size, self.domain_size());
+        let incremental_degree = utils::get_incremental_trace_degree(trace_length);
         // this is equivalent to T(x) * k_1
         parallel::mul_acc(
             &mut composition_poly[..trace_length],
@@ -253,7 +253,7 @@ impl TraceTable {
 mod tests {
 
     use crate::{ crypto::hash::blake3, processor::opcodes, utils::CopyInto };
-    use crate::stark::{ TraceTable, CompositionCoefficients };
+    use crate::stark::{ TraceTable, CompositionCoefficients, MAX_CONSTRAINT_DEGREE };
     use crate::math::{ field, polynom, parallel, fft };
 
     const EXT_FACTOR: usize = 32;
@@ -286,12 +286,12 @@ mod tests {
         let t_tree = trace.build_merkle_tree(blake3);
         let z = field::prng(t_tree.root().copy_into());
         let cc = CompositionCoefficients::new(t_tree.root());
-        let target_degree = (trace.unextended_length() - 2) * 8 - 1;
+        let target_degree = (trace.unextended_length() - 2) * MAX_CONSTRAINT_DEGREE - 1;
 
         let g = field::get_root_of_unity(trace.unextended_length() as u64);
         let zg = field::mul(z, g);
 
-        let (composition_poly, ..) = trace.get_composition_poly(z, target_degree, &cc);
+        let (composition_poly, ..) = trace.get_composition_poly(z, &cc);
         let mut actual_evaluations = composition_poly.clone();
         polynom::eval_fft(&mut actual_evaluations, true);
         assert_eq!(target_degree, polynom::infer_degree(&actual_evaluations));

@@ -174,8 +174,7 @@ fn build_composition_poly(trace: &TraceTable, constraint_poly: ConstraintPoly, s
     let coefficients = CompositionCoefficients::new(seed);
 
     // divide out deep point from trace polynomials and merge them into a single polynomial
-    let composition_degree = utils::get_composition_degree(trace.unextended_length());
-    let (mut result, s1, s2) = trace.get_composition_poly(z, composition_degree, &coefficients);
+    let (mut result, s1, s2) = trace.get_composition_poly(z, &coefficients);
 
     // divide out deep point from constraint polynomial and merge it into the result
     let constraints_at_z = constraint_poly.merge_into(&mut result, z, &coefficients);

@@ -4,7 +4,7 @@ use crate::crypto::{ MerkleTree };
 use crate::stark::{ ProofOptions };
 use crate::utils::CopyInto;
 
-use super::{ FriProof, FriLayer, MAX_REMAINDER_LENGTH };
+use super::{ FriProof, FriLayer, utils, MAX_REMAINDER_LENGTH};
 
 // PROVER FUNCTIONS
 // ================================================================================================
@@ -58,7 +58,7 @@ pub fn build_proof(trees: Vec<MerkleTree>, positions: &[usize]) -> FriProof {
     let mut layers = Vec::with_capacity(trees.len());
     for i in 0..(trees.len() - 1) {
         let tree = &trees[i];
-        positions = get_augmented_positions(&positions, domain_size);
+        positions = utils::get_augmented_positions(&positions, domain_size);
         layers.push(FriLayer {
             root    : *tree.root(),
             proof   : tree.prove_batch(&positions)
@@ -78,18 +78,4 @@ pub fn build_proof(trees: Vec<MerkleTree>, positions: &[usize]) -> FriProof {
     }
 
     return FriProof { layers, rem_root: *last_tree.root(), rem_values: remainder };
-}
-
-// HELPER FUNCTIONS
-// ================================================================================================
-fn get_augmented_positions(positions: &[usize], column_length: usize) -> Vec<usize> {
-    let row_length = column_length / 4;
-    let mut result = Vec::new();
-    for i in 0..positions.len() {
-        let ap = positions[i] % row_length;
-        if !result.contains(&ap) {
-            result.push(ap);
-        }
-    }    
-    return result;
 }
