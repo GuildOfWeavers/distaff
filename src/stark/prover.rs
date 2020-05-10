@@ -28,7 +28,7 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
         trace.domain_size(), 
         now.elapsed().as_millis());
 
-    // 2 ----- build Merkle tree from extended execution trace ------------------------------------
+    // 2 ----- build Merkle tree from the extended execution trace ------------------------------------
     let now = Instant::now();
     let trace_tree = trace.build_merkle_tree(options.hash_function());
     debug!("Built trace Merkle tree in {} ms", 
@@ -111,7 +111,7 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
         fri_layers.len(),
         now.elapsed().as_millis());
 
-    // 8 ----- generate query positions -----------------------------------------------------------
+    // 8 ----- determine query positions -----------------------------------------------------------
     let now = Instant::now();
 
     // combine all FRI layer roots into a single vector
@@ -129,7 +129,7 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
 
     // generate pseudo-random query positions
     let positions = utils::compute_query_positions(&seed, lde_domain.len(), options);
-    debug!("Generated {} query positions from seed {} in {} ms",
+    debug!("Determined {} query positions from seed {} in {} ms",
         positions.len(),
         hex::encode(seed.copy_into()),
         now.elapsed().as_millis());
