@@ -44,9 +44,9 @@ T<sub>0</sub>(ω<sup>i</sup><sub>lde</sub>), T<sub>1</sub>(ω<sup>i</sup><sub>ld
 
 A couple of things to note:
 1. The degree of trace polynomials is one less than trace length, or *deg(T<sub>i</sub>(x)) = |D<sub>trace</sub>| - 1*.
-2. This step alone takes up almost 50% of proof generation time (in single-threaded execution).
+2. This step alone takes up almost 45% of proof generation time (in single-threaded execution).
 
-### 2. Build Merkle tree from the extended execution trace
+### 2. Build trace Merkle tree
 
 After the execution trace table has been extended, we build a Merkle tree from the extended register traces. Leaves in the resulting tree will have the following form:
 
@@ -57,58 +57,67 @@ Leaf<sub>i</sub> = (T<sub>0</sub>(ω<sup>i</sup><sub>lde</sub>), T<sub>1</sub>(�
 This step takes up about 10% of proof generation time.
 
 ### 3. Evaluate constraints
-
-Distaff VM is built using three types of constraints: *input constraints*, *output constraints*, and *transition constraints*.
-
-#### Input constraints
-Input constraints enforce the state of the stack at the beginning of the execution trace and are computed using the following expression:
+The next step is to evaluate constraints. The actual constraint definitions are described [here](/constraints). Our eventual goal is to combine all constraints into a single *constraint polynomial*. We do this by computing a random linear combination of all constraints like so:
 
 <p align="center">
-<img src="https://render.githubusercontent.com/render/math?math=\large C_k(x)=\frac{T_k(x)-v_k}{x-1}">
+<img src="https://render.githubusercontent.com/render/math?math=\large C(x) = \sum_i (\k_{2i} \cdot C_i(x) %2B \k_{2i%2B1} \cdot C_i(x) \cdot x^{d_i})">
 </p>
 
 where:
-* *k* is index of the stack register against which the constraint is applied,
-* *v* is the value that the register must have at the beginning of the execution trace,
-* *x = ω<sup>i</sup><sub>ev</sub>* for all *i* in the constraint evaluation domain.
+* *x = ω<sup>j</sup><sub>ev</sub>* for all *j* in the constraint evaluation domain.
+* *C<sub>0</sub> ... C<sub>i</sub>* are the individual constraint evaluation functions.
+* *k<sub>0</sub> ... k<sub>2i+1</sub>* are the coefficients for the random linear combination. These coefficients are derived using PRNG seeded with the root of the trace Merkle tree we built in the previous step.
+* *d<sub>0</sub> ... d<sub>i</sub>* are the adjustment degrees needed to guarantee that constraint degrees are enforced exactly.
 
-#### Output constraints
-Output constraint are similar to input constraints but enforce the state of the stack at the end of the execution trace. They are computed using the following expression:
+However, in this step, we don't compute the final constraint polynomial. Instead, we compute linear combinations of constraint numerators only (see [here](/constraints) for more info on constraints). In the next step, we'll divide these linear combinations by their respective denominators. This allows us to minimize the number of divisions (which are expensive) and also reduces the amount of RAM needed to hold all constraint evaluations. Since our constraints can have 3 possible denominators, we'll still need to keep track of 3 separate linear combinations but that's much better than keeping track of 30+ individual constraint evaluations.
 
-<p align="center">
-<img src="https://render.githubusercontent.com/render/math?math=\large C_k(x)=\frac{T_k(x)-v_k}{x-\omega_{trace}^{n-1}}">
-</p>
+The 3 combinations we need to keep track of are:
 
-where:
-* *k* is index of the stack register against which the constraint is applied,
-* *v* is the value that the register must have at the end of the execution trace,
-* *n* is the length of the execution trace,
-* *x = ω<sup>i</sup><sub>ev</sub>* for all *i* in the constraint evaluation domain.
+1. Combination of transition constraints. The denominator for this combination is *(x<sup>n</sup> - 1) / (x - ω<sub>trace</sub><sup>(n-1)</sup>)*. The degree of this denominator is *n - 1*.
+2. Combination of boundary constraints at the first step. The denominator for this combination is *(x - 1)*. The degree of this denominator is *1*.
+3. Combination of boundary constraints at the last step. The denominator for this combination is *(x - ω<sub>trace</sub><sup>(n-1)</sup>)*. The degree of this denominator is *1*.
 
-#### Transition 
-Transition constraints enforce that computation state changed correctly between two consecutive steps of the computation (except for the last step). They are computed using the following expression:
+We want the degree of the final constraint polynomial to be as follows:
 
 <p align="center">
-<img src="https://render.githubusercontent.com/render/math?math=\large C_k(x)=\frac{F_k(T_0(x), T_1(x), \ldots, T_m(x))}{(x^n-1)/(x-\omega_{trace}^{n-1})}">
+<img src="https://render.githubusercontent.com/render/math?math=\large deg(C(x)) = |D_{ev}| - |D_{trace}|">
 </p>
 
-where:
-* *F<sub>0</sub> ... F<sub>k</sub>* are the transition constraint evaluation functions,
-* *T<sub>0</sub> ... T<sub>m</sub>* are the trace polynomials,
-* *n* is the length of the execution trace,
-* *x = ω<sup>i</sup><sub>ev</sub>* for all *i* in the constraint evaluation domain.
+For example, if our execution trace is 16 steps long, the target degree will be `8 * 16 - 16 = 112`. 
+
+
+Since these denominators have different degrees, our adjustment degree *d<sub>i</sub>* will also need to be different.
+
 
 ### 4. Convert constraint evaluations into a single polynomial
 
 ### 5. Build Merkle tree from constraint polynomial evaluations
 
 ### 6. Build and evaluate deep composition polynomial
+TODO
 
 ### 7. Compute FRI layers for the composition polynomial
+TODO
 
 ### 8. Determine query positions
+TODO
 
 ### 9. Build proof object
-
+TODO
 
 ## Proof verification
+
+### 1. Verify deep point evaluation
+TODO
+
+### 2. Verify proof of work and determine query positions
+TODO
+
+### 3. Verify trace and constraint Merkle proofs
+TODO
+
+### 4. Compute composition values
+TODO
+
+### 5. Verify low-degree proof
+TODO
