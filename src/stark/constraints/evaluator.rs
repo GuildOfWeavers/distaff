@@ -108,8 +108,8 @@ impl Evaluator {
     }
 
     pub fn get_x_at_last_step(&self) -> u64 {
-        let root = field::get_root_of_unity(self.domain_size as u64);
-        return field::exp(root, (self.domain_size - self.extension_factor) as u64);
+        let trace_root = field::get_root_of_unity(self.trace_length() as u64);
+        return field::exp(trace_root, (self.trace_length() - 1) as u64);
     }
 
     // CONSTRAINT EVALUATORS
