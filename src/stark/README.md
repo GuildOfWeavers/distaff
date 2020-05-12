@@ -1,8 +1,8 @@
 ## Proof generation
 
-To generate a STARK proof, we use `prove()` function from the [prover](/prover.rs) module. The function takes the following parameters:
+To generate a STARK proof, we use `prove()` function from the [prover](prover.rs) module. The function takes the following parameters:
 
-* **trace**: `&TraceTable` - an execution trace resulting from executing a program. The trace table is built by the [processor](/../processor) module.
+* **trace**: `&TraceTable` - an execution trace resulting from executing a program. The trace table is built by the [processor](../processor) module.
 * **inputs**: `&[64]`
 * **outputs**: `&[u64]`
 * **options**: `&ProofOptions`
@@ -57,7 +57,7 @@ Leaf<sub>i</sub> = (T<sub>0</sub>(ω<sup>i</sup><sub>lde</sub>), T<sub>1</sub>(�
 This step takes up about 10% of proof generation time.
 
 ### 3. Evaluate constraints
-The next step is to evaluate constraints. The actual constraint definitions are described [here](/constraints). Our eventual goal is to combine all constraints into a single *constraint polynomial*. We do this by computing a random linear combination of all constraints like so:
+The next step is to evaluate constraints. The actual constraint definitions are described [here](constraints). Our eventual goal is to combine all constraints into a single *constraint polynomial*. We do this by computing a random linear combination of all constraints like so:
 
 <p align="center">
 <img src="https://render.githubusercontent.com/render/math?math=\large C(x) = \sum_i (\k_{2i} \cdot C_i(x) %2B \k_{2i%2B1} \cdot C_i(x) \cdot x^{d_i})">
@@ -67,31 +67,45 @@ where:
 * *x = ω<sup>j</sup><sub>ev</sub>* for all *j* in the constraint evaluation domain.
 * *C<sub>0</sub> ... C<sub>i</sub>* are the individual constraint evaluation functions.
 * *k<sub>0</sub> ... k<sub>2i+1</sub>* are the coefficients for the random linear combination. These coefficients are derived using PRNG seeded with the root of the trace Merkle tree we built in the previous step.
-* *d<sub>0</sub> ... d<sub>i</sub>* are the adjustment degrees needed to guarantee that constraint degrees are enforced exactly.
+* *d<sub>0</sub> ... d<sub>i</sub>* are the adjustment degrees needed to guarantee that constraint degrees are enforced exactly. Adjustment degrees are calculated as: *d<sub>i</sub> = [target degree] - deg(C<sub>i</sub>(x))*.
 
-However, in this step, we don't compute the final constraint polynomial. Instead, we compute linear combinations of constraint numerators only (see [here](/constraints) for more info on constraints). In the next step, we'll divide these linear combinations by their respective denominators. This allows us to minimize the number of divisions (which are expensive) and also reduces the amount of RAM needed to hold all constraint evaluations. Since our constraints can have 3 possible denominators, we'll still need to keep track of 3 separate linear combinations but that's much better than keeping track of 30+ individual constraint evaluations.
+However, in this step, we don't compute the full constraint polynomial. Instead, we compute linear combinations of constraint numerators only. In the next step, we'll divide these linear combinations by their respective denominators. This allows us to minimize the number of divisions (which are expensive) and also reduces the amount of RAM needed to hold all constraint evaluations. Since our constraints can have 3 possible denominators, we'll still need to keep track of 3 separate linear combinations but that's much better than keeping track of 30+ individual constraint evaluations.
 
 The 3 combinations we need to keep track of are:
 
-1. Combination of transition constraints. The denominator for this combination is *(x<sup>n</sup> - 1) / (x - ω<sub>trace</sub><sup>(n-1)</sup>)*. The degree of this denominator is *n - 1*.
-2. Combination of boundary constraints at the first step. The denominator for this combination is *(x - 1)*. The degree of this denominator is *1*.
-3. Combination of boundary constraints at the last step. The denominator for this combination is *(x - ω<sub>trace</sub><sup>(n-1)</sup>)*. The degree of this denominator is *1*.
+1. Combination of transition constraints. The denominator for this combination is *(x<sup>n</sup> - 1) / (x - ω<sub>trace</sub><sup>(n-1)</sup>)*.
+2. Combination of boundary constraints at the first step. The denominator for this combination is *(x - 1)*.
+3. Combination of boundary constraints at the last step. The denominator for this combination is *(x - ω<sub>trace</sub><sup>(n-1)</sup>)*.
 
-We want the degree of the final constraint polynomial to be as follows:
+Because the denominators above have different degrees, *target degrees* for the linear combination will be different. Specifically:
+* Target degree for transition constraints will be *|D<sub>ev</sub>| - 1*.
+* Target degree for boundary constraints will be *|D<sub>ev</sub>| - |D<sub>trace</sub>| + 1*
+
+This way, when each linear combination is divided by its respective denominator, their degrees will align, and the degree for the full *constraint polynomial* will be:
 
 <p align="center">
 <img src="https://render.githubusercontent.com/render/math?math=\large deg(C(x)) = |D_{ev}| - |D_{trace}|">
 </p>
 
-For example, if our execution trace is 16 steps long, the target degree will be `8 * 16 - 16 = 112`. 
-
-
-Since these denominators have different degrees, our adjustment degree *d<sub>i</sub>* will also need to be different.
-
+For example, if our execution trace is 16 steps long:
+* Constraint combination degree will be `16 * 8 - 1 = 127`.
+* Boundary constraint combination degree will be `16 * 8 - 16 + 1 = 113`.
+* Once the denominators are divided out, the final degree of the *constraint polynomial* will be `112`.
 
 ### 4. Convert constraint evaluations into a single polynomial
+After constraints have been evaluated and combined into the 3 linear combinations, we do the following:
+1. Interpolate each combination of constraint evaluation into a polynomial,
+2. Divide out denominators from their respective polynomials,
+3. Add the resulting polynomials together into the *constraint polynomial C(x)*.
 
 ### 5. Build Merkle tree from constraint polynomial evaluations
+Once the *constraint polynomial* has been constructed, we evaluate it over the LDE domain and put the resulting values into a Merkle tree.
+
+Since our values are 64 bits, but Merkle tree leaves are 256 bits, we put 4 consecutive evaluations into a single leaf like so:
+
+<p align="center">
+<img src="https://render.githubusercontent.com/render/math?math=\large Leaf_i=(C(x_{4*i}), C(x_{4*i %2B 1}), C(x_{4*i %2B 2}), C(x_{4*i %2B 3}))">
+</p>
 
 ### 6. Build and evaluate deep composition polynomial
 TODO
