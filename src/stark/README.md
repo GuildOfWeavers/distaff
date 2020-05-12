@@ -44,7 +44,7 @@ T<sub>0</sub>(ω<sup>i</sup><sub>lde</sub>), T<sub>1</sub>(ω<sup>i</sup><sub>ld
 
 A couple of things to note:
 1. The degree of trace polynomials is one less than trace length, or *deg(T<sub>i</sub>(x)) = |D<sub>trace</sub>| - 1*.
-2. This step alone takes up almost 45% of proof generation time (in single-threaded execution).
+2. This is the most computationally intensive part of proof generation. Depending on the `extension_factor` used, it can take up between 40% to 65% of proof generation time (assuming single-threaded execution).
 
 ### 2. Build trace Merkle tree
 
@@ -104,7 +104,7 @@ Once the *constraint polynomial* has been constructed, we evaluate it over the L
 Since our values are 64 bits, but Merkle tree leaves are 256 bits, we put 4 consecutive evaluations into a single leaf like so:
 
 <p align="center">
-<img src="https://render.githubusercontent.com/render/math?math=\large Leaf_i=(C(x_{4*i}), C(x_{4*i %2B 1}), C(x_{4*i %2B 2}), C(x_{4*i %2B 3}))">
+<img src="https://render.githubusercontent.com/render/math?math=\large Leaf_i=(C(x_{4i}), C(x_{4i %2B 1}), C(x_{4i %2B 2}), C(x_{4i %2B 3}))">
 </p>
 
 ### 6. Build and evaluate deep composition polynomial

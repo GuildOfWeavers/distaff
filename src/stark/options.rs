@@ -5,7 +5,7 @@ use super::MAX_CONSTRAINT_DEGREE;
 
 // CONSTANTS
 // ================================================================================================
-const DEFAULT_EXTENSION_FACTOR: u8 = 32;
+const DEFAULT_EXTENSION_FACTOR: u8 = (MAX_CONSTRAINT_DEGREE * 8) as u8;
 const DEFAULT_NUM_QUERIES     : u8 = 48;
 const DEFAULT_GRINDING_FACTOR : u8 = 20;
 
@@ -67,10 +67,10 @@ impl ProofOptions {
     }
 
     pub fn security_level(&self) -> u32 {
-        let r = (self.extension_factor() / MAX_CONSTRAINT_DEGREE) as u64;
-        let trace_sl = pow_log2(r, self.num_queries as u32);
-        // TODO: account for FRI soundness
-        return trace_sl as u32;
+        let one_over_rho = (self.extension_factor() / MAX_CONSTRAINT_DEGREE) as u64;
+        return pow_log2(one_over_rho, self.num_queries as u32) as u32;
+        // TODO: the above is an optimistic bound, the pessimistic bound would be:
+        // pow_log2(one_over_rho, (self.num_queries / 2) as u32) as u32;
     }
 }
 
