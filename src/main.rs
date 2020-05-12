@@ -10,9 +10,8 @@ fn main() {
         .format(|buf, record| writeln!(buf, "{}", record.args()))
         .filter_level(log::LevelFilter::Debug).init();
 
-    // read the length of Fibonacci sequence from command line or use 6 as default
-    let args: Vec<String> = env::args().collect();
-    let n: usize = if args.len() > 1 { args[1].parse().unwrap() } else { 6 };
+    // read the length of Fibonacci sequence and proof options from the command line
+    let (n, options) = read_args();
     
     // generate the program and expected results
     let program = generate_fibonacci_program(n);
@@ -23,7 +22,6 @@ fn main() {
         expected_result);
     println!("--------------------------------");
 
-    let options = ProofOptions::default();
     let inputs = [1, 0];    // initialize stack with 2 values; 1 will be at the top
     let num_outputs = 1;    // a single element from the top of the stack will be the output
 
@@ -52,6 +50,38 @@ fn main() {
         Ok(_) => println!("Execution verified in {} ms", now.elapsed().as_millis()),
         Err(msg) => println!("Failed to verify execution: {}", msg)
     }
+}
+
+fn read_args() -> (usize, ProofOptions) {
+    let default_options = ProofOptions::default();
+
+    let args: Vec<String> = env::args().collect();
+    if args.len() == 1 { return (6, default_options); }
+
+    let n: usize = args[1].parse().unwrap();
+    if args.len() == 2 { return (n, default_options); }
+
+    let ext_factor: usize;
+    let num_queries: usize;
+    let grind_factor: u32;
+    
+    if args.len() == 3 {
+        ext_factor = args[2].parse().unwrap();
+        num_queries = default_options.num_queries();
+        grind_factor = default_options.grinding_factor();
+    }
+    else if args.len() == 4 {
+        ext_factor = args[2].parse().unwrap();
+        num_queries = args[3].parse().unwrap();
+        grind_factor = default_options.grinding_factor();
+    }
+    else {
+        ext_factor = args[2].parse().unwrap();
+        num_queries = args[3].parse().unwrap();
+        grind_factor = args[4].parse().unwrap();
+    }
+
+    return (n, ProofOptions::new(ext_factor, num_queries, grind_factor, default_options.hash_function()));
 }
 
 /// Generates a program to compute the `n`-th term of Fibonacci sequence
