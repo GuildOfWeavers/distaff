@@ -66,6 +66,7 @@ impl ProofOptions {
     }
 
     pub fn security_level(&self) -> u32 {
+        // TODO: include grinding effect
         let one_over_rho = (self.extension_factor() / MAX_CONSTRAINT_DEGREE) as u32;
         let security_factor = 31 - one_over_rho.leading_zeros(); // same as log2(one_over_rho)
         return security_factor * self.num_queries as u32;

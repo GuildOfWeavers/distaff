@@ -84,7 +84,7 @@ Because the denominators above have different degrees, *target degrees* for the 
 This way, when linear combinations are divided by their respective denominator, their degrees will align, and the degree for the final *constraint polynomial* will be:
 
 <p align="center">
-<img src="https://render.githubusercontent.com/render/math?math=\large deg(C(x)) = |D_{ev}| - |D_{trace}|">
+deg(C(x)) = |D<sub>ev</sub>| - |D<sub>trace</sub>|
 </p>
 
 For example, if our execution trace is 16 steps long:
@@ -104,11 +104,62 @@ Once the *constraint polynomial* has been constructed, we evaluate it over the L
 Since our values are 64 bits, but Merkle tree leaves are 256 bits, we put 4 consecutive evaluations into a single leaf like so:
 
 <p align="center">
-<img src="https://render.githubusercontent.com/render/math?math=\large Leaf_i=(C(x_{4i}), C(x_{4i %2B 1}), C(x_{4i %2B 2}), C(x_{4i %2B 3}))">
+Leaf<sub>i</sub> = (C(x<sub>4i</sub>), C(x<sub>4i+1</sub>), C(x<sub>4i+2</sub>), C(x<sub>4i + 3</sub>))
 </p>
 
+*x<sub>i</sub> = ω<sup>i</sup><sub>lde</sub>* for all *i* in the low degree extension domain.
+
 ### 6. Build and evaluate deep composition polynomial
-TODO
+Next, we use the root of the tree constructed in the previous step to seed a new PRNG. We then use this PRNG to:
+
+1. Draw a point *z* from the entire field,
+2. Draw a set of coefficients for the random linear combination of constraint and trace polynomials.
+
+This new random linear combination is called a *deep composition polynomial P(x)*. The degree of this polynomial will be one less than the degree of the constraint polynomial, or *deg(P(x)) = |D<sub>ev</sub>| - |D<sub>trace</sub>| - 1*.
+
+Deep composition polynomial is constructed as folllows:
+
+First, we compute *T<sub>i</sub>(z)* and *T<sub>i</sub>(z * ω<sub>trace</sub>)*, and divide these points out of trace polynomials like so:
+
+<p align="center">
+<img src="https://render.githubusercontent.com/render/math?math=\large T^'_i(x) = \frac{T_i(x) - T_i(z)}{x - z}">
+</p>
+
+<p align="center">
+<img src="https://render.githubusercontent.com/render/math?math=\large T^''_i(x) = \frac{T_i(x) - T_i(z \cdot \omega_{trace})}{x - z \cdot \omega_{trace}}">
+</p>
+
+Then, we compute a random linear combination of the resulting polynomials as:
+
+<p align="center">
+<img src="https://render.githubusercontent.com/render/math?math=\large T(x) = \sum_i (\k_{2i} \cdot T^'_i(x) %2B \k_{2i%2B1} \cdot T^''_i(x))">
+</p>
+
+where *k<sub>0</sub> ... k<sub>2i+1</sub>* are the coefficients for the random linear combination.
+
+Next, we raise the degree of the combined trace polynomials to make sure it matches the degree of the deep composition polynomial:
+
+<p align="center">
+<img src="https://render.githubusercontent.com/render/math?math=\large T^'(x) = \alpha \cdot T(x) %2B \beta \cdot T(x) \cdot x^d">
+</p>
+
+where:
+* *α* and *β* are pseudo-random coefficients,
+* *d* is the adjustment degree which is equal to *|D<sub>ev</sub>| - 2 * |D<sub>trace</sub>| + 1*.
+
+Then we divide *z* point out of the constraint polynomial like so:
+
+<p align="center">
+<img src="https://render.githubusercontent.com/render/math?math=\large C^'(x) = \frac{C(x) - C(z)}{x - z}">
+</p>
+
+Finally, we combine this resulted deep constraint polynomial with the deep trace polynomial:
+
+<p align="center">
+<img src="https://render.githubusercontent.com/render/math?math=\large P(x) = T^'(x) %2B \gamma \cdot C^'(x)">
+</p>
+
+where, *γ* is yet another pseudo-random coefficient.
 
 ### 7. Compute FRI layers for the composition polynomial
 TODO
