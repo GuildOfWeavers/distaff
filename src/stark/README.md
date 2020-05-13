@@ -77,18 +77,18 @@ The 3 combinations we need to keep track of are:
 2. Combination of boundary constraints at the first step. The denominator for this combination is *(x - 1)*.
 3. Combination of boundary constraints at the last step. The denominator for this combination is *(x - ω<sub>trace</sub><sup>(n-1)</sup>)*.
 
-Because the denominators above have different degrees, *target degrees* for the linear combination will be different. Specifically:
+Because the denominators above have different degrees, *target degrees* for the linear combinations will be different. Specifically:
 * Target degree for transition constraints will be *|D<sub>ev</sub>| - 1*.
 * Target degree for boundary constraints will be *|D<sub>ev</sub>| - |D<sub>trace</sub>| + 1*
 
-This way, when each linear combination is divided by its respective denominator, their degrees will align, and the degree for the full *constraint polynomial* will be:
+This way, when linear combinations are divided by their respective denominator, their degrees will align, and the degree for the final *constraint polynomial* will be:
 
 <p align="center">
 <img src="https://render.githubusercontent.com/render/math?math=\large deg(C(x)) = |D_{ev}| - |D_{trace}|">
 </p>
 
 For example, if our execution trace is 16 steps long:
-* Constraint combination degree will be `16 * 8 - 1 = 127`.
+* Transition constraint combination degree will be `16 * 8 - 1 = 127`.
 * Boundary constraint combination degree will be `16 * 8 - 16 + 1 = 113`.
 * Once the denominators are divided out, the final degree of the *constraint polynomial* will be `112`.
 
