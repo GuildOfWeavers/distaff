@@ -17,14 +17,14 @@ There are 3 domains with which we'll be working:
 
 ## Proof generation
 
-To generate a STARK proof, we use `prove()` function from the [prover](prover.rs) module. The function takes the following parameters:
+To generate a STARK proof we use `prove()` function from the [prover](prover.rs) module. The function takes the following parameters:
 
 * **trace** - an execution [trace table](trace) resulting from executing a program. The trace table is instantiated in the [processor](../processor) module, and then passed into the `prove()` function.
 * **inputs** - a list of values to which the stack is initialized at the first step of the computation.
 * **outputs** - a list of values which must be on the stack at the last step of the computation.
 * **options** - [config options](options.rs) for proof generation. These control trade offs between proof size, proving time, and security level.
 
-At the high level, the proof generation process consists of the following 9 steps.
+At the high level, proof generation process consists of the following 9 steps.
 
 ### 1. Extend execution trace
 We can think of register traces in the execution trace table as evaluations of trace polynomials *T<sub>i</sub>(x)*. Thus, each row in the trace table can be written as:
@@ -111,9 +111,9 @@ Next, we use the root of the tree constructed in the previous step to seed a new
 1. Draw a random point *z* from the entire field (the "out-of-domain" point),
 2. Draw a set of coefficients for the random linear combination of constraint and trace polynomials.
 
-This new random linear combination is called a *deep composition polynomial P(x)*. The degree of this polynomial will be one less than the degree of the constraint polynomial, or *deg(P(x)) = |D<sub>ev</sub>| - |D<sub>trace</sub>| - 1*.
+This new random linear combination is called a *DEEP composition polynomial P(x)*. The degree of this polynomial will be one less than the degree of the constraint polynomial, or *deg(P(x)) = |D<sub>ev</sub>| - |D<sub>trace</sub>| - 1*.
 
-Deep composition polynomial is constructed as follows:
+DEEP composition polynomial is constructed as follows:
 
 First, we compute *T<sub>k</sub>(z)* and *T<sub>k</sub>(z * ω<sub>trace</sub>)*, and divide these points out of trace polynomials like so:
 
@@ -133,7 +133,7 @@ Then, we compute a random linear combination of the resulting polynomials as:
 
 where *α<sub>0</sub> ... α<sub>2i-1</sub>* are the coefficients for the random linear combination.
 
-Next, we raise the degree of the combined trace polynomials to make sure it matches the degree of the deep composition polynomial:
+Next, we raise the degree of the combined trace polynomials to make sure it matches the degree of the DEEP composition polynomial:
 
 <p align="center">
 <img src="https://render.githubusercontent.com/render/math?math=\large T^'(x) = \alpha \cdot T(x) %2B \beta \cdot T(x) \cdot x^d">
@@ -149,7 +149,7 @@ Then we divide *z* point out of the constraint polynomial like so:
 <img src="https://render.githubusercontent.com/render/math?math=\large C^'(x) = \frac{C(x) - C(z)}{x - z}">
 </p>
 
-Finally, we combine this resulting deep constraint polynomial with the deep trace polynomial like so:
+Finally, we combine this resulting DEEP constraint polynomial with the DEEP trace polynomial like so:
 
 <p align="center">
 <img src="https://render.githubusercontent.com/render/math?math=\large P(x) = T^'(x) %2B \gamma \cdot C^'(x)">
@@ -166,14 +166,7 @@ For the example we used above, FRI layers will look like so:
 * Layer 0: domain size 1024, degree 111
 * Layer 1: domain size 256, degree 27
 
-The layers are constructed as follows:
-1. The domain and *P(x)* evaluations are transposed into matrixes of 4 columns. The number of rows in these matrixes is *n/4*, where *n* is the size of the original domain.
-2. A Merkle tree is built from the rows of the evaluation matrix.
-3. Each row in the evaluation matrix is interpreted as evaluations of degree 3 polynomial against the corresponding row in the domain matrix. These polynomials are interpolated and we get *n/4* polynomials of degree 3.
-4. A pseudo-random value is generated using the root of the Merkle tree we built in step 2 above as a seed.
-5. Degree 3 polynomials are evaluated at this pseudo-random point and we get *n/4* new evaluations. These evaluations become inputs for generating the next FRI layer.
-
-The output of this process is a set of Merkle trees - one Merkle tree per layer. The leaves in these trees contain transposed polynomial evaluations from the preceding layer.
+The details of FRI proof generation process are described [here](fri).
 
 ### 8. Determine query positions
 Once Merkle trees for all FRI layers are constructed, we combined roots of these trees into a single value as follows:
@@ -199,7 +192,7 @@ seed = hash(merged_root, pow_nonce)
 Then, we instantiate a PRNG with this seed and draw random positions from *D<sub>lde</sub>*. The number of positions drawn is equal to the `num_queries` config parameter.
 
 ### 9. Build proof object
-Once query positions are determined, we build the proof object and return. The proof object consists of the following:
+Once query positions are determined, we build the [proof object](proof.rs) and return. The proof object consists of the following:
 
 1. Root of the trace Merkle tree we built in step 2.
 2. Authentication paths from the root of the trace tree to the queried positions.
@@ -211,6 +204,14 @@ Once query positions are determined, we build the proof object and return. The p
 8. Proof-of-work nonce we computed in step 8.
 
 ## Proof verification
+To verify a STARK proof we use `verify()` function from the [verifier](verifier.rs) module. The function takes the following parameters:
+
+* **program_hash** - hash of the program we are trying to verify.
+* **inputs** - a list of inputs with which the program was executed.
+* **outputs** - a list of outputs produced by the program.
+* **proof** - a [proof object](proof.rs) generated by executing the program on Distaff VM.
+
+At the high level, proof verification process consists of the following 5 steps:
 
 ### 1. Verify proof of work and determine query positions
 First, we read Merkle tree roots for all FRI layers from the proof, and combine them together as:
@@ -227,7 +228,7 @@ Then, we read the proof-of-work nonce from the proof, and use it to build a seed
 seed = hash(merged_root, pow_nonce)
 </p>
 
-We then verify that the seed value satisfies the difficulty target set by the `grinding_factor` config parameter, and use it to instantiate a PRNG.
+We then verify that the seed value satisfies the proof-of-work difficulty target set by the `grinding_factor` config parameter, and use it to instantiate a PRNG.
 
 Finally, we use this PRNG to draw random query positions from *D<sub>lde</sub>*. The number of positions drawn is equal to the `num_queries` config parameter.
 
@@ -237,10 +238,64 @@ Once query positions are determined, we read roots and authentication paths for 
 We than verify the authentication paths against these query positions. This gives us evaluations of trace polynomials *T<sub>k</sub>(x)* and combined constraint polynomial *C(x)* at all queried positions.
 
 ### 3. Compute constraint evaluations at DEEP point z
-Next, we read *T<sub>k</sub>(z)* and *T<sub>k</sub>(z * ω<sub>trace</sub>)* from the proof, and pass them through constraint evaluator as current and next steps of the execution trace. This gives us constraint evaluations at out-of-domain point: *C<sub>k</sub>(z)*.
+Next, we use constraint Merkle tree root to seed a PRNG and derive the out-of-domain point *z*.
+
+Then, we read *T<sub>k</sub>(z)* and *T<sub>k</sub>(z * ω<sub>trace</sub>)* from the proof, and pass them through constraint evaluator as current and next steps of the execution trace. This gives us constraint evaluations at out-of-domain point: *C<sub>k</sub>(z)*.
 
 ### 4. Compute composition polynomial evaluations
-TODO
+At this point, we have:
+* Evaluations of *T<sub>k</sub>(x)* at all queried positions;
+* Evaluations of *T<sub>k</sub>(x)* at *z* and *z * ω<sub>trace</sub>* ;
+* Evaluations of *C(x)* at all queried positions;
+* Evaluation of *C(x)* at *z*.
+
+We use this data to compute evaluations of the DEEP composition polynomial *P(x)* at all queried positions. This is done as follows:
+
+First, seed a PRNG with the root of the constraint Merkle tree and use it to derive a set of coefficients for random linear combinations.
+
+Then, divide out DEEP points from their respective evaluations like so:
+
+<p align="center">
+<img src="https://render.githubusercontent.com/render/math?math=\large T^'_k(x) = \frac{T_k(x) - T_k(z)}{x - z}">
+</p>
+
+<p align="center">
+<img src="https://render.githubusercontent.com/render/math?math=\large T^''_k(x) = \frac{T_k(x) - T_k(z \cdot \omega_{trace})}{x - z \cdot \omega_{trace}}">
+</p>
+
+<p align="center">
+<img src="https://render.githubusercontent.com/render/math?math=\large C^'(x) = \frac{C(x) - C(z)}{x - z}">
+</p>
+
+where *x = ω<sup>i</sup><sub>lde</sub>* for all queried positions *i*.
+
+Then, combine resulting trace evaluations into a single value like so:
+
+<p align="center">
+<img src="https://render.githubusercontent.com/render/math?math=\large T(x) = \sum_k (\alpha_{2k} \cdot T^'_k(x) %2B \alpha_{2k%2B1} \cdot T^''_k(x))">
+</p>
+
+where *α<sub>0</sub> ... α<sub>2i-1</sub>* are the coefficients for the random linear combination.
+
+Then, raise the degree of resulting values to match the degree of the composition polynomial like so: 
+
+<p align="center">
+<img src="https://render.githubusercontent.com/render/math?math=\large T^'(x) = \alpha \cdot T(x) %2B \beta \cdot T(x) \cdot x^d">
+</p>
+
+where:
+* *α* and *β* are pseudo-random coefficients,
+* *d* is the adjustment degree which is equal to *|D<sub>ev</sub>| - 2 * |D<sub>trace</sub>| + 1*.
+
+Finally, we combine this resulting DEEP constraint evaluations with the DEEP trace evaluations like so:
+
+<p align="center">
+<img src="https://render.githubusercontent.com/render/math?math=\large P(x) = T^'(x) %2B \gamma \cdot C^'(x)">
+</p>
+
+where, *γ* is yet another pseudo-random coefficient.
+
+The output of this process are the evaluations of the composition polynomial *P(x)* at all queried positions.
 
 ### 5. Verify low-degree proof
-TODO
+Once we have *P(x)* evaluations at the queried positions, we read FRI portion of the proof and use it to verify that the degree implied by *P(x)* evaluations is smaller than *|D<sub>ev</sub>| - 2 * |D<sub>trace</sub>|*. FRI verification process is described [here](fri).

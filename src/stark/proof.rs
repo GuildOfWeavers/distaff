@@ -1,8 +1,8 @@
 use serde::{ Serialize, Deserialize };
-use crate::math::{ field, quartic::to_quartic_vec};
+use crate::math::{ quartic::to_quartic_vec};
 use crate::crypto::{ BatchMerkleProof };
 use crate::stark::{ fri::FriProof, TraceState, ProofOptions };
-use crate::utils::{ uninit_vector, CopyInto };
+use crate::utils::{ uninit_vector };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -113,10 +113,6 @@ impl StarkProof {
 
     // DEEP VALUES
     // -------------------------------------------------------------------------------------------
-    pub fn get_deep_point_z(&self) -> u64 {
-        return field::prng(self.constraint_root.copy_into());
-    }
-
     pub fn get_state_at_z1(&self) -> TraceState {
         return TraceState::from_raw_state(self.deep_values.trace_at_z1.clone());
     }

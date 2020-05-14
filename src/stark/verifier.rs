@@ -1,4 +1,4 @@
-use crate::{ math::field, crypto::{ MerkleTree }, utils::CopyInto };
+use crate::{ math::field, crypto::{ MerkleTree }, utils::{ CopyInto } };
 use super::{ StarkProof, TraceState, ConstraintEvaluator, CompositionCoefficients, fri, utils };
 
 // VERIFIER FUNCTION
@@ -37,17 +37,19 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
     }
 
     // 3 ----- Compute constraint evaluations at DEEP point z -------------------------------------
+    // derive DEEP point z from the root of the constraint tree
+    let z = field::prng(proof.constraint_root().copy_into());
+
+    // evaluate constraints at z
     let constraint_evaluation_at_z = evaluate_constraints(
         ConstraintEvaluator::from_proof(proof, program_hash, inputs, outputs),
         proof.get_state_at_z1(),
         proof.get_state_at_z2(),
-        proof.get_deep_point_z()
+        z
     );
 
     // 4 ----- Compute composition polynomial evaluations -----------------------------------------
-    
-    // derive deep point z and coefficient for linear combination from the root of constraint tree
-    let z = field::prng(proof.constraint_root().copy_into());
+    // derive coefficient for linear combination from the root of constraint tree
     let coefficients = CompositionCoefficients::new(proof.constraint_root());
 
     // compute composition values separately for trace and constraints, and then add them together
