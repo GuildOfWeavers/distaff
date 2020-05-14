@@ -15,9 +15,9 @@ Input constraints enforce the state of the stack at the beginning of the executi
 </p>
 
 where:
-* *k* is index of the stack register against which the constraint is applied,
+* *k* is the index of the stack register against which the constraint is applied,
 * *v* is the value that the register must have at the beginning of the execution trace,
-* *x = ω<sup>i</sup><sub>ev</sub>* for all *i* in the constraint evaluation domain.
+* *x = ω<sup>i</sup><sub>ev</sub>* for all *i* in the constraint evaluation domain (see more about domains [here](..)).
 
 ### 2. Output constraints
 Output constraint are similar to input constraints but enforce the state of the stack at the end of the execution trace. They are computed using the following expression:
@@ -30,7 +30,7 @@ where:
 * *k* is index of the stack register against which the constraint is applied,
 * *v* is the value that the register must have at the end of the execution trace,
 * *n* is the length of the execution trace,
-* *x = ω<sup>i</sup><sub>ev</sub>* for all *i* in the constraint evaluation domain.
+* *x = ω<sup>i</sup><sub>ev</sub>* for all *i* in the constraint evaluation domain (see more about domains [here](..)).
 
 ### 3. Program hash constraints
 Program hash constraints enforce the hash value to which the executed program reduces by the end of the computation. Semantically, they are the same as output constraint, they are just applied to a different set of registers and enforce a different set of boundary values.
@@ -46,7 +46,7 @@ where:
 * *F<sub>0</sub> ... F<sub>k</sub>* are the transition constraint evaluation functions,
 * *T<sub>0</sub> ... T<sub>m</sub>* are the trace polynomials,
 * *n* is the length of the execution trace,
-* *x = ω<sup>i</sup><sub>ev</sub>* for all *i* in the constraint evaluation domain.
+* *x = ω<sup>i</sup><sub>ev</sub>* for all *i* in the constraint evaluation domain (see more about domains [here](..)).
 
 Currently, there are 2 sets of transition constraints:
 
