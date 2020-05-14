@@ -9,17 +9,13 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
     let options = proof.options();
     let hash_fn = options.hash_function();
 
-    // 1 ----- Verify deep point evaluation -------------------------------------------------------
+    // 1 ----- Compute deep point evaluation ------------------------------------------------------
     let constraint_evaluation_at_z = evaluate_constraints(
         ConstraintEvaluator::from_proof(proof, program_hash, inputs, outputs),
-        proof.get_state_at_z(),
-        proof.get_state_at_next_z(),
+        proof.get_state_at_z1(),
+        proof.get_state_at_z2(),
         proof.get_deep_point_z()
     );
-
-    if constraint_evaluation_at_z != proof.get_constraint_evaluation_at_z() {
-        return Err(String::from("verification of deep point evaluation failed"));
-    }
 
     // 2 ----- Verify proof of work and determine query positions ---------------------------------
     let degree_proof = proof.degree_proof();
@@ -56,7 +52,7 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
 
     // compute composition values separately for trace and constraints, and then add them together
     let t_composition = compose_registers(&proof, &t_positions, z, &coefficients);
-    let c_composition = compose_constraints(&proof, &t_positions, &c_positions, z, &coefficients);
+    let c_composition = compose_constraints(&proof, &t_positions, &c_positions, z, constraint_evaluation_at_z, &coefficients);
     let evaluations = t_composition.iter().zip(c_composition).map(|(&t, c)| field::add(t, c)).collect::<Vec<u64>>();
     
     // 5 ----- Verify low-degree proof -------------------------------------------------------------
@@ -95,8 +91,8 @@ fn compose_registers(proof: &StarkProof, positions: &[usize], z: u64, cc: &Compo
     let trace_root = field::get_root_of_unity(proof.trace_length() as u64);
     let next_z = field::mul(z, trace_root);
 
-    let trace_at_z1 = proof.get_state_at_z().registers().to_vec();
-    let trace_at_z2 = proof.get_state_at_next_z().registers().to_vec();
+    let trace_at_z1 = proof.get_state_at_z1().registers().to_vec();
+    let trace_at_z2 = proof.get_state_at_z2().registers().to_vec();
     let evaluations = proof.trace_evaluations();
 
     let incremental_degree = utils::get_incremental_trace_degree(proof.trace_length()) as u64;
@@ -129,7 +125,7 @@ fn compose_registers(proof: &StarkProof, positions: &[usize], z: u64, cc: &Compo
     return result;
 }
 
-fn compose_constraints(proof: &StarkProof, t_positions: &[usize], c_positions: &[usize], z: u64, cc: &CompositionCoefficients) -> Vec<u64> {
+fn compose_constraints(proof: &StarkProof, t_positions: &[usize], c_positions: &[usize], z: u64, evaluation_at_z: u64, cc: &CompositionCoefficients) -> Vec<u64> {
 
     // build constraint evaluation values from the leaves of constraint Merkle proof
     let mut evaluations = Vec::with_capacity(t_positions.len());
@@ -141,7 +137,6 @@ fn compose_constraints(proof: &StarkProof, t_positions: &[usize], c_positions: &
     }
 
     let lde_root = field::get_root_of_unity(proof.domain_size() as u64);
-    let evaluation_at_z = proof.get_constraint_evaluation_at_z();
 
     // divide out deep point from the evaluations
     let mut result = Vec::with_capacity(evaluations.len());

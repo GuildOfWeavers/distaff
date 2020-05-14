@@ -180,7 +180,7 @@ fn build_composition_poly(trace: &TraceTable, constraint_poly: ConstraintPoly, s
     let (mut result, s1, s2) = trace.get_composition_poly(z, &coefficients);
 
     // divide out deep point from constraint polynomial and merge it into the result
-    let constraints_at_z = constraint_poly.merge_into(&mut result, z, &coefficients);
+    constraint_poly.merge_into(&mut result, z, &coefficients);
 
-    return (result, DeepValues { trace_at_z: s1, trace_at_next_z: s2, constraints_at_z });
+    return (result, DeepValues { trace_at_z1: s1, trace_at_z2: s2 });
 }

@@ -24,9 +24,8 @@ pub struct StarkProof {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DeepValues {
-    pub trace_at_z      : Vec<u64>,
-    pub trace_at_next_z : Vec<u64>,
-    pub constraints_at_z: u64,
+    pub trace_at_z1     : Vec<u64>,
+    pub trace_at_z2     : Vec<u64>,
 }
 
 // STARK PROOF IMPLEMENTATION
@@ -118,15 +117,11 @@ impl StarkProof {
         return field::prng(self.constraint_root.copy_into());
     }
 
-    pub fn get_constraint_evaluation_at_z(&self) -> u64 {
-        return self.deep_values.constraints_at_z;
+    pub fn get_state_at_z1(&self) -> TraceState {
+        return TraceState::from_raw_state(self.deep_values.trace_at_z1.clone());
     }
 
-    pub fn get_state_at_z(&self) -> TraceState {
-        return TraceState::from_raw_state(self.deep_values.trace_at_z.clone());
-    }
-
-    pub fn get_state_at_next_z(&self) -> TraceState {
-        return TraceState::from_raw_state(self.deep_values.trace_at_next_z.clone());
+    pub fn get_state_at_z2(&self) -> TraceState {
+        return TraceState::from_raw_state(self.deep_values.trace_at_z2.clone());
     }
 }
