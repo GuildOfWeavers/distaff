@@ -193,10 +193,10 @@ We then perform proof-of-work against this merged root as follows:
 Once the correct nonce is found, we construct a PRNG seed value as follows:
 
 <p align="center">
-seed = hash(merged_root, nonce)
+seed = hash(merged_root, pow_nonce)
 </p>
 
-Then, we instantiate a PRNG with this seed and draw random positions for the *D<sub>lde</sub>*. The number of positions drawn is equal to the `num_queries` parameter in proof options.
+Then, we instantiate a PRNG with this seed and draw random positions from *D<sub>lde</sub>*. The number of positions drawn is equal to the `num_queries` config parameter.
 
 ### 9. Build proof object
 Once query positions are determined, we build the proof object and return. The proof object consists of the following:
@@ -212,16 +212,34 @@ Once query positions are determined, we build the proof object and return. The p
 
 ## Proof verification
 
-### 1. Verify deep point evaluation
-TODO
+### 1. Verify proof of work and determine query positions
+First, we read Merkle tree roots for all FRI layers from the proof, and combine them together as:
 
-### 2. Verify proof of work and determine query positions
-TODO
+<p align="center">
+merged_roots = hash(root<sub>0</sub>, root<sub>1</sub>, . . . , root<sub>j - 1</sub>)
+</p>
 
-### 3. Verify trace and constraint Merkle proofs
-TODO
+where *j* is the number of FRI layers.
 
-### 4. Compute composition values
+Then, we read the proof-of-work nonce from the proof, and use it to build a seed value as follows:
+
+<p align="center">
+seed = hash(merged_root, pow_nonce)
+</p>
+
+We then verify that the seed value satisfies the difficulty target set by the `grinding_factor` config parameter, and use it to instantiate a PRNG.
+
+Finally, we use this PRNG to draw random query positions from *D<sub>lde</sub>*. The number of positions drawn is equal to the `num_queries` config parameter.
+
+### 2. Verify trace and constraint Merkle proofs
+Once query positions are determined, we read roots and authentication paths for trace and constraint Merkle trees from the proof.
+
+We than verify the authentication paths against these query positions. This gives us evaluations of trace polynomials *T<sub>k</sub>(x)* and combined constraint polynomial *C(x)* at all queried positions.
+
+### 3. Compute constraint evaluations at DEEP point z
+Next, we read *T<sub>k</sub>(z)* and *T<sub>k</sub>(z * ω<sub>trace</sub>)* from the proof, and pass them through constraint evaluator as current and next steps of the execution trace. This gives us constraint evaluations at out-of-domain point: *C<sub>k</sub>(z)*.
+
+### 4. Compute composition polynomial evaluations
 TODO
 
 ### 5. Verify low-degree proof

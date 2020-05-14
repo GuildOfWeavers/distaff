@@ -9,15 +9,7 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
     let options = proof.options();
     let hash_fn = options.hash_function();
 
-    // 1 ----- Compute deep point evaluation ------------------------------------------------------
-    let constraint_evaluation_at_z = evaluate_constraints(
-        ConstraintEvaluator::from_proof(proof, program_hash, inputs, outputs),
-        proof.get_state_at_z1(),
-        proof.get_state_at_z2(),
-        proof.get_deep_point_z()
-    );
-
-    // 2 ----- Verify proof of work and determine query positions ---------------------------------
+    // 1 ----- Verify proof of work and determine query positions ---------------------------------
     let degree_proof = proof.degree_proof();
     let mut fri_roots: Vec<u64> = Vec::new();
     for layer in degree_proof.layers.iter() {
@@ -35,7 +27,7 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
     let t_positions = utils::compute_query_positions(&seed, proof.domain_size(), options);
     let c_positions = utils::map_trace_to_constraint_positions(&t_positions);
 
-    // 3 ----- Verify trace and constraint Merkle proofs ------------------------------------------
+    // 2 ----- Verify trace and constraint Merkle proofs ------------------------------------------
     if !MerkleTree::verify_batch(proof.trace_root(), &t_positions, &proof.trace_proof(), hash_fn) {
         return Err(String::from("verification of trace Merkle proof failed"));
     }
@@ -44,7 +36,15 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
         return Err(String::from("verification of constraint Merkle proof failed"));
     }
 
-    // 4 ----- Compute composition values ---------------------------------------------------------
+    // 3 ----- Compute constraint evaluations at DEEP point z -------------------------------------
+    let constraint_evaluation_at_z = evaluate_constraints(
+        ConstraintEvaluator::from_proof(proof, program_hash, inputs, outputs),
+        proof.get_state_at_z1(),
+        proof.get_state_at_z2(),
+        proof.get_deep_point_z()
+    );
+
+    // 4 ----- Compute composition polynomial evaluations -----------------------------------------
     
     // derive deep point z and coefficient for linear combination from the root of constraint tree
     let z = field::prng(proof.constraint_root().copy_into());

@@ -65,13 +65,17 @@ impl ProofOptions {
         return self.hash_function;
     }
 
-    pub fn security_level(&self) -> u32 {
-        // TODO: include grinding effect
+    pub fn security_level(&self, optimistic: bool) -> u32 {
         let one_over_rho = (self.extension_factor() / MAX_CONSTRAINT_DEGREE) as u32;
         let security_factor = 31 - one_over_rho.leading_zeros(); // same as log2(one_over_rho)
-        return security_factor * self.num_queries as u32;
-        // the above is conjectured security, proven security would be:
-        // security_factor * self.num_queries / 2
+        let num_queries = if optimistic == true { self.num_queries } else { self.num_queries / 2 };
+
+        let mut result = security_factor * num_queries as u32;
+        if result > 80 {
+            result += self.grinding_factor as u32;
+        }
+
+        return result;
     }
 }
 

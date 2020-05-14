@@ -39,7 +39,7 @@ fn main() {
     // serialize the proof to see how big it is
     let proof_bytes = bincode::serialize(&proof).unwrap();
     println!("Execution proof size: {} KB", proof_bytes.len() / 1024);
-    println!("Execution proof security: {} bits", options.security_level());
+    println!("Execution proof security: {} bits", options.security_level(true));
     println!("--------------------------------");
 
     // verify that executing a program with a given hash and given inputs
