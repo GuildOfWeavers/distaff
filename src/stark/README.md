@@ -322,8 +322,8 @@ Proof soundness (in bits) is currently estimated as follows:
 
 where:
 * *ρ* is the coding rate which is equal to *[max constraint degree] / [extension factor]*. Max constraint degree is currently fixed at 8 - so, in practical terms, the extension factor determines the coding rate. For example, if extension factor is set to 64, coding rate is 1/8.
-* **n* - number of queries.
-* **r* - grinding factor.
+* *n* - number of queries.
+* *r* - grinding factor.
 
 For example, for the default config values (*ρ = 1/8, n = 32, r = 24*), proof soundness can be estimated as:
 
@@ -331,4 +331,4 @@ For example, for the default config values (*ρ = 1/8, n = 32, r = 24*), proof s
 <img src="https://render.githubusercontent.com/render/math?math=\large log_2 8 \cdot 32 %2B 24 = 120">
 </p>
 
-Or 120 bits of security.
+In other words, default security level is 120 bits.
