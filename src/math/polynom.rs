@@ -155,11 +155,14 @@ pub fn mul_by_const(p: &[u64], k: u64) -> Vec<u64> {
 /// the remainder is ignored.
 pub fn div(a: &[u64], b: &[u64]) -> Vec<u64> {
     
-    let mut apos = get_last_non_zero_index(a);
+    let mut apos = degree_of(a);
     let mut a = a.to_vec();
 
-    let bpos = get_last_non_zero_index(b);
-    assert!(apos >= bpos, "cannot divide by polynomial of higher order");
+    let bpos = degree_of(b);
+    assert!(apos >= bpos, "cannot divide by polynomial of higher degree");
+    if bpos == 0 {
+        assert!(b[0] != 0, "cannot divide polynomial by zero");
+    }
 
     let mut result = vec![0u64; apos - bpos + 1];
     for i in (0..result.len()).rev() {
@@ -174,7 +177,7 @@ pub fn div(a: &[u64], b: &[u64]) -> Vec<u64> {
     return result;
 }
 
-/// Divides polynomial `a` by binomial (x + `b`) using Synthetic division method;
+/// Divides polynomial `a` by binomial (x - `b`) using Synthetic division method;
 /// if the polynomials don't divide evenly, the remainder is ignored.
 pub fn syn_div(a: &[u64], b: u64) -> Vec<u64> {
     let mut result = a.to_vec();
@@ -182,10 +185,9 @@ pub fn syn_div(a: &[u64], b: u64) -> Vec<u64> {
     return result;
 }
 
-/// Divides polynomial `a` by binomial (x + `b`) using Synthetic division method and stores the
+/// Divides polynomial `a` by binomial (x - `b`) using Synthetic division method and stores the
 /// result in `a`; if the polynomials don't divide evenly, the remainder is ignored.
 pub fn syn_div_in_place(a: &mut [u64], b: u64) {
-    let b = field::neg(b);
     let mut c = 0;
     for i in (0..a.len()).rev() {
         let temp = field::add(a[i], field::mul(b, c));
@@ -233,15 +235,28 @@ pub fn syn_div_expanded_in_place(a: &mut [u64], degree: usize, exceptions: &[u64
     for i in (degree_offset + exceptions.len())..a.len() { a[i] = 0; }
 }
 
-// HELPER FUNCTIONS
+// DEGREE INFERENCE
 // ================================================================================================
-fn get_last_non_zero_index(vec: &[u64]) -> usize {
-    for i in (0..vec.len()).rev() {
-        if vec[i] != 0 { return i; }
+
+/// Returns degree of the polynomial `poly`
+pub fn degree_of(poly: &[u64]) -> usize {
+    for i in (0..poly.len()).rev() {
+        if poly[i] != 0 { return i; }
     }
-    return vec.len();
+    return 0;
 }
 
+/// Returns degree of a polynomial with which evaluates to `evaluations` over the domain of
+/// corresponding roots of unity.
+pub fn infer_degree(evaluations: &[u64]) -> usize {
+    assert!(evaluations.len().is_power_of_two(), "number of evaluations must be a power of 2");
+    let mut poly = evaluations.to_vec();
+    interpolate_fft(&mut poly, true);
+    return degree_of(&poly);
+}
+
+// HELPER FUNCTIONS
+// ================================================================================================
 fn get_zero_roots(xs: &[u64]) -> Vec<u64> {
     let mut n = xs.len() + 1;
     let mut result = uninit_vector(n);
@@ -385,7 +400,7 @@ mod tests {
     fn syn_div() {
         let poly = super::mul(&[2, 1], &[3, 1]);
 
-        let result = super::syn_div(&poly, 3);
+        let result = super::syn_div(&poly, field::neg(3));
         let expected = super::div(&poly, &[3, 1]);
 
         assert_eq!(expected, remove_leading_zeros(&result));
@@ -415,5 +430,30 @@ mod tests {
 
         assert_eq!(expected, remove_leading_zeros(&result));
         assert_eq!(poly, remove_leading_zeros(&super::mul(&expected, &z_poly)));
+    }
+
+    #[test]
+    fn degree_of() {
+        assert_eq!(0, super::degree_of(&[]));
+        assert_eq!(0, super::degree_of(&[1]));
+        assert_eq!(1, super::degree_of(&[1, 2]));
+        assert_eq!(1, super::degree_of(&[1, 2, 0]));
+        assert_eq!(2, super::degree_of(&[1, 2, 3]));
+        assert_eq!(2, super::degree_of(&[1, 2, 3, 0]));
+    }
+
+    #[test]
+    fn infer_degree() {
+        let poly = vec![1, 2, 3, 4];
+
+        let mut evaluations = poly.clone();
+        evaluations.resize(16, 0);
+        super::eval_fft(&mut evaluations, true);
+        assert_eq!(super::degree_of(&poly), super::infer_degree(&evaluations));
+
+        let mut evaluations = poly.clone();
+        evaluations.resize(32, 0);
+        super::eval_fft(&mut evaluations, true);
+        assert_eq!(super::degree_of(&poly), super::infer_degree(&evaluations));
     }
 }

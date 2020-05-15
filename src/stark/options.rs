@@ -1,13 +1,12 @@
 use serde::{ Serialize, Deserialize };
 use crate::crypto::{ HashFunction, hash };
-use crate::utils::pow_log2;
 use super::MAX_CONSTRAINT_DEGREE;
 
 // CONSTANTS
 // ================================================================================================
-const DEFAULT_EXTENSION_FACTOR: u8  = 32;
-const DEFAULT_TRACE_QUERY_COUNT: u8 = 48;
-const DEFAULT_FRI_QUERY_COUNT: u8   = 32;
+const DEFAULT_EXTENSION_FACTOR: u8 = (MAX_CONSTRAINT_DEGREE * 8) as u8;
+const DEFAULT_NUM_QUERIES     : u8 = 32;
+const DEFAULT_GRINDING_FACTOR : u8 = 24;
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -16,8 +15,8 @@ const DEFAULT_FRI_QUERY_COUNT: u8   = 32;
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ProofOptions {
     extension_factor    : u8,
-    trace_query_count   : u8,
-    fri_query_count     : u8,
+    num_queries         : u8,
+    grinding_factor     : u8,
 
     #[serde(with = "hash_fn_serialization")]
     hash_function: HashFunction,
@@ -29,25 +28,23 @@ impl ProofOptions {
 
     pub fn new(
         extension_factor : usize,
-        trace_query_count: usize,
-        fri_query_count  : usize,
+        num_queries      : usize,
+        grinding_factor  : u32,
         hash_function    : HashFunction) -> ProofOptions
     {
-
         assert!(extension_factor.is_power_of_two(), "extension_factor must be a power of 2");
         assert!(extension_factor >= 16, "extension_factor cannot be smaller than 16");
         assert!(extension_factor <= 128, "extension_factor cannot be greater than 128");
 
-        assert!(trace_query_count > 0, "trace_query_count must be greater than 0");
-        assert!(trace_query_count <= 128, "trace_query_count cannot be greater than 128");
+        assert!(num_queries > 0, "num_queries must be greater than 0");
+        assert!(num_queries <= 128, "num_queries cannot be greater than 128");
 
-        assert!(fri_query_count > 0, "fri_query_count must be greater than 0");
-        assert!(fri_query_count <= 128, "fri_query_count cannot be greater than 128");
+        assert!(grinding_factor <= 32, "grinding factor cannot be greater than 32");
 
         return ProofOptions {
             extension_factor    : extension_factor as u8,
-            trace_query_count   : trace_query_count as u8,
-            fri_query_count     : fri_query_count as u8,
+            num_queries         : num_queries as u8,
+            grinding_factor     : grinding_factor as u8,
             hash_function
         };
     }
@@ -56,23 +53,29 @@ impl ProofOptions {
         return self.extension_factor as usize;
     }
 
-    pub fn trace_query_count(&self) -> usize {
-        return self.trace_query_count as usize;
+    pub fn num_queries(&self) -> usize {
+        return self.num_queries as usize;
     }
 
-    pub fn fri_query_count(&self) -> usize {
-        return self.fri_query_count as usize;
+    pub fn grinding_factor(&self) -> u32 {
+        return self.grinding_factor as u32;
     }
 
     pub fn hash_function(&self) -> HashFunction {
         return self.hash_function;
     }
 
-    pub fn security_level(&self) -> u32 {
-        let r = (self.extension_factor() / MAX_CONSTRAINT_DEGREE) as u64;
-        let trace_sl = pow_log2(r, self.trace_query_count as u32);
-        // TODO: account for FRI soundness
-        return trace_sl as u32;
+    pub fn security_level(&self, optimistic: bool) -> u32 {
+        let one_over_rho = (self.extension_factor() / MAX_CONSTRAINT_DEGREE) as u32;
+        let security_factor = 31 - one_over_rho.leading_zeros(); // same as log2(one_over_rho)
+        let num_queries = if optimistic == true { self.num_queries } else { self.num_queries / 2 };
+
+        let mut result = security_factor * num_queries as u32;
+        if result > 80 {
+            result += self.grinding_factor as u32;
+        }
+
+        return result;
     }
 }
 
@@ -81,9 +84,9 @@ impl Default for ProofOptions {
     fn default() -> ProofOptions {
         return ProofOptions {
             extension_factor    : DEFAULT_EXTENSION_FACTOR,
-            trace_query_count   : DEFAULT_TRACE_QUERY_COUNT,
-            fri_query_count     : DEFAULT_FRI_QUERY_COUNT,
-            hash_function       : hash::blake3
+            num_queries         : DEFAULT_NUM_QUERIES,
+            grinding_factor     : DEFAULT_GRINDING_FACTOR,
+            hash_function       : hash::blake3,
         };
     }
 

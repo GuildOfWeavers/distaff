@@ -25,21 +25,18 @@ pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize, options: &Pr
     // execute the program to create an execution trace
     let now = Instant::now();
     let mut trace = stark::TraceTable::new(&program, inputs, options.extension_factor());
-    debug!("Generated execution trace of {} steps in {} ms",
+    debug!("Generated execution trace of {} registers and {} steps in {} ms",
+        trace.register_count(),
         trace.unextended_length(),
         now.elapsed().as_millis());
 
     // copy the stack state the the last step to return as output
     let last_state = trace.get_state(trace.unextended_length() - 1);
     let outputs = last_state.get_stack()[0..num_outputs].to_vec();
-
-    // copy the hash of the program
-    let mut program_hash = [0u64; 4];
-    program_hash.copy_from_slice(&last_state.get_op_acc()[0..4]);
-
+    
     // generate STARK proof
-    let proof = stark::prove(&mut trace, &program_hash, inputs, &outputs, options);
-    return (outputs, program_hash.copy_into(), proof);
+    let proof = stark::prove(&mut trace, inputs, &outputs, options);
+    return (outputs, trace.get_program_hash().copy_into(), proof);
 }
 
 /// Verifies that if a program with the specified `program_hash` is executed with the 

@@ -25,26 +25,28 @@ const CONSTRAINT_DEGREES: [usize; NUM_CONSTRAINTS] = [
 // ================================================================================================
 pub struct Decoder {
     rescue_ark  : Vec<[u64; 2 * STATE_WIDTH]>,
+    rescue_polys: Vec<Vec<u64>>,
     hash_cycle  : usize,
+    trace_length: usize,
 }
 
 // DECODER CONSTRAINT EVALUATOR IMPLEMENTATION
 // ================================================================================================
 impl Decoder {
 
-    pub fn new(extension_factor: usize) -> Decoder {
-        let extended_constants = extend_constants(extension_factor);
+    pub fn new(trace_length: usize, extension_factor: usize) -> Decoder {
+        let (rescue_polys, ark_evaluations) = extend_constants(extension_factor);
         
         let hash_cycle = NUM_ROUNDS * extension_factor;
         let mut rescue_ark = Vec::with_capacity(hash_cycle);
         for i in 0..(NUM_ROUNDS * extension_factor) {
             rescue_ark.push([0; 2 * STATE_WIDTH]);
             for j in 0..(2 * STATE_WIDTH) {
-                rescue_ark[i][j] = extended_constants[j][i];
+                rescue_ark[i][j] = ark_evaluations[j][i];
             }
         }
 
-        return Decoder { rescue_ark, hash_cycle };
+        return Decoder { rescue_ark, rescue_polys, hash_cycle, trace_length };
     }
 
     pub fn constraint_count(&self) -> usize {
@@ -59,6 +61,30 @@ impl Decoder {
     // --------------------------------------------------------------------------------------------
     pub fn evaluate(&self, current: &TraceState, next: &TraceState, step: usize, result: &mut [u64]) {
 
+        // 9 constraints to decode op_code
+        self.decode_opcode(current, next, result);
+
+        // 12 constraints to hash op_code
+        self.hash_opcode(current, next, &self.rescue_ark[step % self.hash_cycle], &mut result[9..]);
+    }
+
+    pub fn evaluate_at(&self, current: &TraceState, next: &TraceState, x: u64, result: &mut [u64]) {
+        // 9 constraints to decode op_code
+        self.decode_opcode(current, next, result);
+
+        // 12 constraints to hash op_code
+        let num_cycles = (self.trace_length / NUM_ROUNDS) as u64;
+        let mut rescue_ark = [0u64; 2 * STATE_WIDTH];
+        for i in 0..rescue_ark.len() {
+            rescue_ark[i] = polynom::eval(&self.rescue_polys[i], field::exp(x, num_cycles));
+        }
+
+        self.hash_opcode(current, next, &rescue_ark, &mut result[9..]);
+    }
+
+    // EVALUATION HELPERS
+    // --------------------------------------------------------------------------------------------
+    fn decode_opcode(&self, current: &TraceState, next: &TraceState, result: &mut [u64]) {
         // TODO: degree of expanded op_bits is assumed to be 5, but in reality can be less than 5
         // if opcodes used in the program don't touch some op_bits. Thus, all degrees that assume
         // op_flag values to have degree 5, may be off.
@@ -84,56 +110,39 @@ impl Decoder {
         let op_bits_value = current.get_op_bits_value();
         let op_code = mul(current.get_op_code(), binary_not(current.get_push_flag()));
         result[8] = sub(op_code, op_bits_value);
-
-        // 12 constraints, degree 6 to hash current op_code
-        self.hash_opcode(current, next, step, &mut result[9..]);
     }
 
-    // OP CODE HASHING
-    // --------------------------------------------------------------------------------------------
-
-    fn hash_opcode(&self, current: &TraceState, next: &TraceState, step: usize, result: &mut [u64]) {
-
+    fn hash_opcode(&self, current: &TraceState, next: &TraceState, ark: &[u64; 2 * STATE_WIDTH], result: &mut [u64]) {
         let op_code = current.get_op_code();
 
         let mut current_acc = [0; STATE_WIDTH];
         current_acc.copy_from_slice(current.get_op_acc());
         let mut next_acc = [0; STATE_WIDTH];
         next_acc.copy_from_slice(next.get_op_acc());
-    
-        let step = step % self.hash_cycle;
 
         current_acc[0] = add(current_acc[0], op_code);
         current_acc[1] = mul(current_acc[1], op_code);
-        self.add_constants(&mut current_acc, step, 0);
+        for i in 0..STATE_WIDTH {
+            current_acc[i] = add(current_acc[i], ark[i]);
+        }
         apply_sbox(&mut current_acc);
         apply_mds(&mut current_acc);
     
         apply_inv_mds(&mut next_acc);
         apply_sbox(&mut next_acc);
-        self.sub_constants(&mut next_acc, step, STATE_WIDTH);
+        for i in 0..STATE_WIDTH {
+            next_acc[i] = sub(next_acc[i], ark[STATE_WIDTH + i]);
+        }
 
         for i in 0..STATE_WIDTH {
             result[i] = sub(next_acc[i], current_acc[i]);
-        }
-    }
-
-    fn add_constants(&self, state: &mut[u64; STATE_WIDTH], step: usize, offset: usize) {
-        for i in 0..STATE_WIDTH {
-            state[i] = add(state[i], self.rescue_ark[step][offset + i]);
-        }
-    }
-    
-    fn sub_constants(&self, state: &mut[u64; STATE_WIDTH], step: usize, offset: usize) {
-        for i in 0..STATE_WIDTH {
-            state[i] = sub(state[i], self.rescue_ark[step][offset + i]);
         }
     }
 }
 
 // HELPER FUNCTIONS
 // ================================================================================================
-pub fn extend_constants(extension_factor: usize) -> Vec<Vec<u64>> {
+pub fn extend_constants(extension_factor: usize) -> (Vec<Vec<u64>>, Vec<Vec<u64>>) {
     
     let root = field::get_root_of_unity(NUM_ROUNDS as u64);
     let inv_twiddles = fft::get_inv_twiddles(root, NUM_ROUNDS);
@@ -142,19 +151,23 @@ pub fn extend_constants(extension_factor: usize) -> Vec<Vec<u64>> {
     let domain_root = field::get_root_of_unity(domain_size as u64);
     let twiddles = fft::get_twiddles(domain_root, domain_size);
 
-    let mut result = Vec::with_capacity(ARK.len());
+    let mut polys = Vec::with_capacity(ARK.len());
+    let mut evaluations = Vec::with_capacity(ARK.len());
+
     for constant in ARK.iter() {
         let mut extended_constant = zero_filled_vector(NUM_ROUNDS, domain_size);
         extended_constant.copy_from_slice(constant);
 
         polynom::interpolate_fft_twiddles(&mut extended_constant, &inv_twiddles, true);
+        polys.push(extended_constant.clone());
+
         unsafe { extended_constant.set_len(extended_constant.capacity()); }
         polynom::eval_fft_twiddles(&mut extended_constant, &twiddles, true);
 
-        result.push(extended_constant);
+        evaluations.push(extended_constant);
     }
 
-    return result;
+    return (polys, evaluations);
 }
 
 fn is_binary(v: u64) -> u64 {

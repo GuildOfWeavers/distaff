@@ -1,5 +1,4 @@
 #[cfg(test)]
-
 use crate::{ ProofOptions, opcodes, hash_acc, utils::CopyInto };
 
 #[test]
@@ -48,20 +47,20 @@ fn execute_verify_fail() {
 
     // wrong inputs
     let result = super::verify(&program_hash, &[1, 1], &outputs, &proof);
-    let err_msg = format!("verification of low-degree proof failed: verification of evaluation values failed");
+    let err_msg = format!("verification of low-degree proof failed: evaluations did not match column value at depth 0");
     assert_eq!(Err(err_msg), result);
 
     // wrong outputs
     let result = super::verify(&program_hash, &inputs, &[13], &proof);
-    let err_msg = format!("verification of low-degree proof failed: verification of evaluation values failed");
+    let err_msg = format!("verification of low-degree proof failed: evaluations did not match column value at depth 0");
     assert_eq!(Err(err_msg), result);
 
     // wrong program hash
     let mut program_hash2 = program_hash.clone();
     program_hash2[0] = 1;
     let result = super::verify(&program_hash2, &inputs, &outputs, &proof);
-    let err_msg = format!("verification of low-degree proof failed: verification of evaluation values failed");
+    let err_msg = format!("verification of low-degree proof failed: evaluations did not match column value at depth 0");
     assert_eq!(Err(err_msg), result);
-
-    // TODO: add more tests
 }
+
+// TODO: add more tests

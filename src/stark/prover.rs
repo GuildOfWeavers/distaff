@@ -1,63 +1,44 @@
 use std::time::Instant;
 use log::debug;
-use std::collections::BTreeMap;
-use crate::math::{ field, quartic::to_quartic_vec };
+use crate::math::{ field, polynom, fft, quartic::to_quartic_vec };
 use crate::crypto::{ MerkleTree };
-use crate::utils::uninit_vector;
+use crate::utils::{ CopyInto };
 
 use super::trace::{ TraceTable, TraceState };
-use super::constraints::{ ConstraintEvaluator, ConstraintTable, MAX_CONSTRAINT_DEGREE };
-use super::{ ProofOptions, StarkProof, fri, utils::QueryIndexGenerator };
+use super::constraints::{ ConstraintTable, ConstraintPoly, MAX_CONSTRAINT_DEGREE };
+use super::{ ProofOptions, StarkProof, CompositionCoefficients, DeepValues, fri, utils };
 
 // PROVER FUNCTION
 // ================================================================================================
 
-pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], outputs: &[u64], options: &ProofOptions) -> StarkProof {
+pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &ProofOptions) -> StarkProof {
 
     // 1 ----- extend execution trace -------------------------------------------------------------
     let now = Instant::now();
-    trace.extend();
-    debug!("Extended execution trace of {} registers to {} steps in {} ms",
-        trace.register_count(),
+
+    // build LDE domain and LDE twiddles (for FFT evaluation over LDE domain)
+    let lde_root = field::get_root_of_unity(trace.domain_size() as u64);
+    let lde_domain = field::get_power_series(lde_root, trace.domain_size());
+    let lde_twiddles = twiddles_from_domain(&lde_domain);
+
+    // extend the execution trace registers to LDE domain
+    trace.extend(&lde_twiddles);
+    debug!("Extended execution trace from {} to {} steps in {} ms",
+        trace.unextended_length(),
         trace.domain_size(), 
         now.elapsed().as_millis());
 
-    // 2 ----- build Merkle tree from extended execution trace ------------------------------------
+    // 2 ----- build Merkle tree from the extended execution trace ------------------------------------
     let now = Instant::now();
-    let mut trace_state = TraceState::new(trace.max_stack_depth());
-    let mut hashed_states = to_quartic_vec(uninit_vector(trace.domain_size() * 4));
-    for i in 0..trace.domain_size() {
-        // TODO: this loop should be parallelized
-        trace.fill_state(&mut trace_state, i);
-        options.hash_function()(trace_state.registers(), &mut hashed_states[i]);
-    }
-    let trace_tree = MerkleTree::new(hashed_states, options.hash_function());
+    let trace_tree = trace.build_merkle_tree(options.hash_function());
     debug!("Built trace Merkle tree in {} ms", 
         now.elapsed().as_millis());
 
-    // 3 ----- build evaluation domain for the extended execution trace ---------------------------
-    let now = Instant::now();
-    let root = field::get_root_of_unity(trace.domain_size() as u64);
-    let domain = field::get_power_series(root, trace.domain_size());
-    debug!("Built evaluation domain of {} elements in {} ms",
-        domain.len(),
-        now.elapsed().as_millis());
-
-    // 4 ----- evaluate constraints ---------------------------------------------------------------
+    // 3 ----- evaluate constraints ---------------------------------------------------------------
     let now = Instant::now();
     
-    // initialize constraint evaluator
-    let constraint_evaluator = ConstraintEvaluator::new(
-        trace_tree.root(), 
-        trace.unextended_length(),
-        trace.max_stack_depth(),
-        MAX_CONSTRAINT_DEGREE,
-        program_hash,
-        inputs,
-        outputs);
-
-    // allocate space to hold constraint evaluations
-    let mut constraints = ConstraintTable::new(constraint_evaluator, domain);
+    // initialize constraint evaluation table
+    let mut constraints = ConstraintTable::new(&trace, trace_tree.root(), inputs, outputs);
     
     // allocate space to hold current and next states for constraint evaluations
     let mut current = TraceState::new(trace.max_stack_depth());
@@ -66,7 +47,8 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
     // we don't need to evaluate constraints over the entire extended execution trace; we need
     // to evaluate them over the domain extended to match max constraint degree - thus, we can
     // skip most trace states for the purposes of constraint evaluation.
-    for i in (0..trace.domain_size()).step_by(constraints.domain_stride()) {
+    let stride = trace.extension_factor() / MAX_CONSTRAINT_DEGREE;
+    for i in (0..trace.domain_size()).step_by(stride) {
         // TODO: this loop should be parallelized and also potentially optimized to avoid copying
         // next state from the trace table twice
 
@@ -76,60 +58,129 @@ pub fn prove(trace: &mut TraceTable, program_hash: &[u64; 4], inputs: &[u64], ou
         trace.fill_state(&mut next, (i + trace.extension_factor()) % trace.domain_size());
 
         // evaluate the constraints
-        constraints.evaluate(&current, &next, i);
+        constraints.evaluate(&current, &next, lde_domain[i], i / stride);
     }
 
-    debug!("Evaluated {} constraints in {} ms",
+    debug!("Evaluated {} constraints over domain of {} elements in {} ms",
         constraints.constraint_count(),
+        constraints.evaluation_domain_size(),
         now.elapsed().as_millis());
 
-    // 5 ----- combine transition constraints into a single polynomial ----------------------------
+    // 4 ----- convert constraint evaluations into a polynomial -----------------------------------
     let now = Instant::now();
-    let composed_evaluations = constraints.compose();
-    debug!("Computed composition polynomial in {} ms",
+    let constraint_poly = constraints.combine_polys();
+    debug!("Converted constraint evaluations into a single polynomial of degree {} in {} ms",
+        constraint_poly.degree(),
         now.elapsed().as_millis());
 
-    // 6 ----- generate low-degree proof for composition polynomial -------------------------------
+    // 5 ----- build Merkle tree from constraint polynomial evaluations ---------------------------
     let now = Instant::now();
-    let composition_degree_plus_1 = constraints.composition_degree() + 1;
-    let fri_proof = fri::prove(
-        &composed_evaluations,
-        constraints.domain(),
-        composition_degree_plus_1,
-        options);
-    debug!("Generated low-degree proof for composition polynomial in {} ms",
+    
+    // evaluate constraint polynomial over the evaluation domain
+    let constraint_evaluations = constraint_poly.eval(&lde_twiddles);
+
+    // put evaluations into a Merkle tree; 4 evaluations per leaf
+    let constraint_evaluations = to_quartic_vec(constraint_evaluations);
+    let constraint_tree = MerkleTree::new(constraint_evaluations, options.hash_function());
+    debug!("Evaluated constraint polynomial and built constraint Merkle tree in {} ms",
         now.elapsed().as_millis());
 
-    // 7 ----- query extended execution trace at pseudo-random positions --------------------------
+    // 6 ----- build and evaluate deep composition polynomial -------------------------------------
     let now = Instant::now();
 
-    // generate pseudo-random indexes based on the root of the composition Merkle tree
-    let idx_generator = QueryIndexGenerator::new(options);
-    let positions = idx_generator.get_trace_indexes(&fri_proof.ev_root, trace.domain_size());
+    // combine trace and constraint polynomials into the final deep composition polynomial
+    let seed = constraint_tree.root();
+    let (composition_poly, deep_values) = build_composition_poly(&trace, constraint_poly, seed);
 
-    // for each queried step, collect the current and the next states of the execution trace;
-    // this way, the verifier will be able to get two consecutive states for each query.
-    let mut trace_states = BTreeMap::new();
-    for &position in positions.iter() {
-        let next_position = (position + options.extension_factor()) % trace.domain_size();
+    // evaluate the composition polynomial over LDE domain
+    let mut composed_evaluations = composition_poly;
+    debug_assert!(composed_evaluations.capacity() == lde_domain.len(), "invalid composition polynomial capacity");
+    unsafe { composed_evaluations.set_len(composed_evaluations.capacity()); }
+    polynom::eval_fft_twiddles(&mut composed_evaluations, &lde_twiddles, true);
 
-        trace_states.insert(position, trace.get_state(position));
-        trace_states.insert(next_position, trace.get_state(next_position));
+    debug!("Built composition polynomial and evaluated it over domain of {} elements in {} ms",
+        composed_evaluations.len(),
+        now.elapsed().as_millis());
+
+    // 7 ----- compute FRI layers for the composition polynomial ----------------------------------
+    let now = Instant::now();
+    let composition_degree = utils::get_composition_degree(trace.unextended_length());
+    debug_assert!(composition_degree == polynom::infer_degree(&composed_evaluations));
+    let fri_layers = fri::reduce(&composed_evaluations, &lde_domain, options);
+    debug!("Computed {} FRI layers from composition polynomial evaluations in {} ms",
+        fri_layers.len(),
+        now.elapsed().as_millis());
+
+    // 8 ----- determine query positions -----------------------------------------------------------
+    let now = Instant::now();
+
+    // combine all FRI layer roots into a single vector
+    let mut fri_roots: Vec<u64> = Vec::new();
+    for layer in fri_layers.iter() {
+        layer.root().iter().for_each(|&v| fri_roots.push(v));
     }
 
-    // sort the positions and corresponding states so that their orders align
-    let augmented_positions = trace_states.keys().cloned().collect::<Vec<usize>>();
-    let trace_states = trace_states.into_iter().map(|(_, v)| v).collect();
+    // derive a seed from the combined roots
+    let mut seed = [0u64; 4];
+    options.hash_function()(&fri_roots, &mut seed);
 
-    // generate Merkle proof for the augmented positions
-    let trace_proof = trace_tree.prove_batch(&augmented_positions);
+    // apply proof-of-work to get a new seed
+    let (seed, pow_nonce) = utils::find_pow_nonce(seed, &options);
+
+    // generate pseudo-random query positions
+    let positions = utils::compute_query_positions(&seed, lde_domain.len(), options);
+    debug!("Determined {} query positions from seed {} in {} ms",
+        positions.len(),
+        hex::encode(seed.copy_into()),
+        now.elapsed().as_millis());
+
+    // 9 ----- build proof object -----------------------------------------------------------------
+    let now = Instant::now();
+
+    // generate FRI proof
+    let fri_proof = fri::build_proof(fri_layers, &positions);
+
+    // built a list of trace evaluations at queried positions
+    let trace_evaluations = trace.get_register_values_at(&positions);
+
+    // build a list of constraint positions
+    let constraint_positions = utils::map_trace_to_constraint_positions(&positions);
 
     // build the proof object
-    let proof = StarkProof::new(trace_tree.root(), trace_proof, trace_states, fri_proof, &options);
+    let proof = StarkProof::new(
+        trace_tree.root(),
+        trace_tree.prove_batch(&positions),
+        trace_evaluations,
+        constraint_tree.root(),
+        constraint_tree.prove_batch(&constraint_positions),
+        deep_values,
+        fri_proof,
+        pow_nonce,
+        &options);
 
-    debug!("Computed {} trace queries and built proof object in {} ms",
-        positions.len(),
-        now.elapsed().as_millis());
-
+    debug!("Built proof object in {} ms", now.elapsed().as_millis());
     return proof;
+}
+
+// HELPER FUNCTIONS
+// ================================================================================================
+fn twiddles_from_domain(domain: &[u64]) -> Vec<u64> {
+    let mut twiddles = domain[..(domain.len() / 2)].to_vec();
+    fft::permute(&mut twiddles);
+    return twiddles;
+}
+
+fn build_composition_poly(trace: &TraceTable, constraint_poly: ConstraintPoly, seed: &[u64; 4]) -> (Vec<u64>, DeepValues) {
+
+    // pseudo-randomly selection deep point z and coefficients for the composition
+    let z = field::prng(seed.copy_into());
+    let coefficients = CompositionCoefficients::new(seed);
+
+    // divide out deep point from trace polynomials and merge them into a single polynomial
+    let (mut result, s1, s2) = trace.get_composition_poly(z, &coefficients);
+
+    // divide out deep point from constraint polynomial and merge it into the result
+    constraint_poly.merge_into(&mut result, z, &coefficients);
+
+    return (result, DeepValues { trace_at_z1: s1, trace_at_z2: s2 });
 }
