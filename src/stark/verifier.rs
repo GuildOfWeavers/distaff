@@ -1,4 +1,4 @@
-use crate::{ math::field, crypto::{ MerkleTree }, utils::{ CopyInto } };
+use crate::{ math::{ Field, FiniteField, }, crypto::{ MerkleTree }, utils::{ CopyInto } };
 use super::{ StarkProof, TraceState, ConstraintEvaluator, CompositionCoefficients, fri, utils };
 
 // VERIFIER FUNCTION
@@ -38,7 +38,7 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
 
     // 3 ----- Compute constraint evaluations at DEEP point z -------------------------------------
     // derive DEEP point z from the root of the constraint tree
-    let z = field::prng(proof.constraint_root().copy_into());
+    let z = Field::prng(proof.constraint_root().copy_into());
 
     // evaluate constraints at z
     let constraint_evaluation_at_z = evaluate_constraints(
@@ -55,7 +55,7 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
     // compute composition values separately for trace and constraints, and then add them together
     let t_composition = compose_registers(&proof, &t_positions, z, &coefficients);
     let c_composition = compose_constraints(&proof, &t_positions, &c_positions, z, constraint_evaluation_at_z, &coefficients);
-    let evaluations = t_composition.iter().zip(c_composition).map(|(&t, c)| field::add(t, c)).collect::<Vec<u64>>();
+    let evaluations = t_composition.iter().zip(c_composition).map(|(&t, c)| Field::add(t, c)).collect::<Vec<u64>>();
     
     // 5 ----- Verify low-degree proof -------------------------------------------------------------
     let max_degree = utils::get_composition_degree(proof.trace_length());
@@ -73,25 +73,25 @@ fn evaluate_constraints(evaluator: ConstraintEvaluator, state1: TraceState, stat
     let t_value = evaluator.evaluate_transition_at(&state1, &state2, x);
 
     // Z(x) = x - 1
-    let z = field::sub(x, field::ONE);
-    let mut result = field::div(i_value, z);
+    let z = Field::sub(x, Field::ONE);
+    let mut result = Field::div(i_value, z);
 
     // Z(x) = x - x_at_last_step
-    let z = field::sub(x, evaluator.get_x_at_last_step());
-    result = field::add(result, field::div(f_value, z));
+    let z = Field::sub(x, evaluator.get_x_at_last_step());
+    result = Field::add(result, Field::div(f_value, z));
 
     // Z(x) = (x^steps - 1) / (x - x_at_last_step)
-    let z = field::div(field::sub(field::exp(x, evaluator.trace_length() as u64), field::ONE), z);
-    result = field::add(result, field::div(t_value, z));
+    let z = Field::div(Field::sub(Field::exp(x, evaluator.trace_length() as u64), Field::ONE), z);
+    result = Field::add(result, Field::div(t_value, z));
 
     return result;
 }
 
 fn compose_registers(proof: &StarkProof, positions: &[usize], z: u64, cc: &CompositionCoefficients) -> Vec<u64> {
     
-    let lde_root = field::get_root_of_unity(proof.domain_size() as u64);
-    let trace_root = field::get_root_of_unity(proof.trace_length() as u64);
-    let next_z = field::mul(z, trace_root);
+    let lde_root = Field::get_root_of_unity(proof.domain_size());
+    let trace_root = Field::get_root_of_unity(proof.trace_length());
+    let next_z = Field::mul(z, trace_root);
 
     let trace_at_z1 = proof.get_state_at_z1().registers().to_vec();
     let trace_at_z2 = proof.get_state_at_z2().registers().to_vec();
@@ -101,25 +101,25 @@ fn compose_registers(proof: &StarkProof, positions: &[usize], z: u64, cc: &Compo
 
     let mut result = Vec::with_capacity(evaluations.len());
     for (registers, &position) in evaluations.into_iter().zip(positions) {
-        let x = field::exp(lde_root, position as u64);
+        let x = Field::exp(lde_root, position as u64);
         
         let mut composition = 0;
         for (i, &value) in registers.iter().enumerate() {
             // compute T1(x) = (T(x) - T(z)) / (x - z)
-            let t1 = field::div(field::sub(value, trace_at_z1[i]), field::sub(x, z));
+            let t1 = Field::div(Field::sub(value, trace_at_z1[i]), Field::sub(x, z));
             // multiply it by a pseudo-random coefficient, and combine with result
-            composition = field::add(composition, field::mul(t1, cc.trace1[i]));
+            composition = Field::add(composition, Field::mul(t1, cc.trace1[i]));
 
             // compute T2(x) = (T(x) - T(z * g)) / (x - z * g)
-            let t2 = field::div(field::sub(value, trace_at_z2[i]), field::sub(x, next_z));
+            let t2 = Field::div(Field::sub(value, trace_at_z2[i]), Field::sub(x, next_z));
             // multiply it by a pseudo-random coefficient, and combine with result
-            composition = field::add(composition, field::mul(t2, cc.trace2[i]));
+            composition = Field::add(composition, Field::mul(t2, cc.trace2[i]));
         }
 
         // raise the degree to match composition degree
-        let xp = field::exp(x, incremental_degree);
-        let adj_composition = field::mul(field::mul(composition, xp), cc.t2_degree);
-        composition = field::add(field::mul(composition, cc.t1_degree), adj_composition);
+        let xp = Field::exp(x, incremental_degree);
+        let adj_composition = Field::mul(Field::mul(composition, xp), cc.t2_degree);
+        composition = Field::add(Field::mul(composition, cc.t1_degree), adj_composition);
 
         result.push(composition);
     }
@@ -138,17 +138,17 @@ fn compose_constraints(proof: &StarkProof, t_positions: &[usize], c_positions: &
         evaluations.push(value);
     }
 
-    let lde_root = field::get_root_of_unity(proof.domain_size() as u64);
+    let lde_root = Field::get_root_of_unity(proof.domain_size());
 
     // divide out deep point from the evaluations
     let mut result = Vec::with_capacity(evaluations.len());
     for (evaluation, &position) in evaluations.into_iter().zip(t_positions) {
-        let x = field::exp(lde_root, position as u64);
+        let x = Field::exp(lde_root, position as u64);
 
         // compute C(x) = (P(x) - P(z)) / (x - z)
-        let composition = field::div(field::sub(evaluation, evaluation_at_z), field::sub(x, z));
+        let composition = Field::div(Field::sub(evaluation, evaluation_at_z), Field::sub(x, z));
         // multiply by pseudo-random coefficient for linear combination
-        result.push(field::mul(composition, cc.constraints));
+        result.push(Field::mul(composition, cc.constraints));
     }
 
     return result;

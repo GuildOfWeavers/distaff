@@ -1,4 +1,4 @@
-use crate::math::field;
+use crate::math::{ Field, FiniteField };
 use std::sync::{ atomic::{ AtomicU64, Ordering }, Arc };
 use std::thread;
 
@@ -30,7 +30,7 @@ pub fn add(a: &[u64], b: &[u64], num_threads: usize) -> Vec<u64> {
             for j in i..(i + batch_size) {
                 let ai = a[j].load(Ordering::Relaxed);
                 let bi = b[j].load(Ordering::Relaxed);
-                result[j].store(field::add(ai, bi), Ordering::Relaxed);
+                result[j].store(Field::add(ai, bi), Ordering::Relaxed);
             }
         });
         handles.push(handle);
@@ -67,7 +67,7 @@ pub fn add_in_place(a: &mut [u64], b: &[u64], num_threads: usize) {
             for j in i..(i + batch_size) {
                 let ai = a[j].load(Ordering::Relaxed);
                 let bi = b[j].load(Ordering::Relaxed);
-                a[j].store(field::add(ai, bi), Ordering::Relaxed);
+                a[j].store(Field::add(ai, bi), Ordering::Relaxed);
             }
         });
         handles.push(handle);
@@ -99,7 +99,7 @@ pub fn sub_const_in_place(a: &mut [u64], b: u64, num_threads: usize) {
         let handle = thread::spawn(move || {
             for j in i..(i + batch_size) {
                 let ai = a[j].load(Ordering::Relaxed);
-                a[j].store(field::sub(ai, b), Ordering::Relaxed);
+                a[j].store(Field::sub(ai, b), Ordering::Relaxed);
             }
         });
         handles.push(handle);
@@ -139,7 +139,7 @@ pub fn mul(a: &[u64], b: &[u64], num_threads: usize) -> Vec<u64> {
             for j in i..(i + batch_size) {
                 let ai = a[j].load(Ordering::Relaxed);
                 let bi = b[j].load(Ordering::Relaxed);
-                result[j].store(field::mul(ai, bi), Ordering::Relaxed);
+                result[j].store(Field::mul(ai, bi), Ordering::Relaxed);
             }
         });
         handles.push(handle);
@@ -176,7 +176,7 @@ pub fn mul_in_place(a: &mut [u64], b: &[u64], num_threads: usize) {
             for j in i..(i + batch_size) {
                 let ai = a[j].load(Ordering::Relaxed);
                 let bi = b[j].load(Ordering::Relaxed);
-                a[j].store(field::mul(ai, bi), Ordering::Relaxed);
+                a[j].store(Field::mul(ai, bi), Ordering::Relaxed);
             }
         });
         handles.push(handle);
@@ -209,7 +209,7 @@ pub fn mul_acc(a: &mut[u64], b: &[u64], c: u64, num_threads: usize) {
             for j in i..(i + batch_size) {
                 let ai = a[j].load(Ordering::Relaxed);
                 let bi = b[j].load(Ordering::Relaxed);
-                a[j].store(field::add(ai, field::mul(bi, c)), Ordering::Relaxed);
+                a[j].store(Field::add(ai, Field::mul(bi, c)), Ordering::Relaxed);
             }
         });
         handles.push(handle);
@@ -247,7 +247,7 @@ pub fn inv(values: &[u64], num_threads: usize) -> Vec<u64> {
             let values_slice = unsafe { &*(values_slice as *const _ as *const [u64]) };
             let result_slice = &result[i..(i + batch_size)];
             let result_slice = unsafe { &mut *(result_slice as *const _ as *mut [u64]) };
-            field::inv_many_fill(values_slice, result_slice);
+            Field::inv_many_fill(values_slice, result_slice);
         });
         handles.push(handle);
     }
@@ -286,20 +286,20 @@ fn atomic_result_vec(n: usize) -> Vec<AtomicU64> {
 // ================================================================================================
 #[cfg(test)]
 mod tests {
-    use crate::math::{ field };
+    use crate::math::{ Field, FiniteField };
 
     #[test]
     fn add() {
 
         let n: usize = 1024;
         let num_threads: usize = 4;
-        let x = field::rand_vector(n);
-        let y = field::rand_vector(n);
+        let x = Field::rand_vector(n);
+        let y = Field::rand_vector(n);
 
         // compute expected results
         let mut expected = vec![0u64; n];
         for i in 0..n {
-            expected[i] = field::add(x[i], y[i]);
+            expected[i] = Field::add(x[i], y[i]);
         }
 
         assert_eq!(expected, super::add(&x, &y, num_threads));
@@ -310,13 +310,13 @@ mod tests {
 
         let n: usize = 1024;
         let num_threads: usize = 4;
-        let x = field::rand_vector(n);
-        let y = field::rand_vector(n);
+        let x = Field::rand_vector(n);
+        let y = Field::rand_vector(n);
 
         // compute expected results
         let mut expected = vec![0u64; n];
         for i in 0..n {
-            expected[i] = field::add(x[i], y[i]);
+            expected[i] = Field::add(x[i], y[i]);
         }
 
         let mut z = y.clone();
@@ -329,13 +329,13 @@ mod tests {
 
         let n: usize = 1024;
         let num_threads: usize = 4;
-        let mut x = field::rand_vector(n);
-        let y = field::rand();
+        let mut x = Field::rand_vector(n);
+        let y = Field::rand();
 
         // compute expected results
         let mut expected = vec![0u64; n];
         for i in 0..n {
-            expected[i] = field::sub(x[i], y);
+            expected[i] = Field::sub(x[i], y);
         }
 
         super::sub_const_in_place(&mut x, y, num_threads);
@@ -347,13 +347,13 @@ mod tests {
 
         let n: usize = 1024;
         let num_threads: usize = 4;
-        let x = field::rand_vector(n);
-        let y = field::rand_vector(n);
+        let x = Field::rand_vector(n);
+        let y = Field::rand_vector(n);
 
         // compute expected results
         let mut expected = vec![0u64; n];
         for i in 0..n {
-            expected[i] = field::mul(x[i], y[i]);
+            expected[i] = Field::mul(x[i], y[i]);
         }
 
         assert_eq!(expected, super::mul(&x, &y, num_threads));
@@ -364,13 +364,13 @@ mod tests {
 
         let n: usize = 1024;
         let num_threads: usize = 4;
-        let x = field::rand_vector(n);
-        let y = field::rand_vector(n);
+        let x = Field::rand_vector(n);
+        let y = Field::rand_vector(n);
 
         // compute expected results
         let mut expected = vec![0u64; n];
         for i in 0..n {
-            expected[i] = field::mul(x[i], y[i]);
+            expected[i] = Field::mul(x[i], y[i]);
         }
 
         let mut z = y.clone();
@@ -382,13 +382,13 @@ mod tests {
     fn mul_acc() {
         let n: usize = 1024;
         let num_threads: usize = 4;
-        let mut x = field::rand_vector(n);
-        let y = field::rand_vector(n);
-        let z = field::rand();
+        let mut x = Field::rand_vector(n);
+        let y = Field::rand_vector(n);
+        let z = Field::rand();
 
         // compute expected result
         let mut expected = x.clone();
-        field::mul_acc(&mut expected, &y, z);
+        Field::mul_acc(&mut expected, &y, z);
 
         super::mul_acc(&mut x, &y, z, num_threads);
         assert_eq!(expected, x);
@@ -399,10 +399,10 @@ mod tests {
 
         let n: usize = 1024;
         let num_threads: usize = 4;
-        let v = field::rand_vector(n);
+        let v = Field::rand_vector(n);
 
         // compute expected results
-        let expected = field::inv_many(&v);
+        let expected = Field::inv_many(&v);
 
         assert_eq!(expected, super::inv(&v, num_threads));
     }

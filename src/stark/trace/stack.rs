@@ -1,5 +1,5 @@
 use std::cmp;
-use crate::math::{ field };
+use crate::math::{ Field, FiniteField };
 use crate::processor::opcodes;
 use crate::utils::{ zero_filled_vector };
 use super::{ MAX_INPUTS, MIN_STACK_DEPTH, MAX_STACK_DEPTH };
@@ -120,21 +120,21 @@ impl StackTrace {
     fn add(&mut self, step: usize) {
         let x = self.registers[0][step];
         let y = self.registers[1][step];
-        self.registers[0][step + 1] = field::add(x, y);
+        self.registers[0][step + 1] = Field::add(x, y);
         self.shift_left(step, 2, 1);
     }
 
     fn sub(&mut self, step: usize) {
         let x = self.registers[0][step];
         let y = self.registers[1][step];
-        self.registers[0][step + 1] = field::sub(y, x);
+        self.registers[0][step + 1] = Field::sub(y, x);
         self.shift_left(step, 2, 1);
     }
 
     fn mul(&mut self, step: usize) {
         let x = self.registers[0][step];
         let y = self.registers[1][step];
-        self.registers[0][step + 1] = field::mul(x, y);
+        self.registers[0][step + 1] = Field::mul(x, y);
         self.shift_left(step, 2, 1);
     }
 

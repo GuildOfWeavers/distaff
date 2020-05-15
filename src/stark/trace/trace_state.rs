@@ -1,6 +1,6 @@
 use std::fmt;
 use std::cmp;
-use crate::math::field::{ add, sub, mul, ONE };
+use crate::math::{ Field, FiniteField };
 use super::{ decoder, NUM_LD_OPS, MIN_STACK_DEPTH };
 
 // CONSTANTS
@@ -74,10 +74,10 @@ impl TraceState {
     pub fn get_op_bits_value(&self) -> u64 {
         let op_bits = self.get_op_bits();
         let mut value = op_bits[0];
-        value = add(value, mul(op_bits[1],  2));
-        value = add(value, mul(op_bits[2],  4));
-        value = add(value, mul(op_bits[3],  8));
-        value = add(value, mul(op_bits[4], 16));
+        value = Field::add(value, Field::mul(op_bits[1],  2));
+        value = Field::add(value, Field::mul(op_bits[2],  4));
+        value = Field::add(value, Field::mul(op_bits[3],  8));
+        value = Field::add(value, Field::mul(op_bits[4], 16));
         return value;
     }
 
@@ -125,13 +125,13 @@ impl TraceState {
             
             let segment_length = usize::pow(2, (i + 1) as u32);
 
-            let inv_bit = sub(ONE, op_bits[i]);
+            let inv_bit = Field::sub(Field::ONE, op_bits[i]);
             for j in 0..(segment_length / 2) {
-                op_flags[j] = mul(op_flags[j], inv_bit);
+                op_flags[j] = Field::mul(op_flags[j], inv_bit);
             }
 
             for j in (segment_length / 2)..segment_length {
-                op_flags[j] = mul(op_flags[j], op_bits[i]);
+                op_flags[j] = Field::mul(op_flags[j], op_bits[i]);
             }
 
             for j in (segment_length..NUM_LD_OPS).step_by(segment_length) {

@@ -1,6 +1,6 @@
 use std::ops::Range;
 use crate::processor::opcodes;
-use crate::field;
+use crate::math::{ Field, FiniteField };
 use crate::stark::utils::hash_acc::{ self, STATE_WIDTH as ACC_STATE_WIDTH, NUM_ROUNDS };
 use crate::utils::zero_filled_vector;
 use super::{ NUM_OP_BITS };
@@ -104,8 +104,8 @@ fn hash_program(op_codes: &[u64], domain_size: usize) -> Vec<Vec<u64>> {
     let mut state = [0; ACC_STATE_WIDTH];
     for i in 0..(op_codes.len() - 1) {
         // inject op_code into the state
-        state[0] = field::add(state[0], op_codes[i]);
-        state[1] = field::mul(state[1], op_codes[i]);
+        state[0] = Field::add(state[0], op_codes[i]);
+        state[1] = Field::mul(state[1], op_codes[i]);
 
         let step = i % NUM_ROUNDS;
 

@@ -1,4 +1,4 @@
-use crate::math::{ field::{ self, sub, add, mul }, polynom, fft };
+use crate::math::{ Field, FiniteField, polynom, fft };
 use crate::processor::{ opcodes };
 use crate::utils::zero_filled_vector;
 use crate::stark::{ TraceState };
@@ -76,7 +76,7 @@ impl Decoder {
         let num_cycles = (self.trace_length / NUM_ROUNDS) as u64;
         let mut rescue_ark = [0u64; 2 * STATE_WIDTH];
         for i in 0..rescue_ark.len() {
-            rescue_ark[i] = polynom::eval(&self.rescue_polys[i], field::exp(x, num_cycles));
+            rescue_ark[i] = polynom::eval(&self.rescue_polys[i], Field::exp(x, num_cycles));
         }
 
         self.hash_opcode(current, next, &rescue_ark, &mut result[9..]);
@@ -100,16 +100,16 @@ impl Decoder {
 
         // 1 constraint, degree 5: push_flag must be set to 1 after a PUSH operation
         let op_flags = current.get_op_flags();
-        result[6] = sub(op_flags[opcodes::PUSH as usize], next.get_push_flag());
+        result[6] = Field::sub(op_flags[opcodes::PUSH as usize], next.get_push_flag());
 
         // 1 constraint, degree 2: push_flag cannot be 1 for two consecutive operations
-        result[7] = mul(current.get_push_flag(), next.get_push_flag());
+        result[7] = Field::mul(current.get_push_flag(), next.get_push_flag());
 
         // 1 constraint, degree 2: when push_flag = 0, op_bits must be a binary decomposition
         // of op_code, otherwise all op_bits must be 0 (NOOP)
         let op_bits_value = current.get_op_bits_value();
-        let op_code = mul(current.get_op_code(), binary_not(current.get_push_flag()));
-        result[8] = sub(op_code, op_bits_value);
+        let op_code = Field::mul(current.get_op_code(), binary_not(current.get_push_flag()));
+        result[8] = Field::sub(op_code, op_bits_value);
     }
 
     fn hash_opcode(&self, current: &TraceState, next: &TraceState, ark: &[u64; 2 * STATE_WIDTH], result: &mut [u64]) {
@@ -120,10 +120,10 @@ impl Decoder {
         let mut next_acc = [0; STATE_WIDTH];
         next_acc.copy_from_slice(next.get_op_acc());
 
-        current_acc[0] = add(current_acc[0], op_code);
-        current_acc[1] = mul(current_acc[1], op_code);
+        current_acc[0] = Field::add(current_acc[0], op_code);
+        current_acc[1] = Field::mul(current_acc[1], op_code);
         for i in 0..STATE_WIDTH {
-            current_acc[i] = add(current_acc[i], ark[i]);
+            current_acc[i] = Field::add(current_acc[i], ark[i]);
         }
         apply_sbox(&mut current_acc);
         apply_mds(&mut current_acc);
@@ -131,11 +131,11 @@ impl Decoder {
         apply_inv_mds(&mut next_acc);
         apply_sbox(&mut next_acc);
         for i in 0..STATE_WIDTH {
-            next_acc[i] = sub(next_acc[i], ark[STATE_WIDTH + i]);
+            next_acc[i] = Field::sub(next_acc[i], ark[STATE_WIDTH + i]);
         }
 
         for i in 0..STATE_WIDTH {
-            result[i] = sub(next_acc[i], current_acc[i]);
+            result[i] = Field::sub(next_acc[i], current_acc[i]);
         }
     }
 }
@@ -144,11 +144,11 @@ impl Decoder {
 // ================================================================================================
 pub fn extend_constants(extension_factor: usize) -> (Vec<Vec<u64>>, Vec<Vec<u64>>) {
     
-    let root = field::get_root_of_unity(NUM_ROUNDS as u64);
+    let root = Field::get_root_of_unity(NUM_ROUNDS);
     let inv_twiddles = fft::get_inv_twiddles(root, NUM_ROUNDS);
 
     let domain_size = NUM_ROUNDS * extension_factor;
-    let domain_root = field::get_root_of_unity(domain_size as u64);
+    let domain_root = Field::get_root_of_unity(domain_size);
     let twiddles = fft::get_twiddles(domain_root, domain_size);
 
     let mut polys = Vec::with_capacity(ARK.len());
@@ -171,9 +171,9 @@ pub fn extend_constants(extension_factor: usize) -> (Vec<Vec<u64>>, Vec<Vec<u64>
 }
 
 fn is_binary(v: u64) -> u64 {
-    return sub(mul(v, v), v);
+    return Field::sub(Field::mul(v, v), v);
 }
 
 fn binary_not(v: u64) -> u64 {
-    return sub(field::ONE, v);
+    return Field::sub(Field::ONE, v);
 }

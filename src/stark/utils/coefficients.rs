@@ -1,4 +1,4 @@
-use crate::math::field;
+use crate::math::{ Field, FiniteField };
 use crate::stark::{ MAX_REGISTER_COUNT, MAX_INPUTS, MAX_OUTPUTS, MAX_TRANSITION_CONSTRAINTS };
 use crate::utils::{ CopyInto };
 
@@ -25,7 +25,7 @@ impl ConstraintCoefficients {
     pub fn new(seed: &[u64; 4]) -> ConstraintCoefficients {
 
         // generate a pseudo-random list of coefficients
-        let coefficients = field::prng_vector(seed.copy_into(),
+        let coefficients = Field::prng_vector(seed.copy_into(),
             2 * (MAX_INPUTS + MAX_OUTPUTS + MAX_TRANSITION_CONSTRAINTS));
         
         // copy coefficients to their respective segments
@@ -50,7 +50,7 @@ impl CompositionCoefficients {
 
     pub fn new(seed: &[u64; 4]) -> CompositionCoefficients {
         // generate a pseudo-random list of coefficients
-        let coefficients = field::prng_vector(seed.copy_into(), 4 * MAX_REGISTER_COUNT + 3 + 1);
+        let coefficients = Field::prng_vector(seed.copy_into(), 4 * MAX_REGISTER_COUNT + 3 + 1);
 
         // skip the first value because it is used up by deep point z
         let start_index = 1;

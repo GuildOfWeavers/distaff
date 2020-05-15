@@ -1,5 +1,6 @@
-pub mod field;
-pub mod field2;
+mod field;
+pub use field::{ FiniteField, Field };
+
 pub mod fft;
 pub mod polynom;
 pub mod quartic;

@@ -1,4 +1,4 @@
-use crate::math::{ field, polynom, parallel };
+use crate::math::{ Field, FiniteField, polynom, parallel };
 use crate::stark::{ MAX_CONSTRAINT_DEGREE, utils::CompositionCoefficients };
 
 // TYPES AND INTERFACES
@@ -47,7 +47,7 @@ impl ConstraintPoly {
         let z_value = polynom::eval(&self.poly, z);
 
         // compute C(x) = (P(x) - P(z)) / (x - z)
-        self.poly[0] = field::sub(self.poly[0], z_value);
+        self.poly[0] = Field::sub(self.poly[0], z_value);
         polynom::syn_div_in_place(&mut self.poly, z);
 
         // add C(x) * cc into the result

@@ -1,5 +1,5 @@
 use crossbeam_utils::thread;
-use crate::math::field;
+use crate::math::{ Field, FiniteField };
 
 // CONSTANTS
 // ================================================================================================
@@ -57,14 +57,14 @@ pub fn fft_in_place(values: &mut [u64], twiddles: &[u64], count: usize, stride: 
 
 pub fn get_twiddles(root: u64, size: usize) -> Vec<u64> {
     assert!(size.is_power_of_two());
-    assert!(field::exp(root, size as u64) == 1);
-    let mut twiddles = field::get_power_series(root, size / 2);
+    assert!(Field::exp(root, size as u64) == 1);
+    let mut twiddles = Field::get_power_series(root, size / 2);
     permute(&mut twiddles);
     return twiddles;
 }
 
 pub fn get_inv_twiddles(root: u64, size: usize) -> Vec<u64> {
-    let inv_root = field::exp(root, (size - 1) as u64);
+    let inv_root = Field::exp(root, (size - 1) as u64);
     return get_twiddles(inv_root, size);
 }
 
@@ -93,8 +93,8 @@ fn butterfly(values: &mut [u64], offset: usize, stride: usize) {
     let i = offset;
     let j = offset + stride;
     let temp = values[i];
-    values[i] = field::add(temp, values[j]);
-    values[j] = field::sub(temp, values[j]);
+    values[i] = Field::add(temp, values[j]);
+    values[j] = Field::sub(temp, values[j]);
 }
 
 #[inline(always)]
@@ -102,22 +102,22 @@ fn butterfly_twiddle(values: &mut [u64], twiddle: u64, offset: usize, stride: us
     let i = offset;
     let j = offset + stride;
     let temp = values[i];
-    values[j] = field::mul(values[j], twiddle);
-    values[i] = field::add(temp, values[j]);
-    values[j] = field::sub(temp, values[j]);
+    values[j] = Field::mul(values[j], twiddle);
+    values[i] = Field::add(temp, values[j]);
+    values[j] = Field::sub(temp, values[j]);
 }
 
 // TESTS
 // ================================================================================================
 #[cfg(test)]
 mod tests {
-    use crate::math::{ field, polynom };
+    use crate::math::{ Field, FiniteField, polynom };
 
     #[test]
     fn fft_in_place() {
         // degree 3
         let mut p = [1u64, 2, 3, 4];
-        let g = field::get_root_of_unity(4);
+        let g = Field::get_root_of_unity(4);
         let twiddles = super::get_twiddles(g, 4);
         let expected = vec![ 10, 7428598796440720870, 18446743880436023295, 11018145083995302423 ];
         super::fft_in_place(&mut p, &twiddles, 1, 1, 0, 1);
@@ -126,7 +126,7 @@ mod tests {
 
         // degree 7
         let mut p = [1u64, 2, 3, 4, 5, 6, 7, 8];
-        let g = field::get_root_of_unity(8);
+        let g = Field::get_root_of_unity(8);
         let twiddles = super::get_twiddles(g, 8);
         let expected = vec![
                               36, 15351167094271246394, 14857197592881441740, 4083515788944386203,
@@ -138,7 +138,7 @@ mod tests {
 
         // degree 15
         let mut p = [1u64, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-        let g = field::get_root_of_unity(16);
+        let g = Field::get_root_of_unity(16);
         let twiddles = super::get_twiddles(g, 16);
         let expected = vec![
                              136,   975820629354483782, 12255590308106469491,  7040425242073983439,
@@ -151,9 +151,9 @@ mod tests {
         assert_eq!(expected, p);
 
         // degree 1023
-        let mut p = field::rand_vector(1024);
-        let g = field::get_root_of_unity(1024);
-        let roots = field::get_power_series(g, 1024);
+        let mut p = Field::rand_vector(1024);
+        let g = Field::get_root_of_unity(1024);
+        let roots = Field::get_power_series(g, 1024);
         let expected = roots.iter().map(|x| polynom::eval(&p, *x)).collect::<Vec<u64>>();
         let twiddles = super::get_twiddles(g, 1024);
         super::fft_in_place(&mut p, &twiddles, 1, 1, 0, 1);
