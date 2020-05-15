@@ -4,7 +4,10 @@ use rand::prelude::*;
 use rand::distributions::{ Distribution, Uniform, uniform::SampleUniform };
 use crate::utils::{ uninit_vector };
 
+// RE-EXPORTS
+// ================================================================================================
 pub mod prime64;
+pub mod prime128;
 
 // TYPES AND INTERFACES
 // ================================================================================================

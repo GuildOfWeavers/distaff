@@ -135,14 +135,15 @@ mod tests {
     #[test]
     fn add() {
         // identity
-        let r = Field::rand();
+        let r: u64 = Field::rand();
         assert_eq!(r, Field::add(r, 0));
 
         // test addition within bounds
-        assert_eq!(5, Field::add(2, 3));
+        assert_eq!(5, Field::add(2u64, 3));
 
         // test overflow
-        let t = Field::MODULUS - 1;
+        let m: u64 = Field::MODULUS;
+        let t = m - 1;
         assert_eq!(0, Field::add(t, 1));
         assert_eq!(1, Field::add(t, 2));
 
@@ -155,19 +156,20 @@ mod tests {
     #[test]
     fn sub() {
         // identity
-        let r = Field::rand();
+        let r: u64 = Field::rand();
         assert_eq!(r, Field::sub(r, 0));
 
         // test subtraction within bounds
-        assert_eq!(2, Field::sub(5, 3));
+        assert_eq!(2, Field::sub(5u64, 3));
 
         // test underflow
-        assert_eq!(Field::MODULUS - 2, Field::sub(3, 5));
+        let m: u64 = Field::MODULUS;
+        assert_eq!(m - 2, Field::sub(3u64, 5));
     }
 
     #[test]
     fn neg() {
-        let r = Field::rand();
+        let r: u64 = Field::rand();
         let nr = Field::neg(r);
         assert_eq!(0, Field::add(r, nr));
     }
@@ -175,20 +177,21 @@ mod tests {
     #[test]
     fn mul() {
         // identity
-        let r = Field::rand();
+        let r: u64 = Field::rand();
         assert_eq!(0, Field::mul(r, 0));
         assert_eq!(r, Field::mul(r, 1));
 
         // test multiplication within bounds
-        assert_eq!(15, Field::mul(5, 3));
+        assert_eq!(15, Field::mul(5u64, 3));
 
         // test overflow
-        let t = Field::MODULUS - 1;
+        let m: u64 = Field::MODULUS;
+        let t = m - 1;
         assert_eq!(1, Field::mul(t, t));
-        assert_eq!(Field::MODULUS - 2, Field::mul(t, 2));
-        assert_eq!(Field::MODULUS - 4, Field::mul(t, 4));
+        assert_eq!(m - 2, Field::mul(t, 2));
+        assert_eq!(m - 4, Field::mul(t, 4));
 
-        let t = (Field::MODULUS + 1) / 2;
+        let t = (m + 1) / 2;
         assert_eq!(1, Field::mul(t, 2));
 
         // test random values
@@ -210,18 +213,18 @@ mod tests {
     #[test]
     fn inv() {
         // identity
-        assert_eq!(1, Field::inv(1));
-        assert_eq!(0, Field::inv(0));
+        assert_eq!(1, Field::inv(1u64));
+        assert_eq!(0, Field::inv(0u64));
 
         // test random values
-        let x = Field::rand();
+        let x: u64 = Field::rand();
         let y = Field::inv(x);
         assert_eq!(1, Field::mul(x, y));
     }
 
     #[test]
     fn inv_many() {
-        let v = Field::rand_vector(1024);
+        let v: Vec<u64> = Field::rand_vector(1024);
         let inv_v = Field::inv_many(&v);
         for i in 0..inv_v.len() {
             assert_eq!(Field::inv(v[i]), inv_v[i]);
@@ -231,28 +234,30 @@ mod tests {
     #[test]
     fn exp() {
         // identity
-        let r = Field::rand();
+        let r: u64 = Field::rand();
         assert_eq!(1, Field::exp(r, 0));
         assert_eq!(r, Field::exp(r, 1));
         assert_eq!(0, Field::exp(0, r));
 
         // test exponentiation within bounds
-        assert_eq!(125, Field::exp(5, 3));
+        assert_eq!(125, Field::exp(5u64, 3));
 
         // test overflow
-        let t = Field::MODULUS - 1;
+        let m: u64 = Field::MODULUS;
+        let t = m - 1;
         assert_eq!(test_mul(t, t), Field::exp(t, 2));
         assert_eq!(test_mul(test_mul(t, t), t), Field::exp(t, 3));
     }
 
     #[test]
     fn rand() {
-        assert!(Field::rand() < Field::MODULUS);
+        let x: u64 = Field::rand();
+        assert!(x < Field::MODULUS);
     }
 
     #[test]
     fn rand_vector() {
-        let v = Field::rand_vector(1024);
+        let v: Vec<u64> = Field::rand_vector(1024);
         assert_eq!(1024, v.len());
         for i in 0..v.len() {
             assert!(v[i] < Field::MODULUS);

@@ -2,16 +2,16 @@ use criterion::{ black_box, criterion_group, Criterion };
 use distaff::{ Field, FiniteField, parallel };
 
 pub fn add(c: &mut Criterion) {
-    let x = 20;
-    let y = 20;
+    let x: u64 = 20;
+    let y: u64 = 20;
     c.bench_function("add", |bench| {
         bench.iter(|| Field::add(black_box(x), black_box(y)))
     });
 }
 
 pub fn mul(c: &mut Criterion) {
-    let x = 20;
-    let y = 20;
+    let x: u64 = 20;
+    let y: u64 = 20;
     c.bench_function("mul", |bench| {
         bench.iter(|| Field::mul(black_box(x), black_box(y)))
     });
@@ -42,15 +42,15 @@ pub fn mul_parallel_in_place(c: &mut Criterion) {
 }
 
 pub fn exp(c: &mut Criterion) {
-    let x = 20;
-    let y = 20;
+    let x: u64 = 20;
+    let y: u64 = 20;
     c.bench_function("exp", |bench| {
         bench.iter(|| Field::exp(black_box(x), black_box(y)))
     });
 }
 
 pub fn inv(c: &mut Criterion) {
-    let x = 20;
+    let x: u64 = 20;
     c.bench_function("inv", |bench| {
         bench.iter(|| Field::inv(black_box(x)))
     });
