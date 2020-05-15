@@ -33,4 +33,12 @@ pub fn blake3(c: &mut Criterion) {
     });
 }
 
-criterion_group!(group, poseidon, rescue, gmimc, blake3);
+pub fn sha3(c: &mut Criterion) {
+    let v = [1, 2, 3, 4, 5, 6, 7, 8];
+    let mut r = [0u64; 4];
+    c.bench_function("Sha3", |bench| {
+        bench.iter(|| hash::sha3(black_box(&v), black_box(&mut r)))
+    });
+}
+
+criterion_group!(group, poseidon, rescue, gmimc, blake3, sha3);
