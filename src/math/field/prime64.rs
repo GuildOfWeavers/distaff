@@ -1,6 +1,4 @@
-use rand::prelude::*;
-use rand::distributions::{ Distribution, Uniform };
-use crate::utils::uninit_vector;
+use std::ops::Range;
 use super::{ FiniteField, Field };
 
 // CONSTANTS
@@ -17,6 +15,8 @@ pub const G: u64 = 8387321423513296549;
 impl FiniteField<u64> for Field {
 
     const MODULUS: u64 = M;
+    const RANGE: Range<u64> = Range { start: 0, end: M };
+
     const ZERO: u64 = 0;
     const ONE: u64 = 1;
     
@@ -94,33 +94,6 @@ impl FiniteField<u64> for Field {
         return a as u64;
     }
 
-    fn inv_many(values: &[u64]) -> Vec<u64> {
-        let mut result = uninit_vector(values.len());
-        Self::inv_many_fill(values, &mut result);
-        return result;
-    }
-
-    fn inv_many_fill(values: &[u64], result: &mut [u64]) {
-        let mut last = 1u64;
-        for i in 0..values.len() {
-            result[i] = last;
-            if values[i] != 0 {
-                last = Self::mul(last, values[i]);
-            }
-        }
-
-        last = Self::inv(last);
-        for i in (0..values.len()).rev() {
-            if values[i] == 0 {
-                result[i] = 0;
-            }
-            else {
-                result[i] = Self::mul(last, result[i]);
-                last = Self::mul(last, values[i]);
-            }
-        }
-    }
-
     fn exp(b: u64, p: u64) -> u64 {
         if b == 0 { return 0; }
         else if p == 0 { return 1; }
@@ -143,49 +116,12 @@ impl FiniteField<u64> for Field {
 
     // ROOT OF UNITY
     // --------------------------------------------------------------------------------------------
-    /// Computes primitive root of unity for the specified `order`.
     fn get_root_of_unity(order: usize) -> u64 {
         assert!(order != 0, "cannot get root of unity for order 0");
         assert!(order.is_power_of_two(), "order must be a power of 2");
         assert!(order.trailing_zeros() <= 32, "order cannot exceed 2^32");
         let p = 1 << (32 - order.trailing_zeros());
         return Self::exp(G, p as u64);
-    }
-
-    fn get_power_series(b: u64, length: usize) -> Vec<u64> {
-        let mut result = uninit_vector(length);
-        result[0] = 1;
-        for i in 1..result.len() {
-            result[i] = Self::mul(result[i - 1], b);
-        }    
-        return result;
-    }
-
-    // RANDOMNESS
-    // --------------------------------------------------------------------------------------------
-    fn rand() -> u64 {
-        let range = Uniform::from(0..M);
-        let mut g = thread_rng();
-        return g.sample(range);
-    }
-
-    /// Generates a vector of random field elements.
-    fn rand_vector(length: usize) -> Vec<u64> {
-        let range = Uniform::from(0..M);
-        let g = thread_rng();
-        return g.sample_iter(range).take(length).collect();
-    }
-
-    fn prng(seed: [u8; 32]) -> u64 {
-        let range = Uniform::from(0..M);
-        let mut g = StdRng::from_seed(seed);
-        return range.sample(&mut g);
-    }
-
-    fn prng_vector(seed: [u8; 32], length: usize) -> Vec<u64> {
-        let range = Uniform::from(0..M);
-        let g = StdRng::from_seed(seed);
-        return g.sample_iter(range).take(length).collect();
     }
 }
 
