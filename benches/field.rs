@@ -1,10 +1,18 @@
 use criterion::{ black_box, criterion_group, Criterion };
 use distaff::{ Field, FiniteField, parallel };
 
-pub fn add(c: &mut Criterion) {
+pub fn add64(c: &mut Criterion) {
     let x: u64 = 20;
     let y: u64 = 20;
-    c.bench_function("add", |bench| {
+    c.bench_function("add64", |bench| {
+        bench.iter(|| Field::add(black_box(x), black_box(y)))
+    });
+}
+
+pub fn add128(c: &mut Criterion) {
+    let x: u128 = 20;
+    let y: u128 = 20;
+    c.bench_function("add128", |bench| {
         bench.iter(|| Field::add(black_box(x), black_box(y)))
     });
 }
@@ -56,4 +64,4 @@ pub fn inv(c: &mut Criterion) {
     });
 }
 
-criterion_group!(group, add, mul, mul_parallel, mul_parallel_in_place, exp, inv);
+criterion_group!(group, add64, add128, mul, mul_parallel, mul_parallel_in_place, exp, inv);
