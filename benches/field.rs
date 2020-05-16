@@ -17,10 +17,18 @@ pub fn add128(c: &mut Criterion) {
     });
 }
 
-pub fn mul(c: &mut Criterion) {
+pub fn mul64(c: &mut Criterion) {
     let x: u64 = 20;
     let y: u64 = 20;
-    c.bench_function("mul", |bench| {
+    c.bench_function("mul64", |bench| {
+        bench.iter(|| Field::mul(black_box(x), black_box(y)))
+    });
+}
+
+pub fn mul128(c: &mut Criterion) {
+    let x: u128 = 20;
+    let y: u128 = 20;
+    c.bench_function("mul128", |bench| {
         bench.iter(|| Field::mul(black_box(x), black_box(y)))
     });
 }
@@ -64,4 +72,4 @@ pub fn inv(c: &mut Criterion) {
     });
 }
 
-criterion_group!(group, add64, add128, mul, mul_parallel, mul_parallel_in_place, exp, inv);
+criterion_group!(group, add64, add128, mul64, mul128, mul_parallel, mul_parallel_in_place, exp, inv);

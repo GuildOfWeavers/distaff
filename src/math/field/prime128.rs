@@ -34,27 +34,40 @@ impl FiniteField<u128> for Field {
     fn mul(a: u128, b: u128) -> u128 {
         let (z0, z1, z2) = mul_128x64(a, (b >> 64) as u64);
         let (q0, q1, q2) = mul_by_mod(z2);
-        
-        let (z0, z1, z2) = sub_192x192(z0, z1, z2, q0, q1, q2);
+        let (mut z0, mut z1, mut z2) = sub_192x192(z0, z1, z2, q0, q1, q2);
 
-        if z2 > 0 {
-            // z = z - m
+        if z2 == 1 {
+            let (t0, t1) = sub_128x128(z0, z1, M as u64, (M >> 64) as u64);
+            z0 = t0; z1 = t1;
         }
 
         let (a0, a1, a2) = mul_128x64(a, b as u64);
 
-        // z = z << 64 -> 192 bit value
-        // z = z + a -> 193? bit value
+        // z = z << 64
+        z2 = z1; z1 = z0;
 
-        // q = m * (z >> 128)
-        // z = z - q
+        // z = z + a
+        z0 = a0;
+        let (mut z1, carry) = adc(z1, a1, 0);
+        let (mut z2, carry) = adc(z2, a2, carry);
 
-        if z2 > 0 {
-            // z = z - m
+        if carry == 1 {
+            let (t0, t1) = sub_128x128(z1, z2, M as u64, (M >> 64) as u64);
+            z1 = t0; z2 = t1;
         }
 
-        // TODO
-        return 0;
+        // q = m * (z >> 128)
+        let (q0, q1, q2) = mul_by_mod(z2);
+
+        // z = z - q
+        let (mut z0, mut z1, z2) = sub_192x192(z0, z1, z2, q0, q1, q2);
+
+        if z2 == 1 || (z1 == (M >> 64) as u64 && z0 > (M as u64)) {
+            let (t0, t1) = sub_128x128(z0, z1, M as u64, (M >> 64) as u64);
+            z0 = t0; z1 = t1;
+        }
+
+        return ((z1 as u128) << 64) + (z0 as u128);
     }
 
     fn inv(x: u128) -> u128 {
@@ -98,7 +111,7 @@ impl FiniteField<u128> for Field {
 // HELPER FUNCTIONS
 // ================================================================================================
 
-
+#[inline(always)]
 fn mul_128x64(a: u128, b: u64) -> (u64, u64, u64) {
     let z_lo = ((a as u64) as u128) * (b as u128);
     let z_hi = (a >> 64) * (b as u128);
@@ -106,14 +119,42 @@ fn mul_128x64(a: u128, b: u64) -> (u64, u64, u64) {
     return (z_lo as u64, z_hi as u64, (z_hi >> 64) as u64);
 }
 
+#[inline(always)]
 fn mul_by_mod(a: u64) -> (u64, u64, u64) {
-    // TODO
-    return (0, 0, 0);
+    let a_lo = (a as u128).wrapping_mul(M);
+    let a_hi = if a == 0 { 0 } else { a - 1 };
+    return (a_lo as u64, (a_lo >> 64) as u64, a_hi);
 }
 
+#[inline(always)]
 fn sub_192x192(a0: u64, a1: u64, a2: u64, b0: u64, b1: u64, b2: u64) -> (u64, u64, u64) {
-    // TODO
-    return (0, 0, 0);
+    
+    let z0 = (a0 as u128).wrapping_sub(b0 as u128);
+    let z1 = (a1 as u128).wrapping_sub((b1 as u128) + (z0 >> 127));
+    let z2 = (a2 as u128).wrapping_sub((b2 as u128) + (z1 >> 127));
+
+    return (z0 as u64, z1 as u64, z2 as u64);
+}
+
+#[inline(always)]
+fn sub_128x128(a0: u64, a1: u64, b0: u64, b1: u64) -> (u64, u64) {
+    
+    let z0 = (a0 as u128).wrapping_sub(b0 as u128);
+    let z1 = (a1 as u128).wrapping_sub((b1 as u128) + (z0 >> 127));
+
+    return (z0 as u64, z1 as u64);
+}
+
+#[inline(always)]
+fn sbb(a: u64, b: u64, borrow: u64) -> (u64, u64) {
+    let ret = (a as u128).wrapping_sub((b as u128) + (borrow as u128));
+    return (ret as u64, (ret >> 127) as u64);
+}
+
+#[inline(always)]
+pub const fn adc(a: u64, b: u64, carry: u64) -> (u64, u64) {
+    let ret = (a as u128) + (b as u128) + (carry as u128);
+    return (ret as u64, (ret >> 64) as u64);
 }
 
 // TESTS
@@ -161,5 +202,33 @@ mod tests {
         // test underflow
         let m: u128 = Field::MODULUS;
         assert_eq!(m - 2, Field::sub(3u128, 5));
+    }
+
+    #[test]
+    fn mul() {
+        // identity
+        let r: u128 = Field::rand();
+        assert_eq!(0, Field::mul(r, 0));
+        assert_eq!(r, Field::mul(r, 1));
+
+        // test multiplication within bounds
+        assert_eq!(15, Field::mul(5u128, 3));
+
+        // test overflow
+        let m: u128 = Field::MODULUS;
+        let t = m - 1;
+        assert_eq!(1, Field::mul(t, t));
+        assert_eq!(m - 2, Field::mul(t, 2));
+        assert_eq!(m - 4, Field::mul(t, 4));
+
+        let t = (m + 1) / 2;
+        assert_eq!(1, Field::mul(t, 2));
+
+        // test random values
+        let r1 = Field::rand();
+        let r2 = Field::rand();
+        let expected = (BigUint::from(r1) * BigUint::from(r2)) % BigUint::from(super::M);
+        let expected = u128::from_le_bytes((expected.to_bytes_le()[..]).try_into().unwrap());
+        assert_eq!(expected, Field::mul(r1, r2));
     }
 }
