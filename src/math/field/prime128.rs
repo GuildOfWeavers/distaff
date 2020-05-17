@@ -33,26 +33,35 @@ impl FiniteField<u128> for Field {
 
     fn mul(a: u128, b: u128) -> u128 {
 
-        let (z, x2) = mul_reduce(a, (b >> 64) as u64);
+        let (x0, x1, x2) = mul_128x64(a, (b >> 64) as u64);         // x = a * b_hi
+        let (mut x0, mut x1, x2) = mul_reduce(x0, x1, x2);          // x = x - (x >> 128) * m
+        if x2 == 1 {
+            // if there was an overflow beyond 128 bits, subtract
+            // modulus from the result to make sure it fits into 
+            // 128 bits; this can potentially be removed in favor
+            // of checking overflow later
+            let (t0, t1) = sub_modulus(x0, x1);                     // x = x - m
+            x0 = t0; x1 = t1;
+        }
 
-        let (y0, y1, y2) = mul_128x64(a, b as u64);                 // x = a * b_lo
+        let (y0, y1, y2) = mul_128x64(a, b as u64);                 // y = a * b_lo
 
-        let (mut y1, carry) = adc(y1, z as u64, 0);
-        let (mut y2, carry) = adc(y2, (z >> 64) as u64, carry);
-        let y3 = x2 + carry;
-
+        let (mut y1, carry) = add64_with_carry(y1, x0, 0);          // y = y + (x << 64)
+        let (mut y2, y3) = add64_with_carry(y2, x1, carry);
         if y3 == 1 {
-            let (t0, t1) = sub_modulus(y1, y2);
+            // if there was an overflow beyond 192 bits, subtract
+            // modulus * 2^64 from the result to make sure it fits
+            // into 192 bits; this can potentially replace the
+            // previous overflow check (but needs to be proven)
+            let (t0, t1) = sub_modulus(y1, y2);                     // y = y - (m << 64)
             y1 = t0; y2 = t1;
         }
         
-        let (q0, q1, q2) = mul_by_mod(y2);                          // q = m * (z >> 128)
+        let (mut z0, mut z1, z2) = mul_reduce(y0, y1, y2);          // z = y - (y >> 128) * m
 
-        // z = z - q
-        let (mut z0, mut z1, z2) = sub_192x192(y0, y1, y2, q0, q1, q2);
-
-        if z2 == 1 || (z1 == (M >> 64) as u64 && z0 > (M as u64)) {
-            let (t0, t1) = sub_modulus(z0, z1);
+        // make sure z is smaller than m
+        if z2 == 1 || (z1 == (M >> 64) as u64 && z0 >= (M as u64)) {
+            let (t0, t1) = sub_modulus(z0, z1);                     // z = z - m
             z0 = t0; z1 = t1;
         }
 
@@ -62,7 +71,7 @@ impl FiniteField<u128> for Field {
     fn inv(x: u128) -> u128 {
         if x == 0 { return 0 };
 
-        // initialize a, v, u, and d variables
+        // initialize v, a, u, and d variables
         let mut v = M;
         let (mut a0, mut a1, mut a2) = (0, 0, 0);
         let (mut u0, mut u1, mut u2) = if x & 1 == 1 {
@@ -176,15 +185,6 @@ impl FiniteField<u128> for Field {
 // HELPER FUNCTIONS
 // ================================================================================================
 
-fn mul_reduce(a: u128, b: u64) -> (u128, u64) {
-
-    let (z0, z1, z2) = mul_128x64(a, b);
-    let (q0, q1, q2) = mul_by_mod(z2);
-    let (z0, z1, z2) = sub_192x192(z0, z1, z2, q0, q1, q2);
-
-    return ((z0 as u128) + ((z1 as u128) << 64), z2);
-}
-
 #[inline(always)]
 fn mul_128x64(a: u128, b: u64) -> (u64, u64, u64) {
     let z_lo = ((a as u64) as u128) * (b as u128);
@@ -194,7 +194,14 @@ fn mul_128x64(a: u128, b: u64) -> (u64, u64, u64) {
 }
 
 #[inline(always)]
-fn mul_by_mod(a: u64) -> (u64, u64, u64) {
+fn mul_reduce(z0: u64, z1: u64, z2: u64) -> (u64, u64, u64) {
+    let (q0, q1, q2) = mul_by_modulus(z2);
+    let (z0, z1, z2) = sub_192x192(z0, z1, z2, q0, q1, q2);
+    return (z0, z1, z2);
+}
+
+#[inline(always)]
+fn mul_by_modulus(a: u64) -> (u64, u64, u64) {
     let a_lo = (a as u128).wrapping_mul(M);
     let a_hi = if a == 0 { 0 } else { a - 1 };
     return (a_lo as u64, (a_lo >> 64) as u64, a_hi);
@@ -202,9 +209,10 @@ fn mul_by_mod(a: u64) -> (u64, u64, u64) {
 
 #[inline(always)]
 fn sub_modulus(a_lo: u64, a_hi: u64) -> (u64, u64) {
-    let z_lo = (a_lo as u128).wrapping_sub((M as u64) as u128);
-    let z_hi = a_hi.wrapping_sub((M >> 64) as u64).wrapping_sub((z_lo >> 127) as u64);
-    return (z_lo as u64, z_hi);
+    let mut z = 0u128.wrapping_sub(M);
+    z = z.wrapping_add(a_lo as u128);
+    z = z.wrapping_add((a_hi as u128) << 64);
+    return (z as u64, (z >> 64) as u64);
 }
 
 #[inline(always)]
@@ -224,7 +232,7 @@ fn add_192x192(a0: u64, a1: u64, a2: u64, b0: u64, b1: u64, b2: u64) -> (u64, u6
 }
 
 #[inline(always)]
-pub const fn adc(a: u64, b: u64, carry: u64) -> (u64, u64) {
+pub const fn add64_with_carry(a: u64, b: u64, carry: u64) -> (u64, u64) {
     let ret = (a as u128) + (b as u128) + (carry as u128);
     return (ret as u64, (ret >> 64) as u64);
 }
