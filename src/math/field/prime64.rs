@@ -87,7 +87,7 @@ impl FiniteField<u64> for Field {
             }
         }
 
-        while a > (M as u128) {
+        while a >= (M as u128) {
             a = a - (M as u128);
         }
 
