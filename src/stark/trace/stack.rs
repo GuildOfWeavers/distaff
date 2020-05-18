@@ -1,7 +1,7 @@
 use std::cmp;
-use crate::math::{ Field, FiniteField };
+use crate::math::{ F64, FiniteField };
 use crate::processor::opcodes;
-use crate::utils::{ zero_filled_vector };
+use crate::utils::{ filled_vector };
 use super::{ MAX_INPUTS, MIN_STACK_DEPTH, MAX_STACK_DEPTH };
 
 // TRACE BUILDER
@@ -20,7 +20,7 @@ pub fn execute(program: &[u64], inputs: &[u64], extension_factor: usize) -> Vec<
     let init_stack_depth = cmp::max(inputs.len(), MIN_STACK_DEPTH);
     let mut registers: Vec<Vec<u64>> = Vec::with_capacity(init_stack_depth);
     for i in 0..init_stack_depth {
-        let mut register = zero_filled_vector(trace_length, domain_size);
+        let mut register = filled_vector(trace_length, domain_size, F64::ZERO);
         if i < inputs.len() { 
             register[0] = inputs[i];
         }
@@ -120,21 +120,21 @@ impl StackTrace {
     fn add(&mut self, step: usize) {
         let x = self.registers[0][step];
         let y = self.registers[1][step];
-        self.registers[0][step + 1] = Field::add(x, y);
+        self.registers[0][step + 1] = F64::add(x, y);
         self.shift_left(step, 2, 1);
     }
 
     fn sub(&mut self, step: usize) {
         let x = self.registers[0][step];
         let y = self.registers[1][step];
-        self.registers[0][step + 1] = Field::sub(y, x);
+        self.registers[0][step + 1] = F64::sub(y, x);
         self.shift_left(step, 2, 1);
     }
 
     fn mul(&mut self, step: usize) {
         let x = self.registers[0][step];
         let y = self.registers[1][step];
-        self.registers[0][step + 1] = Field::mul(x, y);
+        self.registers[0][step + 1] = F64::mul(x, y);
         self.shift_left(step, 2, 1);
     }
 
@@ -189,7 +189,7 @@ impl StackTrace {
         let trace_length = self.registers[0].len();
         let trace_capacity = self.registers[0].capacity();
         for _ in 0..num_registers {
-            let register = zero_filled_vector(trace_length, trace_capacity);
+            let register = filled_vector(trace_length, trace_capacity, F64::ZERO);
             self.registers.push(register);
         }
     }
@@ -200,6 +200,9 @@ impl StackTrace {
 #[cfg(test)]
 mod tests {
     
+    use crate::math::{ F64, FiniteField };
+    use crate::utils::{ filled_vector };
+
     const TRACE_LENGTH: usize = 16;
     const EXTENSION_FACTOR: usize = 16;
 
@@ -306,7 +309,7 @@ mod tests {
     fn init_stack(inputs: &[u64]) -> super::StackTrace {
         let mut registers: Vec<Vec<u64>> = Vec::with_capacity(super::MIN_STACK_DEPTH);
         for i in 0..super::MIN_STACK_DEPTH {
-            let mut register = super::zero_filled_vector(TRACE_LENGTH, TRACE_LENGTH * EXTENSION_FACTOR);
+            let mut register = filled_vector(TRACE_LENGTH, TRACE_LENGTH * EXTENSION_FACTOR, F64::ZERO);
             if i < inputs.len() { 
                 register[0] = inputs[i];
             }

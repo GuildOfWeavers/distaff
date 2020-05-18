@@ -1,17 +1,17 @@
-use crate::math::{ Field, FiniteField };
+use crate::math::{ F64, FiniteField };
 use crate::utils::uninit_vector;
 
 /// Evaluates degree 3 polynomial `p` at coordinate `x`. This function is about 30% faster than
 /// the `polys::eval` function.
 pub fn eval(p: &[u64], x: u64) -> u64 {
     debug_assert!(p.len() == 4, "Polynomial must have 4 terms");
-    let mut y = Field::add(p[0], Field::mul(p[1], x));
+    let mut y = F64::add(p[0], F64::mul(p[1], x));
 
-    let x2 = Field::mul(x, x);
-    y = Field::add(y, Field::mul(p[2], x2));
+    let x2 = F64::mul(x, x);
+    y = F64::add(y, F64::mul(p[2], x2));
 
-    let x3 = Field::mul(x2, x);
-    y = Field::add(y, Field::mul(p[3], x3));
+    let x3 = F64::mul(x2, x);
+    y = F64::add(y, F64::mul(p[3], x3));
 
     return y;
 }
@@ -49,51 +49,51 @@ pub fn interpolate_batch(xs: &[[u64; 4]], ys: &[[u64; 4]]) -> Vec<[u64; 4]> {
         
         let xs = xs[i];
 
-        let x01 = Field::mul(xs[0], xs[1]);
-        let x02 = Field::mul(xs[0], xs[2]);
-        let x03 = Field::mul(xs[0], xs[3]);
-        let x12 = Field::mul(xs[1], xs[2]);
-        let x13 = Field::mul(xs[1], xs[3]);
-        let x23 = Field::mul(xs[2], xs[3]);
+        let x01 = F64::mul(xs[0], xs[1]);
+        let x02 = F64::mul(xs[0], xs[2]);
+        let x03 = F64::mul(xs[0], xs[3]);
+        let x12 = F64::mul(xs[1], xs[2]);
+        let x13 = F64::mul(xs[1], xs[3]);
+        let x23 = F64::mul(xs[2], xs[3]);
 
         // eq0
         equations[j] = [
-            Field::mul(Field::neg(x12), xs[3]),
-            Field::add(Field::add(x12, x13), x23),
-            Field::sub(Field::sub(Field::neg(xs[1]), xs[2]), xs[3]),
+            F64::mul(F64::neg(x12), xs[3]),
+            F64::add(F64::add(x12, x13), x23),
+            F64::sub(F64::sub(F64::neg(xs[1]), xs[2]), xs[3]),
             1
         ];
         inverses[j] = eval(&equations[j], xs[0]);
 
         // eq1
         equations[j + 1] = [
-            Field::mul(Field::neg(x02), xs[3]),
-            Field::add(Field::add(x02, x03), x23),
-            Field::sub(Field::sub(Field::neg(xs[0]), xs[2]), xs[3]),
+            F64::mul(F64::neg(x02), xs[3]),
+            F64::add(F64::add(x02, x03), x23),
+            F64::sub(F64::sub(F64::neg(xs[0]), xs[2]), xs[3]),
             1
         ];
         inverses[j + 1] = eval(&equations[j + 1], xs[1]);
 
         // eq2
         equations[j + 2] = [
-            Field::mul(Field::neg(x01), xs[3]),
-            Field::add(Field::add(x01, x03), x13),
-            Field::sub(Field::sub(Field::neg(xs[0]), xs[1]), xs[3]),
+            F64::mul(F64::neg(x01), xs[3]),
+            F64::add(F64::add(x01, x03), x13),
+            F64::sub(F64::sub(F64::neg(xs[0]), xs[1]), xs[3]),
             1
         ];
         inverses[j + 2] = eval(&equations[j + 2], xs[2]);
 
         // eq3
         equations[j + 3] = [
-            Field::mul(Field::neg(x01), xs[2]),
-            Field::add(Field::add(x01, x02), x12),
-            Field::sub(Field::sub(Field::neg(xs[0]), xs[1]), xs[2]),
+            F64::mul(F64::neg(x01), xs[2]),
+            F64::add(F64::add(x01, x02), x12),
+            F64::sub(F64::sub(F64::neg(xs[0]), xs[1]), xs[2]),
             1
         ];
         inverses[j + 3] = eval(&equations[j + 3], xs[3]);
     }
 
-    let inverses = Field::inv_many(&inverses);
+    let inverses = F64::inv_many(&inverses);
 
     let mut result: Vec<[u64; 4]> = Vec::with_capacity(n);
     unsafe { result.set_len(n); }
@@ -103,32 +103,32 @@ pub fn interpolate_batch(xs: &[[u64; 4]], ys: &[[u64; 4]]) -> Vec<[u64; 4]> {
         let ys = ys[i];
 
         // iteration 0
-        let mut inv_y = Field::mul(ys[0], inverses[j]);
-        result[i][0] = Field::mul(inv_y, equations[j][0]);
-        result[i][1] = Field::mul(inv_y, equations[j][1]);
-        result[i][2] = Field::mul(inv_y, equations[j][2]);
-        result[i][3] = Field::mul(inv_y, equations[j][3]);
+        let mut inv_y = F64::mul(ys[0], inverses[j]);
+        result[i][0] = F64::mul(inv_y, equations[j][0]);
+        result[i][1] = F64::mul(inv_y, equations[j][1]);
+        result[i][2] = F64::mul(inv_y, equations[j][2]);
+        result[i][3] = F64::mul(inv_y, equations[j][3]);
 
         // iteration 1
-        inv_y = Field::mul(ys[1], inverses[j + 1]);
-        result[i][0] = Field::add(result[i][0], Field::mul(inv_y, equations[j + 1][0]));
-        result[i][1] = Field::add(result[i][1], Field::mul(inv_y, equations[j + 1][1]));
-        result[i][2] = Field::add(result[i][2], Field::mul(inv_y, equations[j + 1][2]));
-        result[i][3] = Field::add(result[i][3], Field::mul(inv_y, equations[j + 1][3]));
+        inv_y = F64::mul(ys[1], inverses[j + 1]);
+        result[i][0] = F64::add(result[i][0], F64::mul(inv_y, equations[j + 1][0]));
+        result[i][1] = F64::add(result[i][1], F64::mul(inv_y, equations[j + 1][1]));
+        result[i][2] = F64::add(result[i][2], F64::mul(inv_y, equations[j + 1][2]));
+        result[i][3] = F64::add(result[i][3], F64::mul(inv_y, equations[j + 1][3]));
 
         // iteration 2
-        inv_y = Field::mul(ys[2], inverses[j + 2]);
-        result[i][0] = Field::add(result[i][0], Field::mul(inv_y, equations[j + 2][0]));
-        result[i][1] = Field::add(result[i][1], Field::mul(inv_y, equations[j + 2][1]));
-        result[i][2] = Field::add(result[i][2], Field::mul(inv_y, equations[j + 2][2]));
-        result[i][3] = Field::add(result[i][3], Field::mul(inv_y, equations[j + 2][3]));
+        inv_y = F64::mul(ys[2], inverses[j + 2]);
+        result[i][0] = F64::add(result[i][0], F64::mul(inv_y, equations[j + 2][0]));
+        result[i][1] = F64::add(result[i][1], F64::mul(inv_y, equations[j + 2][1]));
+        result[i][2] = F64::add(result[i][2], F64::mul(inv_y, equations[j + 2][2]));
+        result[i][3] = F64::add(result[i][3], F64::mul(inv_y, equations[j + 2][3]));
 
         // iteration 3
-        inv_y = Field::mul(ys[3], inverses[j + 3]);
-        result[i][0] = Field::add(result[i][0], Field::mul(inv_y, equations[j + 3][0]));
-        result[i][1] = Field::add(result[i][1], Field::mul(inv_y, equations[j + 3][1]));
-        result[i][2] = Field::add(result[i][2], Field::mul(inv_y, equations[j + 3][2]));
-        result[i][3] = Field::add(result[i][3], Field::mul(inv_y, equations[j + 3][3]));
+        inv_y = F64::mul(ys[3], inverses[j + 3]);
+        result[i][0] = F64::add(result[i][0], F64::mul(inv_y, equations[j + 3][0]));
+        result[i][1] = F64::add(result[i][1], F64::mul(inv_y, equations[j + 3][1]));
+        result[i][2] = F64::add(result[i][2], F64::mul(inv_y, equations[j + 3][2]));
+        result[i][3] = F64::add(result[i][3], F64::mul(inv_y, equations[j + 3][3]));
     }
 
     return result;
@@ -165,7 +165,7 @@ pub fn to_quartic_vec(vector: Vec<u64>) -> Vec<[u64; 4]> {
 // ================================================================================================
 #[cfg(test)]
 mod tests {
-    use crate::math::{ Field, FiniteField, polynom };
+    use crate::math::{ F64, FiniteField, polynom };
 
     #[test]
     fn eval() {
@@ -176,8 +176,8 @@ mod tests {
 
     #[test]
     fn interpolate_batch() {
-        let r = Field::get_root_of_unity(16);
-        let xs = super::to_quartic_vec(Field::get_power_series(r, 16));
+        let r = F64::get_root_of_unity(16);
+        let xs = super::to_quartic_vec(F64::get_power_series(r, 16));
         let ys = super::to_quartic_vec(vec![1u64, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
 
         let expected = vec![
@@ -191,7 +191,7 @@ mod tests {
 
     #[test]
     fn evaluate_batch() {
-        let x = Field::rand();
+        let x = F64::rand();
         let polys = [
             [7956382178997078105u64,  6172178935026293282,  5971474637801684060, 16793452009046991148],
             [   7956382178997078109, 15205743380705406848, 12475269242634339237,   194846859619262948],

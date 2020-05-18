@@ -1,8 +1,8 @@
 use std::ops::Range;
 use crate::processor::opcodes;
-use crate::math::{ Field, FiniteField };
+use crate::math::{ F64, FiniteField };
 use crate::stark::utils::hash_acc::{ self, STATE_WIDTH as ACC_STATE_WIDTH, NUM_ROUNDS };
-use crate::utils::zero_filled_vector;
+use crate::utils::filled_vector;
 use super::{ NUM_OP_BITS };
 
 // CONSTANTS
@@ -34,17 +34,17 @@ pub fn process(program: &[u64], extension_factor: usize) -> Vec<Vec<u64>> {
     assert!(program[trace_length - 1] == opcodes::NOOP, "last operation of a program must be NOOP");
 
     // create op_code register and copy program into it
-    let mut op_code = zero_filled_vector(trace_length, domain_size);
+    let mut op_code = filled_vector(trace_length, domain_size, F64::ZERO);
     op_code.copy_from_slice(program);
 
     // initialize push_flags and op_bits registers
-    let mut push_flag = zero_filled_vector(trace_length, domain_size);
+    let mut push_flag = filled_vector(trace_length, domain_size, F64::ZERO);
     let mut op_bits = vec![
-        zero_filled_vector(trace_length, domain_size),
-        zero_filled_vector(trace_length, domain_size),
-        zero_filled_vector(trace_length, domain_size),
-        zero_filled_vector(trace_length, domain_size),
-        zero_filled_vector(trace_length, domain_size),
+        filled_vector(trace_length, domain_size, F64::ZERO),
+        filled_vector(trace_length, domain_size, F64::ZERO),
+        filled_vector(trace_length, domain_size, F64::ZERO),
+        filled_vector(trace_length, domain_size, F64::ZERO),
+        filled_vector(trace_length, domain_size, F64::ZERO),
     ];
 
     // populate push_flags and op_bits registers
@@ -86,26 +86,26 @@ fn hash_program(op_codes: &[u64], domain_size: usize) -> Vec<Vec<u64>> {
 
     // allocate space for the registers
     let mut registers = vec![
-        zero_filled_vector(trace_length, domain_size),
-        zero_filled_vector(trace_length, domain_size),
-        zero_filled_vector(trace_length, domain_size),
-        zero_filled_vector(trace_length, domain_size),
-        zero_filled_vector(trace_length, domain_size),
-        zero_filled_vector(trace_length, domain_size),
-        zero_filled_vector(trace_length, domain_size),
-        zero_filled_vector(trace_length, domain_size),
-        zero_filled_vector(trace_length, domain_size),
-        zero_filled_vector(trace_length, domain_size),
-        zero_filled_vector(trace_length, domain_size),
-        zero_filled_vector(trace_length, domain_size),
+        filled_vector(trace_length, domain_size, F64::ZERO),
+        filled_vector(trace_length, domain_size, F64::ZERO),
+        filled_vector(trace_length, domain_size, F64::ZERO),
+        filled_vector(trace_length, domain_size, F64::ZERO),
+        filled_vector(trace_length, domain_size, F64::ZERO),
+        filled_vector(trace_length, domain_size, F64::ZERO),
+        filled_vector(trace_length, domain_size, F64::ZERO),
+        filled_vector(trace_length, domain_size, F64::ZERO),
+        filled_vector(trace_length, domain_size, F64::ZERO),
+        filled_vector(trace_length, domain_size, F64::ZERO),
+        filled_vector(trace_length, domain_size, F64::ZERO),
+        filled_vector(trace_length, domain_size, F64::ZERO),
     ];
     assert!(registers.len() == ACC_STATE_WIDTH, "inconsistent number of opcode accumulator registers");
 
     let mut state = [0; ACC_STATE_WIDTH];
     for i in 0..(op_codes.len() - 1) {
         // inject op_code into the state
-        state[0] = Field::add(state[0], op_codes[i]);
-        state[1] = Field::mul(state[1], op_codes[i]);
+        state[0] = F64::add(state[0], op_codes[i]);
+        state[1] = F64::mul(state[1], op_codes[i]);
 
         let step = i % NUM_ROUNDS;
 

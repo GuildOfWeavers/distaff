@@ -1,6 +1,6 @@
 use std::mem;
 use crate::utils::CopyInto;
-use crate::math::{ Field, FiniteField, polynom, quartic };
+use crate::math::{ F64, FiniteField, polynom, quartic };
 use crate::crypto::{ MerkleTree, BatchMerkleProof };
 use crate::stark::{ ProofOptions };
 
@@ -18,14 +18,14 @@ pub fn verify(
 {
 
     let domain_size = usize::pow(2, proof.layers[0].proof.depth as u32) * 4;
-    let domain_root = Field::get_root_of_unity(domain_size);
+    let domain_root = F64::get_root_of_unity(domain_size);
 
     // powers of the given root of unity 1, p, p^2, p^3 such that p^4 = 1
     let quartic_roots = [
         1,
-        Field::exp(domain_root, (domain_size / 4) as u64),
-        Field::exp(domain_root, (domain_size / 2) as u64),
-        Field::exp(domain_root, (domain_size * 3 / 4) as u64),
+        F64::exp(domain_root, (domain_size / 4) as u64),
+        F64::exp(domain_root, (domain_size / 2) as u64),
+        F64::exp(domain_root, (domain_size * 3 / 4) as u64),
     ];
 
     // 1 ----- verify the recursive components of the FRI proof -----------------------------------
@@ -51,12 +51,12 @@ pub fn verify(
         // build a set of x for each row polynomial
         let mut xs = Vec::with_capacity(augmented_positions.len());
         for &i in augmented_positions.iter() {
-            let xe = Field::exp(domain_root, i as u64);
+            let xe = F64::exp(domain_root, i as u64);
             xs.push([
-                Field::mul(quartic_roots[0], xe),
-                Field::mul(quartic_roots[1], xe),
-                Field::mul(quartic_roots[2], xe),
-                Field::mul(quartic_roots[3], xe)
+                F64::mul(quartic_roots[0], xe),
+                F64::mul(quartic_roots[1], xe),
+                F64::mul(quartic_roots[2], xe),
+                F64::mul(quartic_roots[3], xe)
             ]);
         }
 
@@ -64,13 +64,13 @@ pub fn verify(
         let row_polys = quartic::interpolate_batch(&xs, &layer.proof.values);
 
         // calculate the pseudo-random x coordinate
-        let special_x = Field::prng(layer.root.copy_into());
+        let special_x = F64::prng(layer.root.copy_into());
 
         // check that when the polynomials are evaluated at x, the result is equal to the corresponding column value
         evaluations = quartic::evaluate_batch(&row_polys, special_x);
 
         // update variables for the next iteration of the loop
-        domain_root = Field::exp(domain_root, 4);
+        domain_root = F64::exp(domain_root, 4);
         max_degree_plus_1 = max_degree_plus_1 / 4;
         domain_size = domain_size / 4;
         mem::swap(&mut positions, &mut augmented_positions);
@@ -103,7 +103,7 @@ fn verify_remainder(remainder: &[u64], max_degree_plus_1: usize, domain_root: u6
     }
 
     // pick a subset of points from the remainder and interpolate them into a polynomial
-    let domain = Field::get_power_series(domain_root, remainder.len());
+    let domain = F64::get_power_series(domain_root, remainder.len());
     let mut xs = Vec::with_capacity(max_degree_plus_1);
     let mut ys = Vec::with_capacity(max_degree_plus_1);
     for i in 0..max_degree_plus_1 {
@@ -145,15 +145,15 @@ fn get_column_values(proof: &BatchMerkleProof, positions: &[usize], augmented_po
 #[cfg(test)]
 mod tests {
     
-    use crate::{ Field, FiniteField, polynom };
+    use crate::{ F64, FiniteField, polynom };
 
     #[test]
     fn verify_remainder() {
         let degree_plus_1: usize = 32;
-        let root = Field::get_root_of_unity(degree_plus_1 * 2);
+        let root = F64::get_root_of_unity(degree_plus_1 * 2);
         let extension_factor = 16;
 
-        let mut remainder = Field::rand_vector(degree_plus_1);
+        let mut remainder = F64::rand_vector(degree_plus_1);
         remainder.resize(degree_plus_1 * 2, 0);
         polynom::eval_fft(&mut remainder, true);
 

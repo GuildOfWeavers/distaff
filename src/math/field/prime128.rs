@@ -1,5 +1,5 @@
 use std::ops::Range;
-use super::{ FiniteField, Field };
+use super::{ FiniteField, FieldElement };
 
 // CONSTANTS
 // ================================================================================================
@@ -12,7 +12,13 @@ pub const G: u128 = 23953097886125630542083529559205016746;
 
 // 128-BIT FIELD IMPLEMENTATION
 // ================================================================================================
-impl FiniteField<u128> for Field {
+pub type F128 = u128;
+
+impl FieldElement for F128 { 
+    fn from (value: usize) -> u128 { return value as u128; }
+}
+
+impl FiniteField<Self> for F128 {
 
     const MODULUS: u128 = M;
     const RANGE: Range<u128> = Range { start: 0, end: M };
@@ -244,69 +250,69 @@ mod tests {
 
     use std::convert::TryInto;
     use num_bigint::{ BigUint };
-    use super::{ Field, FiniteField };
+    use super::{ F128, FiniteField };
 
     #[test]
     fn add() {
         // identity
-        let r: u128 = Field::rand();
-        assert_eq!(r, Field::add(r, 0));
+        let r: u128 = F128::rand();
+        assert_eq!(r, F128::add(r, 0));
 
         // test addition within bounds
-        assert_eq!(5, Field::add(2u64, 3));
+        assert_eq!(5, F128::add(2, 3));
 
         // test overflow
-        let m: u128 = Field::MODULUS;
+        let m: u128 = F128::MODULUS;
         let t = m - 1;
-        assert_eq!(0, Field::add(t, 1));
-        assert_eq!(1, Field::add(t, 2));
+        assert_eq!(0, F128::add(t, 1));
+        assert_eq!(1, F128::add(t, 2));
 
         // test random values
-        let r1: u128 = Field::rand();
-        let r2: u128 = Field::rand();
+        let r1: u128 = F128::rand();
+        let r2: u128 = F128::rand();
 
         let expected = (BigUint::from(r1) + BigUint::from(r2)) % BigUint::from(super::M);
         let expected = u128::from_le_bytes((expected.to_bytes_le()[..]).try_into().unwrap());
-        assert_eq!(expected, Field::add(r1, r2));
+        assert_eq!(expected, F128::add(r1, r2));
     }
 
     #[test]
     fn sub() {
         // identity
-        let r: u128 = Field::rand();
-        assert_eq!(r, Field::sub(r, 0));
+        let r: u128 = F128::rand();
+        assert_eq!(r, F128::sub(r, 0));
 
         // test subtraction within bounds
-        assert_eq!(2, Field::sub(5u128, 3));
+        assert_eq!(2, F128::sub(5u128, 3));
 
         // test underflow
-        let m: u128 = Field::MODULUS;
-        assert_eq!(m - 2, Field::sub(3u128, 5));
+        let m: u128 = F128::MODULUS;
+        assert_eq!(m - 2, F128::sub(3u128, 5));
     }
 
     #[test]
     fn mul() {
         // identity
-        let r: u128 = Field::rand();
-        assert_eq!(0, Field::mul(r, 0));
-        assert_eq!(r, Field::mul(r, 1));
+        let r: u128 = F128::rand();
+        assert_eq!(0, F128::mul(r, 0));
+        assert_eq!(r, F128::mul(r, 1));
 
         // test multiplication within bounds
-        assert_eq!(15, Field::mul(5u128, 3));
+        assert_eq!(15, F128::mul(5u128, 3));
 
         // test overflow
-        let m: u128 = Field::MODULUS;
+        let m: u128 = F128::MODULUS;
         let t = m - 1;
-        assert_eq!(1, Field::mul(t, t));
-        assert_eq!(m - 2, Field::mul(t, 2));
-        assert_eq!(m - 4, Field::mul(t, 4));
+        assert_eq!(1, F128::mul(t, t));
+        assert_eq!(m - 2, F128::mul(t, 2));
+        assert_eq!(m - 4, F128::mul(t, 4));
 
         let t = (m + 1) / 2;
-        assert_eq!(1, Field::mul(t, 2));
+        assert_eq!(1, F128::mul(t, 2));
 
         // test random values
-        let v1: Vec<u128> = Field::rand_vector(1000);
-        let v2: Vec<u128> = Field::rand_vector(1000);
+        let v1: Vec<u128> = F128::rand_vector(1000);
+        let v2: Vec<u128> = F128::rand_vector(1000);
         for i in 0..v1.len() {
             let r1 = v1[i];
             let r2 = v2[i];
@@ -317,9 +323,9 @@ mod tests {
             expected[0..result.len()].copy_from_slice(&result);
             let expected = u128::from_le_bytes(expected);
 
-            if expected != Field::mul(r1, 32) {
+            if expected != F128::mul(r1, 32) {
                 println!("failed for: {} * {}", r1, r2);
-                assert_eq!(expected, Field::mul(r1, r2));
+                assert_eq!(expected, F128::mul(r1, r2));
             }
         }
     }
@@ -327,24 +333,24 @@ mod tests {
     #[test]
     fn inv() {
         // identity
-        assert_eq!(1, Field::inv(1u128));
-        assert_eq!(0, Field::inv(0u128));
+        assert_eq!(1, F128::inv(1));
+        assert_eq!(0, F128::inv(0));
 
         // test random values
-        let x: u64 = Field::rand();
-        let y = Field::inv(x);
-        assert_eq!(1, Field::mul(x, y));
+        let x = F128::rand();
+        let y = F128::inv(x);
+        assert_eq!(1, F128::mul(x, y));
     }
 
     #[test]
     fn get_root_of_unity() {
-        let root_40: u128 = Field::get_root_of_unity(usize::pow(2, 40));
+        let root_40: u128 = F128::get_root_of_unity(usize::pow(2, 40));
         assert_eq!(23953097886125630542083529559205016746, root_40);
-        assert_eq!(1, Field::exp(root_40, u128::pow(2, 40)));
+        assert_eq!(1, F128::exp(root_40, u128::pow(2, 40)));
 
-        let root_39: u128 = Field::get_root_of_unity(usize::pow(2, 39));
-        let expected = Field::exp(root_40, 2);
+        let root_39: u128 = F128::get_root_of_unity(usize::pow(2, 39));
+        let expected = F128::exp(root_40, 2);
         assert_eq!(expected, root_39);
-        assert_eq!(1, Field::exp(root_39, u128::pow(2, 39)));
+        assert_eq!(1, F128::exp(root_39, u128::pow(2, 39)));
     }
 }

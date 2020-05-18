@@ -1,17 +1,19 @@
 use std::mem;
-use crate::math::{ Field, FiniteField, fft };
-use crate::utils::{ uninit_vector, zero_filled_vector };
+use crate::math::{ FieldElement, FiniteField, fft };
+use crate::utils::{ uninit_vector, filled_vector };
 
 // POLYNOMIAL EVALUATION
 // ================================================================================================
 
 /// Evaluates polynomial `p` at coordinate `x`
-pub fn eval(p: &[u64], x: u64) -> u64 {
-    let mut y = 0u64;
-    let mut power_of_x = 1u64;
+pub fn eval<T>(p: &[T], x: T) -> T
+    where T: FieldElement + FiniteField<T>
+{
+    let mut y = T::ZERO;
+    let mut power_of_x = T::ONE;
     for i in 0..p.len() {
-        y = Field::add(y, Field::mul(p[i], power_of_x));
-        power_of_x = Field::mul(power_of_x, x);
+        y = T::add(y, T::mul(p[i], power_of_x));
+        power_of_x = T::mul(power_of_x, x);
     }
     return y;
 }
@@ -20,8 +22,10 @@ pub fn eval(p: &[u64], x: u64) -> u64 {
 /// `p` is updated with results of the evaluation.
 /// 
 /// If `unpermute` parameter is set to false, the evaluations will be left in permuted state.
-pub fn eval_fft(p: &mut [u64], unpermute: bool) {
-    let g = Field::get_root_of_unity(p.len());
+pub fn eval_fft<T>(p: &mut [T], unpermute: bool)
+    where T: FieldElement + FiniteField<T>
+{
+    let g = T::get_root_of_unity(p.len());
     let twiddles = fft::get_twiddles(g, p.len());
     eval_fft_twiddles(p, &twiddles, unpermute);
 }
@@ -31,7 +35,9 @@ pub fn eval_fft(p: &mut [u64], unpermute: bool) {
 /// does not generate twiddles internally. Thus, the twiddles must be supplied as a parameter.
 /// 
 /// If `unpermute` parameter is set to false, the evaluations will be left in permuted state.
-pub fn eval_fft_twiddles(p: &mut [u64], twiddles: &[u64], unpermute: bool) {
+pub fn eval_fft_twiddles<T>(p: &mut [T], twiddles: &[T], unpermute: bool)
+    where T: FieldElement + FiniteField<T>
+{
     debug_assert!(p.len() == twiddles.len() * 2, "Invalid number of twiddles");
     // TODO: don't hard-code num_threads
     fft::fft_in_place(p, &twiddles, 1, 1, 0, 1);
@@ -44,29 +50,31 @@ pub fn eval_fft_twiddles(p: &mut [u64], twiddles: &[u64], unpermute: bool) {
 // ================================================================================================
 
 /// Uses Lagrange interpolation to build a polynomial from X and Y coordinates.
-pub fn interpolate(xs: &[u64], ys: &[u64]) -> Vec<u64> {
+pub fn interpolate<T>(xs: &[T], ys: &[T]) -> Vec<T>
+    where T: FieldElement + FiniteField<T>
+{
     debug_assert!(xs.len() == ys.len(), "Number of X and Y coordinates must be the same");
 
     let roots = get_zero_roots(xs);
-    let mut divisor = [0u64, 1];
-    let mut numerators: Vec<Vec<u64>> = Vec::with_capacity(xs.len());
+    let mut divisor = [T::ZERO, T::ONE];
+    let mut numerators: Vec<Vec<T>> = Vec::with_capacity(xs.len());
     for i in 0..xs.len() {
-        divisor[0] = Field::neg(xs[i]);
+        divisor[0] = T::neg(xs[i]);
         numerators.push(div(&roots, &divisor));
     }
 
-    let mut denominators: Vec<u64> = Vec::with_capacity(xs.len());
+    let mut denominators: Vec<T> = Vec::with_capacity(xs.len());
     for i in 0..xs.len() {
         denominators.push(eval(&numerators[i], xs[i]));
     }
-    let denominators = Field::inv_many(&denominators);
+    let denominators = T::inv_many(&denominators);
 
-    let mut result = vec![0u64; xs.len()];
+    let mut result = vec![T::ZERO; xs.len()];
     for i in 0..xs.len() {
-        let y_slice = Field::mul(ys[i], denominators[i]);
+        let y_slice = T::mul(ys[i], denominators[i]);
         for j in 0..xs.len() {
-            if numerators[i][j] != 0 && ys[i] != 0 {
-                result[j] = Field::add(result[j], Field::mul(numerators[i][j], y_slice));
+            if numerators[i][j] != T::ZERO && ys[i] != T::ZERO {
+                result[j] = T::add(result[j], T::mul(numerators[i][j], y_slice));
             }
         }
     }
@@ -78,8 +86,10 @@ pub fn interpolate(xs: &[u64], ys: &[u64]) -> Vec<u64> {
 /// is done in-place, meaning `v` is updated with polynomial coefficients.
 /// 
 /// If `unpermute` parameter is set to false, the coefficients will be left in permuted state.
-pub fn interpolate_fft(v: &mut [u64], unpermute: bool) {
-    let g = Field::get_root_of_unity(v.len());
+pub fn interpolate_fft<T>(v: &mut [T], unpermute: bool)
+    where T: FieldElement + FiniteField<T>
+{
+    let g = T::get_root_of_unity(v.len());
     let twiddles = fft::get_inv_twiddles(g, v.len());
     interpolate_fft_twiddles(v, &twiddles, unpermute);
 }
@@ -90,12 +100,14 @@ pub fn interpolate_fft(v: &mut [u64], unpermute: bool) {
 /// must be supplied as a parameter.
 /// 
 /// If `unpermute` parameter is set to false, the evaluations will be left in permuted state.
-pub fn interpolate_fft_twiddles(v: &mut [u64], inv_twiddles: &[u64], unpermute: bool) {
+pub fn interpolate_fft_twiddles<T>(v: &mut [T], inv_twiddles: &[T], unpermute: bool)
+    where T: FieldElement + FiniteField<T>
+{
     // TODO: don't hard-code num_threads
     fft::fft_in_place(v, &inv_twiddles, 1, 1, 0, 1);
-    let inv_length = Field::inv(v.len() as u64);
+    let inv_length = T::inv(T::from(v.len()));
     for e in v.iter_mut() {
-        *e = Field::mul(*e, inv_length);
+        *e = T::mul(*e, inv_length);
     }
     if unpermute {
         fft::permute(v);
@@ -106,54 +118,64 @@ pub fn interpolate_fft_twiddles(v: &mut [u64], inv_twiddles: &[u64], unpermute: 
 // ================================================================================================
 
 /// Adds polynomial `a` to polynomial `b`
-pub fn add(a: &[u64], b: &[u64]) -> Vec<u64> {
+pub fn add<T>(a: &[T], b: &[T]) -> Vec<T>
+    where T: FieldElement + FiniteField<T>
+{
     let result_len = std::cmp::max(a.len(), b.len());
     let mut result = Vec::with_capacity(result_len);
     for i in 0..result_len {
-        let c1 = if i < a.len() { a[i] } else { 0 };
-        let c2 = if i < b.len() { b[i] } else { 0 };
-        result.push(Field::add(c1, c2));
+        let c1 = if i < a.len() { a[i] } else { T::ZERO };
+        let c2 = if i < b.len() { b[i] } else { T::ZERO };
+        result.push(T::add(c1, c2));
     }
     return result;
 }
 
 /// Subtracts polynomial `b` from polynomial `a`
-pub fn sub(a: &[u64], b: &[u64]) -> Vec<u64> {
+pub fn sub<T>(a: &[T], b: &[T]) -> Vec<T>
+    where T: FieldElement + FiniteField<T>
+{
     let result_len = std::cmp::max(a.len(), b.len());
     let mut result = Vec::with_capacity(result_len);
     for i in 0..result_len {
-        let c1 = if i < a.len() { a[i] } else { 0 };
-        let c2 = if i < b.len() { b[i] } else { 0 };
-        result.push(Field::sub(c1, c2));
+        let c1 = if i < a.len() { a[i] } else { T::ZERO };
+        let c2 = if i < b.len() { b[i] } else { T::ZERO };
+        result.push(T::sub(c1, c2));
     }
     return result;
 }
 
 /// Multiplies polynomial `a` by polynomial `b`
-pub fn mul(a: &[u64], b: &[u64]) -> Vec<u64> {
+pub fn mul<T>(a: &[T], b: &[T]) -> Vec<T>
+    where T: FieldElement + FiniteField<T>
+{
     let result_len = a.len() + b.len() - 1;
-    let mut result = vec![0u64; result_len];
+    let mut result = vec![T::ZERO; result_len];
     for i in 0..a.len() {
         for j in 0..b.len() {
-            let s = Field::mul(a[i], b[j]);
-            result[i + j] = Field::add(result[i + j], s);
+            let s = T::mul(a[i], b[j]);
+            result[i + j] = T::add(result[i + j], s);
         }
     }
     return result;
 }
 
 /// Multiplies every coefficient of polynomial `p` by constant `k`
-pub fn mul_by_const(p: &[u64], k: u64) -> Vec<u64> {
+pub fn mul_by_const<T>(p: &[T], k: T) -> Vec<T>
+    where T: FieldElement + FiniteField<T>
+{
     let mut result = Vec::with_capacity(p.len());
     for i in 0..p.len() {
-        result.push(Field::mul(p[i], k));
+        result.push(T::mul(p[i], k));
     }
     return result;
 }
 
 /// Divides polynomial `a` by polynomial `b`; if the polynomials don't divide evenly,
 /// the remainder is ignored.
-pub fn div(a: &[u64], b: &[u64]) -> Vec<u64> {
+pub fn div<T>(a: &[T], b: &[T]) -> Vec<T>
+    where T: FieldElement + FiniteField<T>
+{
     
     let mut apos = degree_of(a);
     let mut a = a.to_vec();
@@ -161,15 +183,15 @@ pub fn div(a: &[u64], b: &[u64]) -> Vec<u64> {
     let bpos = degree_of(b);
     assert!(apos >= bpos, "cannot divide by polynomial of higher degree");
     if bpos == 0 {
-        assert!(b[0] != 0, "cannot divide polynomial by zero");
+        assert!(b[0] != T::ZERO, "cannot divide polynomial by zero");
     }
 
-    let mut result = vec![0u64; apos - bpos + 1];
+    let mut result = vec![T::ZERO; apos - bpos + 1];
     for i in (0..result.len()).rev() {
-        let quot = Field::div(a[apos], b[bpos]);
+        let quot = T::div(a[apos], b[bpos]);
         result[i] = quot;
         for j in (0..bpos).rev() {
-            a[i + j] = Field::sub(a[i + j], Field::mul(b[j], quot));
+            a[i + j] = T::sub(a[i + j], T::mul(b[j], quot));
         }
         apos = apos.wrapping_sub(1);
     }
@@ -179,7 +201,9 @@ pub fn div(a: &[u64], b: &[u64]) -> Vec<u64> {
 
 /// Divides polynomial `a` by binomial (x - `b`) using Synthetic division method;
 /// if the polynomials don't divide evenly, the remainder is ignored.
-pub fn syn_div(a: &[u64], b: u64) -> Vec<u64> {
+pub fn syn_div<T>(a: &[T], b: T) -> Vec<T>
+    where T: FieldElement + FiniteField<T>
+{
     let mut result = a.to_vec();
     syn_div_in_place(&mut result, b);
     return result;
@@ -187,10 +211,12 @@ pub fn syn_div(a: &[u64], b: u64) -> Vec<u64> {
 
 /// Divides polynomial `a` by binomial (x - `b`) using Synthetic division method and stores the
 /// result in `a`; if the polynomials don't divide evenly, the remainder is ignored.
-pub fn syn_div_in_place(a: &mut [u64], b: u64) {
-    let mut c = 0;
+pub fn syn_div_in_place<T>(a: &mut [T], b: T)
+    where T: FieldElement + FiniteField<T>
+{
+    let mut c = T::ZERO;
     for i in (0..a.len()).rev() {
-        let temp = Field::add(a[i], Field::mul(b, c));
+        let temp = T::add(a[i], T::mul(b, c));
         a[i] = c;
         c = temp;
     }
@@ -199,31 +225,33 @@ pub fn syn_div_in_place(a: &mut [u64], b: u64) {
 /// Divides polynomial `a` by polynomial (x^degree - 1) / (x - exceptions[i]) for all i using
 /// Synthetic division method and stores the result in `a`; if the polynomials don't divide evenly,
 /// the remainder is ignored.
-pub fn syn_div_expanded_in_place(a: &mut [u64], degree: usize, exceptions: &[u64]) {
+pub fn syn_div_expanded_in_place<T>(a: &mut [T], degree: usize, exceptions: &[T])
+    where T: FieldElement + FiniteField<T>
+{
 
     // allocate space for the result
-    let mut result = zero_filled_vector(a.len(), a.len() + exceptions.len());
+    let mut result = filled_vector(a.len(), a.len() + exceptions.len(), T::ZERO);
 
     // compute a / (x^degree - 1)
     result.copy_from_slice(&a);
     let degree_offset = a.len() - degree;
     for i in (0..degree_offset).rev() {
-        result[i] = Field::add(result[i], result[i + degree]);
+        result[i] = T::add(result[i], result[i + degree]);
     }
 
     // multiply result by (x - exceptions[i]) in place
     for &exception in exceptions {
 
         // exception term is negative
-        let exception = Field::neg(exception);
+        let exception = T::neg(exception);
 
         // extend length of result since we are raising degree
         unsafe { result.set_len(result.len() + 1); }
 
         let mut next_term = result[0];
-        result[0] = 0;
+        result[0] = T::ZERO;
         for i in 0..(result.len() - 1) {
-            result[i] = Field::add(result[i], Field::mul(next_term, exception));
+            result[i] = T::add(result[i], T::mul(next_term, exception));
             mem::swap(&mut next_term, &mut result[i + 1]);
         }
     }
@@ -232,16 +260,18 @@ pub fn syn_div_expanded_in_place(a: &mut [u64], degree: usize, exceptions: &[u64
     a[..(degree_offset + exceptions.len())].copy_from_slice(&result[degree..]);
 
     // fill the rest of the result with 0
-    for i in (degree_offset + exceptions.len())..a.len() { a[i] = 0; }
+    for i in (degree_offset + exceptions.len())..a.len() { a[i] = T::ZERO; }
 }
 
 // DEGREE INFERENCE
 // ================================================================================================
 
 /// Returns degree of the polynomial `poly`
-pub fn degree_of(poly: &[u64]) -> usize {
+pub fn degree_of<T>(poly: &[T]) -> usize
+    where T: FieldElement + FiniteField<T>
+{
     for i in (0..poly.len()).rev() {
-        if poly[i] != 0 { return i; }
+        if poly[i] != T::ZERO { return i; }
     }
     return 0;
 }
@@ -257,18 +287,20 @@ pub fn infer_degree(evaluations: &[u64]) -> usize {
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn get_zero_roots(xs: &[u64]) -> Vec<u64> {
+fn get_zero_roots<T>(xs: &[T]) -> Vec<T>
+    where T: FieldElement + FiniteField<T>
+{
     let mut n = xs.len() + 1;
     let mut result = uninit_vector(n);
     
     n -= 1;
-    result[n] = 1;
+    result[n] = T::ONE;
 
     for i in 0..xs.len() {
         n -= 1;
-        result[n] = 0;
+        result[n] = T::ZERO;
         for j in n..xs.len() {
-            result[j] = Field::sub(result[j], Field::mul(result[j + 1], xs[i]));
+            result[j] = T::sub(result[j], T::mul(result[j + 1], xs[i]));
         }
     }
 
@@ -280,7 +312,7 @@ fn get_zero_roots(xs: &[u64]) -> Vec<u64> {
 #[cfg(test)]
 mod tests {
 
-    use crate::math::{ Field, FiniteField };
+    use crate::math::{ F64, FiniteField };
     use crate::utils::remove_leading_zeros;
 
     #[test]
@@ -300,14 +332,14 @@ mod tests {
         let n: usize = 1024;
 
         // create a random polynomial
-        let poly = Field::rand_vector(n);
+        let poly = F64::rand_vector(n);
 
         // evaluate polynomial using FFT
         let mut y1 = poly.clone();
         super::eval_fft(&mut y1, true);
 
         // evaluate polynomial using simple evaluation
-        let roots = Field::get_power_series(Field::get_root_of_unity(n), n);
+        let roots = F64::get_power_series(F64::get_root_of_unity(n), n);
         let y2 = roots.iter().map(|&x| super::eval(&poly, x)).collect::<Vec<u64>>();
         
         assert_eq!(y1, y2);
@@ -315,8 +347,8 @@ mod tests {
 
     #[test]
     fn add() {
-        let poly1 = [384863712573444386, 7682273369345308472, 13294661765012277990];
-        let poly2 = [9918505539874556741, 16401861429499852246, 12181445947541805654];
+        let poly1: [F64; 3] = [384863712573444386, 7682273369345308472, 13294661765012277990];
+        let poly2: [F64; 3] = [9918505539874556741, 16401861429499852246, 12181445947541805654];
 
         // same degree
         let pr = vec![10303369252448001127, 5637390918409137421, 7029363832118060347];
@@ -333,8 +365,8 @@ mod tests {
 
     #[test]
     fn sub() {
-        let poly1 = [384863712573444386, 7682273369345308472, 13294661765012277990];
-        let poly2 = [9918505539874556741, 16401861429499852246, 12181445947541805654];
+        let poly1: [F64; 3] = [384863712573444386, 7682273369345308472, 13294661765012277990];
+        let poly2: [F64; 3] = [9918505539874556741, 16401861429499852246, 12181445947541805654];
 
         // same degree
         let pr = vec![8913102053134910942, 9727155820281479523, 1113215817470472336];
@@ -351,8 +383,8 @@ mod tests {
 
     #[test]
     fn mul() {
-        let poly1 = [384863712573444386, 7682273369345308472, 13294661765012277990];
-        let poly2 = [9918505539874556741, 16401861429499852246, 12181445947541805654];
+        let poly1: [F64; 3] = [384863712573444386, 7682273369345308472, 13294661765012277990];
+        let poly2: [F64; 3] = [9918505539874556741, 16401861429499852246, 12181445947541805654];
 
         // same degree
         let pr = vec![3955396989677724641, 11645020397934612208, 5279606801653296505, 4127428352286805209, 5628361441431074344];
@@ -378,20 +410,20 @@ mod tests {
     #[test]
     fn div() {
         // divide degree 4 by degree 2
-        let poly1 = [3955396989677724641, 11645020397934612208, 5279606801653296505, 4127428352286805209, 5628361441431074344];
-        let poly2 = [384863712573444386, 7682273369345308472, 13294661765012277990];
+        let poly1: [F64; 5] = [3955396989677724641, 11645020397934612208, 5279606801653296505, 4127428352286805209, 5628361441431074344];
+        let poly2: [F64; 3] = [384863712573444386, 7682273369345308472, 13294661765012277990];
         let pr = vec![9918505539874556741, 16401861429499852246, 12181445947541805654];
         assert_eq!(pr, super::div(&poly1, &poly2));
 
         // divide degree 3 by degree 2
-        let poly1 = [3955396989677724641, 11645020397934612208, 3726230352653943207, 12439170984765704776];
-        let poly2 = [9918505539874556741, 16401861429499852246, 12181445947541805654];
+        let poly1: [F64; 4] = [3955396989677724641, 11645020397934612208, 3726230352653943207, 12439170984765704776];
+        let poly2: [F64; 3] = [9918505539874556741, 16401861429499852246, 12181445947541805654];
         let pr = vec![384863712573444386, 7682273369345308472];
         assert_eq!(pr, super::div(&poly1, &poly2));
 
         // divide degree 3 by degree 3
-        let poly1 = [14327042696637944021, 16658076832266294442, 5137918534171880203];
-        let poly2 = [384863712573444386, 7682273369345308472, 13294661765012277990];
+        let poly1: [F64; 3] = [14327042696637944021, 16658076832266294442, 5137918534171880203];
+        let poly2: [F64; 3] = [384863712573444386, 7682273369345308472, 13294661765012277990];
         let pr = vec![11269864713250585702];
         assert_eq!(pr, super::div(&poly1, &poly2));
     }
@@ -400,7 +432,7 @@ mod tests {
     fn syn_div() {
         let poly = super::mul(&[2, 1], &[3, 1]);
 
-        let result = super::syn_div(&poly, Field::neg(3));
+        let result = super::syn_div(&poly, F64::neg(3));
         let expected = super::div(&poly, &[3, 1]);
 
         assert_eq!(expected, remove_leading_zeros(&result));
@@ -415,12 +447,12 @@ mod tests {
         super::interpolate_fft(&mut poly, true);
 
         // build the divisor polynomial
-        let root = Field::get_root_of_unity(poly.len());
-        let domain = Field::get_power_series(root, poly.len());
+        let root = F64::get_root_of_unity(poly.len());
+        let domain = F64::get_power_series(root, poly.len());
 
-        let z_poly = vec![Field::neg(Field::ONE), 0, 0, 0, 1];
+        let z_poly = vec![F64::neg(F64::ONE), 0, 0, 0, 1];
         let z_degree = z_poly.len() - 1;
-        let z_poly = super::div(&z_poly, &[Field::neg(domain[12]), 1]);
+        let z_poly = super::div(&z_poly, &[F64::neg(domain[12]), 1]);
         
         // compute the result
         let mut result = poly.clone();
@@ -434,12 +466,12 @@ mod tests {
 
     #[test]
     fn degree_of() {
-        assert_eq!(0, super::degree_of(&[]));
-        assert_eq!(0, super::degree_of(&[1]));
-        assert_eq!(1, super::degree_of(&[1, 2]));
-        assert_eq!(1, super::degree_of(&[1, 2, 0]));
-        assert_eq!(2, super::degree_of(&[1, 2, 3]));
-        assert_eq!(2, super::degree_of(&[1, 2, 3, 0]));
+        assert_eq!(0, super::degree_of::<F64>(&[]));
+        assert_eq!(0, super::degree_of::<F64>(&[1]));
+        assert_eq!(1, super::degree_of::<F64>(&[1, 2]));
+        assert_eq!(1, super::degree_of::<F64>(&[1, 2, 0]));
+        assert_eq!(2, super::degree_of::<F64>(&[1, 2, 3]));
+        assert_eq!(2, super::degree_of::<F64>(&[1, 2, 3, 0]));
     }
 
     #[test]

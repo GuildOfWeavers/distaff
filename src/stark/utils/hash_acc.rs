@@ -1,4 +1,4 @@
-use crate::math::{ Field, FiniteField };
+use crate::math::{ F64, FiniteField };
 
 // CONSTANTS
 // ================================================================================================
@@ -23,8 +23,8 @@ pub fn digest(values: &[u64]) -> [u64; 4] {
 
     for i in 0..values.len() {
         // inject value into the state
-        state[0] = Field::add(state[0], values[i]);
-        state[1] = Field::mul(state[1], values[i]);
+        state[0] = F64::add(state[0], values[i]);
+        state[1] = F64::mul(state[1], values[i]);
 
         // apply Rescue round
         add_constants(&mut state, i % NUM_ROUNDS, 0);
@@ -46,20 +46,20 @@ pub fn digest(values: &[u64]) -> [u64; 4] {
 // ================================================================================================
 pub fn add_constants(state: &mut[u64; STATE_WIDTH], step: usize, offset: usize) {
     for i in 0..STATE_WIDTH {
-        state[i] = Field::add(state[i], ARK[offset + i][step]);
+        state[i] = F64::add(state[i], ARK[offset + i][step]);
     }
 }
 
 pub fn apply_sbox(state: &mut[u64; STATE_WIDTH]) {
     for i in 0..STATE_WIDTH {
-        state[i] = Field::exp(state[i], ALPHA);
+        state[i] = F64::exp(state[i], ALPHA);
     }
 }
 
 pub fn apply_inv_sbox(state: &mut[u64; STATE_WIDTH]) {
     // TODO: optimize
     for i in 0..STATE_WIDTH {
-        state[i] = Field::exp(state[i], INV_ALPHA);
+        state[i] = F64::exp(state[i], INV_ALPHA);
     }
 }
 
@@ -68,11 +68,11 @@ pub fn apply_mds(state: &mut[u64; STATE_WIDTH]) {
     let mut temp = [0u64; STATE_WIDTH];
     for i in 0..STATE_WIDTH {
         for j in 0..STATE_WIDTH {
-            temp[j] = Field::mul(MDS[i * STATE_WIDTH + j], state[j]);
+            temp[j] = F64::mul(MDS[i * STATE_WIDTH + j], state[j]);
         }
 
         for j in 0..STATE_WIDTH {
-            result[i] = Field::add(result[i], temp[j]);
+            result[i] = F64::add(result[i], temp[j]);
         }
     }
     state.copy_from_slice(&result);
@@ -83,11 +83,11 @@ pub fn apply_inv_mds(state: &mut[u64; STATE_WIDTH]) {
     let mut temp = [0u64; STATE_WIDTH];
     for i in 0..STATE_WIDTH {
         for j in 0..STATE_WIDTH {
-            temp[j] = Field::mul(INV_MDS[i * STATE_WIDTH + j], state[j]);
+            temp[j] = F64::mul(INV_MDS[i * STATE_WIDTH + j], state[j]);
         }
 
         for j in 0..STATE_WIDTH {
-            result[i] = Field::add(result[i], temp[j]);
+            result[i] = F64::add(result[i], temp[j]);
         }
     }
     state.copy_from_slice(&result);

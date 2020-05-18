@@ -4,8 +4,8 @@ pub fn uninit_vector<T>(length: usize) -> Vec<T> {
     return vector;
 }
 
-pub fn zero_filled_vector(length: usize, capacity: usize) -> Vec<u64> {
-    let mut vector = vec![0; capacity];
+pub fn filled_vector<T: Copy>(length: usize, capacity: usize, value: T) -> Vec<T> {
+    let mut vector = vec![value; capacity];
     vector.truncate(length);
     return vector;
 }

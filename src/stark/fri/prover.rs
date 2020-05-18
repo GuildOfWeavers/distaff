@@ -1,5 +1,5 @@
 use std::mem;
-use crate::math::{ Field, FiniteField, quartic };
+use crate::math::{ F64, FiniteField, quartic };
 use crate::crypto::{ MerkleTree };
 use crate::stark::{ ProofOptions };
 use crate::utils::CopyInto;
@@ -26,7 +26,7 @@ pub fn reduce(evaluations: &[u64], domain: &[u64], options: &ProofOptions) -> Ve
         let polys = quartic::interpolate_batch(&xs, p_tree.leaves());
 
         // select a pseudo-random x coordinate and evaluate each row polynomial at that x
-        let special_x = Field::prng(p_tree.root().copy_into());
+        let special_x = F64::prng(p_tree.root().copy_into());
         let column = quartic::evaluate_batch(&polys, special_x);
 
         // break the column in a polynomial value matrix for the next layer

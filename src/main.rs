@@ -1,7 +1,7 @@
 use std::env;
 use std::io::Write;
 use std::time::Instant;
-use distaff::{ ProofOptions, StarkProof, processor, processor::opcodes, Field, FiniteField, hash_acc, utils::CopyInto };
+use distaff::{ ProofOptions, StarkProof, processor, processor::opcodes, F64, FiniteField, hash_acc, utils::CopyInto };
 
 fn main() {
 
@@ -108,7 +108,7 @@ fn compute_fibonacci(n: usize) -> u64 {
     let mut n2 = 1;
 
     for _ in 0..(n - 1) {
-        let n3 = Field::add(n1, n2);
+        let n3 = F64::add(n1, n2);
         n1 = n2;
         n2 = n3;
     }

@@ -1,4 +1,4 @@
-use crate::math::{ Field, FiniteField };
+use crate::math::{ F64, FiniteField };
 use crate::stark::{ StarkProof, TraceTable, TraceState, ConstraintCoefficients };
 use crate::utils::{ uninit_vector, CopyInto };
 use super::{ decoder::Decoder, stack::Stack, MAX_CONSTRAINT_DEGREE };
@@ -108,8 +108,8 @@ impl Evaluator {
     }
 
     pub fn get_x_at_last_step(&self) -> u64 {
-        let trace_root = Field::get_root_of_unity(self.trace_length());
-        return Field::exp(trace_root, (self.trace_length() - 1) as u64);
+        let trace_root = F64::get_root_of_unity(self.trace_length());
+        return F64::exp(trace_root, (self.trace_length() - 1) as u64);
     }
 
     // CONSTRAINT EVALUATORS
@@ -166,7 +166,7 @@ impl Evaluator {
         let stack = current.get_stack();
         
         // compute adjustment factor
-        let xp = Field::exp(x, self.b_degree_adj);
+        let xp = F64::exp(x, self.b_degree_adj);
 
         // 1 ----- compute combination of input constraints ---------------------------------------
         let mut i_result = 0;
@@ -174,13 +174,13 @@ impl Evaluator {
 
         // separately compute P(x) - input for adjusted and un-adjusted terms
         for i in 0..self.inputs.len() {
-            let val = Field::sub(stack[i], self.inputs[i]);
-            i_result = Field::add(i_result, Field::mul(val, cc[i * 2]));
-            result_adj = Field::add(result_adj, Field::mul(val, cc[i * 2 + 1]));
+            let val = F64::sub(stack[i], self.inputs[i]);
+            i_result = F64::add(i_result, F64::mul(val, cc[i * 2]));
+            result_adj = F64::add(result_adj, F64::mul(val, cc[i * 2 + 1]));
         }
 
         // raise the degree of adjusted terms and sum all the terms together
-        i_result = Field::add(i_result, Field::mul(result_adj, xp));
+        i_result = F64::add(i_result, F64::mul(result_adj, xp));
 
         // 2 ----- compute combination of output constraints ---------------------------------------
         let mut f_result = 0;
@@ -188,13 +188,13 @@ impl Evaluator {
 
         // separately compute P(x) - output for adjusted and un-adjusted terms
         for i in 0..self.outputs.len() {
-            let val = Field::sub(stack[i], self.outputs[i]);
-            f_result = Field::add(f_result, Field::mul(val, cc[i * 2]));
-            result_adj = Field::add(result_adj, Field::mul(val, cc[i * 2 + 1]));
+            let val = F64::sub(stack[i], self.outputs[i]);
+            f_result = F64::add(f_result, F64::mul(val, cc[i * 2]));
+            result_adj = F64::add(result_adj, F64::mul(val, cc[i * 2 + 1]));
         }
 
         // raise the degree of adjusted terms and sum all the terms together
-        f_result = Field::add(f_result, Field::mul(result_adj, xp));
+        f_result = F64::add(f_result, F64::mul(result_adj, xp));
 
         // 3 ----- compute combination of program hash constraints --------------------------------
         let mut result_adj = 0;
@@ -203,12 +203,12 @@ impl Evaluator {
         // constraint evaluations to the output constraint combination
         let program_hash = current.get_program_hash();
         for i in 0..self.program_hash.len() {
-            let val = Field::sub(program_hash[i], self.program_hash[i]);
-            f_result = Field::add(f_result, Field::mul(val, cc[i * 2]));
-            result_adj = Field::add(result_adj, Field::mul(val, cc[i * 2 + 1]));
+            let val = F64::sub(program_hash[i], self.program_hash[i]);
+            f_result = F64::add(f_result, F64::mul(val, cc[i * 2]));
+            result_adj = F64::add(result_adj, F64::mul(val, cc[i * 2 + 1]));
         }
 
-        f_result = Field::add(f_result, Field::mul(result_adj, xp));
+        f_result = F64::add(f_result, F64::mul(result_adj, xp));
 
         return (i_result, f_result);
     }
@@ -232,14 +232,14 @@ impl Evaluator {
             let mut result_adj = 0;
             for &constraint_idx in constraints.iter() {
                 let evaluation = evaluations[constraint_idx];
-                result = Field::add(result, Field::mul(evaluation, cc[i * 2]));
-                result_adj = Field::add(result_adj, Field::mul(evaluation, cc[i * 2 + 1]));
+                result = F64::add(result, F64::mul(evaluation, cc[i * 2]));
+                result_adj = F64::add(result_adj, F64::mul(evaluation, cc[i * 2 + 1]));
                 i += 1;
             }
 
             // increase the degree of D(x) * x^p
-            let xp = Field::exp(x, *incremental_degree);
-            result = Field::add(result, Field::mul(result_adj, xp));
+            let xp = F64::exp(x, *incremental_degree);
+            result = F64::add(result, F64::mul(result_adj, xp));
         }
 
         return result;

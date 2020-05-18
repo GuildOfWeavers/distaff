@@ -1,5 +1,5 @@
 use std::slice;
-use crate::math::{ Field, FiniteField };
+use crate::math::{ F64, FiniteField };
 use sha3::Digest;
 
 // CONSTANTS
@@ -98,7 +98,7 @@ pub fn poseidon(values: &[u64], result: &mut [u64]) {
         }
         else {
             // partial round
-            state[11] = Field::exp(state[11], ALPHA);
+            state[11] = F64::exp(state[11], ALPHA);
         }
 
         apply_mds(&mut state);
@@ -149,9 +149,9 @@ pub fn gmimc(values: &[u64], result: &mut [u64]) {
 
     for i in 0..101 {
         let s0 = state[0];
-        let mask = Field::exp(Field::add(s0, ARK[i]), ALPHA);
+        let mask = F64::exp(F64::add(s0, ARK[i]), ALPHA);
         for j in 1..12 {
-            state[j - 1] = Field::add(mask, state[j]);
+            state[j - 1] = F64::add(mask, state[j]);
         }
         state[11] = s0;
     }
@@ -187,20 +187,20 @@ pub fn sha3(values: &[u64], result: &mut [u64]) {
 // ================================================================================================
 fn add_constants(state: &mut[u64; 12], offset: usize) {
     for i in 0..12 {
-        state[i] = Field::add(state[i], ARK[offset + i]);
+        state[i] = F64::add(state[i], ARK[offset + i]);
     }
 }
 
 fn apply_sbox(state: &mut[u64; 12]) {
     for i in 0..12 {
-        state[i] = Field::exp(state[i], ALPHA);
+        state[i] = F64::exp(state[i], ALPHA);
     }
 }
 
 fn apply_inv_sbox(state: &mut[u64; 12]) {
     // TODO: optimize
     for i in 0..12 {
-        state[i] = Field::exp(state[i], INV_ALPHA);
+        state[i] = F64::exp(state[i], INV_ALPHA);
     }
 }
 
@@ -209,11 +209,11 @@ fn apply_mds(state: &mut[u64; 12]) {
     let mut temp = [0u64; 12];
     for i in 0..12 {
         for j in 0..12 {
-            temp[j] = Field::mul(MDS[i * 12 + j], state[j]);
+            temp[j] = F64::mul(MDS[i * 12 + j], state[j]);
         }
 
         for j in 0..12 {
-            result[i] = Field::add(result[i], temp[j]);
+            result[i] = F64::add(result[i], temp[j]);
         }
     }
     state.copy_from_slice(&result);

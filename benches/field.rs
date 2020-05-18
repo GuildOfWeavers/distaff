@@ -1,11 +1,11 @@
 use criterion::{ black_box, criterion_group, Criterion };
-use distaff::{ Field, FiniteField, parallel };
+use distaff::{ F64, F128, FiniteField, parallel };
 
 pub fn add64(c: &mut Criterion) {
     let x: u64 = 20;
     let y: u64 = 20;
     c.bench_function("add64", |bench| {
-        bench.iter(|| Field::add(black_box(x), black_box(y)))
+        bench.iter(|| F64::add(black_box(x), black_box(y)))
     });
 }
 
@@ -13,7 +13,7 @@ pub fn add128(c: &mut Criterion) {
     let x: u128 = 20;
     let y: u128 = 20;
     c.bench_function("add128", |bench| {
-        bench.iter(|| Field::add(black_box(x), black_box(y)))
+        bench.iter(|| F128::add(black_box(x), black_box(y)))
     });
 }
 
@@ -21,7 +21,7 @@ pub fn mul64(c: &mut Criterion) {
     let x: u64 = 20;
     let y: u64 = 20;
     c.bench_function("mul64", |bench| {
-        bench.iter(|| Field::mul(black_box(x), black_box(y)))
+        bench.iter(|| F64::mul(black_box(x), black_box(y)))
     });
 }
 
@@ -29,15 +29,15 @@ pub fn mul128(c: &mut Criterion) {
     let x: u128 = 20;
     let y: u128 = 20;
     c.bench_function("mul128", |bench| {
-        bench.iter(|| Field::mul(black_box(x), black_box(y)))
+        bench.iter(|| F128::mul(black_box(x), black_box(y)))
     });
 }
 
 pub fn mul_parallel(c: &mut Criterion) {
 
     let n = (1 << 10) as usize;
-    let x = Field::rand_vector(n);
-    let y = Field::rand_vector(n);
+    let x = F64::rand_vector(n);
+    let y = F64::rand_vector(n);
     let threads = 2;
 
     c.bench_function("mul (parallel)", |bench| {
@@ -48,8 +48,8 @@ pub fn mul_parallel(c: &mut Criterion) {
 pub fn mul_parallel_in_place(c: &mut Criterion) {
 
     let n = (1 << 10) as usize;
-    let x = Field::rand_vector(n);
-    let mut y = Field::rand_vector(n);
+    let x = F64::rand_vector(n);
+    let mut y = F64::rand_vector(n);
     let threads = 2;
 
     c.bench_function("mul (parallel, in place)", |bench| {
@@ -61,14 +61,14 @@ pub fn exp(c: &mut Criterion) {
     let x: u64 = 20;
     let y: u64 = 20;
     c.bench_function("exp", |bench| {
-        bench.iter(|| Field::exp(black_box(x), black_box(y)))
+        bench.iter(|| F64::exp(black_box(x), black_box(y)))
     });
 }
 
 pub fn inv(c: &mut Criterion) {
     let x: u64 = 20;
     c.bench_function("inv", |bench| {
-        bench.iter(|| Field::inv(black_box(x)))
+        bench.iter(|| F64::inv(black_box(x)))
     });
 }
 
