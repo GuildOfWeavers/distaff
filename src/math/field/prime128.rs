@@ -4,11 +4,11 @@ use super::{ FiniteField, Field };
 // CONSTANTS
 // ================================================================================================
 
-// Field modulus = 2^128 - 9 * 2^32 + 1
-pub const M: u128 = 340282366920938463463374607393113505793;
+// Field modulus = 2^128 - 45 * 2^40 + 1
+pub const M: u128 = 340282366920938463463374557953744961537;
 
-// 2^32 root of unity
-pub const G: u128 = 8387321423513296549;
+// 2^40 root of unity
+pub const G: u128 = 23953097886125630542083529559205016746;
 
 // 128-BIT FIELD IMPLEMENTATION
 // ================================================================================================
@@ -176,8 +176,8 @@ impl FiniteField<u128> for Field {
     fn get_root_of_unity(order: usize) -> u128 {
         assert!(order != 0, "cannot get root of unity for order 0");
         assert!(order.is_power_of_two(), "order must be a power of 2");
-        assert!(order.trailing_zeros() <= 32, "order cannot exceed 2^32");
-        let p = 1 << (32 - order.trailing_zeros());
+        assert!(order.trailing_zeros() <= 40, "order cannot exceed 2^40");
+        let p = 1 << (40 - order.trailing_zeros());
         return Self::exp(G, p as u128);
     }
 }
@@ -334,5 +334,17 @@ mod tests {
         let x: u64 = Field::rand();
         let y = Field::inv(x);
         assert_eq!(1, Field::mul(x, y));
+    }
+
+    #[test]
+    fn get_root_of_unity() {
+        let root_40: u128 = Field::get_root_of_unity(usize::pow(2, 40));
+        assert_eq!(23953097886125630542083529559205016746, root_40);
+        assert_eq!(1, Field::exp(root_40, u128::pow(2, 40)));
+
+        let root_39: u128 = Field::get_root_of_unity(usize::pow(2, 39));
+        let expected = Field::exp(root_40, 2);
+        assert_eq!(expected, root_39);
+        assert_eq!(1, Field::exp(root_39, u128::pow(2, 39)));
     }
 }
