@@ -9,6 +9,8 @@ const MAX_LOOP: usize = 256;
 // PUBLIC FUNCTIONS
 // ================================================================================================
 
+// TODO: generic version seems to be about 10% slower than concrete versions; investigate.
+
 /// In-place recursive FFT with permuted output. If `num_threads` is > 1, the computation is
 /// performed in multiple threads. Number of threads must be a power of 2.
 /// 

@@ -2,6 +2,8 @@ use crossbeam_utils::thread;
 use crate::math::{ FieldElement, FiniteField };
 use crate::utils::{ uninit_vector };
 
+// TODO: generic versions seems to be about 10% slower than concrete versions; investigate.
+
 // ADDITION
 // ================================================================================================
 

@@ -10,16 +10,6 @@ pub fn filled_vector<T: Copy>(length: usize, capacity: usize, value: T) -> Vec<T
     return vector;
 }
 
-/// Computes log_2(base^exponent)
-pub fn pow_log2(base: u64, mut exponent: u32) -> u64 {
-    let mut twos = 0;
-    while exponent % 2 == 0 {
-        twos += 1;
-        exponent = exponent / 2;
-    }
-    return u64::pow(2, twos) * (64 - u64::pow(base, exponent).leading_zeros() as u64 - 1);
-}
-
 pub fn remove_leading_zeros(values: &[u64]) -> Vec<u64> {
     for i in (0..values.len()).rev() {
         if values[i] != 0 {
