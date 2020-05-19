@@ -209,7 +209,7 @@ mod tests {
         let y = F64::rand_vector(n);
 
         // compute expected results
-        let mut expected = vec![0u64; n];
+        let mut expected = vec![F64::ZERO; n];
         for i in 0..n {
             expected[i] = F64::add(x[i], y[i]);
         }
@@ -226,7 +226,7 @@ mod tests {
         let y = F64::rand_vector(n);
 
         // compute expected results
-        let mut expected = vec![0u64; n];
+        let mut expected = vec![F64::ZERO; n];
         for i in 0..n {
             expected[i] = F64::add(x[i], y[i]);
         }
@@ -245,7 +245,7 @@ mod tests {
         let y = F64::rand();
 
         // compute expected results
-        let mut expected = vec![0u64; n];
+        let mut expected = vec![F64::ZERO; n];
         for i in 0..n {
             expected[i] = F64::sub(x[i], y);
         }
@@ -263,7 +263,7 @@ mod tests {
         let y = F64::rand_vector(n);
 
         // compute expected results
-        let mut expected = vec![0u64; n];
+        let mut expected = vec![F64::ZERO; n];
         for i in 0..n {
             expected[i] = F64::mul(x[i], y[i]);
         }
@@ -280,7 +280,7 @@ mod tests {
         let y = F64::rand_vector(n);
 
         // compute expected results
-        let mut expected = vec![0u64; n];
+        let mut expected = vec![F64::ZERO; n];
         for i in 0..n {
             expected[i] = F64::mul(x[i], y[i]);
         }

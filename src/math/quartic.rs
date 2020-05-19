@@ -19,10 +19,12 @@ pub fn eval<T>(p: &[T], x: T) -> T
 }
 
 /// Evaluates a batch of degree 3 polynomials at the provided X coordinate.
-pub fn evaluate_batch(polys: &[[u64; 4]], x: u64) -> Vec<u64> {
+pub fn evaluate_batch<T>(polys: &[[T; 4]], x: T) -> Vec<T>
+    where T: FieldElement + FiniteField<T>
+{
     let n = polys.len();
     
-    let mut result: Vec<u64> = Vec::with_capacity(n);
+    let mut result: Vec<T> = Vec::with_capacity(n);
     unsafe { result.set_len(n); }
 
     for i in 0..n {
@@ -138,7 +140,9 @@ pub fn interpolate_batch<T>(xs: &[[T; 4]], ys: &[[T; 4]]) -> Vec<[T; 4]>
     return result;
 }
 
-pub fn transpose(vector: &[u64], stride: usize) -> Vec<[u64; 4]> {
+pub fn transpose<T>(vector: &[T], stride: usize) -> Vec<[T; 4]>
+    where T: FieldElement + FiniteField<T>
+{
     assert!(vector.len() % (4 * stride) == 0, "vector length must be divisible by {}", 4 * stride);
     let row_count = vector.len() / (4 * stride);
 
@@ -156,13 +160,15 @@ pub fn transpose(vector: &[u64], stride: usize) -> Vec<[u64; 4]> {
 }
 
 /// Re-interprets a vector of integers as a vector of quartic elements.
-pub fn to_quartic_vec(vector: Vec<u64>) -> Vec<[u64; 4]> {
+pub fn to_quartic_vec<T>(vector: Vec<T>) -> Vec<[T; 4]>
+    where T: FieldElement + FiniteField<T>
+{
     assert!(vector.len() % 4 == 0, "vector length must be divisible by 4");
     let mut v = std::mem::ManuallyDrop::new(vector);
     let p = v.as_mut_ptr();
     let len = v.len() / 4;
     let cap = v.capacity() / 4;
-    return unsafe { Vec::from_raw_parts(p as *mut [u64; 4], len, cap) };
+    return unsafe { Vec::from_raw_parts(p as *mut [T; 4], len, cap) };
 }
 
 // TESTS
@@ -173,8 +179,8 @@ mod tests {
 
     #[test]
     fn eval() {
-        let x = 11269864713250585702u64;
-        let poly = [384863712573444386u64, 7682273369345308472, 13294661765012277990, 16234810094004944758];
+        let x: F64 = 11269864713250585702;
+        let poly: [F64; 4] = [384863712573444386, 7682273369345308472, 13294661765012277990, 16234810094004944758];
         assert_eq!(15417995579153477369, super::eval(&poly, x));
     }
 
@@ -182,13 +188,13 @@ mod tests {
     fn interpolate_batch() {
         let r = F64::get_root_of_unity(16);
         let xs = super::to_quartic_vec(F64::get_power_series(r, 16));
-        let ys = super::to_quartic_vec(vec![1u64, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+        let ys = super::to_quartic_vec(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
 
-        let expected = vec![
-            [7956382178997078105u64,  6172178935026293282,  5971474637801684060, 16793452009046991148],
-            [   7956382178997078109, 15205743380705406848, 12475269242634339237,   194846859619262948],
-            [   7956382178997078113, 12274564945409730015,  5971474637801684060,  1653291871389032149],
-            [   7956382178997078117,  3241000499730616449, 12475269242634339237,  18251897020816760349]
+        let expected: Vec<[F64; 4]> = vec![
+            [7956382178997078105,  6172178935026293282,  5971474637801684060, 16793452009046991148],
+            [7956382178997078109, 15205743380705406848, 12475269242634339237,   194846859619262948],
+            [7956382178997078113, 12274564945409730015,  5971474637801684060,  1653291871389032149],
+            [7956382178997078117,  3241000499730616449, 12475269242634339237,  18251897020816760349]
         ];
         assert_eq!(expected, super::interpolate_batch(&xs, &ys));
     }
@@ -196,11 +202,11 @@ mod tests {
     #[test]
     fn evaluate_batch() {
         let x = F64::rand();
-        let polys = [
-            [7956382178997078105u64,  6172178935026293282,  5971474637801684060, 16793452009046991148],
-            [   7956382178997078109, 15205743380705406848, 12475269242634339237,   194846859619262948],
-            [   7956382178997078113, 12274564945409730015,  5971474637801684060,  1653291871389032149],
-            [   7956382178997078117,  3241000499730616449, 12475269242634339237, 18251897020816760349]
+        let polys: [[F64; 4]; 4] = [
+            [7956382178997078105,  6172178935026293282,  5971474637801684060, 16793452009046991148],
+            [7956382178997078109, 15205743380705406848, 12475269242634339237,   194846859619262948],
+            [7956382178997078113, 12274564945409730015,  5971474637801684060,  1653291871389032149],
+            [7956382178997078117,  3241000499730616449, 12475269242634339237, 18251897020816760349]
         ];
 
         let expected = vec![
@@ -214,18 +220,18 @@ mod tests {
 
     #[test]
     fn to_quartic_vec() {
-        let vector = vec![1u64, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-        let expected: Vec<[u64; 4]> = vec![[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]];
+        let vector = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        let expected: Vec<[F64; 4]> = vec![[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]];
         assert_eq!(expected, super::to_quartic_vec(vector));
     }
 
     #[test]
     fn transpose() {
-        let vector = vec![1u64, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-        let expected: Vec<[u64; 4]> = vec![[1, 5, 9, 13], [2, 6, 10, 14], [3, 7, 11, 15], [4, 8, 12, 16]];
+        let vector = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        let expected: Vec<[F64; 4]> = vec![[1, 5, 9, 13], [2, 6, 10, 14], [3, 7, 11, 15], [4, 8, 12, 16]];
         assert_eq!(expected, super::transpose(&vector, 1));
 
-        let expected: Vec<[u64; 4]> = vec![[1, 5, 9, 13], [3, 7, 11, 15]];
+        let expected: Vec<[F64; 4]> = vec![[1, 5, 9, 13], [3, 7, 11, 15]];
         assert_eq!(expected, super::transpose(&vector, 2));
     }
 }
