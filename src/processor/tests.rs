@@ -10,7 +10,7 @@ fn execute_verify() {
         opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
         opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
         opcodes::NOOP
-    ];
+    ].iter().map(|&op| op as u64).collect::<Vec<u64>>();
     let expected_hash = hash_acc::digest(&program[..(program.len() - 1)]).copy_into();
 
     let options = ProofOptions::default();
@@ -34,7 +34,7 @@ fn execute_verify_fail() {
         opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
         opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
         opcodes::NOOP
-    ];
+    ].iter().map(|&op| op as u64).collect::<Vec<u64>>();
     let expected_hash = hash_acc::digest(&program[..(program.len() - 1)]).copy_into();
 
     let options = ProofOptions::default();

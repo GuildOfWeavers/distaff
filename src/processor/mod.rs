@@ -53,7 +53,7 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
 pub fn pad_program(program: &[u64]) -> Vec<u64> {
     let mut program = program.to_vec();
     let trace_length = if program.len() == program.len().next_power_of_two() {
-        if program[program.len() - 1] == opcodes::NOOP {
+        if program[program.len() - 1] == opcodes::NOOP as u64 {
             program.len()
         }
         else {
@@ -63,6 +63,6 @@ pub fn pad_program(program: &[u64]) -> Vec<u64> {
     else {
         program.len().next_power_of_two()
     };
-    program.resize(cmp::max(trace_length, MIN_TRACE_LENGTH), opcodes::NOOP);
+    program.resize(cmp::max(trace_length, MIN_TRACE_LENGTH), opcodes::NOOP as u64);
     return program;
 }

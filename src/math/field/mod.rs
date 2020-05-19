@@ -11,13 +11,13 @@ pub mod prime128;
 
 // TYPES AND INTERFACES
 // ================================================================================================
-pub trait FieldElement: Copy + Eq + PartialOrd + Display + Debug + SampleUniform + Send + Sync {
-    fn from(value: usize) -> Self;
+pub trait FieldElement: Copy + Eq + PartialOrd + Display + Debug + SampleUniform + Send + Sync + From<u8> {
+    fn from_usize(value: usize) -> Self;
+    fn as_u8(self) -> u8;
 }
 
-pub trait FiniteField<T> 
-    where T: Copy + Eq + PartialOrd + Display + Debug + SampleUniform + Send + Sync
-{
+pub trait FiniteField<T: FieldElement> {
+
     const MODULUS: T;
     const RANGE: Range<T>;
 

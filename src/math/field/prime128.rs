@@ -14,8 +14,9 @@ pub const G: u128 = 23953097886125630542083529559205016746;
 // ================================================================================================
 pub type F128 = u128;
 
-impl FieldElement for F128 { 
-    fn from (value: usize) -> u128 { return value as u128; }
+impl FieldElement for F128 {
+    fn from_usize (value: usize) -> F128 { return value as u128; }
+    fn as_u8(self) -> u8 { return self as u8; }
 }
 
 impl FiniteField<Self> for F128 {

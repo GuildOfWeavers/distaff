@@ -63,7 +63,7 @@ pub fn get_twiddles<T>(root: T, size: usize) -> Vec<T>
     where T: FieldElement + FiniteField<T>
 {
     assert!(size.is_power_of_two());
-    assert!(T::exp(root, T::from(size)) == T::ONE);
+    assert!(T::exp(root, T::from_usize(size)) == T::ONE);
     let mut twiddles = T::get_power_series(root, size / 2);
     permute(&mut twiddles);
     return twiddles;
@@ -72,7 +72,7 @@ pub fn get_twiddles<T>(root: T, size: usize) -> Vec<T>
 pub fn get_inv_twiddles<T>(root: T, size: usize) -> Vec<T> 
     where T: FieldElement + FiniteField<T>
 {
-    let inv_root = T::exp(root, T::from(size - 1));
+    let inv_root = T::exp(root, T::from_usize(size - 1));
     return get_twiddles(inv_root, size);
 }
 

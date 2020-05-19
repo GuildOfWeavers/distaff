@@ -23,7 +23,7 @@ impl TraceTable {
         
         assert!(program.len().is_power_of_two(), "program length must be a power of 2");
         assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
-        assert!(program[program.len() - 1] == opcodes::NOOP, "last operation of a program must be NOOP");
+        assert!(program[program.len() - 1] == opcodes::NOOP as u64, "last operation of a program must be NOOP");
 
         // create different segments of the trace
         let decoder_registers = decoder::process(program, extension_factor);
@@ -350,7 +350,7 @@ mod tests {
             opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
             opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
             opcodes::NOOP
-        ];
+        ].iter().map(|&op| op as u64).collect::<Vec<u64>>();
         return TraceTable::new(&program, &[1, 0], EXT_FACTOR);
     }
 }

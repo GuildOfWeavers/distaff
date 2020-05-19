@@ -1,5 +1,5 @@
 use std::mem;
-use crate::math::{ FieldElement, FiniteField, fft };
+use crate::math::{ FiniteField, FieldElement, fft };
 use crate::utils::{ uninit_vector, filled_vector };
 
 // POLYNOMIAL EVALUATION
@@ -105,7 +105,7 @@ pub fn interpolate_fft_twiddles<T>(v: &mut [T], inv_twiddles: &[T], unpermute: b
 {
     // TODO: don't hard-code num_threads
     fft::fft_in_place(v, &inv_twiddles, 1, 1, 0, 1);
-    let inv_length = T::inv(T::from(v.len()));
+    let inv_length = T::inv(T::from_usize(v.len()));
     for e in v.iter_mut() {
         *e = T::mul(*e, inv_length);
     }

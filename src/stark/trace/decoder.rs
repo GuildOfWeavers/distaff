@@ -31,7 +31,7 @@ pub fn process(program: &[u64], extension_factor: usize) -> Vec<Vec<u64>> {
 
     assert!(trace_length.is_power_of_two(), "trace length must be a power of 2");
     assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
-    assert!(program[trace_length - 1] == opcodes::NOOP, "last operation of a program must be NOOP");
+    assert!(program[trace_length - 1] == opcodes::NOOP as u64, "last operation of a program must be NOOP");
 
     // create op_code register and copy program into it
     let mut op_code = filled_vector(trace_length, domain_size, F64::ZERO);
@@ -50,12 +50,12 @@ pub fn process(program: &[u64], extension_factor: usize) -> Vec<Vec<u64>> {
     // populate push_flags and op_bits registers
     let mut i = 0;
     while i < trace_length {
-        set_op_bits(&mut op_bits, op_code[i], i);
+        set_op_bits(&mut op_bits, op_code[i] as u8, i);
         push_flag[i] = 0;
 
         // if the current operation is PUSH, the next operation is a constant to be pushed onto
         // the stack; so, set the push_flag for the next operation to 1 and op_bits to NOOP
-        if op_code[i] == opcodes::PUSH {
+        if op_code[i] == opcodes::PUSH as u64 {
             i += 1;
             set_op_bits(&mut op_bits, opcodes::NOOP, i);
             push_flag[i] = 1;
@@ -129,8 +129,8 @@ fn hash_program(op_codes: &[u64], domain_size: usize) -> Vec<Vec<u64>> {
 
 /// Sets the op_bits registers at the specified `step` to the binary decomposition
 /// of the `op_code` parameter.
-fn set_op_bits(op_bits: &mut Vec<Vec<u64>>, op_code: u64, step: usize) {
+fn set_op_bits(op_bits: &mut Vec<Vec<u64>>, op_code: u8, step: usize) {
     for i in 0..op_bits.len() {
-        op_bits[i][step] = (op_code >> i) & 1;
+        op_bits[i][step] = ((op_code >> i) & 1) as u64;
     }
 }

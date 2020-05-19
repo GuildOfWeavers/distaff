@@ -15,7 +15,8 @@ pub const G: u64 = 8387321423513296549;
 pub type F64 = u64;
 
 impl FieldElement for F64 {
-    fn from (value: usize) -> u64 { return value as u64; }
+    fn from_usize(value: usize) -> F64 { return value as u64; }
+    fn as_u8(self) -> u8 { return self as u8; }
 }
 
 impl FiniteField<Self> for F64 {
