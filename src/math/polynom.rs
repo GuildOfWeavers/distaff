@@ -278,7 +278,9 @@ pub fn degree_of<T>(poly: &[T]) -> usize
 
 /// Returns degree of a polynomial with which evaluates to `evaluations` over the domain of
 /// corresponding roots of unity.
-pub fn infer_degree(evaluations: &[u64]) -> usize {
+pub fn infer_degree<T>(evaluations: &[T]) -> usize
+    where T: FieldElement + FiniteField<T>
+{
     assert!(evaluations.len().is_power_of_two(), "number of evaluations must be a power of 2");
     let mut poly = evaluations.to_vec();
     interpolate_fft(&mut poly, true);
@@ -317,8 +319,8 @@ mod tests {
 
     #[test]
     fn eval() {
-        let x = 11269864713250585702u64;
-        let poly = [384863712573444386u64, 7682273369345308472, 13294661765012277990, 16234810094004944758];
+        let x: F64 = 11269864713250585702;
+        let poly: [F64; 4] = [384863712573444386, 7682273369345308472, 13294661765012277990, 16234810094004944758];
 
         assert_eq!(0, super::eval(&[], x));
         assert_eq!(384863712573444386, super::eval(&poly[..1], x));   // constant
@@ -340,7 +342,7 @@ mod tests {
 
         // evaluate polynomial using simple evaluation
         let roots = F64::get_power_series(F64::get_root_of_unity(n), n);
-        let y2 = roots.iter().map(|&x| super::eval(&poly, x)).collect::<Vec<u64>>();
+        let y2 = roots.iter().map(|&x| super::eval(&poly, x)).collect::<Vec<F64>>();
         
         assert_eq!(y1, y2);
     }
@@ -402,7 +404,7 @@ mod tests {
     #[test]
     fn mul_by_const() {
         let poly = [384863712573444386, 7682273369345308472, 13294661765012277990];
-        let c = 11269864713250585702u64;
+        let c: F64 = 11269864713250585702;
         let pr = vec![14327042696637944021, 16658076832266294442, 5137918534171880203];
         assert_eq!(pr, super::mul_by_const(&poly, c));
     }
@@ -476,7 +478,7 @@ mod tests {
 
     #[test]
     fn infer_degree() {
-        let poly = vec![1, 2, 3, 4];
+        let poly: Vec<F64> = vec![1, 2, 3, 4];
 
         let mut evaluations = poly.clone();
         evaluations.resize(16, 0);

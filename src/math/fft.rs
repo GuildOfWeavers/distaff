@@ -126,7 +126,7 @@ mod tests {
     #[test]
     fn fft_in_place() {
         // degree 3
-        let mut p = [1u64, 2, 3, 4];
+        let mut p: [F64; 4] = [1, 2, 3, 4];
         let g = F64::get_root_of_unity(4);
         let twiddles = super::get_twiddles(g, 4);
         let expected = vec![ 10, 7428598796440720870, 18446743880436023295, 11018145083995302423 ];
@@ -135,7 +135,7 @@ mod tests {
         assert_eq!(expected, p);
 
         // degree 7
-        let mut p = [1u64, 2, 3, 4, 5, 6, 7, 8];
+        let mut p: [F64; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
         let g = F64::get_root_of_unity(8);
         let twiddles = super::get_twiddles(g, 8);
         let expected = vec![
@@ -147,7 +147,7 @@ mod tests {
         assert_eq!(expected, p);
 
         // degree 15
-        let mut p = [1u64, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        let mut p: [F64; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
         let g = F64::get_root_of_unity(16);
         let twiddles = super::get_twiddles(g, 16);
         let expected = vec![
@@ -164,7 +164,7 @@ mod tests {
         let mut p = F64::rand_vector(1024);
         let g = F64::get_root_of_unity(1024);
         let roots = F64::get_power_series(g, 1024);
-        let expected = roots.iter().map(|x| polynom::eval(&p, *x)).collect::<Vec<u64>>();
+        let expected = roots.iter().map(|x| polynom::eval(&p, *x)).collect::<Vec<F64>>();
         let twiddles = super::get_twiddles(g, 1024);
         super::fft_in_place(&mut p, &twiddles, 1, 1, 0, 1);
         super::permute(&mut p);

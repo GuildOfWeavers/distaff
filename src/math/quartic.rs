@@ -1,17 +1,19 @@
-use crate::math::{ F64, FiniteField };
+use crate::math::{ FieldElement, FiniteField };
 use crate::utils::uninit_vector;
 
 /// Evaluates degree 3 polynomial `p` at coordinate `x`. This function is about 30% faster than
 /// the `polys::eval` function.
-pub fn eval(p: &[u64], x: u64) -> u64 {
+pub fn eval<T>(p: &[T], x: T) -> T
+    where T: FieldElement + FiniteField<T>
+{
     debug_assert!(p.len() == 4, "Polynomial must have 4 terms");
-    let mut y = F64::add(p[0], F64::mul(p[1], x));
+    let mut y = T::add(p[0], T::mul(p[1], x));
 
-    let x2 = F64::mul(x, x);
-    y = F64::add(y, F64::mul(p[2], x2));
+    let x2 = T::mul(x, x);
+    y = T::add(y, T::mul(p[2], x2));
 
-    let x3 = F64::mul(x2, x);
-    y = F64::add(y, F64::mul(p[3], x3));
+    let x3 = T::mul(x2, x);
+    y = T::add(y, T::mul(p[3], x3));
 
     return y;
 }
@@ -34,12 +36,14 @@ pub fn evaluate_batch(polys: &[[u64; 4]], x: u64) -> Vec<u64> {
 /// 
 /// This function is many times faster than using `polys::interpolate` function in a loop. This is
 /// primarily due to amortizing inversions over the entire batch.
-pub fn interpolate_batch(xs: &[[u64; 4]], ys: &[[u64; 4]]) -> Vec<[u64; 4]> {
+pub fn interpolate_batch<T>(xs: &[[T; 4]], ys: &[[T; 4]]) -> Vec<[T; 4]>
+    where T: FieldElement + FiniteField<T>
+{
     debug_assert!(xs.len() == ys.len(), "number of X coordinates must be equal to number of Y coordinates");
 
     let n = xs.len();
-    let mut equations: Vec<[u64; 4]> = Vec::with_capacity(n * 4);
-    let mut inverses: Vec<u64> = Vec::with_capacity(n * 4);
+    let mut equations: Vec<[T; 4]> = Vec::with_capacity(n * 4);
+    let mut inverses: Vec<T> = Vec::with_capacity(n * 4);
     unsafe { 
         equations.set_len(n * 4);
         inverses.set_len(n * 4);
@@ -49,53 +53,53 @@ pub fn interpolate_batch(xs: &[[u64; 4]], ys: &[[u64; 4]]) -> Vec<[u64; 4]> {
         
         let xs = xs[i];
 
-        let x01 = F64::mul(xs[0], xs[1]);
-        let x02 = F64::mul(xs[0], xs[2]);
-        let x03 = F64::mul(xs[0], xs[3]);
-        let x12 = F64::mul(xs[1], xs[2]);
-        let x13 = F64::mul(xs[1], xs[3]);
-        let x23 = F64::mul(xs[2], xs[3]);
+        let x01 = T::mul(xs[0], xs[1]);
+        let x02 = T::mul(xs[0], xs[2]);
+        let x03 = T::mul(xs[0], xs[3]);
+        let x12 = T::mul(xs[1], xs[2]);
+        let x13 = T::mul(xs[1], xs[3]);
+        let x23 = T::mul(xs[2], xs[3]);
 
         // eq0
         equations[j] = [
-            F64::mul(F64::neg(x12), xs[3]),
-            F64::add(F64::add(x12, x13), x23),
-            F64::sub(F64::sub(F64::neg(xs[1]), xs[2]), xs[3]),
-            1
+            T::mul(T::neg(x12), xs[3]),
+            T::add(T::add(x12, x13), x23),
+            T::sub(T::sub(T::neg(xs[1]), xs[2]), xs[3]),
+            T::ONE
         ];
         inverses[j] = eval(&equations[j], xs[0]);
 
         // eq1
         equations[j + 1] = [
-            F64::mul(F64::neg(x02), xs[3]),
-            F64::add(F64::add(x02, x03), x23),
-            F64::sub(F64::sub(F64::neg(xs[0]), xs[2]), xs[3]),
-            1
+            T::mul(T::neg(x02), xs[3]),
+            T::add(T::add(x02, x03), x23),
+            T::sub(T::sub(T::neg(xs[0]), xs[2]), xs[3]),
+            T::ONE
         ];
         inverses[j + 1] = eval(&equations[j + 1], xs[1]);
 
         // eq2
         equations[j + 2] = [
-            F64::mul(F64::neg(x01), xs[3]),
-            F64::add(F64::add(x01, x03), x13),
-            F64::sub(F64::sub(F64::neg(xs[0]), xs[1]), xs[3]),
-            1
+            T::mul(T::neg(x01), xs[3]),
+            T::add(T::add(x01, x03), x13),
+            T::sub(T::sub(T::neg(xs[0]), xs[1]), xs[3]),
+            T::ONE
         ];
         inverses[j + 2] = eval(&equations[j + 2], xs[2]);
 
         // eq3
         equations[j + 3] = [
-            F64::mul(F64::neg(x01), xs[2]),
-            F64::add(F64::add(x01, x02), x12),
-            F64::sub(F64::sub(F64::neg(xs[0]), xs[1]), xs[2]),
-            1
+            T::mul(T::neg(x01), xs[2]),
+            T::add(T::add(x01, x02), x12),
+            T::sub(T::sub(T::neg(xs[0]), xs[1]), xs[2]),
+            T::ONE
         ];
         inverses[j + 3] = eval(&equations[j + 3], xs[3]);
     }
 
-    let inverses = F64::inv_many(&inverses);
+    let inverses = T::inv_many(&inverses);
 
-    let mut result: Vec<[u64; 4]> = Vec::with_capacity(n);
+    let mut result: Vec<[T; 4]> = Vec::with_capacity(n);
     unsafe { result.set_len(n); }
 
     for (i, j) in (0..n).zip((0..equations.len()).step_by(4)) {
@@ -103,32 +107,32 @@ pub fn interpolate_batch(xs: &[[u64; 4]], ys: &[[u64; 4]]) -> Vec<[u64; 4]> {
         let ys = ys[i];
 
         // iteration 0
-        let mut inv_y = F64::mul(ys[0], inverses[j]);
-        result[i][0] = F64::mul(inv_y, equations[j][0]);
-        result[i][1] = F64::mul(inv_y, equations[j][1]);
-        result[i][2] = F64::mul(inv_y, equations[j][2]);
-        result[i][3] = F64::mul(inv_y, equations[j][3]);
+        let mut inv_y = T::mul(ys[0], inverses[j]);
+        result[i][0] = T::mul(inv_y, equations[j][0]);
+        result[i][1] = T::mul(inv_y, equations[j][1]);
+        result[i][2] = T::mul(inv_y, equations[j][2]);
+        result[i][3] = T::mul(inv_y, equations[j][3]);
 
         // iteration 1
-        inv_y = F64::mul(ys[1], inverses[j + 1]);
-        result[i][0] = F64::add(result[i][0], F64::mul(inv_y, equations[j + 1][0]));
-        result[i][1] = F64::add(result[i][1], F64::mul(inv_y, equations[j + 1][1]));
-        result[i][2] = F64::add(result[i][2], F64::mul(inv_y, equations[j + 1][2]));
-        result[i][3] = F64::add(result[i][3], F64::mul(inv_y, equations[j + 1][3]));
+        inv_y = T::mul(ys[1], inverses[j + 1]);
+        result[i][0] = T::add(result[i][0], T::mul(inv_y, equations[j + 1][0]));
+        result[i][1] = T::add(result[i][1], T::mul(inv_y, equations[j + 1][1]));
+        result[i][2] = T::add(result[i][2], T::mul(inv_y, equations[j + 1][2]));
+        result[i][3] = T::add(result[i][3], T::mul(inv_y, equations[j + 1][3]));
 
         // iteration 2
-        inv_y = F64::mul(ys[2], inverses[j + 2]);
-        result[i][0] = F64::add(result[i][0], F64::mul(inv_y, equations[j + 2][0]));
-        result[i][1] = F64::add(result[i][1], F64::mul(inv_y, equations[j + 2][1]));
-        result[i][2] = F64::add(result[i][2], F64::mul(inv_y, equations[j + 2][2]));
-        result[i][3] = F64::add(result[i][3], F64::mul(inv_y, equations[j + 2][3]));
+        inv_y = T::mul(ys[2], inverses[j + 2]);
+        result[i][0] = T::add(result[i][0], T::mul(inv_y, equations[j + 2][0]));
+        result[i][1] = T::add(result[i][1], T::mul(inv_y, equations[j + 2][1]));
+        result[i][2] = T::add(result[i][2], T::mul(inv_y, equations[j + 2][2]));
+        result[i][3] = T::add(result[i][3], T::mul(inv_y, equations[j + 2][3]));
 
         // iteration 3
-        inv_y = F64::mul(ys[3], inverses[j + 3]);
-        result[i][0] = F64::add(result[i][0], F64::mul(inv_y, equations[j + 3][0]));
-        result[i][1] = F64::add(result[i][1], F64::mul(inv_y, equations[j + 3][1]));
-        result[i][2] = F64::add(result[i][2], F64::mul(inv_y, equations[j + 3][2]));
-        result[i][3] = F64::add(result[i][3], F64::mul(inv_y, equations[j + 3][3]));
+        inv_y = T::mul(ys[3], inverses[j + 3]);
+        result[i][0] = T::add(result[i][0], T::mul(inv_y, equations[j + 3][0]));
+        result[i][1] = T::add(result[i][1], T::mul(inv_y, equations[j + 3][1]));
+        result[i][2] = T::add(result[i][2], T::mul(inv_y, equations[j + 3][2]));
+        result[i][3] = T::add(result[i][3], T::mul(inv_y, equations[j + 3][3]));
     }
 
     return result;

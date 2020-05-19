@@ -1,6 +1,6 @@
+use crossbeam_utils::thread;
 use crate::math::{ F64, FiniteField };
-use std::sync::{ atomic::{ AtomicU64, Ordering }, Arc };
-use std::thread;
+use crate::utils::{ uninit_vector };
 
 // ADDITION
 // ================================================================================================
@@ -13,37 +13,23 @@ pub fn add(a: &[u64], b: &[u64], num_threads: usize) -> Vec<u64> {
     assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
     let batch_size = n / num_threads;
 
-    // create atomic references to both operands
-    let a = Arc::new(to_atomic(a));
-    let b = Arc::new(to_atomic(b));
-
-    // create a vector to hold the result
-    let result = Arc::new(atomic_result_vec(n));
+    // allocate space for the results
+    let mut result = uninit_vector(n);
 
     // add batches of values in separate threads
-    let mut handles = vec![];
-    for i in (0..n).step_by(batch_size) {
-        let a = Arc::clone(&a);
-        let b = Arc::clone(&b);
-        let result = Arc::clone(&result);
-        let handle = thread::spawn(move || {
-            for j in i..(i + batch_size) {
-                let ai = a[j].load(Ordering::Relaxed);
-                let bi = b[j].load(Ordering::Relaxed);
-                result[j].store(F64::add(ai, bi), Ordering::Relaxed);
-            }
-        });
-        handles.push(handle);
-    }
-
-    // wait until all threads are done
-    for handle in handles {
-        handle.join().unwrap();
-    }
+    thread::scope(|s| {
+        for i in (0..n).step_by(batch_size) {
+            let result = unsafe { &mut *(&mut result[..] as *mut [u64]) };
+            s.spawn(move |_| {
+                for j in i..(i + batch_size) {
+                    result[j] = F64::add(a[j], b[j]);
+                }
+            });
+        }
+    }).unwrap();
 
     // return the result
-    let result = Arc::try_unwrap(result).unwrap();
-    return from_atomic(result);
+    return result;
 }
 
 /// Computes a[i] + b[i] for all i and stores the results in b[i]. The addition is split into
@@ -54,29 +40,17 @@ pub fn add_in_place(a: &mut [u64], b: &[u64], num_threads: usize) {
     assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
     let batch_size = n / num_threads;
 
-    // create atomic references to both operands
-    let a = Arc::new(to_atomic(a));
-    let b = Arc::new(to_atomic(b));
-
     // add batches of values in separate threads
-    let mut handles = vec![];
-    for i in (0..n).step_by(batch_size) {
-        let a = Arc::clone(&a);
-        let b = Arc::clone(&b);
-        let handle = thread::spawn(move || {
-            for j in i..(i + batch_size) {
-                let ai = a[j].load(Ordering::Relaxed);
-                let bi = b[j].load(Ordering::Relaxed);
-                a[j].store(F64::add(ai, bi), Ordering::Relaxed);
-            }
-        });
-        handles.push(handle);
-    }
-
-    // wait until all threads are done
-    for handle in handles {
-        handle.join().unwrap();
-    }
+    thread::scope(|s| {
+        for i in (0..n).step_by(batch_size) {
+            let a = unsafe { &mut *(a as *mut [u64]) };
+            s.spawn(move |_| {
+                for j in i..(i + batch_size) {
+                    a[j] = F64::add(a[j], b[j]);
+                }
+            });
+        }
+    }).unwrap();
 }
 
 // SUBTRACTION
@@ -89,26 +63,17 @@ pub fn sub_const_in_place(a: &mut [u64], b: u64, num_threads: usize) {
     assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
     let batch_size = n / num_threads;
 
-    // create atomic references to the array
-    let a = Arc::new(to_atomic(a));
-
     // subtract batches of values in separate threads
-    let mut handles = vec![];
-    for i in (0..n).step_by(batch_size) {
-        let a = Arc::clone(&a);
-        let handle = thread::spawn(move || {
-            for j in i..(i + batch_size) {
-                let ai = a[j].load(Ordering::Relaxed);
-                a[j].store(F64::sub(ai, b), Ordering::Relaxed);
-            }
-        });
-        handles.push(handle);
-    }
-
-    // wait until all threads are done
-    for handle in handles {
-        handle.join().unwrap();
-    }
+    thread::scope(|s| {
+        for i in (0..n).step_by(batch_size) {
+            let a = unsafe { &mut *(a as *mut [u64]) };
+            s.spawn(move |_| {
+                for j in i..(i + batch_size) {
+                    a[j] = F64::sub(a[j], b);
+                }
+            });
+        }
+    }).unwrap();
 }
 
 // MULTIPLICATION
@@ -122,37 +87,23 @@ pub fn mul(a: &[u64], b: &[u64], num_threads: usize) -> Vec<u64> {
     assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
     let batch_size = n / num_threads;
 
-    // create atomic references to both operands
-    let a = Arc::new(to_atomic(a));
-    let b = Arc::new(to_atomic(b));
-
-    // create a vector to hold the result
-    let result = Arc::new(atomic_result_vec(n));
+    // allocate space for the results
+    let mut result = uninit_vector(n);
 
     // multiply batches of values in separate threads
-    let mut handles = vec![];
-    for i in (0..n).step_by(batch_size) {
-        let a = Arc::clone(&a);
-        let b = Arc::clone(&b);
-        let result = Arc::clone(&result);
-        let handle = thread::spawn(move || {
-            for j in i..(i + batch_size) {
-                let ai = a[j].load(Ordering::Relaxed);
-                let bi = b[j].load(Ordering::Relaxed);
-                result[j].store(F64::mul(ai, bi), Ordering::Relaxed);
-            }
-        });
-        handles.push(handle);
-    }
-
-    // wait until all threads are done
-    for handle in handles {
-        handle.join().unwrap();
-    }
+    thread::scope(|s| {
+        for i in (0..n).step_by(batch_size) {
+            let result = unsafe { &mut *(&mut result[..] as *mut [u64]) };
+            s.spawn(move |_| {
+                for j in i..(i + batch_size) {
+                    result[j] = F64::mul(a[j], b[j]);
+                }
+            });
+        }
+    }).unwrap();
 
     // return the result
-    let result = Arc::try_unwrap(result).unwrap();
-    return from_atomic(result);
+    return result;
 }
 
 /// Computes a[i] * b[i] for all i and stores the results in b[i]. The multiplication is 
@@ -163,29 +114,17 @@ pub fn mul_in_place(a: &mut [u64], b: &[u64], num_threads: usize) {
     assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
     let batch_size = n / num_threads;
 
-    // create atomic references to both operands
-    let a = Arc::new(to_atomic(a));
-    let b = Arc::new(to_atomic(b));
-
     // multiply batches of values in separate threads
-    let mut handles = vec![];
-    for i in (0..n).step_by(batch_size) {
-        let a = Arc::clone(&a);
-        let b = Arc::clone(&b);
-        let handle = thread::spawn(move || {
-            for j in i..(i + batch_size) {
-                let ai = a[j].load(Ordering::Relaxed);
-                let bi = b[j].load(Ordering::Relaxed);
-                a[j].store(F64::mul(ai, bi), Ordering::Relaxed);
-            }
-        });
-        handles.push(handle);
-    }
-
-    // wait until all threads are done
-    for handle in handles {
-        handle.join().unwrap();
-    }
+    thread::scope(|s| {
+        for i in (0..n).step_by(batch_size) {
+            let a = unsafe { &mut *(a as *mut [u64]) };
+            s.spawn(move |_| {
+                for j in i..(i + batch_size) {
+                    a[j] = F64::mul(a[j], b[j]);
+                }
+            });
+        }
+    }).unwrap();
 }
 
 /// Computes a[i] + b[i] * c for all i and saves result into a. The operation is 
@@ -195,30 +134,18 @@ pub fn mul_acc(a: &mut[u64], b: &[u64], c: u64, num_threads: usize) {
     assert!(n == b.len(), "number of values must be the same for both arrays");
     assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
     let batch_size = n / num_threads;
-
-    // create atomic references to both arrays
-    let a = Arc::new(to_atomic(a));
-    let b = Arc::new(to_atomic(b));
     
-    // multiply batches of values in separate threads
-    let mut handles = vec![];
-    for i in (0..n).step_by(batch_size) {
-        let a = Arc::clone(&a);
-        let b = Arc::clone(&b);
-        let handle = thread::spawn(move || {
-            for j in i..(i + batch_size) {
-                let ai = a[j].load(Ordering::Relaxed);
-                let bi = b[j].load(Ordering::Relaxed);
-                a[j].store(F64::add(ai, F64::mul(bi, c)), Ordering::Relaxed);
-            }
-        });
-        handles.push(handle);
-    }
-
-    // wait until all threads are done
-    for handle in handles {
-        handle.join().unwrap();
-    }
+    // accumulate batches of values in separate threads
+    thread::scope(|s| {
+        for i in (0..n).step_by(batch_size) {
+            let a = unsafe { &mut *(a as *mut [u64]) };
+            s.spawn(move |_| {
+                for j in i..(i + batch_size) {
+                    a[j] = F64::add(a[j], F64::mul(b[j], c));
+                }
+            });
+        }
+    }).unwrap();
 }
 
 // INVERSION
@@ -231,54 +158,23 @@ pub fn inv(values: &[u64], num_threads: usize) -> Vec<u64> {
     assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
     let batch_size = n / num_threads;
 
-    // create atomic references to the values
-    let values = Arc::new(to_atomic(values));
-
-    // create a vector to hold the result
-    let result = Arc::new(atomic_result_vec(n));
+    // allocate space for the results
+    let result = uninit_vector(n);
 
     // break up the values into batches and invert each batch in a separate thread
-    let mut handles = vec![];
-    for i in (0..n).step_by(batch_size) {
-        let values = Arc::clone(&values);
-        let result = Arc::clone(&result);
-        let handle = thread::spawn(move || {
+    thread::scope(|s| {
+        for i in (0..n).step_by(batch_size) {
             let values_slice = &values[i..(i + batch_size)];
             let values_slice = unsafe { &*(values_slice as *const _ as *const [u64]) };
             let result_slice = &result[i..(i + batch_size)];
             let result_slice = unsafe { &mut *(result_slice as *const _ as *mut [u64]) };
-            F64::inv_many_fill(values_slice, result_slice);
-        });
-        handles.push(handle);
-    }
-
-    // wait until all threads are done
-    for handle in handles {
-        handle.join().unwrap();
-    }
+            s.spawn(move |_| {
+                F64::inv_many_fill(values_slice, result_slice);
+            });
+        }
+    }).unwrap();
 
     // return the result
-    let result = Arc::try_unwrap(result).unwrap();
-    return from_atomic(result);
-}
-
-// HELPER FUNCTIONS
-// ================================================================================================
-fn to_atomic<'a>(values: &[u64]) -> &'a [AtomicU64] {
-    return unsafe { &*(values as *const _ as *const [AtomicU64]) };
-}
-
-fn from_atomic(vector: Vec<AtomicU64>) -> Vec<u64> {
-    let mut v = std::mem::ManuallyDrop::new(vector);
-    let p = v.as_mut_ptr();
-    let len = v.len();
-    let cap = v.capacity();
-    return unsafe { Vec::from_raw_parts(p as *mut u64, len, cap) };
-}
-
-fn atomic_result_vec(n: usize) -> Vec<AtomicU64> {
-    let mut result: Vec<AtomicU64> = Vec::with_capacity(n);
-    unsafe { result.set_len(n); };
     return result;
 }
 
