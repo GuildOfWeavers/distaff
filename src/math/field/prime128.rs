@@ -93,16 +93,15 @@ impl FiniteField<Self> for F128 {
 
         // compute the inverse
         while v != 1 {
-            let u_lo = (u0 as u128) + ((u1 as u128) << 64);
-            while u2 > 0 || u_lo > v { // u > v
+            while u2 > 0 || ((u0 as u128) + ((u1 as u128) << 64)) > v { // u > v
                 // u = u - v
                 let (t0, t1, t2) = sub_192x192(u0, u1, u2, v as u64, (v >> 64) as u64, 0);
                 u0 = t0; u1 = t1; u2 = t2;
-
+                
                 // d = d + a
                 let (t0, t1, t2) = add_192x192(d0, d1, d2, a0, a1, a2);
                 d0 = t0; d1 = t1; d2 = t2;
-
+                
                 while u0 & 1 == 0 {
                     if d0 & 1 == 1 {
                         // d = d + m
@@ -122,9 +121,8 @@ impl FiniteField<Self> for F128 {
                 }
             }
 
-            // v = v - u
-            let u_lo = (u0 as u128) + ((u1 as u128) << 64);
-            v = v - u_lo;
+            // v = v - u (u is less than v at this point)
+            v = v - ((u0 as u128) + ((u1 as u128) << 64));
             
             // a = a + d
             let (t0, t1, t2) = add_192x192(a0, a1, a2, d0, d1, d2);
@@ -337,9 +335,11 @@ mod tests {
         assert_eq!(0, F128::inv(0));
 
         // test random values
-        let x = F128::rand();
-        let y = F128::inv(x);
-        assert_eq!(1, F128::mul(x, y));
+        let x: Vec<u128> = F128::rand_vector(1000);
+        for i in 0..x.len() {
+            let y = F128::inv(x[i]);
+            assert_eq!(1, F128::mul(x[i], y));
+        }
     }
 
     #[test]
