@@ -1,5 +1,5 @@
 use crate::math::{ FiniteField, F64, fft, polynom };
-use crate::utils::{ filled_vector };
+use crate::utils::{ filled_vector, uninit_vector };
 use super::{ Accumulator, AccumulatorBuilder };
 
 // 64-BIT ACCUMULATOR BUILDER IMPLEMENTATION
@@ -15,13 +15,14 @@ impl AccumulatorBuilder<Self> for F64 {
         let hash_cycle = Self::ACC_NUM_ROUNDS * extension_factor;
 
         let constant_polys;
-        let mut constant_values = Vec::with_capacity(hash_cycle * Self::ACC_STATE_WIDTH * 2);
+        let mut constant_values = Vec::with_capacity(hash_cycle);
         
         if extension_factor == 1 {
             constant_polys = Vec::with_capacity(Self::ACC_STATE_WIDTH * 2);
             for i in 0..hash_cycle {
+                constant_values.push(uninit_vector(Self::ACC_STATE_WIDTH * 2));
                 for j in 0..(2 * Self::ACC_STATE_WIDTH) {
-                    constant_values.push(ARK[j][i])
+                    constant_values[i][j] = ARK[j][i];
                 }
             }
         }
@@ -29,8 +30,9 @@ impl AccumulatorBuilder<Self> for F64 {
             let (polys, evaluations) = extend_constants(extension_factor);
             constant_polys = polys;
             for i in 0..hash_cycle {
+                constant_values.push(uninit_vector(Self::ACC_STATE_WIDTH * 2));
                 for j in 0..(2 * Self::ACC_STATE_WIDTH) {
-                    constant_values.push(evaluations[j][i])
+                    constant_values[i][j] = evaluations[j][i];
                 }
             }
         }
@@ -42,7 +44,6 @@ impl AccumulatorBuilder<Self> for F64 {
             inv_mds     : INV_MDS.to_vec(),
             ark         : constant_values,
             ark_polys   : constant_polys,
-            hash_cycle  : Self::ACC_NUM_ROUNDS * extension_factor
         };
     }
 }

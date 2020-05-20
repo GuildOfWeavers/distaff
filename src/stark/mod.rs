@@ -24,7 +24,6 @@ pub use constraints::{
     MAX_TRANSITION_CONSTRAINTS };
 
 pub use utils::{
-    hash_acc,
     Accumulator,
     AccumulatorBuilder,
     ConstraintCoefficients,

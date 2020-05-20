@@ -5,8 +5,6 @@ use super::{ ProofOptions, MAX_CONSTRAINT_DEGREE };
 
 // RE-EXPORTS
 // ================================================================================================
-pub mod hash_acc;
-
 mod accumulator;
 pub use accumulator::{ Accumulator, AccumulatorBuilder };
 
