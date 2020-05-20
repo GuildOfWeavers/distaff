@@ -3,7 +3,12 @@ use rand::distributions::Uniform;
 use crate::utils::{ CopyInto };
 use super::{ ProofOptions, MAX_CONSTRAINT_DEGREE };
 
+// RE-EXPORTS
+// ================================================================================================
 pub mod hash_acc;
+
+mod accumulator;
+pub use accumulator::{ Accumulator, AccumulatorBuilder };
 
 mod coefficients;
 pub use coefficients::{ ConstraintCoefficients, CompositionCoefficients };
@@ -14,6 +19,9 @@ pub use proof_of_work::{ find_pow_nonce, verify_pow_nonce };
 pub fn get_composition_degree(trace_length: usize) -> usize {
     return (MAX_CONSTRAINT_DEGREE - 1) * trace_length - 1;
 }
+
+// PUBLIC FUNCTIONS
+// ================================================================================================
 
 pub fn get_incremental_trace_degree(trace_length: usize) -> usize {
     let composition_degree = get_composition_degree(trace_length);

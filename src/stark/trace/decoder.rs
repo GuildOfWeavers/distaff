@@ -1,13 +1,13 @@
 use std::ops::Range;
 use crate::processor::opcodes;
 use crate::math::{ F64, FiniteField };
-use crate::stark::utils::hash_acc::{ self, STATE_WIDTH as ACC_STATE_WIDTH, NUM_ROUNDS };
+use crate::stark::utils::{ AccumulatorBuilder };
 use crate::utils::filled_vector;
 use super::{ NUM_OP_BITS };
 
 // CONSTANTS
 // ================================================================================================
-pub const NUM_REGISTERS: usize = 2 + NUM_OP_BITS + ACC_STATE_WIDTH;
+pub const NUM_REGISTERS: usize = 2 + NUM_OP_BITS + F64::ACC_STATE_WIDTH;
 
 pub const OP_CODE_IDX     : usize = 0;
 pub const PUSH_FLAG_IDX   : usize = 1;
@@ -99,27 +99,17 @@ fn hash_program(op_codes: &[u64], domain_size: usize) -> Vec<Vec<u64>> {
         filled_vector(trace_length, domain_size, F64::ZERO),
         filled_vector(trace_length, domain_size, F64::ZERO),
     ];
-    assert!(registers.len() == ACC_STATE_WIDTH, "inconsistent number of opcode accumulator registers");
+    assert!(registers.len() == F64::ACC_STATE_WIDTH, "inconsistent number of opcode accumulator registers");
 
-    let mut state = [0; ACC_STATE_WIDTH];
+    let acc = F64::get_accumulator(1);
+    let mut state = [F64::ZERO; F64::ACC_STATE_WIDTH];
     for i in 0..(op_codes.len() - 1) {
-        // inject op_code into the state
-        state[0] = F64::add(state[0], op_codes[i]);
-        state[1] = F64::mul(state[1], op_codes[i]);
 
-        let step = i % NUM_ROUNDS;
-
-        // apply Rescue round
-        hash_acc::add_constants(&mut state, step, 0);
-        hash_acc::apply_sbox(&mut state);
-        hash_acc::apply_mds(&mut state);
-
-        hash_acc::add_constants(&mut state, step, ACC_STATE_WIDTH);
-        hash_acc::apply_inv_sbox(&mut state);
-        hash_acc::apply_mds(&mut state);
+        // add op_code into the accumulator
+        acc.apply_round(&mut state, op_codes[i], i);
 
         // copy updated state into registers for the next step
-        for j in 0..ACC_STATE_WIDTH {
+        for j in 0..F64::ACC_STATE_WIDTH {
             registers[j][i + 1] = state[j];
         }
     }

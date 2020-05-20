@@ -25,6 +25,8 @@ pub use constraints::{
 
 pub use utils::{
     hash_acc,
+    Accumulator,
+    AccumulatorBuilder,
     ConstraintCoefficients,
     CompositionCoefficients };
 
