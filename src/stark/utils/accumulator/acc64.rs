@@ -12,20 +12,27 @@ impl AccumulatorBuilder<Self> for F64 {
 
     fn get_accumulator(extension_factor: usize) -> Accumulator<F64> {
 
-        let mut constant_values;
-        let constant_polys;
+        let hash_cycle = Self::ACC_NUM_ROUNDS * extension_factor;
 
+        let constant_polys;
+        let mut constant_values = Vec::with_capacity(hash_cycle * Self::ACC_STATE_WIDTH * 2);
+        
         if extension_factor == 1 {
-            constant_values = Vec::with_capacity(Self::ACC_STATE_WIDTH * 2);
             constant_polys = Vec::with_capacity(Self::ACC_STATE_WIDTH * 2);
-            for i in 0..ARK.len() {
-                constant_values.push(ARK[i].to_vec());
-            }    
+            for i in 0..hash_cycle {
+                for j in 0..(2 * Self::ACC_STATE_WIDTH) {
+                    constant_values.push(ARK[j][i])
+                }
+            }
         }
         else {
             let (polys, evaluations) = extend_constants(extension_factor);
-            constant_values = evaluations;
             constant_polys = polys;
+            for i in 0..hash_cycle {
+                for j in 0..(2 * Self::ACC_STATE_WIDTH) {
+                    constant_values.push(evaluations[j][i])
+                }
+            }
         }
         
         return Accumulator {
@@ -34,7 +41,8 @@ impl AccumulatorBuilder<Self> for F64 {
             mds         : MDS.to_vec(),
             inv_mds     : INV_MDS.to_vec(),
             ark         : constant_values,
-            ark_polys   : constant_polys
+            ark_polys   : constant_polys,
+            hash_cycle  : Self::ACC_NUM_ROUNDS * extension_factor
         };
     }
 }

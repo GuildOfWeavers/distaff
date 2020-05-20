@@ -1,14 +1,11 @@
-use crate::math::{ F64, FiniteField, polynom, fft };
+use crate::math::{ F64, FiniteField };
 use crate::processor::{ opcodes };
-use crate::utils::{ filled_vector };
 use crate::stark::{ TraceState };
-use crate::stark::utils::hash_acc::{
-    apply_mds, apply_sbox, apply_inv_mds, STATE_WIDTH, NUM_ROUNDS, ARK
-};
+use crate::stark::utils::{ Accumulator, AccumulatorBuilder };
 
 // CONSTANTS
 // ================================================================================================
-const NUM_CONSTRAINTS: usize = STATE_WIDTH + 9;
+const NUM_CONSTRAINTS: usize = F64::ACC_STATE_WIDTH + 9;
 
 /// Degree of operation decoder constraints.
 const CONSTRAINT_DEGREES: [usize; NUM_CONSTRAINTS] = [
@@ -24,9 +21,7 @@ const CONSTRAINT_DEGREES: [usize; NUM_CONSTRAINTS] = [
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct Decoder {
-    rescue_ark  : Vec<[u64; 2 * STATE_WIDTH]>,
-    rescue_polys: Vec<Vec<u64>>,
-    hash_cycle  : usize,
+    accumulator : Accumulator<F64>,
     trace_length: usize,
 }
 
@@ -35,18 +30,8 @@ pub struct Decoder {
 impl Decoder {
 
     pub fn new(trace_length: usize, extension_factor: usize) -> Decoder {
-        let (rescue_polys, ark_evaluations) = extend_constants(extension_factor);
-        
-        let hash_cycle = NUM_ROUNDS * extension_factor;
-        let mut rescue_ark = Vec::with_capacity(hash_cycle);
-        for i in 0..(NUM_ROUNDS * extension_factor) {
-            rescue_ark.push([0; 2 * STATE_WIDTH]);
-            for j in 0..(2 * STATE_WIDTH) {
-                rescue_ark[i][j] = ark_evaluations[j][i];
-            }
-        }
-
-        return Decoder { rescue_ark, rescue_polys, hash_cycle, trace_length };
+        let accumulator = F64::get_accumulator(extension_factor);
+        return Decoder { accumulator, trace_length };
     }
 
     pub fn constraint_count(&self) -> usize {
@@ -65,7 +50,7 @@ impl Decoder {
         self.decode_opcode(current, next, result);
 
         // 12 constraints to hash op_code
-        self.hash_opcode(current, next, &self.rescue_ark[step % self.hash_cycle], &mut result[9..]);
+        self.hash_opcode(current, next, self.accumulator.get_constants_at(step), &mut result[9..]);
     }
 
     pub fn evaluate_at(&self, current: &TraceState, next: &TraceState, x: u64, result: &mut [u64]) {
@@ -73,13 +58,9 @@ impl Decoder {
         self.decode_opcode(current, next, result);
 
         // 12 constraints to hash op_code
-        let num_cycles = (self.trace_length / NUM_ROUNDS) as u64;
-        let mut rescue_ark = [0u64; 2 * STATE_WIDTH];
-        for i in 0..rescue_ark.len() {
-            rescue_ark[i] = polynom::eval(&self.rescue_polys[i], F64::exp(x, num_cycles));
-        }
-
-        self.hash_opcode(current, next, &rescue_ark, &mut result[9..]);
+        let num_cycles = (self.trace_length / F64::ACC_NUM_ROUNDS) as u64;
+        let x = F64::exp(x, num_cycles);
+        self.hash_opcode(current, next, &self.accumulator.evaluate_constants_at(x), &mut result[9..]);
     }
 
     // EVALUATION HELPERS
@@ -112,29 +93,29 @@ impl Decoder {
         result[8] = F64::sub(op_code, op_bits_value);
     }
 
-    fn hash_opcode(&self, current: &TraceState, next: &TraceState, ark: &[u64; 2 * STATE_WIDTH], result: &mut [u64]) {
+    fn hash_opcode(&self, current: &TraceState, next: &TraceState, ark: &[u64], result: &mut [u64]) {
         let op_code = current.get_op_code();
 
-        let mut current_acc = [0; STATE_WIDTH];
+        let mut current_acc = [0; F64::ACC_STATE_WIDTH];
         current_acc.copy_from_slice(current.get_op_acc());
-        let mut next_acc = [0; STATE_WIDTH];
+        let mut next_acc = [0; F64::ACC_STATE_WIDTH];
         next_acc.copy_from_slice(next.get_op_acc());
 
         current_acc[0] = F64::add(current_acc[0], op_code);
         current_acc[1] = F64::mul(current_acc[1], op_code);
-        for i in 0..STATE_WIDTH {
+        for i in 0..F64::ACC_STATE_WIDTH {
             current_acc[i] = F64::add(current_acc[i], ark[i]);
         }
-        apply_sbox(&mut current_acc);
-        apply_mds(&mut current_acc);
+        self.accumulator.apply_sbox(&mut current_acc);
+        self.accumulator.apply_mds(&mut current_acc);
     
-        apply_inv_mds(&mut next_acc);
-        apply_sbox(&mut next_acc);
-        for i in 0..STATE_WIDTH {
-            next_acc[i] = F64::sub(next_acc[i], ark[STATE_WIDTH + i]);
+        self.accumulator.apply_inv_mds(&mut next_acc);
+        self.accumulator.apply_sbox(&mut next_acc);
+        for i in 0..F64::ACC_STATE_WIDTH {
+            next_acc[i] = F64::sub(next_acc[i], ark[F64::ACC_STATE_WIDTH + i]);
         }
 
-        for i in 0..STATE_WIDTH {
+        for i in 0..F64::ACC_STATE_WIDTH {
             result[i] = F64::sub(next_acc[i], current_acc[i]);
         }
     }
@@ -142,34 +123,6 @@ impl Decoder {
 
 // HELPER FUNCTIONS
 // ================================================================================================
-pub fn extend_constants(extension_factor: usize) -> (Vec<Vec<u64>>, Vec<Vec<u64>>) {
-    
-    let root = F64::get_root_of_unity(NUM_ROUNDS);
-    let inv_twiddles = fft::get_inv_twiddles(root, NUM_ROUNDS);
-
-    let domain_size = NUM_ROUNDS * extension_factor;
-    let domain_root = F64::get_root_of_unity(domain_size);
-    let twiddles = fft::get_twiddles(domain_root, domain_size);
-
-    let mut polys = Vec::with_capacity(ARK.len());
-    let mut evaluations = Vec::with_capacity(ARK.len());
-
-    for constant in ARK.iter() {
-        let mut extended_constant = filled_vector(NUM_ROUNDS, domain_size, F64::ZERO);
-        extended_constant.copy_from_slice(constant);
-
-        polynom::interpolate_fft_twiddles(&mut extended_constant, &inv_twiddles, true);
-        polys.push(extended_constant.clone());
-
-        unsafe { extended_constant.set_len(extended_constant.capacity()); }
-        polynom::eval_fft_twiddles(&mut extended_constant, &twiddles, true);
-
-        evaluations.push(extended_constant);
-    }
-
-    return (polys, evaluations);
-}
-
 fn is_binary(v: u64) -> u64 {
     return F64::sub(F64::mul(v, v), v);
 }

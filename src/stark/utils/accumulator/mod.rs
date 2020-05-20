@@ -1,4 +1,4 @@
-use crate::math::{ FiniteField, FieldElement };
+use crate::math::{ FiniteField, FieldElement, polynom };
 
 mod acc64;
 mod acc128;
@@ -20,8 +20,9 @@ pub struct Accumulator<T> {
     inv_alpha   : T,
     mds         : Vec<T>,
     inv_mds     : Vec<T>,
-    ark         : Vec<Vec<T>>,
+    ark         : Vec<T>,
     ark_polys   : Vec<Vec<T>>,
+    hash_cycle  : usize,
 }
 
 // ACCUMULATOR IMPLEMENTATION
@@ -44,19 +45,36 @@ impl <T> Accumulator<T>
         state[1] = T::mul(state[1], value);
 
         // apply Rescue round
-        self.add_constants(state, step % T::ACC_NUM_ROUNDS, 0);
+        self.add_constants(state, step, 0);
         self.apply_sbox(state);
         self.apply_mds(state);
 
-        self.add_constants(state, step % T::ACC_NUM_ROUNDS, T::ACC_STATE_WIDTH);
+        self.add_constants(state, step, T::ACC_STATE_WIDTH);
         self.apply_inv_sbox(state);
         self.apply_mds(state);
     }
 
     pub fn add_constants(&self, state: &mut [T], step: usize, offset: usize) {
+        let step = step % self.hash_cycle;
+        let start = step * T::ACC_STATE_WIDTH * 2 + offset;
+        let ark = &self.ark[start..(start + T::ACC_STATE_WIDTH)];
         for i in 0..T::ACC_STATE_WIDTH {
-            state[i] = T::add(state[i], self.ark[offset + i][step]);
+            state[i] = T::add(state[i], ark[i]);
         }
+    }
+
+    pub fn get_constants_at(&self, step: usize) -> &[T] {
+        let step = step % self.hash_cycle;
+        let start = step * T::ACC_STATE_WIDTH * 2;
+        return &self.ark[start..(start + 2 * T::ACC_STATE_WIDTH)];
+    }
+
+    pub fn evaluate_constants_at(&self, x: T) -> Vec<T> {
+        let mut result = Vec::with_capacity(self.ark_polys.len());
+        for i in 0..self.ark_polys.len() {
+            result.push(polynom::eval(&self.ark_polys[i], x));
+        }
+        return result;
     }
 
     pub fn apply_sbox(&self, state: &mut [T]) {
