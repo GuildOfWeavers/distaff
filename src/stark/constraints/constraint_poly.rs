@@ -41,7 +41,7 @@ impl ConstraintPoly {
         return polynom::eval(&self.poly, z);
     }
 
-    pub fn merge_into(mut self, result: &mut Vec<u64>, z: u64, cc: &CompositionCoefficients) -> u64 {
+    pub fn merge_into(mut self, result: &mut Vec<u64>, z: u64, cc: &CompositionCoefficients<F64>) -> u64 {
 
         // evaluate the polynomial at point z
         let z_value = polynom::eval(&self.poly, z);

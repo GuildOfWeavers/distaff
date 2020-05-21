@@ -9,7 +9,7 @@ pub struct Evaluator {
     decoder         : Decoder,
     stack           : Stack,
 
-    coefficients    : ConstraintCoefficients,
+    coefficients    : ConstraintCoefficients<F64>,
     domain_size     : usize,
     extension_factor: usize,
 

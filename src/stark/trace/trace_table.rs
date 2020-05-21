@@ -189,7 +189,7 @@ impl TraceTable {
     /// T2_i(x) = (T_i(x) - T_i(z * g)) / (x - z * g) are computed for all i and combined
     /// together into a single polynomial using a pseudo-random linear combination;
     /// 3. Then the degree of the polynomial is adjusted to match the specified degree
-    pub fn get_composition_poly(&self, z: u64, cc: &CompositionCoefficients) -> (Vec<u64>, Vec<u64>, Vec<u64>) {
+    pub fn get_composition_poly(&self, z: u64, cc: &CompositionCoefficients<F64>) -> (Vec<u64>, Vec<u64>, Vec<u64>) {
 
         let trace_length = self.unextended_length();
         assert!(self.is_extended(), "trace table has not been extended yet");

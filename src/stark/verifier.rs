@@ -50,7 +50,7 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
 
     // 4 ----- Compute composition polynomial evaluations -----------------------------------------
     // derive coefficient for linear combination from the root of constraint tree
-    let coefficients = CompositionCoefficients::new(proof.constraint_root());
+    let coefficients = CompositionCoefficients::<F64>::new(proof.constraint_root());
 
     // compute composition values separately for trace and constraints, and then add them together
     let t_composition = compose_registers(&proof, &t_positions, z, &coefficients);
@@ -87,7 +87,7 @@ fn evaluate_constraints(evaluator: ConstraintEvaluator, state1: TraceState<F64>,
     return result;
 }
 
-fn compose_registers(proof: &StarkProof, positions: &[usize], z: u64, cc: &CompositionCoefficients) -> Vec<u64> {
+fn compose_registers(proof: &StarkProof, positions: &[usize], z: u64, cc: &CompositionCoefficients<F64>) -> Vec<u64> {
     
     let lde_root = F64::get_root_of_unity(proof.domain_size());
     let trace_root = F64::get_root_of_unity(proof.trace_length());
@@ -127,7 +127,7 @@ fn compose_registers(proof: &StarkProof, positions: &[usize], z: u64, cc: &Compo
     return result;
 }
 
-fn compose_constraints(proof: &StarkProof, t_positions: &[usize], c_positions: &[usize], z: u64, evaluation_at_z: u64, cc: &CompositionCoefficients) -> Vec<u64> {
+fn compose_constraints(proof: &StarkProof, t_positions: &[usize], c_positions: &[usize], z: u64, evaluation_at_z: u64, cc: &CompositionCoefficients<F64>) -> Vec<u64> {
 
     // build constraint evaluation values from the leaves of constraint Merkle proof
     let mut evaluations = Vec::with_capacity(t_positions.len());
