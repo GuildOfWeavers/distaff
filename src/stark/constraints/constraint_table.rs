@@ -43,7 +43,7 @@ impl ConstraintTable {
     }
 
     /// Evaluates transition and boundary constraints at the specified step.
-    pub fn evaluate(&mut self, current: &TraceState, next: &TraceState, x: u64, step: usize) {
+    pub fn evaluate(&mut self, current: &TraceState<F64>, next: &TraceState<F64>, x: u64, step: usize) {
         let (init_bound, last_bound) = self.evaluator.evaluate_boundaries(current, x);
         self.i_evaluations[step] = init_bound;
         self.f_evaluations[step] = last_bound;

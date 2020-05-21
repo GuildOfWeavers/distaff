@@ -67,7 +67,7 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn evaluate_constraints(evaluator: ConstraintEvaluator, state1: TraceState, state2: TraceState, x: u64) -> u64 {
+fn evaluate_constraints(evaluator: ConstraintEvaluator, state1: TraceState<F64>, state2: TraceState<F64>, x: u64) -> u64 {
 
     let (i_value, f_value) = evaluator.evaluate_boundaries(&state1, x);
     let t_value = evaluator.evaluate_transition_at(&state1, &state2, x);

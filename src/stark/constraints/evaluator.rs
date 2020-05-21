@@ -118,7 +118,7 @@ impl Evaluator {
     /// Computes pseudo-random linear combination of transition constraints D_i at point x as:
     /// cc_{i * 2} * D_i + cc_{i * 2 + 1} * D_i * x^p for all i, where cc_j are the coefficients
     /// used in the linear combination and x^p is a degree adjustment factor (different for each degree).
-    pub fn evaluate_transition(&self, current: &TraceState, next: &TraceState, x: u64, step: usize) -> u64 {
+    pub fn evaluate_transition(&self, current: &TraceState<F64>, next: &TraceState<F64>, x: u64, step: usize) -> u64 {
         
         // evaluate transition constraints
         let mut evaluations = vec![0; self.t_constraint_num];
@@ -146,7 +146,7 @@ impl Evaluator {
     /// Computes pseudo-random liner combination of transition constraints at point x. This function
     /// is similar to the one above but it can also be used to evaluate constraints at any point
     /// in the filed (not just in the evaluation domain). However, it is also much slower.
-    pub fn evaluate_transition_at(&self, current: &TraceState, next: &TraceState, x: u64) -> u64 {
+    pub fn evaluate_transition_at(&self, current: &TraceState<F64>, next: &TraceState<F64>, x: u64) -> u64 {
         // evaluate transition constraints
         let mut evaluations = vec![0; self.t_constraint_num];
         self.decoder.evaluate_at(&current, &next, x, &mut evaluations);
@@ -160,7 +160,7 @@ impl Evaluator {
     /// separately for input and output constraints; the constraints are computed as:
     /// cc_{i * 2} * B_i + cc_{i * 2 + 1} * B_i * x^p for all i, where cc_j are the coefficients
     /// used in the linear combination and x^p is a degree adjustment factor.
-    pub fn evaluate_boundaries(&self, current: &TraceState, x: u64) -> (u64, u64) {
+    pub fn evaluate_boundaries(&self, current: &TraceState<F64>, x: u64) -> (u64, u64) {
         
         let cc = self.coefficients.inputs;
         let stack = current.get_stack();

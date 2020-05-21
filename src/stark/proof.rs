@@ -1,5 +1,5 @@
 use serde::{ Serialize, Deserialize };
-use crate::math::{ quartic::to_quartic_vec};
+use crate::math::{ F64, quartic::to_quartic_vec};
 use crate::crypto::{ BatchMerkleProof };
 use crate::stark::{ fri::FriProof, TraceState, ProofOptions };
 use crate::utils::{ uninit_vector };
@@ -104,7 +104,7 @@ impl StarkProof {
     }
 
     pub fn stack_depth(&self) -> usize {
-        return TraceState::compute_stack_depth(self.trace_evaluations[0].len());
+        return TraceState::<F64>::compute_stack_depth(self.trace_evaluations[0].len());
     }
 
     pub fn pow_nonce(&self) -> u64 {
@@ -113,11 +113,11 @@ impl StarkProof {
 
     // DEEP VALUES
     // -------------------------------------------------------------------------------------------
-    pub fn get_state_at_z1(&self) -> TraceState {
+    pub fn get_state_at_z1(&self) -> TraceState<F64> {
         return TraceState::from_raw_state(self.deep_values.trace_at_z1.clone());
     }
 
-    pub fn get_state_at_z2(&self) -> TraceState {
+    pub fn get_state_at_z2(&self) -> TraceState<F64> {
         return TraceState::from_raw_state(self.deep_values.trace_at_z2.clone());
     }
 }

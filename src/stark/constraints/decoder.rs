@@ -44,7 +44,7 @@ impl Decoder {
 
     // EVALUATOR FUNCTION
     // --------------------------------------------------------------------------------------------
-    pub fn evaluate(&self, current: &TraceState, next: &TraceState, step: usize, result: &mut [u64]) {
+    pub fn evaluate(&self, current: &TraceState<F64>, next: &TraceState<F64>, step: usize, result: &mut [u64]) {
 
         // 9 constraints to decode op_code
         self.decode_opcode(current, next, result);
@@ -53,7 +53,7 @@ impl Decoder {
         self.hash_opcode(current, next, self.accumulator.get_constants_at(step), &mut result[9..]);
     }
 
-    pub fn evaluate_at(&self, current: &TraceState, next: &TraceState, x: u64, result: &mut [u64]) {
+    pub fn evaluate_at(&self, current: &TraceState<F64>, next: &TraceState<F64>, x: u64, result: &mut [u64]) {
         // 9 constraints to decode op_code
         self.decode_opcode(current, next, result);
 
@@ -65,7 +65,7 @@ impl Decoder {
 
     // EVALUATION HELPERS
     // --------------------------------------------------------------------------------------------
-    fn decode_opcode(&self, current: &TraceState, next: &TraceState, result: &mut [u64]) {
+    fn decode_opcode(&self, current: &TraceState<F64>, next: &TraceState<F64>, result: &mut [u64]) {
         // TODO: degree of expanded op_bits is assumed to be 5, but in reality can be less than 5
         // if opcodes used in the program don't touch some op_bits. Thus, all degrees that assume
         // op_flag values to have degree 5, may be off.
@@ -93,7 +93,7 @@ impl Decoder {
         result[8] = F64::sub(op_code, op_bits_value);
     }
 
-    fn hash_opcode(&self, current: &TraceState, next: &TraceState, ark: &[u64], result: &mut [u64]) {
+    fn hash_opcode(&self, current: &TraceState<F64>, next: &TraceState<F64>, ark: &[u64], result: &mut [u64]) {
         let op_code = current.get_op_code();
 
         let mut current_acc = [0; F64::ACC_STATE_WIDTH];

@@ -58,14 +58,14 @@ impl TraceTable {
     }
 
     /// Returns state of the trace table at the specified `step`.
-    pub fn get_state(&self, step: usize) -> TraceState {
+    pub fn get_state(&self, step: usize) -> TraceState<F64> {
         let mut result = TraceState::new(self.max_stack_depth());
         self.fill_state(&mut result, step);
         return result;
     }
 
     /// Copies trace table state at the specified `step` to the passed in `state` object.
-    pub fn fill_state(&self, state: &mut TraceState, step: usize) {
+    pub fn fill_state(&self, state: &mut TraceState<F64>, step: usize) {
         for i in 0..self.registers.len() {
             state.set_register(i, self.registers[i][step]);
         }

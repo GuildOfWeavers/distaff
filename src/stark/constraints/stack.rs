@@ -27,7 +27,7 @@ impl Stack {
 
     // EVALUATOR FUNCTION
     // --------------------------------------------------------------------------------------------
-    pub fn evaluate(&self, current: &TraceState, next: &TraceState, result: &mut [u64]) {
+    pub fn evaluate(&self, current: &TraceState<F64>, next: &TraceState<F64>, result: &mut [u64]) {
 
         let op_flags = current.get_op_flags();
         let current_stack = current.get_stack();
