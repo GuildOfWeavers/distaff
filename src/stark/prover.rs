@@ -10,7 +10,7 @@ use super::{ ProofOptions, StarkProof, CompositionCoefficients, DeepValues, fri,
 // PROVER FUNCTION
 // ================================================================================================
 
-pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &ProofOptions) -> StarkProof {
+pub fn prove(trace: &mut TraceTable<F64>, inputs: &[u64], outputs: &[u64], options: &ProofOptions) -> StarkProof {
 
     // 1 ----- extend execution trace -------------------------------------------------------------
     let now = Instant::now();
@@ -163,7 +163,7 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn twiddles_from_domain(domain: &[u64]) -> Vec<u64> {
+fn twiddles_from_domain(domain: &[u64]) -> Vec<F64> {
     let mut twiddles = domain[..(domain.len() / 2)].to_vec();
     fft::permute(&mut twiddles);
     return twiddles;
@@ -182,7 +182,7 @@ fn evaluations_to_leaves(evaluations: Vec<F64>) -> Vec<[u8; 32]> {
     return unsafe { Vec::from_raw_parts(p as *mut [u8; 32], len, cap) };
 }
 
-fn build_composition_poly(trace: &TraceTable, constraint_poly: ConstraintPoly, seed: &[u8; 32]) -> (Vec<u64>, DeepValues) {
+fn build_composition_poly(trace: &TraceTable<F64>, constraint_poly: ConstraintPoly, seed: &[u8; 32]) -> (Vec<F64>, DeepValues) {
 
     // pseudo-randomly selection deep point z and coefficients for the composition
     let z = F64::prng(*seed);

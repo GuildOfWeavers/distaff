@@ -7,7 +7,7 @@ use super::{ decoder::Decoder, stack::Stack, MAX_CONSTRAINT_DEGREE };
 // ================================================================================================
 pub struct Evaluator {
     decoder         : Decoder,
-    stack           : Stack,
+    stack           : Stack<F64>,
 
     coefficients    : ConstraintCoefficients<F64>,
     domain_size     : usize,
@@ -28,7 +28,7 @@ pub struct Evaluator {
 // ================================================================================================
 impl Evaluator {
 
-    pub fn from_trace(trace: &TraceTable, trace_root: &[u8; 32], inputs: &[u64], outputs: &[u64]) -> Evaluator {
+    pub fn from_trace(trace: &TraceTable<F64>, trace_root: &[u8; 32], inputs: &[F64], outputs: &[F64]) -> Evaluator {
 
         let stack_depth = trace.max_stack_depth();
         let program_hash = trace.get_program_hash();
@@ -72,7 +72,7 @@ impl Evaluator {
 
         return Evaluator {
             decoder         : Decoder::new(trace_length, extension_factor),
-            stack           : Stack::new(stack_depth),
+            stack           : Stack::<F64>::new(stack_depth),
             coefficients    : ConstraintCoefficients::new(*proof.trace_root()),
             domain_size     : proof.domain_size(),
             extension_factor: extension_factor,
@@ -260,7 +260,7 @@ impl Evaluator {
 fn get_transition_constraint_degrees(stack_depth: usize) -> Vec<usize> {
     return [
         Decoder::constraint_degrees(),
-        Stack::constraint_degrees(stack_depth)
+        Stack::<F64>::constraint_degrees(stack_depth)
     ].concat();
 }
 

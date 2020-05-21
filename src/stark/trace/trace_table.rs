@@ -1,4 +1,4 @@
-use crate::math::{ F64, FiniteField, fft, polynom, parallel };
+use crate::math::{ FiniteField, FieldElement, fft, polynom, parallel };
 use crate::crypto::{ MerkleTree, HashFunction };
 use crate::processor::opcodes;
 use crate::utils::{ uninit_vector, filled_vector, as_bytes };
@@ -7,23 +7,24 @@ use super::{ TraceState, decoder, stack, MAX_REGISTER_COUNT };
 
 // TYPES AND INTERFACES
 // ================================================================================================
-pub struct TraceTable {
-    registers   : Vec<Vec<u64>>,
-    polys       : Vec<Vec<u64>>,
+pub struct TraceTable<T> {
+    registers   : Vec<Vec<T>>,
+    polys       : Vec<Vec<T>>,
     ext_factor  : usize,
 }
 
 // TRACE TABLE IMPLEMENTATION
 // ================================================================================================
-impl TraceTable {
-
+impl <T> TraceTable<T>
+    where T: FieldElement + FiniteField<T> + utils::AccumulatorBuilder<T>
+{
     /// Returns a trace table resulting from the execution of the specified program. Space for the
     /// trace table is allocated in accordance with the specified `extension_factor`.
-    pub fn new(program: &[u64], inputs: &[u64], extension_factor: usize) -> TraceTable {
+    pub fn new(program: &[T], inputs: &[T], extension_factor: usize) -> TraceTable<T> {
         
         assert!(program.len().is_power_of_two(), "program length must be a power of 2");
         assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
-        assert!(program[program.len() - 1] == opcodes::NOOP as u64, "last operation of a program must be NOOP");
+        assert!(program[program.len() - 1] == T::from(opcodes::NOOP), "last operation of a program must be NOOP");
 
         // create different segments of the trace
         let decoder_registers = decoder::process(program, extension_factor);
@@ -42,7 +43,7 @@ impl TraceTable {
     }
 
     /// Returns hash value of the executed program.
-    pub fn get_program_hash(&self) -> [u64; 4] {
+    pub fn get_program_hash(&self) -> [T; 4] { // TODO
         let last_step = if self.is_extended() {
             self.domain_size() - self.extension_factor()
         }
@@ -50,7 +51,7 @@ impl TraceTable {
             self.unextended_length() - 1
         };
 
-        let mut result = [0u64; 4];
+        let mut result = [T::ZERO; 4];
         for (i, j) in decoder::PROG_HASH_RANGE.enumerate() {
             result[i] = self.registers[j][last_step];
         }
@@ -58,14 +59,14 @@ impl TraceTable {
     }
 
     /// Returns state of the trace table at the specified `step`.
-    pub fn get_state(&self, step: usize) -> TraceState<F64> {
+    pub fn get_state(&self, step: usize) -> TraceState<T> {
         let mut result = TraceState::new(self.max_stack_depth());
         self.fill_state(&mut result, step);
         return result;
     }
 
     /// Copies trace table state at the specified `step` to the passed in `state` object.
-    pub fn fill_state(&self, state: &mut TraceState<F64>, step: usize) {
+    pub fn fill_state(&self, state: &mut TraceState<T>, step: usize) {
         for i in 0..self.registers.len() {
             state.set_register(i, self.registers[i][step]);
         }
@@ -97,24 +98,24 @@ impl TraceTable {
     }
 
     /// Returns trace of the register at the specified `index`.
-    pub fn get_register_trace(&self, index: usize) -> &[u64] {
+    pub fn get_register_trace(&self, index: usize) -> &[T] {
         return &self.registers[index];
     }
 
     /// Returns polynomial of the register at the specified `index`; can be called only
     /// after the trace table has been extended.
-    pub fn get_register_poly(&self, index: usize) -> &[u64] {
+    pub fn get_register_poly(&self, index: usize) -> &[T] {
         assert!(self.is_extended(), "trace table has not been extended yet");
         return &self.polys[index];
     }
 
     /// Returns trace of the stack register at the specified `index`.
-    pub fn get_stack_register_trace(&self, index: usize) -> &[u64] {
+    pub fn get_stack_register_trace(&self, index: usize) -> &[T] {
         return &self.registers[index + decoder::NUM_REGISTERS];
     }
 
     /// Returns values of all registers at the specified `positions`.
-    pub fn get_register_values_at(&self, positions: &[usize]) -> Vec<Vec<u64>> {
+    pub fn get_register_values_at(&self, positions: &[usize]) -> Vec<Vec<T>> {
         let mut result = Vec::with_capacity(positions.len());
         for &i in positions.iter() {
             let row = self.registers.iter().map(|r| r[i]).collect();
@@ -130,12 +131,12 @@ impl TraceTable {
 
     /// Extends all registers of the trace table by the `extension_factor` specified during
     /// trace table construction. A trace table can be extended only once.
-    pub fn extend(&mut self, twiddles: &[u64]) {
+    pub fn extend(&mut self, twiddles: &[T]) {
         assert!(!self.is_extended(), "trace table has already been extended");
         assert!(twiddles.len() * 2 == self.domain_size(), "invalid number of twiddles");
 
         // build inverse twiddles needed for FFT interpolation
-        let root = F64::get_root_of_unity(self.unextended_length());
+        let root = T::get_root_of_unity(self.unextended_length());
         let inv_twiddles = fft::get_inv_twiddles(root, self.unextended_length());
         
         // extend all registers
@@ -158,7 +159,7 @@ impl TraceTable {
     /// a distinct leaf in the tree; all registers at a given step are hashed together to
     /// form a single leaf value.
     pub fn build_merkle_tree(&self, hash: HashFunction) -> MerkleTree {
-        let mut trace_state = vec![0; self.register_count()];
+        let mut trace_state = vec![T::ZERO; self.register_count()];
         let mut hashed_states = uninit_vector::<[u8; 32]>(self.domain_size());
         // TODO: this loop should be parallelized
         for i in 0..self.domain_size() {
@@ -172,7 +173,7 @@ impl TraceTable {
 
     /// Evaluates trace polynomials at the specified point `z`; can be called only after
     /// the trace table has been extended
-    pub fn eval_polys_at(&self, z: u64) -> Vec<u64> {
+    pub fn eval_polys_at(&self, z: T) -> Vec<T> {
         assert!(self.is_extended(), "trace table has not been extended yet");
 
         let mut result = Vec::new();
@@ -189,34 +190,34 @@ impl TraceTable {
     /// T2_i(x) = (T_i(x) - T_i(z * g)) / (x - z * g) are computed for all i and combined
     /// together into a single polynomial using a pseudo-random linear combination;
     /// 3. Then the degree of the polynomial is adjusted to match the specified degree
-    pub fn get_composition_poly(&self, z: u64, cc: &CompositionCoefficients<F64>) -> (Vec<u64>, Vec<u64>, Vec<u64>) {
+    pub fn get_composition_poly(&self, z: T, cc: &CompositionCoefficients<T>) -> (Vec<T>, Vec<T>, Vec<T>) {
 
         let trace_length = self.unextended_length();
         assert!(self.is_extended(), "trace table has not been extended yet");
         
-        let g = F64::get_root_of_unity(trace_length);
-        let next_z = F64::mul(z, g);
+        let g = T::get_root_of_unity(trace_length);
+        let next_z = T::mul(z, g);
 
         // compute state of registers at deep points z and z * g
         let trace_state1 = self.eval_polys_at(z);
         let trace_state2 = self.eval_polys_at(next_z);
 
-        let mut t1_composition = vec![0; trace_length];
-        let mut t2_composition = vec![0; trace_length];
+        let mut t1_composition = vec![T::ZERO; trace_length];
+        let mut t2_composition = vec![T::ZERO; trace_length];
 
         // combine trace polynomials into 2 composition polynomials T1(x) and T2(x)
         for i in 0..self.polys.len() {
             // compute T1(x) = (T(x) - T(z)), multiply it by a pseudo-random coefficient,
             // and add the result into composition polynomial
             parallel::mul_acc(&mut t1_composition, &self.polys[i], cc.trace1[i], 1);
-            let adjusted_tz = F64::mul(trace_state1[i], cc.trace1[i]);
-            t1_composition[0] = F64::sub(t1_composition[0], adjusted_tz);
+            let adjusted_tz = T::mul(trace_state1[i], cc.trace1[i]);
+            t1_composition[0] = T::sub(t1_composition[0], adjusted_tz);
 
             // compute T2(x) = (T(x) - T(z * g)), multiply it by a pseudo-random
             // coefficient, and add the result into composition polynomial
             parallel::mul_acc(&mut t2_composition, &self.polys[i], cc.trace2[i], 1);
-            let adjusted_tz = F64::mul(trace_state2[i], cc.trace2[i]);
-            t2_composition[0] = F64::sub(t2_composition[0], adjusted_tz);
+            let adjusted_tz = T::mul(trace_state2[i], cc.trace2[i]);
+            t2_composition[0] = T::sub(t2_composition[0], adjusted_tz);
         }
 
         // divide the two composition polynomials by (x - z) and (x - z * g)
@@ -228,7 +229,7 @@ impl TraceTable {
         // adjust the degree of the polynomial to match the degree parameter by computing
         // C(x) = T(x) * k_1 + T(x) * x^incremental_degree * k_2
         let poly_size = utils::get_composition_degree(trace_length).next_power_of_two();
-        let mut composition_poly = filled_vector(poly_size, self.domain_size(), F64::ZERO);
+        let mut composition_poly = filled_vector(poly_size, self.domain_size(), T::ZERO);
         let incremental_degree = utils::get_incremental_trace_degree(trace_length);
         // this is equivalent to T(x) * k_1
         parallel::mul_acc(
@@ -342,7 +343,7 @@ mod tests {
         assert_eq!(expected_evaluations, actual_evaluations);
     }
 
-    fn build_trace_table() -> TraceTable {
+    fn build_trace_table() -> TraceTable<F64> {
         let program = [
             opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
             opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
@@ -350,7 +351,7 @@ mod tests {
             opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
             opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
             opcodes::NOOP
-        ].iter().map(|&op| op as u64).collect::<Vec<u64>>();
+        ].iter().map(|&op| op as u64).collect::<Vec<F64>>();
         return TraceTable::new(&program, &[1, 0], EXT_FACTOR);
     }
 }
