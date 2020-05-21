@@ -16,7 +16,7 @@ pub struct ConstraintTable {
 // ================================================================================================
 impl ConstraintTable {
 
-    pub fn new(trace: &TraceTable, trace_root: &[u64; 4], inputs: &[u64], outputs: &[u64]) -> ConstraintTable {
+    pub fn new(trace: &TraceTable, trace_root: &[u8; 32], inputs: &[u64], outputs: &[u64]) -> ConstraintTable {
         let evaluator = ConstraintEvaluator::from_trace(trace, trace_root, inputs, outputs);
         let evaluation_domain_size = evaluator.domain_size();
         return ConstraintTable {

@@ -28,7 +28,7 @@ pub struct Evaluator {
 // ================================================================================================
 impl Evaluator {
 
-    pub fn from_trace(trace: &TraceTable, trace_root: &[u64; 4], inputs: &[u64], outputs: &[u64]) -> Evaluator {
+    pub fn from_trace(trace: &TraceTable, trace_root: &[u8; 32], inputs: &[u64], outputs: &[u64]) -> Evaluator {
 
         let stack_depth = trace.max_stack_depth();
         let program_hash = trace.get_program_hash();
@@ -49,7 +49,7 @@ impl Evaluator {
         return Evaluator {
             decoder         : Decoder::new(trace_length, extension_factor),
             stack           : Stack::new(stack_depth),
-            coefficients    : ConstraintCoefficients::new(trace_root.copy_into()),
+            coefficients    : ConstraintCoefficients::new(*trace_root),
             domain_size     : domain_size,
             extension_factor: extension_factor,
             t_constraint_num: t_constraint_degrees.len(),
@@ -73,7 +73,7 @@ impl Evaluator {
         return Evaluator {
             decoder         : Decoder::new(trace_length, extension_factor),
             stack           : Stack::new(stack_depth),
-            coefficients    : ConstraintCoefficients::new(proof.trace_root().copy_into()),
+            coefficients    : ConstraintCoefficients::new(*proof.trace_root()),
             domain_size     : proof.domain_size(),
             extension_factor: extension_factor,
             t_constraint_num: t_constraint_degrees.len(),

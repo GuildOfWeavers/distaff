@@ -1,7 +1,7 @@
-use crate::math::{ F64, FiniteField, fft, polynom, parallel, quartic::to_quartic_vec };
+use crate::math::{ F64, FiniteField, fft, polynom, parallel };
 use crate::crypto::{ MerkleTree, HashFunction };
 use crate::processor::opcodes;
-use crate::utils::{ uninit_vector, filled_vector };
+use crate::utils::{ uninit_vector, filled_vector, as_bytes };
 use crate::stark::{ CompositionCoefficients, utils };
 use super::{ TraceState, decoder, stack, MAX_REGISTER_COUNT };
 
@@ -159,13 +159,13 @@ impl TraceTable {
     /// form a single leaf value.
     pub fn build_merkle_tree(&self, hash: HashFunction) -> MerkleTree {
         let mut trace_state = vec![0; self.register_count()];
-        let mut hashed_states = to_quartic_vec(uninit_vector(self.domain_size() * 4));
+        let mut hashed_states = uninit_vector::<[u8; 32]>(self.domain_size());
         // TODO: this loop should be parallelized
         for i in 0..self.domain_size() {
             for j in 0..trace_state.len() {
                 trace_state[j] = self.registers[j][i];
             }
-            hash(&trace_state, &mut hashed_states[i]);
+            hash(as_bytes(&trace_state), &mut hashed_states[i]);
         }
         return MerkleTree::new(hashed_states, hash);
     }
@@ -252,7 +252,7 @@ impl TraceTable {
 #[cfg(test)]
 mod tests {
 
-    use crate::{ crypto::hash::blake3, processor::opcodes, utils::CopyInto };
+    use crate::{ crypto::hash::blake3, processor::opcodes };
     use crate::stark::{ TraceTable, CompositionCoefficients, MAX_CONSTRAINT_DEGREE };
     use crate::math::{ F64, FiniteField, polynom, parallel, fft };
 
@@ -284,8 +284,8 @@ mod tests {
 
         // compute trace composition polynomial
         let t_tree = trace.build_merkle_tree(blake3);
-        let z = F64::prng(t_tree.root().copy_into());
-        let cc = CompositionCoefficients::new(t_tree.root().copy_into());
+        let z = F64::prng(*t_tree.root());
+        let cc = CompositionCoefficients::new(*t_tree.root());
         let target_degree = (trace.unextended_length() - 2) * MAX_CONSTRAINT_DEGREE - 1;
 
         let g = F64::get_root_of_unity(trace.unextended_length());

@@ -2,7 +2,6 @@ use std::mem;
 use crate::math::{ F64, FiniteField, quartic };
 use crate::crypto::{ MerkleTree };
 use crate::stark::{ ProofOptions };
-use crate::utils::{ CopyInto };
 
 use super::{ FriProof, FriLayer, utils, MAX_REMAINDER_LENGTH};
 
@@ -28,7 +27,7 @@ pub fn reduce(evaluations: &[u64], domain: &[u64], options: &ProofOptions) -> (V
         let polys = quartic::interpolate_batch(&xs, &p_values);
 
         // select a pseudo-random x coordinate and evaluate each row polynomial at that x
-        let special_x = F64::prng(p_tree.root().copy_into());
+        let special_x = F64::prng(*p_tree.root());
         let column = quartic::evaluate_batch(&polys, special_x);
 
         // break the column in a polynomial value matrix for the next layer

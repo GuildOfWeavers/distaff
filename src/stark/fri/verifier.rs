@@ -1,5 +1,4 @@
 use std::mem;
-use crate::utils::CopyInto;
 use crate::math::{ F64, FiniteField, polynom, quartic };
 use crate::crypto::{ MerkleTree, BatchMerkleProof };
 use crate::stark::{ ProofOptions };
@@ -65,7 +64,7 @@ pub fn verify(
         let row_polys = quartic::interpolate_batch(&xs, &layer.values);
 
         // calculate the pseudo-random x coordinate
-        let special_x = F64::prng(layer.root.copy_into());
+        let special_x = F64::prng(layer.root);
 
         // check that when the polynomials are evaluated at x, the result is equal to the corresponding column value
         evaluations = quartic::evaluate_batch(&row_polys, special_x);

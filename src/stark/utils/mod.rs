@@ -1,6 +1,5 @@
 use rand::prelude::*;
 use rand::distributions::Uniform;
-use crate::utils::{ CopyInto };
 use super::{ ProofOptions, MAX_CONSTRAINT_DEGREE };
 
 // RE-EXPORTS
@@ -26,9 +25,9 @@ pub fn get_incremental_trace_degree(trace_length: usize) -> usize {
     return composition_degree - (trace_length - 2);
 }
 
-pub fn compute_query_positions(seed: &[u64; 4], domain_size: usize, options: &ProofOptions) -> Vec<usize> {
+pub fn compute_query_positions(seed: &[u8; 32], domain_size: usize, options: &ProofOptions) -> Vec<usize> {
     let range = Uniform::from(0..domain_size);
-    let mut index_iter = StdRng::from_seed(seed.copy_into()).sample_iter(range);
+    let mut index_iter = StdRng::from_seed(*seed).sample_iter(range);
     let num_queries = options.num_queries();
 
     let mut result = Vec::new();

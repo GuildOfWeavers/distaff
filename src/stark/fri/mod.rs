@@ -17,15 +17,15 @@ const MAX_REMAINDER_LENGTH: usize = 256;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FriProof {
     pub layers      : Vec<FriLayer>,
-    pub rem_root    : [u64; 4],
+    pub rem_root    : [u8; 32],
     pub rem_values  : Vec<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FriLayer {
-    pub root    : [u64; 4],
+    pub root    : [u8; 32],
     pub values  : Vec<[u64; 4]>,
-    pub nodes   : Vec<Vec<[u64; 4]>>,
+    pub nodes   : Vec<Vec<[u8; 32]>>,
     pub depth   : u8,
 }
 

@@ -1,5 +1,5 @@
 use crate::crypto::{ HashFunction };
-use crate::utils::{ uninit_vector };
+use crate::utils::{ uninit_vector, as_bytes };
 
 pub fn get_augmented_positions(positions: &[usize], column_length: usize) -> Vec<usize> {
     let row_length = column_length / 4;
@@ -13,10 +13,10 @@ pub fn get_augmented_positions(positions: &[usize], column_length: usize) -> Vec
     return result;
 }
 
-pub fn hash_values(values: &Vec<[u64; 4]>, hash: HashFunction) -> Vec<[u64; 4]> {
-    let mut result: Vec<[u64; 4]> = uninit_vector(values.len());
+pub fn hash_values(values: &Vec<[u64; 4]>, hash: HashFunction) -> Vec<[u8; 32]> {
+    let mut result: Vec<[u8; 32]> = uninit_vector(values.len());
     for i in 0..values.len() {
-        hash(&values[i], &mut result[i])
+        hash(as_bytes(&values[i]), &mut result[i]);
     }
     return result;
 }
