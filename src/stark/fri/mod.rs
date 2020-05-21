@@ -1,4 +1,3 @@
-use crate::crypto::{ BatchMerkleProof };
 use serde::{ Serialize, Deserialize };
 
 // RE-EXPORTS
@@ -24,8 +23,10 @@ pub struct FriProof {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FriLayer {
-    pub root : [u64; 4],
-    pub proof: BatchMerkleProof,
+    pub root    : [u64; 4],
+    pub values  : Vec<[u64; 4]>,
+    pub nodes   : Vec<Vec<[u64; 4]>>,
+    pub depth   : u8,
 }
 
 // TESTS
@@ -46,9 +47,9 @@ mod tests {
         let evaluations = build_random_poly_evaluations(domain_size, degree);
 
         // generate proof
-        let fri_layers = super::reduce(&evaluations, &domain, &options);
-        let positions = compute_query_positions(fri_layers[fri_layers.len() - 1].root(), domain_size, &options);
-        let proof = super::build_proof(fri_layers, &positions);
+        let (fri_trees, fri_values) = super::reduce(&evaluations, &domain, &options);
+        let positions = compute_query_positions(fri_trees[fri_trees.len() - 1].root(), domain_size, &options);
+        let proof = super::build_proof(fri_trees, fri_values, &positions);
 
         // verify proof
         let sampled_evaluations = positions.iter().map(|&i| evaluations[i]).collect::<Vec<u64>>();
@@ -66,9 +67,9 @@ mod tests {
 
         // degree too low 1
         let evaluations = build_random_poly_evaluations(domain_size, degree);
-        let fri_layers = super::reduce(&evaluations, &domain, &options);
-        let positions = compute_query_positions(fri_layers[fri_layers.len() - 1].root(), domain_size, &options);
-        let proof = super::build_proof(fri_layers, &positions);
+        let (fri_trees, fri_values) = super::reduce(&evaluations, &domain, &options);
+        let positions = compute_query_positions(fri_trees[fri_trees.len() - 1].root(), domain_size, &options);
+        let proof = super::build_proof(fri_trees, fri_values, &positions);
 
         let sampled_evaluations = positions.iter().map(|&i| evaluations[i]).collect::<Vec<u64>>();
         let result = super::verify(&proof, &sampled_evaluations, &positions, degree - 1, &options);
@@ -77,9 +78,9 @@ mod tests {
 
         // degree too low 2
         let evaluations = build_random_poly_evaluations(domain_size, degree + 1);
-        let fri_layers = super::reduce(&evaluations, &domain, &options);
-        let positions = compute_query_positions(fri_layers[fri_layers.len() - 1].root(), domain_size, &options);
-        let proof = super::build_proof(fri_layers, &positions);
+        let (fri_trees, fri_values) = super::reduce(&evaluations, &domain, &options);
+        let positions = compute_query_positions(fri_trees[fri_trees.len() - 1].root(), domain_size, &options);
+        let proof = super::build_proof(fri_trees, fri_values, &positions);
 
         let sampled_evaluations = positions.iter().map(|&i| evaluations[i]).collect::<Vec<u64>>();
         let result = super::verify(&proof, &sampled_evaluations, &positions, degree, &options);

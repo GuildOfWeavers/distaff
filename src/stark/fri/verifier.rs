@@ -4,7 +4,7 @@ use crate::math::{ F64, FiniteField, polynom, quartic };
 use crate::crypto::{ MerkleTree, BatchMerkleProof };
 use crate::stark::{ ProofOptions };
 
-use super::{ FriProof, utils };
+use super::{ FriProof, FriLayer, utils };
 
 // VERIFIER
 // ================================================================================================
@@ -17,7 +17,7 @@ pub fn verify(
     options     : &ProofOptions) -> Result<bool, String>
 {
 
-    let domain_size = usize::pow(2, proof.layers[0].proof.depth as u32) * 4;
+    let domain_size = usize::pow(2, proof.layers[0].depth as u32) * 4;
     let domain_root = F64::get_root_of_unity(domain_size);
 
     // powers of the given root of unity 1, p, p^2, p^3 such that p^4 = 1
@@ -38,13 +38,14 @@ pub fn verify(
     for (depth, layer) in proof.layers.iter().enumerate() {
 
         let mut augmented_positions = utils::get_augmented_positions(&positions, domain_size);
-        let column_values = get_column_values(&layer.proof, &positions, &augmented_positions, domain_size);
+        let column_values = get_column_values(&layer.values, &positions, &augmented_positions, domain_size);
         if evaluations != column_values {
             return Err(format!("evaluations did not match column value at depth {}", depth));
         }
 
         // verify Merkle proof for the layer
-        if !MerkleTree::verify_batch(&layer.root, &augmented_positions, &layer.proof, options.hash_function()) {
+        let merkle_proof = build_layer_merkle_proof(&layer, options);
+        if !MerkleTree::verify_batch(&layer.root, &augmented_positions, &merkle_proof, options.hash_function()) {
             return Err(format!("verification of Merkle proof failed at layer {}", depth));
         }
 
@@ -61,7 +62,7 @@ pub fn verify(
         }
 
         // interpolate x and y values into row polynomials
-        let row_polys = quartic::interpolate_batch(&xs, &layer.proof.values);
+        let row_polys = quartic::interpolate_batch(&xs, &layer.values);
 
         // calculate the pseudo-random x coordinate
         let special_x = F64::prng(layer.root.copy_into());
@@ -126,10 +127,9 @@ fn verify_remainder(remainder: &[u64], max_degree_plus_1: usize, domain_root: u6
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn get_column_values(proof: &BatchMerkleProof, positions: &[usize], augmented_positions: &[usize], column_length: usize) -> Vec<u64> {
+fn get_column_values(values: &Vec<[u64; 4]>, positions: &[usize], augmented_positions: &[usize], column_length: usize) -> Vec<u64> {
     let row_length = column_length / 4;
 
-    let values = &proof.values;
     let mut result = Vec::new();
     for position in positions {
         let idx = augmented_positions.iter().position(|&v| v == position % row_length).unwrap();
@@ -138,6 +138,14 @@ fn get_column_values(proof: &BatchMerkleProof, positions: &[usize], augmented_po
     }
 
     return result;
+}
+
+fn build_layer_merkle_proof(layer: &FriLayer, options: &ProofOptions) -> BatchMerkleProof {
+    return BatchMerkleProof {
+        values  : utils::hash_values(&layer.values, options.hash_function()),
+        nodes   : layer.nodes.clone(),
+        depth   : layer.depth
+    };
 }
 
 // TESTS

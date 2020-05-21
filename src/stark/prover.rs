@@ -106,9 +106,9 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
     let now = Instant::now();
     let composition_degree = utils::get_composition_degree(trace.unextended_length());
     debug_assert!(composition_degree == polynom::infer_degree(&composed_evaluations));
-    let fri_layers = fri::reduce(&composed_evaluations, &lde_domain, options);
+    let (fri_trees, fri_values) = fri::reduce(&composed_evaluations, &lde_domain, options);
     debug!("Computed {} FRI layers from composition polynomial evaluations in {} ms",
-        fri_layers.len(),
+    fri_trees.len(),
         now.elapsed().as_millis());
 
     // 8 ----- determine query positions -----------------------------------------------------------
@@ -116,8 +116,8 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
 
     // combine all FRI layer roots into a single vector
     let mut fri_roots: Vec<u64> = Vec::new();
-    for layer in fri_layers.iter() {
-        layer.root().iter().for_each(|&v| fri_roots.push(v));
+    for tree in fri_trees.iter() {
+        tree.root().iter().for_each(|&v| fri_roots.push(v));
     }
 
     // derive a seed from the combined roots
@@ -138,7 +138,7 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u64], outputs: &[u64], options: &
     let now = Instant::now();
 
     // generate FRI proof
-    let fri_proof = fri::build_proof(fri_layers, &positions);
+    let fri_proof = fri::build_proof(fri_trees, fri_values, &positions);
 
     // built a list of trace evaluations at queried positions
     let trace_evaluations = trace.get_register_values_at(&positions);
