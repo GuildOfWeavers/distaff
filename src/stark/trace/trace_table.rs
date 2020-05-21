@@ -285,7 +285,7 @@ mod tests {
         // compute trace composition polynomial
         let t_tree = trace.build_merkle_tree(blake3);
         let z = F64::prng(t_tree.root().copy_into());
-        let cc = CompositionCoefficients::new(t_tree.root());
+        let cc = CompositionCoefficients::new(t_tree.root().copy_into());
         let target_degree = (trace.unextended_length() - 2) * MAX_CONSTRAINT_DEGREE - 1;
 
         let g = F64::get_root_of_unity(trace.unextended_length());

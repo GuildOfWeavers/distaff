@@ -174,7 +174,7 @@ fn build_composition_poly(trace: &TraceTable, constraint_poly: ConstraintPoly, s
 
     // pseudo-randomly selection deep point z and coefficients for the composition
     let z = F64::prng(seed.copy_into());
-    let coefficients = CompositionCoefficients::new(seed);
+    let coefficients = CompositionCoefficients::new(seed.copy_into());
 
     // divide out deep point from trace polynomials and merge them into a single polynomial
     let (mut result, s1, s2) = trace.get_composition_poly(z, &coefficients);

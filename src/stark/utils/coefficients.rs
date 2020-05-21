@@ -1,6 +1,9 @@
 use crate::math::{ FiniteField, FieldElement };
 use crate::stark::{ MAX_REGISTER_COUNT, MAX_INPUTS, MAX_OUTPUTS, MAX_TRANSITION_CONSTRAINTS };
-use crate::utils::{ CopyInto };
+
+// CONSTANTS
+// ================================================================================================
+const NUM_CONSTRAINTS: usize = MAX_INPUTS + MAX_OUTPUTS + MAX_TRANSITION_CONSTRAINTS;
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -27,11 +30,10 @@ pub struct CompositionCoefficients<T>
 impl <T> ConstraintCoefficients<T>
     where T: FieldElement + FiniteField<T>
 {
-    pub fn new(seed: &[u64; 4]) -> ConstraintCoefficients<T> {
+    pub fn new(seed: [u8; 32]) -> ConstraintCoefficients<T> {
 
         // generate a pseudo-random list of coefficients
-        let coefficients = T::prng_vector(seed.copy_into(),
-            2 * (MAX_INPUTS + MAX_OUTPUTS + MAX_TRANSITION_CONSTRAINTS));
+        let coefficients = T::prng_vector(seed, 2 * NUM_CONSTRAINTS);
         
         // copy coefficients to their respective segments
         let end_index = 2 * MAX_INPUTS;
@@ -54,9 +56,9 @@ impl <T> ConstraintCoefficients<T>
 impl <T> CompositionCoefficients<T>
     where T: FieldElement + FiniteField<T>
 {
-    pub fn new(seed: &[u64; 4]) -> CompositionCoefficients<T> {
+    pub fn new(seed: [u8; 32]) -> CompositionCoefficients<T> {
         // generate a pseudo-random list of coefficients
-        let coefficients = T::prng_vector(seed.copy_into(), 4 * MAX_REGISTER_COUNT + 3 + 1);
+        let coefficients = T::prng_vector(seed, 1 + 4 * MAX_REGISTER_COUNT + 3);
 
         // skip the first value because it is used up by deep point z
         let start_index = 1;

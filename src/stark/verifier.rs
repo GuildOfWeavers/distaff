@@ -50,7 +50,7 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
 
     // 4 ----- Compute composition polynomial evaluations -----------------------------------------
     // derive coefficient for linear combination from the root of constraint tree
-    let coefficients = CompositionCoefficients::<F64>::new(proof.constraint_root());
+    let coefficients = CompositionCoefficients::<F64>::new(proof.constraint_root().copy_into());
 
     // compute composition values separately for trace and constraints, and then add them together
     let t_composition = compose_registers(&proof, &t_positions, z, &coefficients);

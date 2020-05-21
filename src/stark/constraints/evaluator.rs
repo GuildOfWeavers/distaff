@@ -49,7 +49,7 @@ impl Evaluator {
         return Evaluator {
             decoder         : Decoder::new(trace_length, extension_factor),
             stack           : Stack::new(stack_depth),
-            coefficients    : ConstraintCoefficients::new(trace_root),
+            coefficients    : ConstraintCoefficients::new(trace_root.copy_into()),
             domain_size     : domain_size,
             extension_factor: extension_factor,
             t_constraint_num: t_constraint_degrees.len(),
@@ -73,7 +73,7 @@ impl Evaluator {
         return Evaluator {
             decoder         : Decoder::new(trace_length, extension_factor),
             stack           : Stack::new(stack_depth),
-            coefficients    : ConstraintCoefficients::new(proof.trace_root()),
+            coefficients    : ConstraintCoefficients::new(proof.trace_root().copy_into()),
             domain_size     : proof.domain_size(),
             extension_factor: extension_factor,
             t_constraint_num: t_constraint_degrees.len(),
