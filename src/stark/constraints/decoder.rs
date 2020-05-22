@@ -114,9 +114,9 @@ impl <T> Decoder <T>
     fn hash_opcode(&self, current: &TraceState<T>, next: &TraceState<T>, ark: &[T], result: &mut [T]) {
         let op_code = current.get_op_code();
 
-        let mut current_acc = vec![T::ZERO; T::STATE_WIDTH];
+        let mut current_acc = vec![T::ZERO; T::STATE_WIDTH]; // TODO: convert to array
         current_acc.copy_from_slice(current.get_op_acc());
-        let mut next_acc = vec![T::ZERO; T::STATE_WIDTH];
+        let mut next_acc = vec![T::ZERO; T::STATE_WIDTH];    // TODO: convert to array
         next_acc.copy_from_slice(next.get_op_acc());
 
         current_acc[0] = T::add(current_acc[0], op_code);
