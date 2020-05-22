@@ -1,12 +1,13 @@
 use std::mem;
-use crate::{ math::{ F64, FiniteField }, crypto::{ MerkleTree } };
-use super::{ StarkProof, TraceState, ConstraintEvaluator, CompositionCoefficients, fri, utils };
+use crate::{ math::{ FiniteField }, crypto::{ MerkleTree } };
+use super::{ StarkProof, TraceState, ConstraintEvaluator, CompositionCoefficients, Accumulator, fri, utils };
 
 // VERIFIER FUNCTION
 // ================================================================================================
 
-pub fn verify(program_hash: &[u8; 32], inputs: &[F64], outputs: &[F64], proof: &StarkProof) -> Result<bool, String> {
-
+pub fn verify<T>(program_hash: &[u8; 32], inputs: &[T], outputs: &[T], proof: &StarkProof<T>) -> Result<bool, String>
+    where T: FiniteField + Accumulator
+{
     let options = proof.options();
     let hash_fn = options.hash_function();
 
@@ -39,7 +40,7 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[F64], outputs: &[F64], proof: &
 
     // 3 ----- Compute constraint evaluations at DEEP point z -------------------------------------
     // derive DEEP point z from the root of the constraint tree
-    let z = F64::prng(*proof.constraint_root());
+    let z = T::prng(*proof.constraint_root());
 
     // evaluate constraints at z
     let constraint_evaluation_at_z = evaluate_constraints(
@@ -51,12 +52,12 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[F64], outputs: &[F64], proof: &
 
     // 4 ----- Compute composition polynomial evaluations -----------------------------------------
     // derive coefficient for linear combination from the root of constraint tree
-    let coefficients = CompositionCoefficients::<F64>::new(*proof.constraint_root());
+    let coefficients = CompositionCoefficients::<T>::new(*proof.constraint_root());
 
     // compute composition values separately for trace and constraints, and then add them together
     let t_composition = compose_registers(&proof, &t_positions, z, &coefficients);
     let c_composition = compose_constraints(&proof, &t_positions, &c_positions, z, constraint_evaluation_at_z, &coefficients);
-    let evaluations = t_composition.iter().zip(c_composition).map(|(&t, c)| F64::add(t, c)).collect::<Vec<F64>>();
+    let evaluations = t_composition.iter().zip(c_composition).map(|(&t, c)| T::add(t, c)).collect::<Vec<T>>();
     
     // 5 ----- Verify low-degree proof -------------------------------------------------------------
     let max_degree = utils::get_composition_degree(proof.trace_length());
@@ -68,59 +69,61 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[F64], outputs: &[F64], proof: &
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn evaluate_constraints(evaluator: ConstraintEvaluator<F64>, state1: TraceState<F64>, state2: TraceState<F64>, x: F64) -> F64 {
-
+fn evaluate_constraints<T>(evaluator: ConstraintEvaluator<T>, state1: TraceState<T>, state2: TraceState<T>, x: T) -> T
+    where T: FiniteField + Accumulator
+{
     let (i_value, f_value) = evaluator.evaluate_boundaries(&state1, x);
     let t_value = evaluator.evaluate_transition_at(&state1, &state2, x);
 
     // Z(x) = x - 1
-    let z = F64::sub(x, F64::ONE);
-    let mut result = F64::div(i_value, z);
+    let z = T::sub(x, T::ONE);
+    let mut result = T::div(i_value, z);
 
     // Z(x) = x - x_at_last_step
-    let z = F64::sub(x, evaluator.get_x_at_last_step());
-    result = F64::add(result, F64::div(f_value, z));
+    let z = T::sub(x, evaluator.get_x_at_last_step());
+    result = T::add(result, T::div(f_value, z));
 
     // Z(x) = (x^steps - 1) / (x - x_at_last_step)
-    let z = F64::div(F64::sub(F64::exp(x, F64::from_usize(evaluator.trace_length())), F64::ONE), z);
-    result = F64::add(result, F64::div(t_value, z));
+    let z = T::div(T::sub(T::exp(x, T::from_usize(evaluator.trace_length())), T::ONE), z);
+    result = T::add(result, T::div(t_value, z));
 
     return result;
 }
 
-fn compose_registers(proof: &StarkProof, positions: &[usize], z: F64, cc: &CompositionCoefficients<F64>) -> Vec<F64> {
-    
-    let lde_root = F64::get_root_of_unity(proof.domain_size());
-    let trace_root = F64::get_root_of_unity(proof.trace_length());
-    let next_z = F64::mul(z, trace_root);
+fn compose_registers<T>(proof: &StarkProof<T>, positions: &[usize], z: T, cc: &CompositionCoefficients<T>) -> Vec<T>
+    where T: FiniteField
+{    
+    let lde_root = T::get_root_of_unity(proof.domain_size());
+    let trace_root = T::get_root_of_unity(proof.trace_length());
+    let next_z = T::mul(z, trace_root);
 
     let trace_at_z1 = proof.get_state_at_z1().registers().to_vec();
     let trace_at_z2 = proof.get_state_at_z2().registers().to_vec();
     let evaluations = proof.trace_evaluations();
 
-    let incremental_degree = F64::from_usize(utils::get_incremental_trace_degree(proof.trace_length()));
+    let incremental_degree = T::from_usize(utils::get_incremental_trace_degree(proof.trace_length()));
 
     let mut result = Vec::with_capacity(evaluations.len());
     for (registers, &position) in evaluations.into_iter().zip(positions) {
-        let x = F64::exp(lde_root, F64::from_usize(position));
+        let x = T::exp(lde_root, T::from_usize(position));
         
-        let mut composition = 0;
+        let mut composition = T::ZERO;
         for (i, &value) in registers.iter().enumerate() {
             // compute T1(x) = (T(x) - T(z)) / (x - z)
-            let t1 = F64::div(F64::sub(value, trace_at_z1[i]), F64::sub(x, z));
+            let t1 = T::div(T::sub(value, trace_at_z1[i]), T::sub(x, z));
             // multiply it by a pseudo-random coefficient, and combine with result
-            composition = F64::add(composition, F64::mul(t1, cc.trace1[i]));
+            composition = T::add(composition, T::mul(t1, cc.trace1[i]));
 
             // compute T2(x) = (T(x) - T(z * g)) / (x - z * g)
-            let t2 = F64::div(F64::sub(value, trace_at_z2[i]), F64::sub(x, next_z));
+            let t2 = T::div(T::sub(value, trace_at_z2[i]), T::sub(x, next_z));
             // multiply it by a pseudo-random coefficient, and combine with result
-            composition = F64::add(composition, F64::mul(t2, cc.trace2[i]));
+            composition = T::add(composition, T::mul(t2, cc.trace2[i]));
         }
 
         // raise the degree to match composition degree
-        let xp = F64::exp(x, incremental_degree);
-        let adj_composition = F64::mul(F64::mul(composition, xp), cc.t2_degree);
-        composition = F64::add(F64::mul(composition, cc.t1_degree), adj_composition);
+        let xp = T::exp(x, incremental_degree);
+        let adj_composition = T::mul(T::mul(composition, xp), cc.t2_degree);
+        composition = T::add(T::mul(composition, cc.t1_degree), adj_composition);
 
         result.push(composition);
     }
@@ -128,31 +131,32 @@ fn compose_registers(proof: &StarkProof, positions: &[usize], z: F64, cc: &Compo
     return result;
 }
 
-fn compose_constraints(proof: &StarkProof, t_positions: &[usize], c_positions: &[usize], z: F64, evaluation_at_z: F64, cc: &CompositionCoefficients<F64>) -> Vec<F64> {
-
+fn compose_constraints<T>(proof: &StarkProof<T>, t_positions: &[usize], c_positions: &[usize], z: T, evaluation_at_z: T, cc: &CompositionCoefficients<T>) -> Vec<T>
+    where T: FiniteField
+{
     // build constraint evaluation values from the leaves of constraint Merkle proof
-    let mut evaluations: Vec<F64> = Vec::with_capacity(t_positions.len());
-    let element_size = mem::size_of::<F64>();
+    let mut evaluations: Vec<T> = Vec::with_capacity(t_positions.len());
+    let element_size = mem::size_of::<T>();
     let elements_per_leaf = 32 / element_size;
     let leaves = proof.constraint_proof().values;
     for &position in t_positions.iter() {
         let leaf_idx = c_positions.iter().position(|&v| v == position / elements_per_leaf).unwrap();
         let element_start = (position % elements_per_leaf) * element_size;
         let element_bytes = &leaves[leaf_idx][element_start..(element_start + element_size)];
-        evaluations.push(F64::from_bytes(element_bytes));
+        evaluations.push(T::from_bytes(element_bytes));
     }
 
-    let lde_root = F64::get_root_of_unity(proof.domain_size());
+    let lde_root = T::get_root_of_unity(proof.domain_size());
 
     // divide out deep point from the evaluations
     let mut result = Vec::with_capacity(evaluations.len());
     for (evaluation, &position) in evaluations.into_iter().zip(t_positions) {
-        let x = F64::exp(lde_root, F64::from_usize(position));
+        let x = T::exp(lde_root, T::from_usize(position));
 
         // compute C(x) = (P(x) - P(z)) / (x - z)
-        let composition = F64::div(F64::sub(evaluation, evaluation_at_z), F64::sub(x, z));
+        let composition = T::div(T::sub(evaluation, evaluation_at_z), T::sub(x, z));
         // multiply by pseudo-random coefficient for linear combination
-        result.push(F64::mul(composition, cc.constraints));
+        result.push(T::mul(composition, cc.constraints));
     }
 
     return result;

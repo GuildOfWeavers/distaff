@@ -44,7 +44,7 @@ fn main() {
 
     // verify that executing a program with a given hash and given inputs
     // results in the expected output
-    let proof = bincode::deserialize::<StarkProof>(&proof_bytes).unwrap();
+    let proof = bincode::deserialize::<StarkProof<F64>>(&proof_bytes).unwrap();
     let now = Instant::now();
     match processor::verify(&program_hash, &inputs, &outputs, &proof) {
         Ok(_) => println!("Execution verified in {} ms", now.elapsed().as_millis()),

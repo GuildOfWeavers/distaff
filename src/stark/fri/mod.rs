@@ -1,4 +1,5 @@
 use serde::{ Serialize, Deserialize };
+use crate::math::{ FiniteField };
 
 // RE-EXPORTS
 // ================================================================================================
@@ -15,16 +16,16 @@ const MAX_REMAINDER_LENGTH: usize = 256;
 // TYPES AND INTERFACES
 // ================================================================================================
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FriProof {
-    pub layers      : Vec<FriLayer>,
+pub struct FriProof<T: FiniteField> {
+    pub layers      : Vec<FriLayer<T>>,
     pub rem_root    : [u8; 32],
-    pub rem_values  : Vec<u64>,
+    pub rem_values  : Vec<T>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FriLayer {
+pub struct FriLayer<T: FiniteField> {
     pub root    : [u8; 32],
-    pub values  : Vec<[u64; 4]>,
+    pub values  : Vec<[T; 4]>,
     pub nodes   : Vec<Vec<[u8; 32]>>,
     pub depth   : u8,
 }

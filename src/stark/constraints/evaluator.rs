@@ -75,7 +75,7 @@ impl <T> Evaluator<T>
         };
     }
 
-    pub fn from_proof(proof: &StarkProof, program_hash: &[u8; 32], inputs: &[T], outputs: &[T]) -> Evaluator<T> {
+    pub fn from_proof(proof: &StarkProof<T>, program_hash: &[u8; 32], inputs: &[T], outputs: &[T]) -> Evaluator<T> {
         
         let stack_depth = proof.stack_depth();
         let trace_length = proof.trace_length();

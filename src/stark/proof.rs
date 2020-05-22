@@ -1,5 +1,5 @@
 use serde::{ Serialize, Deserialize };
-use crate::math::{ F64 };
+use crate::math::{ FiniteField };
 use crate::crypto::{ BatchMerkleProof };
 use crate::stark::{ fri::FriProof, TraceState, ProofOptions };
 use crate::utils::{ uninit_vector, as_bytes };
@@ -9,39 +9,40 @@ use crate::utils::{ uninit_vector, as_bytes };
 
 // TODO: custom serialization should reduce size by 5% - 10%
 #[derive(Clone, Serialize, Deserialize)]
-pub struct StarkProof {
+pub struct StarkProof<T: FiniteField> {
     trace_root          : [u8; 32],
     domain_depth        : u8,
     trace_nodes         : Vec<Vec<[u8; 32]>>,
-    trace_evaluations   : Vec<Vec<u64>>,
+    trace_evaluations   : Vec<Vec<T>>,
     constraint_root     : [u8; 32],
     constraint_proof    : BatchMerkleProof,
-    deep_values         : DeepValues,
-    degree_proof        : FriProof,
+    deep_values         : DeepValues<T>,
+    degree_proof        : FriProof<T>,
     pow_nonce           : u64,
     options             : ProofOptions
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DeepValues {
-    pub trace_at_z1     : Vec<u64>,
-    pub trace_at_z2     : Vec<u64>,
+pub struct DeepValues<T: FiniteField> {
+    pub trace_at_z1     : Vec<T>,
+    pub trace_at_z2     : Vec<T>,
 }
 
 // STARK PROOF IMPLEMENTATION
 // ================================================================================================
-impl StarkProof {
-
+impl <T> StarkProof<T>
+    where T: FiniteField
+{
     pub fn new(
         trace_root          : &[u8; 32],
-        trace_proof         : BatchMerkleProof, 
-        trace_evaluations   : Vec<Vec<u64>>,
+        trace_proof         : BatchMerkleProof,
+        trace_evaluations   : Vec<Vec<T>>,
         constraint_root     : &[u8; 32],
         constraint_proof    : BatchMerkleProof,
-        deep_values         : DeepValues,
-        degree_proof        : FriProof,
+        deep_values         : DeepValues<T>,
+        degree_proof        : FriProof<T>,
         pow_nonce           : u64,
-        options             : &ProofOptions ) -> StarkProof
+        options             : &ProofOptions ) -> StarkProof<T>
     {
         return StarkProof {
             trace_root          : *trace_root,
@@ -92,11 +93,11 @@ impl StarkProof {
         return self.constraint_proof.clone();
     }
 
-    pub fn degree_proof(&self) -> &FriProof {
+    pub fn degree_proof(&self) -> &FriProof<T> {
         return &self.degree_proof;
     }
 
-    pub fn trace_evaluations(&self) -> &[Vec<u64>] {
+    pub fn trace_evaluations(&self) -> &[Vec<T>] {
         return &self.trace_evaluations;
     }
 
@@ -105,7 +106,7 @@ impl StarkProof {
     }
 
     pub fn stack_depth(&self) -> usize {
-        return TraceState::<F64>::compute_stack_depth(self.trace_evaluations[0].len());
+        return TraceState::<T>::compute_stack_depth(self.trace_evaluations[0].len());
     }
 
     pub fn pow_nonce(&self) -> u64 {
@@ -114,11 +115,11 @@ impl StarkProof {
 
     // DEEP VALUES
     // -------------------------------------------------------------------------------------------
-    pub fn get_state_at_z1(&self) -> TraceState<F64> {
+    pub fn get_state_at_z1(&self) -> TraceState<T> {
         return TraceState::from_raw_state(self.deep_values.trace_at_z1.clone());
     }
 
-    pub fn get_state_at_z2(&self) -> TraceState<F64> {
+    pub fn get_state_at_z2(&self) -> TraceState<T> {
         return TraceState::from_raw_state(self.deep_values.trace_at_z2.clone());
     }
 }
