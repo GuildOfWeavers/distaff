@@ -23,8 +23,8 @@ impl <T> Stack<T>
         return Stack { stack_depth, phantom: PhantomData };
     }
 
-    pub fn constraint_degrees(stack_depth: usize) -> &'static [usize] {
-        return &CONSTRAINT_DEGREES[..stack_depth];
+    pub fn constraint_degrees(&self) -> &[usize] {
+        return &CONSTRAINT_DEGREES[..self.stack_depth];
     }
 
     // EVALUATOR FUNCTION

@@ -6,7 +6,7 @@ use super::{ decoder::Decoder, stack::Stack, MAX_CONSTRAINT_DEGREE };
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct Evaluator {
-    decoder         : Decoder,
+    decoder         : Decoder<F64>,
     stack           : Stack<F64>,
 
     coefficients    : ConstraintCoefficients<F64>,
@@ -19,8 +19,8 @@ pub struct Evaluator {
 
     b_constraint_num: usize,
     program_hash    : [u64; 4],
-    inputs          : Vec<u64>,
-    outputs         : Vec<u64>,
+    inputs          : Vec<F64>,
+    outputs         : Vec<F64>,
     b_degree_adj    : u64,
 }
 
@@ -34,21 +34,29 @@ impl Evaluator {
         let program_hash = trace.get_program_hash();
         let trace_length = trace.unextended_length();
         let extension_factor = MAX_CONSTRAINT_DEGREE;
-        let t_constraint_degrees = get_transition_constraint_degrees(stack_depth);
+
+        // instantiate decoder and stack constraint evaluators 
+        let decoder = Decoder::new(trace_length, extension_factor);
+        let stack = Stack::new(stack_depth);
+
+        // build a list of transition constraint degrees
+        let t_constraint_degrees = [
+            decoder.constraint_degrees(), stack.constraint_degrees()
+        ].concat();
 
         // if we are in debug mode, initialize vectors to hold individual evaluations
         // of transition constraints
         let domain_size = trace_length * extension_factor;
         let t_evaluations = if cfg!(debug_assertions) {
-            t_constraint_degrees[..].iter().map(|_| uninit_vector(domain_size)).collect()
+            t_constraint_degrees.iter().map(|_| uninit_vector(domain_size)).collect()
         }
         else {
             Vec::new()
         };
 
         return Evaluator {
-            decoder         : Decoder::new(trace_length, extension_factor),
-            stack           : Stack::new(stack_depth),
+            decoder         : decoder,
+            stack           : stack,
             coefficients    : ConstraintCoefficients::new(*trace_root),
             domain_size     : domain_size,
             extension_factor: extension_factor,
@@ -63,16 +71,24 @@ impl Evaluator {
         };
     }
 
-    pub fn from_proof(proof: &StarkProof, program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64]) -> Evaluator {
+    pub fn from_proof(proof: &StarkProof, program_hash: &[u8; 32], inputs: &[F64], outputs: &[F64]) -> Evaluator {
         
         let stack_depth = proof.stack_depth();
         let trace_length = proof.trace_length();
         let extension_factor = proof.options().extension_factor();
-        let t_constraint_degrees = get_transition_constraint_degrees(stack_depth);
+        
+        // instantiate decoder and stack constraint evaluators 
+        let decoder = Decoder::new(trace_length, extension_factor);
+        let stack = Stack::new(stack_depth);
+
+        // build a list of transition constraint degrees
+        let t_constraint_degrees = [
+            decoder.constraint_degrees(), stack.constraint_degrees()
+        ].concat();
 
         return Evaluator {
-            decoder         : Decoder::new(trace_length, extension_factor),
-            stack           : Stack::<F64>::new(stack_depth),
+            decoder         : decoder,
+            stack           : stack,
             coefficients    : ConstraintCoefficients::new(*proof.trace_root()),
             domain_size     : proof.domain_size(),
             extension_factor: extension_factor,
@@ -257,13 +273,6 @@ impl Evaluator {
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn get_transition_constraint_degrees(stack_depth: usize) -> Vec<usize> {
-    return [
-        Decoder::constraint_degrees(),
-        Stack::<F64>::constraint_degrees(stack_depth)
-    ].concat();
-}
-
 fn group_transition_constraints(degrees: Vec<usize>, trace_length: usize) -> Vec<(u64, Vec<usize>)> {
     let mut groups = [
         Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(),

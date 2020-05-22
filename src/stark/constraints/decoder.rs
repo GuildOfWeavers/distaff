@@ -1,4 +1,4 @@
-use crate::math::{ F64, FiniteField };
+use crate::math::{ F64, FiniteField, FieldElement };
 use crate::processor::{ opcodes };
 use crate::stark::{ TraceState };
 use crate::stark::utils::{ Accumulator, AccumulatorBuilder };
@@ -20,17 +20,18 @@ const CONSTRAINT_DEGREES: [usize; NUM_CONSTRAINTS] = [
 
 // TYPES AND INTERFACES
 // ================================================================================================
-pub struct Decoder {
-    accumulator : Accumulator<F64>,
+pub struct Decoder<T> {
+    accumulator : Accumulator<T>,
     trace_length: usize,
 }
 
 // DECODER CONSTRAINT EVALUATOR IMPLEMENTATION
 // ================================================================================================
-impl Decoder {
-
-    pub fn new(trace_length: usize, extension_factor: usize) -> Decoder {
-        let accumulator = F64::get_accumulator(extension_factor);
+impl <T> Decoder <T>
+    where T: FieldElement + FiniteField<T> + AccumulatorBuilder<T>
+{
+    pub fn new(trace_length: usize, extension_factor: usize) -> Decoder<T> {
+        let accumulator = T::get_accumulator(extension_factor);
         return Decoder { accumulator, trace_length };
     }
 
@@ -38,13 +39,13 @@ impl Decoder {
         return NUM_CONSTRAINTS;
     }
 
-    pub fn constraint_degrees() -> &'static [usize] {
+    pub fn constraint_degrees(&self) -> &[usize] {
         return &CONSTRAINT_DEGREES;
     }
 
     // EVALUATOR FUNCTION
     // --------------------------------------------------------------------------------------------
-    pub fn evaluate(&self, current: &TraceState<F64>, next: &TraceState<F64>, step: usize, result: &mut [u64]) {
+    pub fn evaluate(&self, current: &TraceState<T>, next: &TraceState<T>, step: usize, result: &mut [T]) {
 
         // 9 constraints to decode op_code
         self.decode_opcode(current, next, result);
@@ -53,19 +54,19 @@ impl Decoder {
         self.hash_opcode(current, next, self.accumulator.get_constants_at(step), &mut result[9..]);
     }
 
-    pub fn evaluate_at(&self, current: &TraceState<F64>, next: &TraceState<F64>, x: u64, result: &mut [u64]) {
+    pub fn evaluate_at(&self, current: &TraceState<T>, next: &TraceState<T>, x: T, result: &mut [T]) {
         // 9 constraints to decode op_code
         self.decode_opcode(current, next, result);
 
         // 12 constraints to hash op_code
-        let num_cycles = (self.trace_length / F64::ACC_NUM_ROUNDS) as u64;
-        let x = F64::exp(x, num_cycles);
+        let num_cycles = T::from_usize(self.trace_length / T::ACC_NUM_ROUNDS);
+        let x = T::exp(x, num_cycles);
         self.hash_opcode(current, next, &self.accumulator.evaluate_constants_at(x), &mut result[9..]);
     }
 
     // EVALUATION HELPERS
     // --------------------------------------------------------------------------------------------
-    fn decode_opcode(&self, current: &TraceState<F64>, next: &TraceState<F64>, result: &mut [u64]) {
+    fn decode_opcode(&self, current: &TraceState<T>, next: &TraceState<T>, result: &mut [T]) {
         // TODO: degree of expanded op_bits is assumed to be 5, but in reality can be less than 5
         // if opcodes used in the program don't touch some op_bits. Thus, all degrees that assume
         // op_flag values to have degree 5, may be off.
@@ -81,52 +82,56 @@ impl Decoder {
 
         // 1 constraint, degree 5: push_flag must be set to 1 after a PUSH operation
         let op_flags = current.get_op_flags();
-        result[6] = F64::sub(op_flags[opcodes::PUSH as usize], next.get_push_flag());
+        result[6] = T::sub(op_flags[opcodes::PUSH as usize], next.get_push_flag());
 
         // 1 constraint, degree 2: push_flag cannot be 1 for two consecutive operations
-        result[7] = F64::mul(current.get_push_flag(), next.get_push_flag());
+        result[7] = T::mul(current.get_push_flag(), next.get_push_flag());
 
         // 1 constraint, degree 2: when push_flag = 0, op_bits must be a binary decomposition
         // of op_code, otherwise all op_bits must be 0 (NOOP)
         let op_bits_value = current.get_op_bits_value();
-        let op_code = F64::mul(current.get_op_code(), binary_not(current.get_push_flag()));
-        result[8] = F64::sub(op_code, op_bits_value);
+        let op_code = T::mul(current.get_op_code(), binary_not(current.get_push_flag()));
+        result[8] = T::sub(op_code, op_bits_value);
     }
 
-    fn hash_opcode(&self, current: &TraceState<F64>, next: &TraceState<F64>, ark: &[u64], result: &mut [u64]) {
+    fn hash_opcode(&self, current: &TraceState<T>, next: &TraceState<T>, ark: &[T], result: &mut [T]) {
         let op_code = current.get_op_code();
 
-        let mut current_acc = [0; F64::ACC_STATE_WIDTH];
+        let mut current_acc = vec![T::ZERO; T::ACC_STATE_WIDTH];
         current_acc.copy_from_slice(current.get_op_acc());
-        let mut next_acc = [0; F64::ACC_STATE_WIDTH];
+        let mut next_acc = vec![T::ZERO; T::ACC_STATE_WIDTH];
         next_acc.copy_from_slice(next.get_op_acc());
 
-        current_acc[0] = F64::add(current_acc[0], op_code);
-        current_acc[1] = F64::mul(current_acc[1], op_code);
-        for i in 0..F64::ACC_STATE_WIDTH {
-            current_acc[i] = F64::add(current_acc[i], ark[i]);
+        current_acc[0] = T::add(current_acc[0], op_code);
+        current_acc[1] = T::mul(current_acc[1], op_code);
+        for i in 0..T::ACC_STATE_WIDTH {
+            current_acc[i] = T::add(current_acc[i], ark[i]);
         }
         self.accumulator.apply_sbox(&mut current_acc);
         self.accumulator.apply_mds(&mut current_acc);
     
         self.accumulator.apply_inv_mds(&mut next_acc);
         self.accumulator.apply_sbox(&mut next_acc);
-        for i in 0..F64::ACC_STATE_WIDTH {
-            next_acc[i] = F64::sub(next_acc[i], ark[F64::ACC_STATE_WIDTH + i]);
+        for i in 0..T::ACC_STATE_WIDTH {
+            next_acc[i] = T::sub(next_acc[i], ark[T::ACC_STATE_WIDTH + i]);
         }
 
-        for i in 0..F64::ACC_STATE_WIDTH {
-            result[i] = F64::sub(next_acc[i], current_acc[i]);
+        for i in 0..T::ACC_STATE_WIDTH {
+            result[i] = T::sub(next_acc[i], current_acc[i]);
         }
     }
 }
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn is_binary(v: u64) -> u64 {
-    return F64::sub(F64::mul(v, v), v);
+fn is_binary<T>(v: T) -> T
+    where T: FieldElement + FiniteField<T>
+{
+    return T::sub(T::mul(v, v), v);
 }
 
-fn binary_not(v: u64) -> u64 {
-    return F64::sub(F64::ONE, v);
+fn binary_not<T>(v: T) -> T
+    where T: FieldElement + FiniteField<T>
+{
+    return T::sub(T::ONE, v);
 }
