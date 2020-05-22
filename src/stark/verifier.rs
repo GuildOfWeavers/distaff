@@ -1,5 +1,4 @@
 use std::mem;
-use std::convert::TryInto;
 use crate::{ math::{ F64, FiniteField, FieldElement }, crypto::{ MerkleTree } };
 use super::{ StarkProof, TraceState, ConstraintEvaluator, CompositionCoefficients, fri, utils };
 
@@ -69,7 +68,7 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[F64], outputs: &[F64], proof: &
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn evaluate_constraints(evaluator: ConstraintEvaluator, state1: TraceState<F64>, state2: TraceState<F64>, x: F64) -> F64 {
+fn evaluate_constraints(evaluator: ConstraintEvaluator<F64>, state1: TraceState<F64>, state2: TraceState<F64>, x: F64) -> F64 {
 
     let (i_value, f_value) = evaluator.evaluate_boundaries(&state1, x);
     let t_value = evaluator.evaluate_transition_at(&state1, &state2, x);
@@ -140,7 +139,7 @@ fn compose_constraints(proof: &StarkProof, t_positions: &[usize], c_positions: &
         let leaf_idx = c_positions.iter().position(|&v| v == position / elements_per_leaf).unwrap();
         let element_start = (position % elements_per_leaf) * element_size;
         let element_bytes = &leaves[leaf_idx][element_start..(element_start + element_size)];
-        evaluations.push(u64::from_le_bytes(element_bytes.try_into().unwrap()));
+        evaluations.push(F64::from_bytes(element_bytes));
     }
 
     let lde_root = F64::get_root_of_unity(proof.domain_size());

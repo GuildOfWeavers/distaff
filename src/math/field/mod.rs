@@ -13,6 +13,7 @@ pub mod prime128;
 // ================================================================================================
 pub trait FieldElement: Copy + Eq + PartialOrd + Display + Debug + SampleUniform + Send + Sync + From<u8> {
     fn from_usize(value: usize) -> Self;
+    fn from_bytes(value: &[u8]) -> Self;
     fn as_u8(self) -> u8;
 }
 

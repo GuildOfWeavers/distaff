@@ -1,8 +1,7 @@
 use log::debug;
-use std::cmp;
-use std::time::Instant;
+use std::{ cmp, time::Instant };
 use crate::stark::{ self, ProofOptions, StarkProof, MAX_INPUTS, MAX_OUTPUTS, MIN_TRACE_LENGTH };
-use crate::utils::CopyInto;
+use crate::utils::{ as_bytes };
 
 mod tests;
 pub mod opcodes;
@@ -33,10 +32,14 @@ pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize, options: &Pr
     // copy the stack state the the last step to return as output
     let last_state = trace.get_state(trace.unextended_length() - 1);
     let outputs = last_state.get_stack()[0..num_outputs].to_vec();
-    
+
+    // construct program hash
+    let mut program_hash = [0u8; 32];
+    program_hash.copy_from_slice(as_bytes(&trace.get_program_hash()));
+
     // generate STARK proof
     let proof = stark::prove(&mut trace, inputs, &outputs, options);
-    return (outputs, trace.get_program_hash().copy_into(), proof);
+    return (outputs, program_hash, proof);
 }
 
 /// Verifies that if a program with the specified `program_hash` is executed with the 

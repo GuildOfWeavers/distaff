@@ -43,7 +43,7 @@ impl <T> TraceTable<T>
     }
 
     /// Returns hash value of the executed program.
-    pub fn get_program_hash(&self) -> [T; 4] { // TODO
+    pub fn get_program_hash(&self) -> Vec<T> {
         let last_step = if self.is_extended() {
             self.domain_size() - self.extension_factor()
         }
@@ -51,7 +51,7 @@ impl <T> TraceTable<T>
             self.unextended_length() - 1
         };
 
-        let mut result = [T::ZERO; 4];
+        let mut result = vec![T::ZERO; 4]; // TODO
         for (i, j) in decoder::PROG_HASH_RANGE.enumerate() {
             result[i] = self.registers[j][last_step];
         }

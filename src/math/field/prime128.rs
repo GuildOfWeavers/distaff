@@ -1,4 +1,5 @@
 use std::ops::Range;
+use std::convert::TryInto;
 use super::{ FiniteField, FieldElement };
 
 // CONSTANTS
@@ -16,6 +17,11 @@ pub type F128 = u128;
 
 impl FieldElement for F128 {
     fn from_usize (value: usize) -> F128 { return value as u128; }
+
+    fn from_bytes(bytes: &[u8]) -> F128 { 
+        return u128::from_le_bytes(bytes.try_into().unwrap())
+    }
+
     fn as_u8(self) -> u8 { return self as u8; }
 }
 

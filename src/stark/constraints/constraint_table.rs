@@ -6,7 +6,7 @@ use super::{ ConstraintEvaluator, ConstraintPoly };
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct ConstraintTable {
-    evaluator       : ConstraintEvaluator,
+    evaluator       : ConstraintEvaluator<F64>,
     i_evaluations   : Vec<u64>, // combined evaluations of boundary constraints at the first step
     f_evaluations   : Vec<u64>, // combined evaluations of boundary constraints at the last step
     t_evaluations   : Vec<u64>, // combined evaluations of transition constraints

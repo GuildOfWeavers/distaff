@@ -27,7 +27,6 @@ pub const PROG_HASH_RANGE : Range<usize> = Range { start: 7, end: 11 };
 pub fn process<T>(program: &[T], extension_factor: usize) -> Vec<Vec<T>>
     where T: FieldElement + FiniteField<T> + AccumulatorBuilder<T>
 {
-
     let trace_length = program.len();
     let domain_size = trace_length * extension_factor;
 
@@ -85,27 +84,15 @@ pub fn process<T>(program: &[T], extension_factor: usize) -> Vec<Vec<T>>
 fn hash_program<T>(op_codes: &[T], domain_size: usize) -> Vec<Vec<T>>
     where T: FieldElement + FiniteField<T> + AccumulatorBuilder<T>
 {
-    
     let trace_length = op_codes.len();
+    let acc = T::get_accumulator(1);
 
     // allocate space for the registers
-    let mut registers = vec![
-        filled_vector(trace_length, domain_size, T::ZERO),
-        filled_vector(trace_length, domain_size, T::ZERO),
-        filled_vector(trace_length, domain_size, T::ZERO),
-        filled_vector(trace_length, domain_size, T::ZERO),
-        filled_vector(trace_length, domain_size, T::ZERO),
-        filled_vector(trace_length, domain_size, T::ZERO),
-        filled_vector(trace_length, domain_size, T::ZERO),
-        filled_vector(trace_length, domain_size, T::ZERO),
-        filled_vector(trace_length, domain_size, T::ZERO),
-        filled_vector(trace_length, domain_size, T::ZERO),
-        filled_vector(trace_length, domain_size, T::ZERO),
-        filled_vector(trace_length, domain_size, T::ZERO),
-    ];
-    assert!(registers.len() == T::ACC_STATE_WIDTH, "inconsistent number of opcode accumulator registers");
+    let mut registers = Vec::with_capacity(T::ACC_STATE_WIDTH);
+    for _ in 0..T::ACC_STATE_WIDTH {
+        registers.push(filled_vector(trace_length, domain_size, T::ZERO));
+    }
 
-    let acc = T::get_accumulator(1);
     let mut state = vec![T::ZERO; T::ACC_STATE_WIDTH];
     for i in 0..(op_codes.len() - 1) {
 
