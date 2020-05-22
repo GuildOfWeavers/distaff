@@ -1,6 +1,6 @@
 use log::debug;
 use std::{ cmp, time::Instant };
-use crate::math::{ F64 };
+use crate::math::{ F64, FiniteField };
 use crate::stark::{ self, ProofOptions, StarkProof, MAX_INPUTS, MAX_OUTPUTS, MIN_TRACE_LENGTH };
 use crate::utils::{ as_bytes };
 
@@ -12,8 +12,8 @@ pub mod opcodes;
 /// 
 /// * `inputs` specify the initial stack state the with inputs[0] being the top of the stack;
 /// * `num_outputs` specifies the number of elements from the top of the stack to be returned;
-pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize, options: &ProofOptions) -> (Vec<u64>, [u8; 32], StarkProof<F64>) {
-
+pub fn execute(program: &[F64], inputs: &[F64], num_outputs: usize, options: &ProofOptions) -> (Vec<F64>, [u8; 32], StarkProof<F64>)
+{
     assert!(inputs.len() <= MAX_INPUTS,
         "Expected no more than {} inputs, but received {}", MAX_INPUTS, inputs.len());
     assert!(num_outputs <= MAX_OUTPUTS, 
@@ -45,8 +45,8 @@ pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize, options: &Pr
 
 /// Verifies that if a program with the specified `program_hash` is executed with the 
 /// provided `inputs`, the result is equal to the `outputs`.
-pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &StarkProof<F64>) -> Result<bool, String> {
-
+pub fn verify(program_hash: &[u8; 32], inputs: &[F64], outputs: &[F64], proof: &StarkProof<F64>) -> Result<bool, String>
+{
     return stark::verify(program_hash, inputs, outputs, proof);
 }
 
@@ -54,10 +54,10 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
 /// 1. The length of the program is at least 16;
 /// 2. The length of the program is a power of 2;
 /// 3. The program terminates with a NOOP.
-pub fn pad_program(program: &[u64]) -> Vec<u64> {
+pub fn pad_program<T: FiniteField>(program: &[T]) -> Vec<T> {
     let mut program = program.to_vec();
     let trace_length = if program.len() == program.len().next_power_of_two() {
-        if program[program.len() - 1] == opcodes::NOOP as u64 {
+        if program[program.len() - 1] == T::from(opcodes::NOOP) {
             program.len()
         }
         else {
@@ -67,6 +67,14 @@ pub fn pad_program(program: &[u64]) -> Vec<u64> {
     else {
         program.len().next_power_of_two()
     };
-    program.resize(cmp::max(trace_length, MIN_TRACE_LENGTH), opcodes::NOOP as u64);
+    program.resize(cmp::max(trace_length, MIN_TRACE_LENGTH), T::from(opcodes::NOOP));
     return program;
+}
+
+/// Returns a hash value of the program.
+pub fn hash_program<T: stark::Accumulator>(program: &[T]) -> [u8; 32] {
+    assert!(program.len().is_power_of_two(), "program length must be a power of 2");
+    assert!(program.len() >= MIN_TRACE_LENGTH, "program must consist of at least {} operations", MIN_TRACE_LENGTH);
+    assert!(program[program.len() - 1] == T::from(opcodes::NOOP), "last operation of a program must be NOOP");
+    return T::digest(&program[..(program.len() - 1)]);
 }
