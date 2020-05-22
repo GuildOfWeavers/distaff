@@ -1,5 +1,5 @@
 use std::mem;
-use crate::math::{ FiniteField, FieldElement };
+use crate::math::{ FiniteField };
 use crate::stark::{ StarkProof, TraceTable, TraceState, ConstraintCoefficients };
 use crate::stark::utils::{ AccumulatorBuilder };
 use crate::utils::{ uninit_vector };
@@ -8,7 +8,7 @@ use super::{ decoder::Decoder, stack::Stack, MAX_CONSTRAINT_DEGREE };
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct Evaluator<T>
-    where T: FieldElement + FiniteField<T> + AccumulatorBuilder<T>
+    where T: FiniteField + AccumulatorBuilder<T>
 {
     decoder         : Decoder<T>,
     stack           : Stack<T>,
@@ -31,7 +31,7 @@ pub struct Evaluator<T>
 // EVALUATOR IMPLEMENTATION
 // ================================================================================================
 impl <T> Evaluator<T>
-    where T: FieldElement + FiniteField<T> + AccumulatorBuilder<T>
+    where T: FiniteField + AccumulatorBuilder<T>
 {
     pub fn from_trace(trace: &TraceTable<T>, trace_root: &[u8; 32], inputs: &[T], outputs: &[T]) -> Evaluator<T> {
 
@@ -279,7 +279,7 @@ impl <T> Evaluator<T>
 // HELPER FUNCTIONS
 // ================================================================================================
 fn group_transition_constraints<T>(degrees: Vec<usize>, trace_length: usize) -> Vec<(T, Vec<usize>)>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let mut groups = [
         Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(),
@@ -304,7 +304,7 @@ fn group_transition_constraints<T>(degrees: Vec<usize>, trace_length: usize) -> 
 }
 
 fn get_boundary_constraint_adjustment_degree<T>(trace_length: usize) -> T
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let target_degree = get_boundary_constraint_target_degree(trace_length);
     let boundary_constraint_degree = trace_length - 1;
@@ -330,7 +330,7 @@ fn get_transition_constraint_target_degree(trace_length: usize) -> usize {
 }
 
 fn parse_program_hash<T>(program_hash: &[u8; 32]) -> Vec<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let element_size = mem::size_of::<T>();
     let num_elements = program_hash.len() / element_size;

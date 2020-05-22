@@ -1,4 +1,4 @@
-use crate::math::{ FiniteField, FieldElement, fft, polynom, parallel };
+use crate::math::{ FiniteField, fft, polynom, parallel };
 use crate::crypto::{ MerkleTree, HashFunction };
 use crate::processor::opcodes;
 use crate::utils::{ uninit_vector, filled_vector, as_bytes };
@@ -16,7 +16,7 @@ pub struct TraceTable<T> {
 // TRACE TABLE IMPLEMENTATION
 // ================================================================================================
 impl <T> TraceTable<T>
-    where T: FieldElement + FiniteField<T> + utils::AccumulatorBuilder<T>
+    where T: FiniteField + utils::AccumulatorBuilder<T>
 {
     /// Returns a trace table resulting from the execution of the specified program. Space for the
     /// trace table is allocated in accordance with the specified `extension_factor`.

@@ -1,5 +1,5 @@
 use crossbeam_utils::thread;
-use crate::math::{ FiniteField, FieldElement };
+use crate::math::{ FiniteField };
 
 // CONSTANTS
 // ================================================================================================
@@ -16,7 +16,7 @@ const MAX_LOOP: usize = 256;
 /// 
 /// Adapted from: https://github.com/0xProject/OpenZKP/tree/master/algebra/primefield/src/fft
 pub fn fft_in_place<T>(values: &mut [T], twiddles: &[T], count: usize, stride: usize, offset: usize, num_threads: usize)
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     
     let size = values.len() / stride;
@@ -60,7 +60,7 @@ pub fn fft_in_place<T>(values: &mut [T], twiddles: &[T], count: usize, stride: u
 }
 
 pub fn get_twiddles<T>(root: T, size: usize) -> Vec<T> 
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     assert!(size.is_power_of_two());
     assert!(T::exp(root, T::from_usize(size)) == T::ONE);
@@ -70,7 +70,7 @@ pub fn get_twiddles<T>(root: T, size: usize) -> Vec<T>
 }
 
 pub fn get_inv_twiddles<T>(root: T, size: usize) -> Vec<T> 
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let inv_root = T::exp(root, T::from_usize(size - 1));
     return get_twiddles(inv_root, size);
@@ -98,7 +98,7 @@ fn permute_index(size: usize, index: usize) -> usize {
 
 #[inline(always)]
 fn butterfly<T>(values: &mut [T], offset: usize, stride: usize)
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let i = offset;
     let j = offset + stride;
@@ -109,7 +109,7 @@ fn butterfly<T>(values: &mut [T], offset: usize, stride: usize)
 
 #[inline(always)]
 fn butterfly_twiddle<T>(values: &mut [T], twiddle: T, offset: usize, stride: usize)
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let i = offset;
     let j = offset + stride;

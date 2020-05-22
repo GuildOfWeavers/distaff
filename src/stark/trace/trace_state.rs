@@ -1,6 +1,6 @@
 use std::fmt;
 use std::cmp;
-use crate::math::{ FiniteField, FieldElement };
+use crate::math::{ FiniteField };
 use super::{ decoder, NUM_LD_OPS, MIN_STACK_DEPTH };
 
 // CONSTANTS
@@ -11,7 +11,7 @@ const NUM_STATIC_REGISTER: usize = decoder::NUM_REGISTERS;
 // ================================================================================================
 #[derive(Debug, PartialEq)]
 pub struct TraceState<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     registers       : Vec<T>,
     state_width     : usize,
@@ -22,7 +22,7 @@ pub struct TraceState<T>
 // TRACE STATE IMPLEMENTATION
 // ================================================================================================
 impl <T> TraceState<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     pub fn new(stack_depth: usize) -> TraceState<T> {
         let state_width = NUM_STATIC_REGISTER + stack_depth;
@@ -147,7 +147,7 @@ impl <T> TraceState<T>
 }
 
 impl <T> fmt::Display for TraceState<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[{}]\t[{}]\t{:?}\t{:?}",

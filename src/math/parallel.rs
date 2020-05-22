@@ -1,5 +1,5 @@
 use crossbeam_utils::thread;
-use crate::math::{ FieldElement, FiniteField };
+use crate::math::{ FiniteField };
 use crate::utils::{ uninit_vector };
 
 // TODO: generic versions seems to be about 10% slower than concrete versions; investigate.
@@ -10,7 +10,7 @@ use crate::utils::{ uninit_vector };
 /// Computes a[i] + b[i] for all i and returns the results. The addition is split into batches
 /// which are distributed across multiple threads.
 pub fn add<T>(a: &[T], b: &[T], num_threads: usize) -> Vec<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let n = a.len();
     assert!(n == b.len(), "number of values must be the same for both operands");
@@ -39,7 +39,7 @@ pub fn add<T>(a: &[T], b: &[T], num_threads: usize) -> Vec<T>
 /// Computes a[i] + b[i] for all i and stores the results in b[i]. The addition is split into
 /// batches which are distributed across multiple threads.
 pub fn add_in_place<T>(a: &mut [T], b: &[T], num_threads: usize)
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let n = a.len();
     assert!(n == b.len(), "number of values must be the same for both operands");
@@ -65,7 +65,7 @@ pub fn add_in_place<T>(a: &mut [T], b: &[T], num_threads: usize)
 /// Computes a[i] - b for all i and stores the results in a[i]. The subtraction is split into
 /// batches which are distributed across multiple threads.
 pub fn sub_const_in_place<T>(a: &mut [T], b: T, num_threads: usize)
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let n = a.len();
     assert!(n % num_threads == 0, "number of values must be divisible by number of threads");
@@ -90,7 +90,7 @@ pub fn sub_const_in_place<T>(a: &mut [T], b: T, num_threads: usize)
 /// Computes a[i] * b[i] for all i and returns the results. The multiplication is split into
 /// batches which are distributed across multiple threads.
 pub fn mul<T>(a: &[T], b: &[T], num_threads: usize) -> Vec<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let n = a.len();
     assert!(n == b.len(), "number of values must be the same for both operands");
@@ -119,7 +119,7 @@ pub fn mul<T>(a: &[T], b: &[T], num_threads: usize) -> Vec<T>
 /// Computes a[i] * b[i] for all i and stores the results in b[i]. The multiplication is 
 /// split into batches which are distributed across multiple threads.
 pub fn mul_in_place<T>(a: &mut [T], b: &[T], num_threads: usize)
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let n = a.len();
     assert!(n == b.len(), "number of values must be the same for both operands");
@@ -142,7 +142,7 @@ pub fn mul_in_place<T>(a: &mut [T], b: &[T], num_threads: usize)
 /// Computes a[i] + b[i] * c for all i and saves result into a. The operation is 
 /// split into batches which are distributed across multiple threads.
 pub fn mul_acc<T>(a: &mut[T], b: &[T], c: T, num_threads: usize)
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let n = a.len();
     assert!(n == b.len(), "number of values must be the same for both arrays");
@@ -168,7 +168,7 @@ pub fn mul_acc<T>(a: &mut[T], b: &[T], c: T, num_threads: usize)
 /// Computes multiplicative inverse of provided values. The inversion is split into batches which
 /// are distributed across multiple threads.
 pub fn inv<T>(values: &[T], num_threads: usize) -> Vec<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let n = values.len();
     assert!(n % num_threads == 0, "number of values must be divisible by number of threads");

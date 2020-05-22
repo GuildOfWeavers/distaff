@@ -1,6 +1,6 @@
 use std::mem;
 use std::slice;
-use crate::math::{ FiniteField, FieldElement, polynom };
+use crate::math::{ FiniteField, polynom };
 
 mod acc64;
 mod acc128;
@@ -8,7 +8,7 @@ mod acc128;
 // TYPES AND INTERFACES
 // ================================================================================================
 pub trait AccumulatorBuilder<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     const ACC_NUM_ROUNDS    : usize;
     const ACC_STATE_WIDTH   : usize;
@@ -29,7 +29,7 @@ pub struct Accumulator<T> {
 // ACCUMULATOR IMPLEMENTATION
 // ================================================================================================
 impl <T> Accumulator<T> 
-    where T: FieldElement + FiniteField<T> + AccumulatorBuilder<T>
+    where T: FiniteField + AccumulatorBuilder<T>
 {
     /// Hashes a list of u64 values into a single 32-byte value using a modified version of 
     /// [Rescue](https://eprint.iacr.org/2019/426) hash function. The modifications are:

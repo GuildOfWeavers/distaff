@@ -1,4 +1,4 @@
-use crate::math::{ F64, FiniteField, FieldElement };
+use crate::math::{ F64, FiniteField };
 use crate::processor::{ opcodes };
 use crate::stark::{ TraceState };
 use crate::stark::utils::{ Accumulator, AccumulatorBuilder };
@@ -28,7 +28,7 @@ pub struct Decoder<T> {
 // DECODER CONSTRAINT EVALUATOR IMPLEMENTATION
 // ================================================================================================
 impl <T> Decoder <T>
-    where T: FieldElement + FiniteField<T> + AccumulatorBuilder<T>
+    where T: FiniteField + AccumulatorBuilder<T>
 {
     pub fn new(trace_length: usize, extension_factor: usize) -> Decoder<T> {
         let accumulator = T::get_accumulator(extension_factor);
@@ -125,13 +125,13 @@ impl <T> Decoder <T>
 // HELPER FUNCTIONS
 // ================================================================================================
 fn is_binary<T>(v: T) -> T
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     return T::sub(T::mul(v, v), v);
 }
 
 fn binary_not<T>(v: T) -> T
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     return T::sub(T::ONE, v);
 }

@@ -1,5 +1,5 @@
 use std::mem;
-use crate::math::{ FiniteField, FieldElement, fft };
+use crate::math::{ FiniteField, fft };
 use crate::utils::{ uninit_vector, filled_vector };
 
 // POLYNOMIAL EVALUATION
@@ -7,7 +7,7 @@ use crate::utils::{ uninit_vector, filled_vector };
 
 /// Evaluates polynomial `p` at coordinate `x`
 pub fn eval<T>(p: &[T], x: T) -> T
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let mut y = T::ZERO;
     let mut power_of_x = T::ONE;
@@ -23,7 +23,7 @@ pub fn eval<T>(p: &[T], x: T) -> T
 /// 
 /// If `unpermute` parameter is set to false, the evaluations will be left in permuted state.
 pub fn eval_fft<T>(p: &mut [T], unpermute: bool)
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let g = T::get_root_of_unity(p.len());
     let twiddles = fft::get_twiddles(g, p.len());
@@ -36,7 +36,7 @@ pub fn eval_fft<T>(p: &mut [T], unpermute: bool)
 /// 
 /// If `unpermute` parameter is set to false, the evaluations will be left in permuted state.
 pub fn eval_fft_twiddles<T>(p: &mut [T], twiddles: &[T], unpermute: bool)
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     debug_assert!(p.len() == twiddles.len() * 2, "Invalid number of twiddles");
     // TODO: don't hard-code num_threads
@@ -51,7 +51,7 @@ pub fn eval_fft_twiddles<T>(p: &mut [T], twiddles: &[T], unpermute: bool)
 
 /// Uses Lagrange interpolation to build a polynomial from X and Y coordinates.
 pub fn interpolate<T>(xs: &[T], ys: &[T]) -> Vec<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     debug_assert!(xs.len() == ys.len(), "Number of X and Y coordinates must be the same");
 
@@ -87,7 +87,7 @@ pub fn interpolate<T>(xs: &[T], ys: &[T]) -> Vec<T>
 /// 
 /// If `unpermute` parameter is set to false, the coefficients will be left in permuted state.
 pub fn interpolate_fft<T>(v: &mut [T], unpermute: bool)
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let g = T::get_root_of_unity(v.len());
     let twiddles = fft::get_inv_twiddles(g, v.len());
@@ -101,7 +101,7 @@ pub fn interpolate_fft<T>(v: &mut [T], unpermute: bool)
 /// 
 /// If `unpermute` parameter is set to false, the evaluations will be left in permuted state.
 pub fn interpolate_fft_twiddles<T>(v: &mut [T], inv_twiddles: &[T], unpermute: bool)
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     // TODO: don't hard-code num_threads
     fft::fft_in_place(v, &inv_twiddles, 1, 1, 0, 1);
@@ -119,7 +119,7 @@ pub fn interpolate_fft_twiddles<T>(v: &mut [T], inv_twiddles: &[T], unpermute: b
 
 /// Adds polynomial `a` to polynomial `b`
 pub fn add<T>(a: &[T], b: &[T]) -> Vec<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let result_len = std::cmp::max(a.len(), b.len());
     let mut result = Vec::with_capacity(result_len);
@@ -133,7 +133,7 @@ pub fn add<T>(a: &[T], b: &[T]) -> Vec<T>
 
 /// Subtracts polynomial `b` from polynomial `a`
 pub fn sub<T>(a: &[T], b: &[T]) -> Vec<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let result_len = std::cmp::max(a.len(), b.len());
     let mut result = Vec::with_capacity(result_len);
@@ -147,7 +147,7 @@ pub fn sub<T>(a: &[T], b: &[T]) -> Vec<T>
 
 /// Multiplies polynomial `a` by polynomial `b`
 pub fn mul<T>(a: &[T], b: &[T]) -> Vec<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let result_len = a.len() + b.len() - 1;
     let mut result = vec![T::ZERO; result_len];
@@ -162,7 +162,7 @@ pub fn mul<T>(a: &[T], b: &[T]) -> Vec<T>
 
 /// Multiplies every coefficient of polynomial `p` by constant `k`
 pub fn mul_by_const<T>(p: &[T], k: T) -> Vec<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let mut result = Vec::with_capacity(p.len());
     for i in 0..p.len() {
@@ -174,7 +174,7 @@ pub fn mul_by_const<T>(p: &[T], k: T) -> Vec<T>
 /// Divides polynomial `a` by polynomial `b`; if the polynomials don't divide evenly,
 /// the remainder is ignored.
 pub fn div<T>(a: &[T], b: &[T]) -> Vec<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     
     let mut apos = degree_of(a);
@@ -202,7 +202,7 @@ pub fn div<T>(a: &[T], b: &[T]) -> Vec<T>
 /// Divides polynomial `a` by binomial (x - `b`) using Synthetic division method;
 /// if the polynomials don't divide evenly, the remainder is ignored.
 pub fn syn_div<T>(a: &[T], b: T) -> Vec<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let mut result = a.to_vec();
     syn_div_in_place(&mut result, b);
@@ -212,7 +212,7 @@ pub fn syn_div<T>(a: &[T], b: T) -> Vec<T>
 /// Divides polynomial `a` by binomial (x - `b`) using Synthetic division method and stores the
 /// result in `a`; if the polynomials don't divide evenly, the remainder is ignored.
 pub fn syn_div_in_place<T>(a: &mut [T], b: T)
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let mut c = T::ZERO;
     for i in (0..a.len()).rev() {
@@ -226,7 +226,7 @@ pub fn syn_div_in_place<T>(a: &mut [T], b: T)
 /// Synthetic division method and stores the result in `a`; if the polynomials don't divide evenly,
 /// the remainder is ignored.
 pub fn syn_div_expanded_in_place<T>(a: &mut [T], degree: usize, exceptions: &[T])
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
 
     // allocate space for the result
@@ -268,7 +268,7 @@ pub fn syn_div_expanded_in_place<T>(a: &mut [T], degree: usize, exceptions: &[T]
 
 /// Returns degree of the polynomial `poly`
 pub fn degree_of<T>(poly: &[T]) -> usize
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     for i in (0..poly.len()).rev() {
         if poly[i] != T::ZERO { return i; }
@@ -279,7 +279,7 @@ pub fn degree_of<T>(poly: &[T]) -> usize
 /// Returns degree of a polynomial with which evaluates to `evaluations` over the domain of
 /// corresponding roots of unity.
 pub fn infer_degree<T>(evaluations: &[T]) -> usize
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     assert!(evaluations.len().is_power_of_two(), "number of evaluations must be a power of 2");
     let mut poly = evaluations.to_vec();
@@ -290,7 +290,7 @@ pub fn infer_degree<T>(evaluations: &[T]) -> usize
 // HELPER FUNCTIONS
 // ================================================================================================
 fn get_zero_roots<T>(xs: &[T]) -> Vec<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let mut n = xs.len() + 1;
     let mut result = uninit_vector(n);

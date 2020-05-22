@@ -1,5 +1,5 @@
 use std::mem;
-use crate::{ math::{ F64, FiniteField, FieldElement }, crypto::{ MerkleTree } };
+use crate::{ math::{ F64, FiniteField }, crypto::{ MerkleTree } };
 use super::{ StarkProof, TraceState, ConstraintEvaluator, CompositionCoefficients, fri, utils };
 
 // VERIFIER FUNCTION

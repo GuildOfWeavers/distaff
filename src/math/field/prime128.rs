@@ -1,6 +1,6 @@
 use std::ops::Range;
 use std::convert::TryInto;
-use super::{ FiniteField, FieldElement };
+use super::{ FiniteField };
 
 // CONSTANTS
 // ================================================================================================
@@ -15,17 +15,7 @@ pub const G: u128 = 23953097886125630542083529559205016746;
 // ================================================================================================
 pub type F128 = u128;
 
-impl FieldElement for F128 {
-    fn from_usize (value: usize) -> F128 { return value as u128; }
-
-    fn from_bytes(bytes: &[u8]) -> F128 { 
-        return u128::from_le_bytes(bytes.try_into().unwrap())
-    }
-
-    fn as_u8(self) -> u8 { return self as u8; }
-}
-
-impl FiniteField<Self> for F128 {
+impl FiniteField for F128 {
 
     const MODULUS: u128 = M;
     const RANGE: Range<u128> = Range { start: 0, end: M };
@@ -190,6 +180,20 @@ impl FiniteField<Self> for F128 {
         assert!(order.trailing_zeros() <= 40, "order cannot exceed 2^40");
         let p = 1 << (40 - order.trailing_zeros());
         return Self::exp(G, p as u128);
+    }
+
+    // TYPE CONVERSIONS
+    // --------------------------------------------------------------------------------------------
+    fn from_usize (value: usize) -> F128 {
+        return value as u128;
+    }
+
+    fn from_bytes(bytes: &[u8]) -> F128 { 
+        return u128::from_le_bytes(bytes.try_into().unwrap());
+    }
+
+    fn as_u8(self) -> u8 {
+        return self as u8;
     }
 }
 

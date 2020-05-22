@@ -1,5 +1,5 @@
 use std::cmp;
-use crate::math::{ FiniteField, FieldElement };
+use crate::math::{ FiniteField };
 use crate::processor::opcodes;
 use crate::utils::{ filled_vector };
 use super::{ MAX_INPUTS, MIN_STACK_DEPTH, MAX_STACK_DEPTH };
@@ -7,7 +7,7 @@ use super::{ MAX_INPUTS, MIN_STACK_DEPTH, MAX_STACK_DEPTH };
 // TRACE BUILDER
 // ================================================================================================
 pub fn execute<T>(program: &[T], inputs: &[T], extension_factor: usize) -> Vec<Vec<T>>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
 
     let trace_length = program.len();
@@ -71,7 +71,7 @@ pub fn execute<T>(program: &[T], inputs: &[T], extension_factor: usize) -> Vec<V
 // TYPES AND INTERFACES
 // ================================================================================================
 struct StackTrace<T> 
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     registers   : Vec<Vec<T>>,
     max_depth   : usize,
@@ -81,7 +81,7 @@ struct StackTrace<T>
 // STACK IMPLEMENTATION
 // ================================================================================================
 impl <T> StackTrace<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
 
     // OPERATIONS

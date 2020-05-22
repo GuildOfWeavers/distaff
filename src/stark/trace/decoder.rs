@@ -1,6 +1,6 @@
 use std::ops::Range;
 use crate::processor::opcodes;
-use crate::math::{ F64, FiniteField, FieldElement };
+use crate::math::{ F64, FiniteField };
 use crate::stark::utils::{ AccumulatorBuilder };
 use crate::utils::filled_vector;
 use super::{ NUM_OP_BITS };
@@ -25,7 +25,7 @@ pub const PROG_HASH_RANGE : Range<usize> = Range { start: 7, end: 11 };
 /// op_bits: 5 registers
 /// op_acc: 12 registers
 pub fn process<T>(program: &[T], extension_factor: usize) -> Vec<Vec<T>>
-    where T: FieldElement + FiniteField<T> + AccumulatorBuilder<T>
+    where T: FiniteField + AccumulatorBuilder<T>
 {
     let trace_length = program.len();
     let domain_size = trace_length * extension_factor;
@@ -82,7 +82,7 @@ pub fn process<T>(program: &[T], extension_factor: usize) -> Vec<Vec<T>>
 
 /// Uses a modified version of Rescue hash function to reduce all op_codes into a single hash value
 fn hash_program<T>(op_codes: &[T], domain_size: usize) -> Vec<Vec<T>>
-    where T: FieldElement + FiniteField<T> + AccumulatorBuilder<T>
+    where T: FiniteField + AccumulatorBuilder<T>
 {
     let trace_length = op_codes.len();
     let acc = T::get_accumulator(1);
@@ -111,7 +111,7 @@ fn hash_program<T>(op_codes: &[T], domain_size: usize) -> Vec<Vec<T>>
 /// Sets the op_bits registers at the specified `step` to the binary decomposition
 /// of the `op_code` parameter.
 fn set_op_bits<T>(op_bits: &mut Vec<Vec<T>>, op_code: u8, step: usize)
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     for i in 0..op_bits.len() {
         op_bits[i][step] = T::from((op_code >> i) & 1);

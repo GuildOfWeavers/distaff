@@ -1,10 +1,10 @@
-use crate::math::{ FieldElement, FiniteField };
+use crate::math::{ FiniteField };
 use crate::utils::uninit_vector;
 
 /// Evaluates degree 3 polynomial `p` at coordinate `x`. This function is about 30% faster than
 /// the `polys::eval` function.
 pub fn eval<T>(p: &[T], x: T) -> T
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     debug_assert!(p.len() == 4, "Polynomial must have 4 terms");
     let mut y = T::add(p[0], T::mul(p[1], x));
@@ -20,7 +20,7 @@ pub fn eval<T>(p: &[T], x: T) -> T
 
 /// Evaluates a batch of degree 3 polynomials at the provided X coordinate.
 pub fn evaluate_batch<T>(polys: &[[T; 4]], x: T) -> Vec<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     let n = polys.len();
     
@@ -39,7 +39,7 @@ pub fn evaluate_batch<T>(polys: &[[T; 4]], x: T) -> Vec<T>
 /// This function is many times faster than using `polys::interpolate` function in a loop. This is
 /// primarily due to amortizing inversions over the entire batch.
 pub fn interpolate_batch<T>(xs: &[[T; 4]], ys: &[[T; 4]]) -> Vec<[T; 4]>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     debug_assert!(xs.len() == ys.len(), "number of X coordinates must be equal to number of Y coordinates");
 
@@ -141,7 +141,7 @@ pub fn interpolate_batch<T>(xs: &[[T; 4]], ys: &[[T; 4]]) -> Vec<[T; 4]>
 }
 
 pub fn transpose<T>(vector: &[T], stride: usize) -> Vec<[T; 4]>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     assert!(vector.len() % (4 * stride) == 0, "vector length must be divisible by {}", 4 * stride);
     let row_count = vector.len() / (4 * stride);
@@ -161,7 +161,7 @@ pub fn transpose<T>(vector: &[T], stride: usize) -> Vec<[T; 4]>
 
 /// Re-interprets a vector of integers as a vector of quartic elements.
 pub fn to_quartic_vec<T>(vector: Vec<T>) -> Vec<[T; 4]>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     assert!(vector.len() % 4 == 0, "vector length must be divisible by 4");
     let mut v = std::mem::ManuallyDrop::new(vector);

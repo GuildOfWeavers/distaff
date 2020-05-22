@@ -1,4 +1,4 @@
-use crate::math::{ FiniteField, FieldElement };
+use crate::math::{ FiniteField };
 use crate::stark::{ MAX_REGISTER_COUNT, MAX_INPUTS, MAX_OUTPUTS, MAX_TRANSITION_CONSTRAINTS };
 
 // CONSTANTS
@@ -8,7 +8,7 @@ const NUM_CONSTRAINTS: usize = MAX_INPUTS + MAX_OUTPUTS + MAX_TRANSITION_CONSTRA
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct ConstraintCoefficients<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     pub inputs      : [T; 2 * MAX_INPUTS],
     pub outputs     : [T; 2 * MAX_OUTPUTS],
@@ -16,7 +16,7 @@ pub struct ConstraintCoefficients<T>
 }
 
 pub struct CompositionCoefficients<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     pub trace1      : [T; 2 * MAX_REGISTER_COUNT],
     pub trace2      : [T; 2 * MAX_REGISTER_COUNT],
@@ -28,7 +28,7 @@ pub struct CompositionCoefficients<T>
 // IMPLEMENTATIONS
 // ================================================================================================
 impl <T> ConstraintCoefficients<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     pub fn new(seed: [u8; 32]) -> ConstraintCoefficients<T> {
 
@@ -54,7 +54,7 @@ impl <T> ConstraintCoefficients<T>
 }
 
 impl <T> CompositionCoefficients<T>
-    where T: FieldElement + FiniteField<T>
+    where T: FiniteField
 {
     pub fn new(seed: [u8; 32]) -> CompositionCoefficients<T> {
         // generate a pseudo-random list of coefficients
