@@ -5,7 +5,7 @@ use super::{ ProofOptions, MAX_CONSTRAINT_DEGREE };
 // RE-EXPORTS
 // ================================================================================================
 mod accumulator;
-pub use accumulator::{ Accumulator, AccumulatorBuilder };
+pub use accumulator::{ Accumulator };
 
 mod coefficients;
 pub use coefficients::{ ConstraintCoefficients, CompositionCoefficients };

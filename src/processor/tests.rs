@@ -1,5 +1,5 @@
 #[cfg(test)]
-use crate::{ ProofOptions, opcodes, F64, AccumulatorBuilder };
+use crate::{ ProofOptions, opcodes, F64, Accumulator };
 
 #[test]
 fn execute_verify() {
@@ -11,7 +11,7 @@ fn execute_verify() {
         opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
         opcodes::NOOP
     ].iter().map(|&op| op as u64).collect::<Vec<u64>>();
-    let expected_hash = F64::get_accumulator(1).digest(&program[..(program.len() - 1)]);
+    let expected_hash = <F64 as Accumulator>::digest(&program[..(program.len() - 1)]);
 
     let options = ProofOptions::default();
     let inputs = [1, 0];
@@ -35,7 +35,7 @@ fn execute_verify_fail() {
         opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
         opcodes::NOOP
     ].iter().map(|&op| op as u64).collect::<Vec<u64>>();
-    let expected_hash = F64::get_accumulator(1).digest(&program[..(program.len() - 1)]);
+    let expected_hash = <F64 as Accumulator>::digest(&program[..(program.len() - 1)]);
 
     let options = ProofOptions::default();
     let inputs = [1, 0];

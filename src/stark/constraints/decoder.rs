@@ -1,11 +1,10 @@
-use crate::math::{ F64, FiniteField };
+use crate::math::{ F64, FiniteField, polynom };
 use crate::processor::{ opcodes };
-use crate::stark::{ TraceState };
-use crate::stark::utils::{ Accumulator, AccumulatorBuilder };
+use crate::stark::{ TraceState, utils::Accumulator };
 
 // CONSTANTS
 // ================================================================================================
-const NUM_CONSTRAINTS: usize = F64::ACC_STATE_WIDTH + 9;
+const NUM_CONSTRAINTS: usize = F64::STATE_WIDTH + 9;
 
 /// Degree of operation decoder constraints.
 const CONSTRAINT_DEGREES: [usize; NUM_CONSTRAINTS] = [
@@ -21,18 +20,30 @@ const CONSTRAINT_DEGREES: [usize; NUM_CONSTRAINTS] = [
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct Decoder<T> {
-    accumulator : Accumulator<T>,
+    rescue_ark  : Vec<Vec<T>>,
+    rescue_polys: Vec<Vec<T>>,
+    hash_cycle  : usize,
     trace_length: usize,
 }
 
 // DECODER CONSTRAINT EVALUATOR IMPLEMENTATION
 // ================================================================================================
 impl <T> Decoder <T>
-    where T: FiniteField + AccumulatorBuilder<T>
+    where T: FiniteField + Accumulator
 {
     pub fn new(trace_length: usize, extension_factor: usize) -> Decoder<T> {
-        let accumulator = T::get_accumulator(extension_factor);
-        return Decoder { accumulator, trace_length };
+        let (rescue_polys, ark_evaluations) = T::get_extended_constants(extension_factor);
+
+        let hash_cycle = T::NUM_ROUNDS * extension_factor;
+        let mut rescue_ark = Vec::with_capacity(hash_cycle);
+        for i in 0..(T::NUM_ROUNDS * extension_factor) {
+            rescue_ark.push(vec![T::ZERO; 2 * T::STATE_WIDTH]);
+            for j in 0..(2 * T::STATE_WIDTH) {
+                rescue_ark[i][j] = ark_evaluations[j][i];
+            }
+        }
+
+        return Decoder { rescue_ark, rescue_polys, hash_cycle, trace_length };
     }
 
     pub fn constraint_count(&self) -> usize {
@@ -51,17 +62,23 @@ impl <T> Decoder <T>
         self.decode_opcode(current, next, result);
 
         // 12 constraints to hash op_code
-        self.hash_opcode(current, next, self.accumulator.get_constants_at(step), &mut result[9..]);
+        self.hash_opcode(current, next, &self.rescue_ark[step % self.hash_cycle], &mut result[9..]);
     }
 
     pub fn evaluate_at(&self, current: &TraceState<T>, next: &TraceState<T>, x: T, result: &mut [T]) {
         // 9 constraints to decode op_code
         self.decode_opcode(current, next, result);
 
-        // 12 constraints to hash op_code
-        let num_cycles = T::from_usize(self.trace_length / T::ACC_NUM_ROUNDS);
+        // constraints to hash op_code
+        let num_cycles = T::from_usize(self.trace_length / T::NUM_ROUNDS);
         let x = T::exp(x, num_cycles);
-        self.hash_opcode(current, next, &self.accumulator.evaluate_constants_at(x), &mut result[9..]);
+
+        let mut rescue_ark = vec![T::ZERO; 2 * T::STATE_WIDTH];
+        for i in 0..rescue_ark.len() {
+            rescue_ark[i] = polynom::eval(&self.rescue_polys[i], x);
+        }
+
+        self.hash_opcode(current, next, &rescue_ark, &mut result[9..]);
     }
 
     // EVALUATION HELPERS
@@ -97,26 +114,26 @@ impl <T> Decoder <T>
     fn hash_opcode(&self, current: &TraceState<T>, next: &TraceState<T>, ark: &[T], result: &mut [T]) {
         let op_code = current.get_op_code();
 
-        let mut current_acc = vec![T::ZERO; T::ACC_STATE_WIDTH];
+        let mut current_acc = vec![T::ZERO; T::STATE_WIDTH];
         current_acc.copy_from_slice(current.get_op_acc());
-        let mut next_acc = vec![T::ZERO; T::ACC_STATE_WIDTH];
+        let mut next_acc = vec![T::ZERO; T::STATE_WIDTH];
         next_acc.copy_from_slice(next.get_op_acc());
 
         current_acc[0] = T::add(current_acc[0], op_code);
         current_acc[1] = T::mul(current_acc[1], op_code);
-        for i in 0..T::ACC_STATE_WIDTH {
+        for i in 0..T::STATE_WIDTH {
             current_acc[i] = T::add(current_acc[i], ark[i]);
         }
-        self.accumulator.apply_sbox(&mut current_acc);
-        self.accumulator.apply_mds(&mut current_acc);
+        T::apply_sbox(&mut current_acc);
+        T::apply_mds(&mut current_acc);
     
-        self.accumulator.apply_inv_mds(&mut next_acc);
-        self.accumulator.apply_sbox(&mut next_acc);
-        for i in 0..T::ACC_STATE_WIDTH {
-            next_acc[i] = T::sub(next_acc[i], ark[T::ACC_STATE_WIDTH + i]);
+        T::apply_inv_mds(&mut next_acc);
+        T::apply_sbox(&mut next_acc);
+        for i in 0..T::STATE_WIDTH {
+            next_acc[i] = T::sub(next_acc[i], ark[T::STATE_WIDTH + i]);
         }
 
-        for i in 0..T::ACC_STATE_WIDTH {
+        for i in 0..T::STATE_WIDTH {
             result[i] = T::sub(next_acc[i], current_acc[i]);
         }
     }

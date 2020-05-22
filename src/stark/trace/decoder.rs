@@ -1,13 +1,13 @@
 use std::ops::Range;
 use crate::processor::opcodes;
 use crate::math::{ F64, FiniteField };
-use crate::stark::utils::{ AccumulatorBuilder };
+use crate::stark::utils::{ Accumulator };
 use crate::utils::filled_vector;
 use super::{ NUM_OP_BITS };
 
 // CONSTANTS
 // ================================================================================================
-pub const NUM_REGISTERS: usize = 2 + NUM_OP_BITS + F64::ACC_STATE_WIDTH;
+pub const NUM_REGISTERS: usize = 2 + NUM_OP_BITS + F64::STATE_WIDTH;
 
 pub const OP_CODE_IDX     : usize = 0;
 pub const PUSH_FLAG_IDX   : usize = 1;
@@ -25,7 +25,7 @@ pub const PROG_HASH_RANGE : Range<usize> = Range { start: 7, end: 11 };
 /// op_bits: 5 registers
 /// op_acc: 12 registers
 pub fn process<T>(program: &[T], extension_factor: usize) -> Vec<Vec<T>>
-    where T: FiniteField + AccumulatorBuilder<T>
+    where T: FiniteField + Accumulator
 {
     let trace_length = program.len();
     let domain_size = trace_length * extension_factor;
@@ -82,25 +82,24 @@ pub fn process<T>(program: &[T], extension_factor: usize) -> Vec<Vec<T>>
 
 /// Uses a modified version of Rescue hash function to reduce all op_codes into a single hash value
 fn hash_program<T>(op_codes: &[T], domain_size: usize) -> Vec<Vec<T>>
-    where T: FiniteField + AccumulatorBuilder<T>
+    where T: FiniteField + Accumulator
 {
     let trace_length = op_codes.len();
-    let acc = T::get_accumulator(1);
 
     // allocate space for the registers
-    let mut registers = Vec::with_capacity(T::ACC_STATE_WIDTH);
-    for _ in 0..T::ACC_STATE_WIDTH {
+    let mut registers = Vec::with_capacity(T::STATE_WIDTH);
+    for _ in 0..T::STATE_WIDTH {
         registers.push(filled_vector(trace_length, domain_size, T::ZERO));
     }
 
-    let mut state = vec![T::ZERO; T::ACC_STATE_WIDTH];
+    let mut state = vec![T::ZERO; T::STATE_WIDTH];
     for i in 0..(op_codes.len() - 1) {
 
         // add op_code into the accumulator
-        acc.apply_round(&mut state, op_codes[i], i);
+        T::apply_round(&mut state, op_codes[i], i);
 
         // copy updated state into registers for the next step
-        for j in 0..T::ACC_STATE_WIDTH {
+        for j in 0..T::STATE_WIDTH {
             registers[j][i + 1] = state[j];
         }
     }

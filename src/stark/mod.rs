@@ -25,7 +25,6 @@ pub use constraints::{
 
 pub use utils::{
     Accumulator,
-    AccumulatorBuilder,
     ConstraintCoefficients,
     CompositionCoefficients };
 

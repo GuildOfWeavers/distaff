@@ -2,7 +2,7 @@ use crate::math::{ FiniteField, fft, polynom, parallel };
 use crate::crypto::{ MerkleTree, HashFunction };
 use crate::processor::opcodes;
 use crate::utils::{ uninit_vector, filled_vector, as_bytes };
-use crate::stark::{ CompositionCoefficients, utils };
+use crate::stark::{ CompositionCoefficients, Accumulator, utils };
 use super::{ TraceState, decoder, stack, MAX_REGISTER_COUNT };
 
 // TYPES AND INTERFACES
@@ -16,7 +16,7 @@ pub struct TraceTable<T> {
 // TRACE TABLE IMPLEMENTATION
 // ================================================================================================
 impl <T> TraceTable<T>
-    where T: FiniteField + utils::AccumulatorBuilder<T>
+    where T: FiniteField + Accumulator
 {
     /// Returns a trace table resulting from the execution of the specified program. Space for the
     /// trace table is allocated in accordance with the specified `extension_factor`.

@@ -1,60 +1,103 @@
 use crate::math::{ FiniteField, F64, fft, polynom };
-use crate::utils::{ filled_vector, uninit_vector };
-use super::{ Accumulator, AccumulatorBuilder };
+use crate::utils::{ filled_vector };
+use super::{ Accumulator };
 
 // 64-BIT ACCUMULATOR BUILDER IMPLEMENTATION
 // ================================================================================================
-impl AccumulatorBuilder<Self> for F64 {
+impl Accumulator for F64 {
 
-    const ACC_NUM_ROUNDS    : usize = 16;
-    const ACC_STATE_WIDTH   : usize = 12;
-    const ACC_DIGEST_SIZE   : usize = 4;
+    const NUM_ROUNDS    : usize = NUM_ROUNDS;
+    const STATE_WIDTH   : usize = STATE_WIDTH;
+    const DIGEST_SIZE   : usize = DIGEST_SIZE;
 
-    fn get_accumulator(extension_factor: usize) -> Accumulator<F64> {
+    fn add_constants(state: &mut[Self], idx: usize, offset: usize) {
+        for i in 0..STATE_WIDTH {
+            state[i] = F64::add(state[i], ARK[offset + i][idx]);
+        }
+    }
 
-        let hash_cycle = Self::ACC_NUM_ROUNDS * extension_factor;
+    fn apply_sbox(state: &mut [F64]) {
+        for i in 0..STATE_WIDTH {
+            state[i] = F64::exp(state[i], ALPHA);
+        }
+    }
 
-        let constant_polys;
-        let mut constant_values = Vec::with_capacity(hash_cycle);
-        
-        if extension_factor == 1 {
-            constant_polys = Vec::with_capacity(Self::ACC_STATE_WIDTH * 2);
-            for i in 0..hash_cycle {
-                constant_values.push(uninit_vector(Self::ACC_STATE_WIDTH * 2));
-                for j in 0..(2 * Self::ACC_STATE_WIDTH) {
-                    constant_values[i][j] = ARK[j][i];
-                }
+    fn apply_inv_sbox(state: &mut[F64]) {
+        // TODO: optimize
+        for i in 0..STATE_WIDTH {
+            state[i] = F64::exp(state[i], INV_ALPHA);
+        }
+    }
+
+    fn apply_mds(state: &mut[F64]) {
+        let mut result = [F64::ZERO; STATE_WIDTH];
+        let mut temp = [F64::ZERO; STATE_WIDTH];
+        for i in 0..STATE_WIDTH {
+            for j in 0..STATE_WIDTH {
+                temp[j] = F64::mul(MDS[i * STATE_WIDTH + j], state[j]);
+            }
+    
+            for j in 0..STATE_WIDTH {
+                result[i] = F64::add(result[i], temp[j]);
             }
         }
-        else {
-            let (polys, evaluations) = extend_constants(extension_factor);
-            constant_polys = polys;
-            for i in 0..hash_cycle {
-                constant_values.push(uninit_vector(Self::ACC_STATE_WIDTH * 2));
-                for j in 0..(2 * Self::ACC_STATE_WIDTH) {
-                    constant_values[i][j] = evaluations[j][i];
-                }
+        state.copy_from_slice(&result);
+    }
+
+    fn apply_inv_mds(state: &mut[F64]) {
+        let mut result = [F64::ZERO; STATE_WIDTH];
+        let mut temp = [F64::ZERO; STATE_WIDTH];
+        for i in 0..STATE_WIDTH {
+            for j in 0..STATE_WIDTH {
+                temp[j] = F64::mul(INV_MDS[i * STATE_WIDTH + j], state[j]);
+            }
+    
+            for j in 0..STATE_WIDTH {
+                result[i] = F64::add(result[i], temp[j]);
             }
         }
-        
-        return Accumulator {
-            alpha       : ALPHA,
-            inv_alpha   : INV_ALPHA,
-            mds         : MDS.to_vec(),
-            inv_mds     : INV_MDS.to_vec(),
-            ark         : constant_values,
-            ark_polys   : constant_polys,
-        };
+        state.copy_from_slice(&result);
+    }
+
+    fn get_extended_constants(extension_factor: usize) -> (Vec<Vec<F64>>, Vec<Vec<F64>>) {
+        let root = F64::get_root_of_unity(NUM_ROUNDS);
+        let inv_twiddles = fft::get_inv_twiddles(root, NUM_ROUNDS);
+    
+        let domain_size = NUM_ROUNDS * extension_factor;
+        let domain_root = F64::get_root_of_unity(domain_size);
+        let twiddles = fft::get_twiddles(domain_root, domain_size);
+    
+        let mut polys = Vec::with_capacity(ARK.len());
+        let mut evaluations = Vec::with_capacity(ARK.len());
+    
+        for constant in ARK.iter() {
+            let mut extended_constant = filled_vector(NUM_ROUNDS, domain_size, F64::ZERO);
+            extended_constant.copy_from_slice(constant);
+    
+            polynom::interpolate_fft_twiddles(&mut extended_constant, &inv_twiddles, true);
+            polys.push(extended_constant.clone());
+    
+            unsafe { extended_constant.set_len(extended_constant.capacity()); }
+            polynom::eval_fft_twiddles(&mut extended_constant, &twiddles, true);
+    
+            evaluations.push(extended_constant);
+        }
+    
+        return (polys, evaluations);
     }
 }
 
 // 64-BIT RESCUE CONSTANTS
 // ================================================================================================
 
+const NUM_ROUNDS    : usize = 16;
+const STATE_WIDTH   : usize = 12;
+const DIGEST_SIZE   : usize = 4;
+
 const ALPHA: u64 = 3;
 const INV_ALPHA: u64 = 12297829253624015531;
 
-const MDS: [u64; 144] = [
+const MDS: [u64; STATE_WIDTH * STATE_WIDTH] = [
     14570791697008582876, 14287730469917200292, 15111342538701370819,  1111401104756727833, 18343752991270580578, 10395724785100660355, 14391941175009286906,  5491581447267359356,  1031244057765854727,  2741392851187030668,  8356433820458919454, 10361960094523491469,
     17296841519685941390,  1598937820631795543, 18252132164632030075,   241444688886262292, 17599434116007097224,  9231563221418652240, 15805688995498349990, 17256539972135898838,  2330753493485837824,  6251316318077619492,  7679024702804679152,  2943046310091653711,
      8765181257382270816,  2214393267250057585, 10440968658565732009,  9245417370235283261, 10903600118637896817,  4336409820707567775,   373156886479152405,  6889031455917031511,  3512102634804595716, 10883465930001183358,   111817104814006178, 13147393342693302215,
@@ -69,7 +112,7 @@ const MDS: [u64; 144] = [
      4496862336099562608, 14815253423827224307,  3941759144983839864,   496394397619911104, 14326824099506036322, 16750030373530649240,   567590961228605744,  3305769176941360911, 16162169544256723442, 15781486664476971789,  5656405359499826694, 14405311909503260201
 ];
 
-const INV_MDS: [u64; 144] = [
+const INV_MDS: [u64; STATE_WIDTH * STATE_WIDTH] = [
     18144555849476927374, 13721382146536651531,  3089875797346993241, 16642169353490925937, 12481468684811990106,  4121843617940496225,  4129790781140692748,   688767946932393941,  4111150982137800446,  1089450373812047738, 13934895865615659551,  3348257440221276659,
     17836000848669323461,  8642507343089032585,  8222042489599816299, 14286433228805461667, 14150601651494101064,  3502610110434428933,  6621075793412742457, 13912617123037567676,  6398010452131362916, 14182317465044732728,   595200314641734087,  3726536648170807106,
       778074229987396986, 18125236013805002112, 16795870930471535933,  4444993276877870520,  7742856852104202289,  4607989154756352997, 13952151892042504619, 14813786624882131127,  1011914663726019958,  6259265713670753298, 15987952731985786134,  8099775052664498557,
@@ -84,7 +127,7 @@ const INV_MDS: [u64; 144] = [
      4759713326423655569,  3126680109051985680, 12818455398525559133,  2369691254364065970,  4830855309800709645,  7905662622950188751, 12645002336872020497, 16986477359485720724, 14182644859010550052, 11863112114704177882, 17607018699185664534,  7041439209722523945,
 ];
 
-pub const ARK: [[u64; 16]; 24] = [
+pub const ARK: [[u64; NUM_ROUNDS]; STATE_WIDTH * 2] = [
     [  114590214580931143, 13640442143959558858,  1272600380366609460, 15860937208548502393, 16608634632094289187, 10506798047337663857,  5325632418193142483, 16694418951197876355, 11153790522126750648, 15095342153263941166, 12650134646349365568, 17896623204935797561,  9829178724264119989, 14799632988478146502,  6753568006804193711,  3899262017505750737],
     [  990026313300730203,  7906381567491729226,  2220919760127833817,  9205367959479920752, 11485160594813871566, 11583225239641066548,  6738669508591169269,  4460878955950299390, 12551264533866625651, 12196834433778588611, 10520176554432097244,  3832576278139503531, 18204716153294124968, 13922119650107368595,  5221249225950615330, 12958024067067001252],
     [ 1045057248257823412, 13468966696328224140, 14379250151341177495,  9632397799556151548,  5222338859687623994,  7117468705512735682,  3362648518227505874,  4835033812787157591, 12026895217977781113, 10038075628846372084, 14981243795409864846,  3943061593395212048,  3383138789483030842, 10483303931558023900, 13818497398442910065,  1502076825742192309],
@@ -110,34 +153,3 @@ pub const ARK: [[u64; 16]; 24] = [
     [17767631070091881919, 12129770816065322969,  3870778731417206155,  2763928716174813789, 17699330642314234768,   284391477128702387,  5570727129888298990,  4758537254264021385, 12566239596188951579,  2189846267133984032,  5629725228396968419,  3186491963103640941,  2602992362346531180,  8702861261518213055, 10940756722905455830, 12546870881595554008],
     [ 9712595766457023099, 17947404629239381291, 14873483792285815143,  8124814109136622356,  1863730773280059059, 16775376511215779115, 10155279417770795079,  4987258354806164162, 11417887696602517231, 16762109218418199845,  7525158767962017374, 13539031210369567137,   451702918043897126, 16187176288633596652,  1097981270823570691,  1840352501975548911]
 ];
-
-// HELPER FUNCTIONS
-// ================================================================================================
-fn extend_constants(extension_factor: usize) -> (Vec<Vec<F64>>, Vec<Vec<F64>>)
-{
-    let num_rounds = ARK[0].len();
-    let root = F64::get_root_of_unity(num_rounds);
-    let inv_twiddles = fft::get_inv_twiddles(root, num_rounds);
-
-    let domain_size = num_rounds * extension_factor;
-    let domain_root = F64::get_root_of_unity(domain_size);
-    let twiddles = fft::get_twiddles(domain_root, domain_size);
-
-    let mut polys = Vec::with_capacity(ARK.len());
-    let mut evaluations = Vec::with_capacity(ARK.len());
-
-    for constant in ARK.iter() {
-        let mut extended_constant = filled_vector(num_rounds, domain_size, F64::ZERO);
-        extended_constant.copy_from_slice(constant);
-
-        polynom::interpolate_fft_twiddles(&mut extended_constant, &inv_twiddles, true);
-        polys.push(extended_constant.clone());
-
-        unsafe { extended_constant.set_len(extended_constant.capacity()); }
-        polynom::eval_fft_twiddles(&mut extended_constant, &twiddles, true);
-
-        evaluations.push(extended_constant);
-    }
-
-    return (polys, evaluations);
-}
