@@ -24,14 +24,14 @@ If the program is executed successfully, the function returns a tuple with 3 ele
 #### Program execution example
 Here is a simple example of executing a program which pushes two numbers onto the stack and computes their sum:
 ```Rust
-use distaff::{ ProofOptions, processor, processor::opcodes };
+use distaff::{ ProofOptions, processor, processor::opcodes::f128 as opcodes };
 
 // this is our program
 let program = [
     opcodes::PUSH, 1,
     opcodes::PUSH, 2,
     opcodes::ADD
-].iter().map(|&op| op as u128).collect::<Vec<u128>>();
+];
 
 // let's execute it
 let (outputs, program_hash, proof) = processor::execute(
@@ -82,9 +82,9 @@ Distaff VM is a simple [stack machine](https://en.wikipedia.org/wiki/Stack_machi
 ### The stack
 Currently, Distaff VM stack can be up to 32 items deep (this will be increased in the future). However, the more stack space a program uses, the longer it will take to execute, and the larger the execution proof will be. So, it pays to use stack space judiciously.
 
-Values on the stack must be elements of a [prime field](https://en.wikipedia.org/wiki/Finite_field) with modulus `340282366920938463463374557953744961537` (which can also be written as 2<sup>128</sup> - 45 * 2<sup>40</sup> + 1). This means that all valid values are in the range between `0` and `340282366920938463463374557953744961537` - this covers almost all 128-bit integers.   
+Values on the stack must be elements of a [prime field](https://en.wikipedia.org/wiki/Finite_field) with modulus `340282366920938463463374557953744961537` (which can also be written as 2<sup>128</sup> - 45 * 2<sup>40</sup> + 1). This means that all valid values are in the range between `0` and `340282366920938463463374557953744961536` - this covers almost all 128-bit integers.   
 
-All arithmetic operations (addition, subtraction, multiplication) also happen in the same prime field. This means that overflow happens after a value exceeds field modulus. So, for example: `340282366920938463463374557953744961537 + 1 = 0`.
+All arithmetic operations (addition, subtraction, multiplication) also happen in the same prime field. This means that overflow happens after a value exceeds field modulus. So, for example: `340282366920938463463374557953744961536 + 1 = 0`.
 
 ### Inputs / outputs
 Currently, there are 2 ways to get values onto the stack:
@@ -147,7 +147,7 @@ ADD         // stack state: 3 2
 ```
 Notice that except for the first 2 operations which initialize the stack, the sequence of `DUP0 PULL2 ADD` operations repeats over and over. In fact, we can repeat these operations an arbitrary number of times to compute an arbitrary Fibonacci number. In Rust, it would like like this (this is actually a simplified version of the example in [main.rs](https://github.com/GuildOfWeavers/distaff/blob/master/src/main.rs)):
 ```Rust
-use distaff::{ ProofOptions, processor, processor::opcodes };
+use distaff::{ ProofOptions, processor, processor::opcodes::f128 as opcodes };
 
 // set the number of terms to compute
 let n = 50;
@@ -155,9 +155,9 @@ let n = 50;
 // build the program
 let mut program = Vec::new();
 for _ in 0..(n - 1) {
-    program.push(opcodes::DUP0 as u128);
-    program.push(opcodes::PULL2 as u128);
-    program.push(opcodes::ADD as u128);
+    program.push(opcodes::DUP0);
+    program.push(opcodes::PULL2);
+    program.push(opcodes::ADD);
 }
 
 // execute the program

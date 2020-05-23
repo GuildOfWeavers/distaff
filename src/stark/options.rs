@@ -71,7 +71,7 @@ impl ProofOptions {
         let num_queries = if optimistic == true { self.num_queries } else { self.num_queries / 2 };
 
         let mut result = security_factor * num_queries as u32;
-        if result > 80 {
+        if result >= 80 {
             result += self.grinding_factor as u32;
         }
 

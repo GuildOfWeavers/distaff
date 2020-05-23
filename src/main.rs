@@ -1,7 +1,7 @@
 use std::env;
 use std::io::Write;
 use std::time::Instant;
-use distaff::{ ProofOptions, StarkProof, processor, processor::opcodes, FiniteField, F128 };
+use distaff::{ ProofOptions, StarkProof, processor, processor::opcodes::f128 as opcodes, FiniteField, F128 };
 
 fn main() {
 
@@ -94,9 +94,9 @@ fn generate_fibonacci_program(n: usize) -> Vec<F128> {
     // the last operation pops top 2 stack items, adds them, and pushes
     // the result back onto the stack
     for _ in 0..(n - 1) {
-        program.push(opcodes::DUP0 as u128);
-        program.push(opcodes::PULL2 as u128);
-        program.push(opcodes::ADD as u128);
+        program.push(opcodes::DUP0);
+        program.push(opcodes::PULL2);
+        program.push(opcodes::ADD);
     }
 
     return processor::pad_program(&program);

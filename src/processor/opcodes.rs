@@ -28,3 +28,17 @@ pub const MUL : u8     = 0b000_11_011;
 //pub const EQ : u8     = 0b000_11_100;
 //pub const LT : u8     = 0b000_11_101;
 //pub const GT : u8     = 0b000_11_110;
+
+/// 128-bit versions of opcodes
+pub mod f128 {
+    pub const NOOP  : u128 = super::NOOP as u128;
+    pub const PULL1 : u128 = super::PULL1 as u128;
+    pub const PULL2 : u128 = super::PULL2 as u128;
+    pub const PUSH  : u128 = super::PUSH as u128;
+    pub const DUP0  : u128 = super::DUP0 as u128;
+    pub const DUP1  : u128 = super::DUP1 as u128;
+    pub const DROP  : u128 = super::DROP as u128;
+    pub const ADD   : u128 = super::ADD as u128;
+    pub const SUB   : u128 = super::SUB as u128;
+    pub const MUL   : u128 = super::MUL as u128;
+}

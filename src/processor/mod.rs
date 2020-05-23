@@ -7,6 +7,9 @@ use crate::utils::{ as_bytes };
 mod tests;
 pub mod opcodes;
 
+// TODO: transforming execute() into a fully generic version results in about 10% - 15% runtime
+// penalty (mostly in running FFT). So, keeping it non-generic for now.
+
 /// Executes the specified `program` and returns the result together with program hash
 /// and STARK-based proof of execution.
 /// 
