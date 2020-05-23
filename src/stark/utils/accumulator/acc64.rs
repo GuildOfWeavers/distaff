@@ -2,7 +2,7 @@ use crate::math::{ FiniteField, F64, fft, polynom };
 use crate::utils::{ filled_vector };
 use super::{ Accumulator };
 
-// 64-BIT ACCUMULATOR BUILDER IMPLEMENTATION
+// 64-BIT ACCUMULATOR IMPLEMENTATION
 // ================================================================================================
 impl Accumulator for F64 {
 
