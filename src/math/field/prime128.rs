@@ -178,8 +178,8 @@ impl FiniteField for F128 {
         assert!(order != 0, "cannot get root of unity for order 0");
         assert!(order.is_power_of_two(), "order must be a power of 2");
         assert!(order.trailing_zeros() <= 40, "order cannot exceed 2^40");
-        let p = 1 << (40 - order.trailing_zeros());
-        return Self::exp(G, p as u128);
+        let p = 1u128 << (40 - order.trailing_zeros());
+        return Self::exp(G, p);
     }
 
     // TYPE CONVERSIONS

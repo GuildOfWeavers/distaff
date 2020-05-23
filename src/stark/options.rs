@@ -4,8 +4,8 @@ use super::MAX_CONSTRAINT_DEGREE;
 
 // CONSTANTS
 // ================================================================================================
-const DEFAULT_EXTENSION_FACTOR: u8 = (MAX_CONSTRAINT_DEGREE * 4) as u8;
-const DEFAULT_NUM_QUERIES     : u8 = 42;
+const DEFAULT_EXTENSION_FACTOR: u8 = (MAX_CONSTRAINT_DEGREE * 8) as u8;
+const DEFAULT_NUM_QUERIES     : u8 = 28;
 const DEFAULT_GRINDING_FACTOR : u8 = 16;
 
 // TYPES AND INTERFACES

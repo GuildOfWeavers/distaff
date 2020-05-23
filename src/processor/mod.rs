@@ -1,6 +1,6 @@
 use log::debug;
 use std::{ cmp, time::Instant };
-use crate::math::{ F64, FiniteField };
+use crate::math::{ F128, FiniteField };
 use crate::stark::{ self, ProofOptions, StarkProof, MAX_INPUTS, MAX_OUTPUTS, MIN_TRACE_LENGTH };
 use crate::utils::{ as_bytes };
 
@@ -12,7 +12,7 @@ pub mod opcodes;
 /// 
 /// * `inputs` specify the initial stack state the with inputs[0] being the top of the stack;
 /// * `num_outputs` specifies the number of elements from the top of the stack to be returned;
-pub fn execute(program: &[F64], inputs: &[F64], num_outputs: usize, options: &ProofOptions) -> (Vec<F64>, [u8; 32], StarkProof<F64>)
+pub fn execute(program: &[F128], inputs: &[F128], num_outputs: usize, options: &ProofOptions) -> (Vec<F128>, [u8; 32], StarkProof<F128>)
 {
     assert!(inputs.len() <= MAX_INPUTS,
         "Expected no more than {} inputs, but received {}", MAX_INPUTS, inputs.len());
@@ -45,7 +45,7 @@ pub fn execute(program: &[F64], inputs: &[F64], num_outputs: usize, options: &Pr
 
 /// Verifies that if a program with the specified `program_hash` is executed with the 
 /// provided `inputs`, the result is equal to the `outputs`.
-pub fn verify(program_hash: &[u8; 32], inputs: &[F64], outputs: &[F64], proof: &StarkProof<F64>) -> Result<bool, String>
+pub fn verify(program_hash: &[u8; 32], inputs: &[F128], outputs: &[F128], proof: &StarkProof<F128>) -> Result<bool, String>
 {
     return stark::verify(program_hash, inputs, outputs, proof);
 }

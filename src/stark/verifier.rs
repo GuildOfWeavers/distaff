@@ -27,7 +27,7 @@ pub fn verify<T>(program_hash: &[u8; 32], inputs: &[T], outputs: &[T], proof: &S
     };
 
     let t_positions = utils::compute_query_positions(&seed, proof.domain_size(), options);
-    let c_positions = utils::map_trace_to_constraint_positions(&t_positions);
+    let c_positions = utils::map_trace_to_constraint_positions::<T>(&t_positions);
 
     // 2 ----- Verify trace and constraint Merkle proofs ------------------------------------------
     if !MerkleTree::verify_batch(proof.trace_root(), &t_positions, &proof.trace_proof(), hash_fn) {

@@ -144,7 +144,7 @@ pub fn prove<T>(trace: &mut TraceTable<T>, inputs: &[T], outputs: &[T], options:
     let trace_evaluations = trace.get_register_values_at(&positions);
 
     // build a list of constraint positions
-    let constraint_positions = utils::map_trace_to_constraint_positions(&positions);
+    let constraint_positions = utils::map_trace_to_constraint_positions::<T>(&positions);
 
     // build the proof object
     let proof = StarkProof::new(
