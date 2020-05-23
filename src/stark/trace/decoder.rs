@@ -1,20 +1,33 @@
 use std::ops::Range;
 use crate::processor::opcodes;
-use crate::math::{ F64, FiniteField };
+use crate::math::{ FiniteField };
 use crate::stark::utils::{ Accumulator };
 use crate::utils::filled_vector;
 use super::{ NUM_OP_BITS };
 
-// CONSTANTS
+// REGISTER POSITION INFO
 // ================================================================================================
-pub const NUM_REGISTERS: usize = 2 + NUM_OP_BITS + F64::STATE_WIDTH;
-
 pub const OP_CODE_IDX     : usize = 0;
 pub const PUSH_FLAG_IDX   : usize = 1;
-pub const OP_BITS_RANGE   : Range<usize> = Range { start: 2, end:  7 };
-pub const OP_ACC_RANGE    : Range<usize> = Range { start: 7, end: 19 };
+pub const OP_BITS_RANGE   : Range<usize> = Range { start: 2, end: 2 + NUM_OP_BITS };
 
-pub const PROG_HASH_RANGE : Range<usize> = Range { start: 7, end: 11 };
+// TODO: these should be constant functions, but currently not supported
+
+pub fn num_registers<T: Accumulator>() -> usize {
+    return 2 + NUM_OP_BITS + T::STATE_WIDTH;
+}
+
+pub fn op_acc_range<T: Accumulator>() -> Range<usize> {
+    let start = 2 + NUM_OP_BITS;
+    let end = start + T::STATE_WIDTH;
+    return Range { start, end };
+}
+
+pub fn prog_hash_range<T: Accumulator>() -> Range<usize> {
+    let start = 2 + NUM_OP_BITS;
+    let end = start + T::DIGEST_SIZE;
+    return Range { start, end };
+}
 
 // TRACE BUILDER
 // ================================================================================================
@@ -73,7 +86,6 @@ pub fn process<T>(program: &[T], extension_factor: usize) -> Vec<Vec<T>>
     for register in op_bits.into_iter() { registers.push(register); }
     for register in op_acc.into_iter() { registers.push(register); }
 
-    assert!(registers.len() == NUM_REGISTERS, "inconsistent number of decoder registers");
     return registers;
 }
 

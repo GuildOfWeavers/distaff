@@ -91,7 +91,7 @@ fn evaluate_constraints<T>(evaluator: ConstraintEvaluator<T>, state1: TraceState
 }
 
 fn compose_registers<T>(proof: &StarkProof<T>, positions: &[usize], z: T, cc: &CompositionCoefficients<T>) -> Vec<T>
-    where T: FiniteField
+    where T: FiniteField + Accumulator
 {    
     let lde_root = T::get_root_of_unity(proof.domain_size());
     let trace_root = T::get_root_of_unity(proof.trace_length());
@@ -132,7 +132,7 @@ fn compose_registers<T>(proof: &StarkProof<T>, positions: &[usize], z: T, cc: &C
 }
 
 fn compose_constraints<T>(proof: &StarkProof<T>, t_positions: &[usize], c_positions: &[usize], z: T, evaluation_at_z: T, cc: &CompositionCoefficients<T>) -> Vec<T>
-    where T: FiniteField
+    where T: FiniteField + Accumulator
 {
     // build constraint evaluation values from the leaves of constraint Merkle proof
     let mut evaluations: Vec<T> = Vec::with_capacity(t_positions.len());

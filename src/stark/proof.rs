@@ -1,7 +1,7 @@
 use serde::{ Serialize, Deserialize };
 use crate::math::{ FiniteField };
 use crate::crypto::{ BatchMerkleProof };
-use crate::stark::{ fri::FriProof, TraceState, ProofOptions };
+use crate::stark::{ Accumulator, fri::FriProof, TraceState, ProofOptions };
 use crate::utils::{ uninit_vector, as_bytes };
 
 // TYPES AND INTERFACES
@@ -9,7 +9,7 @@ use crate::utils::{ uninit_vector, as_bytes };
 
 // TODO: custom serialization should reduce size by 5% - 10%
 #[derive(Clone, Serialize, Deserialize)]
-pub struct StarkProof<T: FiniteField> {
+pub struct StarkProof<T: FiniteField + Accumulator> {
     trace_root          : [u8; 32],
     domain_depth        : u8,
     trace_nodes         : Vec<Vec<[u8; 32]>>,
@@ -23,7 +23,7 @@ pub struct StarkProof<T: FiniteField> {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DeepValues<T: FiniteField> {
+pub struct DeepValues<T: FiniteField + Accumulator> {
     pub trace_at_z1     : Vec<T>,
     pub trace_at_z2     : Vec<T>,
 }
@@ -31,7 +31,7 @@ pub struct DeepValues<T: FiniteField> {
 // STARK PROOF IMPLEMENTATION
 // ================================================================================================
 impl <T> StarkProof<T>
-    where T: FiniteField
+    where T: FiniteField + Accumulator
 {
     pub fn new(
         trace_root          : &[u8; 32],

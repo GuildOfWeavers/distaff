@@ -51,8 +51,8 @@ impl <T> TraceTable<T>
             self.unextended_length() - 1
         };
 
-        let mut result = vec![T::ZERO; 4]; // TODO
-        for (i, j) in decoder::PROG_HASH_RANGE.enumerate() {
+        let mut result = vec![T::ZERO; <T as Accumulator>::DIGEST_SIZE];
+        for (i, j) in decoder::prog_hash_range::<T>().enumerate() {
             result[i] = self.registers[j][last_step];
         }
         return result;
@@ -94,7 +94,7 @@ impl <T> TraceTable<T>
 
     /// Returns the number of registers used by the stack.
     pub fn max_stack_depth(&self) -> usize {
-        return self.registers.len() - decoder::NUM_REGISTERS;
+        return self.registers.len() - decoder::num_registers::<T>();
     }
 
     /// Returns trace of the register at the specified `index`.
@@ -111,7 +111,7 @@ impl <T> TraceTable<T>
 
     /// Returns trace of the stack register at the specified `index`.
     pub fn get_stack_register_trace(&self, index: usize) -> &[T] {
-        return &self.registers[index + decoder::NUM_REGISTERS];
+        return &self.registers[index + decoder::num_registers::<T>()];
     }
 
     /// Returns values of all registers at the specified `positions`.

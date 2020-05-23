@@ -1,6 +1,6 @@
 use std::{ cmp, marker::PhantomData };
 use crate::math::{ FiniteField };
-use crate::stark::{ TraceState, MIN_STACK_DEPTH, MAX_STACK_DEPTH };
+use crate::stark::{ TraceState, Accumulator, MIN_STACK_DEPTH, MAX_STACK_DEPTH };
 use crate::processor::{ opcodes };
 
 // CONSTANTS
@@ -17,7 +17,7 @@ pub struct Stack<T> {
 // STACK CONSTRAINT EVALUATOR IMPLEMENTATION
 // ================================================================================================
 impl <T> Stack<T>
-    where T: FiniteField
+    where T: FiniteField + Accumulator
 {
     pub fn new(stack_depth: usize) -> Stack<T> {
         return Stack { stack_depth, phantom: PhantomData };
