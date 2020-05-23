@@ -1,12 +1,14 @@
 use std::cmp;
-use crate::math::{ field };
+use crate::math::{ FiniteField };
 use crate::processor::opcodes;
-use crate::utils::{ zero_filled_vector };
+use crate::utils::{ filled_vector };
 use super::{ MAX_INPUTS, MIN_STACK_DEPTH, MAX_STACK_DEPTH };
 
 // TRACE BUILDER
 // ================================================================================================
-pub fn execute(program: &[u64], inputs: &[u64], extension_factor: usize) -> Vec<Vec<u64>> {
+pub fn execute<T>(program: &[T], inputs: &[T], extension_factor: usize) -> Vec<Vec<T>>
+    where T: FiniteField
+{
 
     let trace_length = program.len();
     let domain_size = trace_length * extension_factor;
@@ -14,13 +16,13 @@ pub fn execute(program: &[u64], inputs: &[u64], extension_factor: usize) -> Vec<
     assert!(inputs.len() <= MAX_INPUTS, "expected {} or fewer inputs, received {}", MAX_INPUTS, inputs.len());
     assert!(trace_length.is_power_of_two(), "trace length must be a power of 2");
     assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
-    assert!(program[trace_length - 1] == opcodes::NOOP, "last operation of a program must be NOOP");
+    assert!(program[trace_length - 1] == T::from(opcodes::NOOP), "last operation of a program must be NOOP");
 
     // allocate space for stack registers and populate the first state with input values
     let init_stack_depth = cmp::max(inputs.len(), MIN_STACK_DEPTH);
-    let mut registers: Vec<Vec<u64>> = Vec::with_capacity(init_stack_depth);
+    let mut registers: Vec<Vec<T>> = Vec::with_capacity(init_stack_depth);
     for i in 0..init_stack_depth {
-        let mut register = zero_filled_vector(trace_length, domain_size);
+        let mut register = filled_vector(trace_length, domain_size, T::ZERO);
         if i < inputs.len() { 
             register[0] = inputs[i];
         }
@@ -33,7 +35,8 @@ pub fn execute(program: &[u64], inputs: &[u64], extension_factor: usize) -> Vec<
     let mut i = 0; 
     while i < trace_length - 1 {
         // update stack state based on the current operation
-        match program[i] {
+        // TODO: make sure operation can be safely cast to u8
+        match program[i].as_u8() {
             opcodes::NOOP  => stack.noop(i),
 
             opcodes::PUSH  => {
@@ -67,15 +70,19 @@ pub fn execute(program: &[u64], inputs: &[u64], extension_factor: usize) -> Vec<
 
 // TYPES AND INTERFACES
 // ================================================================================================
-struct StackTrace {
-    registers   : Vec<Vec<u64>>,
+struct StackTrace<T> 
+    where T: FiniteField
+{
+    registers   : Vec<Vec<T>>,
     max_depth   : usize,
     depth       : usize,
 }
 
 // STACK IMPLEMENTATION
 // ================================================================================================
-impl StackTrace {
+impl <T> StackTrace<T>
+    where T: FiniteField
+{
 
     // OPERATIONS
     // --------------------------------------------------------------------------------------------
@@ -96,7 +103,7 @@ impl StackTrace {
         self.copy_state(step, 3);
     }
 
-    fn push(&mut self, step: usize, value: u64) {
+    fn push(&mut self, step: usize, value: T) {
         self.shift_right(step, 0, 1);
         self.registers[0][step + 1] = value;
     }
@@ -120,21 +127,21 @@ impl StackTrace {
     fn add(&mut self, step: usize) {
         let x = self.registers[0][step];
         let y = self.registers[1][step];
-        self.registers[0][step + 1] = field::add(x, y);
+        self.registers[0][step + 1] = T::add(x, y);
         self.shift_left(step, 2, 1);
     }
 
     fn sub(&mut self, step: usize) {
         let x = self.registers[0][step];
         let y = self.registers[1][step];
-        self.registers[0][step + 1] = field::sub(y, x);
+        self.registers[0][step + 1] = T::sub(y, x);
         self.shift_left(step, 2, 1);
     }
 
     fn mul(&mut self, step: usize) {
         let x = self.registers[0][step];
         let y = self.registers[1][step];
-        self.registers[0][step + 1] = field::mul(x, y);
+        self.registers[0][step + 1] = T::mul(x, y);
         self.shift_left(step, 2, 1);
     }
 
@@ -159,7 +166,7 @@ impl StackTrace {
 
         // set all "shifted-in" slots to 0
         for i in (self.depth - pos_count)..self.depth {
-            self.registers[i][step + 1] = 0;
+            self.registers[i][step + 1] = T::ZERO;
         }
 
         // stack depth has been reduced by pos_count
@@ -189,7 +196,7 @@ impl StackTrace {
         let trace_length = self.registers[0].len();
         let trace_capacity = self.registers[0].capacity();
         for _ in 0..num_registers {
-            let register = zero_filled_vector(trace_length, trace_capacity);
+            let register = filled_vector(trace_length, trace_capacity, T::ZERO);
             self.registers.push(register);
         }
     }
@@ -200,6 +207,9 @@ impl StackTrace {
 #[cfg(test)]
 mod tests {
     
+    use crate::math::{ F64, FiniteField };
+    use crate::utils::{ filled_vector };
+
     const TRACE_LENGTH: usize = 16;
     const EXTENSION_FACTOR: usize = 16;
 
@@ -303,10 +313,10 @@ mod tests {
         assert_eq!(2, stack.max_depth);
     }
 
-    fn init_stack(inputs: &[u64]) -> super::StackTrace {
+    fn init_stack(inputs: &[u64]) -> super::StackTrace<u64> {
         let mut registers: Vec<Vec<u64>> = Vec::with_capacity(super::MIN_STACK_DEPTH);
         for i in 0..super::MIN_STACK_DEPTH {
-            let mut register = super::zero_filled_vector(TRACE_LENGTH, TRACE_LENGTH * EXTENSION_FACTOR);
+            let mut register = filled_vector(TRACE_LENGTH, TRACE_LENGTH * EXTENSION_FACTOR, F64::ZERO);
             if i < inputs.len() { 
                 register[0] = inputs[i];
             }
@@ -316,7 +326,7 @@ mod tests {
         return super::StackTrace { registers, max_depth: inputs.len(), depth: inputs.len() };
     }
 
-    fn get_stack_state(stack: &super::StackTrace, step: usize) -> Vec<u64> {
+    fn get_stack_state(stack: &super::StackTrace<u64>, step: usize) -> Vec<u64> {
         let mut state = Vec::with_capacity(stack.registers.len());
         for i in 0..stack.registers.len() {
             state.push(stack.registers[i][step]);

@@ -1,5 +1,5 @@
-use std::slice;
-use crate::math::field;
+use crate::math::{ F64, FiniteField };
+use crate::utils::{ as_bytes };
 use sha3::Digest;
 
 // CONSTANTS
@@ -79,13 +79,14 @@ const ARK: [u64; 576] = [
 
 // ------------------------------------------------------------------------------------------------
 /// Poseidon hash function
-pub fn poseidon(values: &[u64], result: &mut [u64]) {
-    debug_assert!(values.len() <= 8, "expected fewer than 8 values but received {}", values.len());
-    debug_assert!(result.len() == 4, "expected result slice to have 4 elements but received {}", result.len());
+pub fn poseidon(values: &[u8], result: &mut [u8]) {
+    debug_assert!(values.len() <= 64, "expected 64 or fewer input bytes but received {}", values.len());
+    debug_assert!(result.len() == 32, "expected result to be exactly 32 bytes but received {}", result.len());
 
     // copy values into state and set the remaining state elements to 0
     let mut state = [0u64; 12];
-    state[..values.len()].copy_from_slice(values);
+    let state_bytes: &mut [u8; 64] = unsafe { &mut *(&state as *const _ as *mut [u8; 64]) };
+    state_bytes[..values.len()].copy_from_slice(values);
 
     // execute round function 48 times
     for i in 0..48 {
@@ -98,25 +99,26 @@ pub fn poseidon(values: &[u64], result: &mut [u64]) {
         }
         else {
             // partial round
-            state[11] = field::exp(state[11], ALPHA);
+            state[11] = F64::exp(state[11], ALPHA);
         }
 
         apply_mds(&mut state);
     }
 
     // return the result
-    result.copy_from_slice(&state[..4]);
+    result.copy_from_slice(as_bytes(&state[..4]));
 }
 
 // ------------------------------------------------------------------------------------------------
 /// Rescue hash function
-pub fn rescue(values: &[u64], result: &mut [u64]) {
-    debug_assert!(values.len() <= 8, "expected fewer than 8 values but received {}", values.len());
-    debug_assert!(result.len() == 4, "expected result slice to have 4 elements but received {}", result.len());
+pub fn rescue(values: &[u8], result: &mut [u8]) {
+    debug_assert!(values.len() <= 64, "expected 64 or fewer input bytes but received {}", values.len());
+    debug_assert!(result.len() == 32, "expected result to be exactly 32 bytes but received {}", result.len());
 
     // copy values into state and set the remaining state elements to 0
     let mut state = [0u64; 12];
-    state[..values.len()].copy_from_slice(values);
+    let state_bytes: &mut [u8; 64] = unsafe { &mut *(&state as *const _ as *mut [u8; 64]) };
+    state_bytes[..values.len()].copy_from_slice(values);
 
     // apply round function 10 times
     add_constants(&mut state, 0);
@@ -134,52 +136,47 @@ pub fn rescue(values: &[u64], result: &mut [u64]) {
     }
 
     // return the result
-    result.copy_from_slice(&state[..4]);
+    result.copy_from_slice(as_bytes(&state[..4]));
 }
 
 // ------------------------------------------------------------------------------------------------
 /// GMiMC_erf hash function
-pub fn gmimc(values: &[u64], result: &mut [u64]) {
-    debug_assert!(values.len() <= 8, "expected fewer than 8 values but received {}", values.len());
-    debug_assert!(result.len() == 4, "expected result slice to have 4 elements but received {}", result.len());
+pub fn gmimc(values: &[u8], result: &mut [u8]) {
+    debug_assert!(values.len() <= 64, "expected 64 or fewer input bytes but received {}", values.len());
+    debug_assert!(result.len() == 32, "expected result to be exactly 32 bytes but received {}", result.len());
 
     // copy values into state and set the remaining state elements to 0
     let mut state = [0u64; 12];
-    state[..values.len()].copy_from_slice(values);
+    let state_bytes: &mut [u8; 64] = unsafe { &mut *(&state as *const _ as *mut [u8; 64]) };
+    state_bytes[..values.len()].copy_from_slice(values);
 
     for i in 0..101 {
         let s0 = state[0];
-        let mask = field::exp(field::add(s0, ARK[i]), ALPHA);
+        let mask = F64::exp(F64::add(s0, ARK[i]), ALPHA);
         for j in 1..12 {
-            state[j - 1] = field::add(mask, state[j]);
+            state[j - 1] = F64::add(mask, state[j]);
         }
         state[11] = s0;
     }
 
     // return the result
-    result.copy_from_slice(&state[..4]);
+    result.copy_from_slice(as_bytes(&state[..4]));
 }
 
 // ------------------------------------------------------------------------------------------------
 /// Wrapper around blake3 hash function
-pub fn blake3(values: &[u64], result: &mut [u64]) {
-    debug_assert!(result.len() == 4, "expected result slice to have 4 elements but received {}", result.len());
-    
-    let values = unsafe { slice::from_raw_parts(values.as_ptr() as *const u8, values.len() * 8) };
+pub fn blake3(values: &[u8], result: &mut [u8]) {
+    debug_assert!(result.len() == 32, "expected result to be exactly 32 bytes but received {}", result.len());
     let hash = blake3::hash(&values);
-    let result: &mut [u8; 32] = unsafe { &mut *(result as *const _ as *mut [u8; 32]) };
     result.copy_from_slice(hash.as_bytes());
 }
 
 /// Wrapper around sha3 hash function
-pub fn sha3(values: &[u64], result: &mut [u64]) {
-    debug_assert!(result.len() == 4, "expected result slice to have 4 elements but received {}", result.len());
-
-    let values = unsafe { slice::from_raw_parts(values.as_ptr() as *const u8, values.len() * 8) };
+pub fn sha3(values: &[u8], result: &mut [u8]) {
+    debug_assert!(result.len() == 32, "expected result to be exactly 32 bytes but received {}", result.len());
     let mut sha256 = sha3::Sha3_256::new();
     sha256.input(&values);
     let hash = sha256.result();
-    let result: &mut [u8; 32] = unsafe { &mut *(result as *const _ as *mut [u8; 32]) };
     result.copy_from_slice(hash.as_ref());
 }
 
@@ -187,20 +184,20 @@ pub fn sha3(values: &[u64], result: &mut [u64]) {
 // ================================================================================================
 fn add_constants(state: &mut[u64; 12], offset: usize) {
     for i in 0..12 {
-        state[i] = field::add(state[i], ARK[offset + i]);
+        state[i] = F64::add(state[i], ARK[offset + i]);
     }
 }
 
 fn apply_sbox(state: &mut[u64; 12]) {
     for i in 0..12 {
-        state[i] = field::exp(state[i], ALPHA);
+        state[i] = F64::exp(state[i], ALPHA);
     }
 }
 
 fn apply_inv_sbox(state: &mut[u64; 12]) {
     // TODO: optimize
     for i in 0..12 {
-        state[i] = field::exp(state[i], INV_ALPHA);
+        state[i] = F64::exp(state[i], INV_ALPHA);
     }
 }
 
@@ -209,11 +206,11 @@ fn apply_mds(state: &mut[u64; 12]) {
     let mut temp = [0u64; 12];
     for i in 0..12 {
         for j in 0..12 {
-            temp[j] = field::mul(MDS[i * 12 + j], state[j]);
+            temp[j] = F64::mul(MDS[i * 12 + j], state[j]);
         }
 
         for j in 0..12 {
-            result[i] = field::add(result[i], temp[j]);
+            result[i] = F64::add(result[i], temp[j]);
         }
     }
     state.copy_from_slice(&result);
@@ -224,30 +221,41 @@ fn apply_mds(state: &mut[u64; 12]) {
 #[cfg(test)]
 mod tests {
 
+    use crate::utils::{ as_bytes };
+
     #[test]
     fn poseidon() {
         let value = [1u64, 2, 3, 4, 5, 6, 7, 8];
-        let mut result = [0u64; 4];
-        super::poseidon(&value, &mut result);
+        let mut result = [0; 32];
+        super::poseidon(as_bytes(&value), &mut result);
 
-        assert_eq!([18371635412595540007, 1894744910730962130, 10854054167595012332, 14797165172502003225], result);
+        assert_eq!([
+             39, 128, 190, 22,  18, 41, 245, 254, 210,  36,  25, 32, 117, 124, 75,  26,
+            236,  80,  89, 24, 194, 88, 161, 150,  25, 126, 195, 93,  83,  23, 90, 205], 
+            result);
     }
 
     #[test]
     fn rescue() {
         let value = [1u64, 2, 3, 4, 5, 6, 7, 8];
-        let mut result = [0u64; 4];
-        super::rescue(&value, &mut result);
+        let mut result = [0; 32];
+        super::rescue(as_bytes(&value), &mut result);
 
-        assert_eq!([8675231609413418651, 5008873880099962244, 1143406322110855369, 6071655998975610945], result);
+        assert_eq!([
+            155, 190, 83, 119,  47, 157, 100, 120, 132,  61, 23, 124,  65,  24, 131, 69,
+            201, 120, 90, 239, 253,  49, 222,  15,  65, 144, 79,  73, 246, 218,  66, 84],
+            result);
     }
 
     #[test]
     fn gmimc() {
         let value = [1u64, 2, 3, 4, 5, 6, 7, 8];
-        let mut result = [0u64; 4];
-        super::gmimc(&value, &mut result);
+        let mut result = [0; 32];
+        super::gmimc(as_bytes(&value), &mut result);
 
-        assert_eq!([13347011516039751531, 1694648777756066234, 2833950855839661719, 5145889775304403416], result);
+        assert_eq!([
+            107, 231, 152,  34, 66, 28, 58, 185, 186,  65, 51, 177,  21, 154, 132, 23,
+            151, 190,  60, 217, 73, 55, 84,  39, 216, 105, 85, 142, 124, 223, 105, 71],
+            result);
     }
 }

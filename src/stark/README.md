@@ -40,7 +40,7 @@ To extend the trace table, we need to evaluate these polynomials over a larger d
 Then, trace polynomials are evaluated over *D<sub>lde</sub>* to generate the extended trace table (this is done by running froward FFT). Each row in the extended trace table can be written as:
 
 <p align="center">
-T<sub>0</sub>(ω<sup>i</sup><sub>lde</sub>), T<sub>1</sub>(ω<sup>i</sup><sub>lde</sub>), T<sub>2</sub>(ω<sup>i</sup><sub>lde</sub>), . . . T<sub>k</sub>(ω<sup>i</sup><sub>lde</sub>)
+T<sub>0</sub>(ω<sup>i</sup><sub>lde</sub>), T<sub>1</sub>(ω<sup>i</sup><sub>lde</sub>), T<sub>2</sub>(ω<sup>i</sup><sub>lde</sub>), . . . T<sub>k - 1</sub>(ω<sup>i</sup><sub>lde</sub>)
 </p>
 
 A couple of things to note:
@@ -51,7 +51,7 @@ A couple of things to note:
 After the execution trace table has been extended, we build a Merkle tree from the extended register traces. Leaves in the resulting tree will have the following form:
 
 <p align="center">
-Leaf<sub>i</sub> = (T<sub>0</sub>(ω<sup>i</sup><sub>lde</sub>), T<sub>1</sub>(ω<sup>i</sup><sub>lde</sub>), T<sub>2</sub>(ω<sup>i</sup><sub>lde</sub>), . . . T<sub>k</sub>(ω<sup>i</sup><sub>lde</sub>))
+Leaf<sub>i</sub> = (T<sub>0</sub>(ω<sup>i</sup><sub>lde</sub>), T<sub>1</sub>(ω<sup>i</sup><sub>lde</sub>), T<sub>2</sub>(ω<sup>i</sup><sub>lde</sub>), . . . T<sub>k - 1</sub>(ω<sup>i</sup><sub>lde</sub>))
 </p>
 
 ### 3. Evaluate constraints
@@ -97,10 +97,10 @@ After constraints have been evaluated and combined into the 3 linear combination
 3. Add the resulting polynomials together into the *constraint polynomial C(x)*.
 
 ### 5. Build Merkle tree from constraint polynomial evaluations
-Once the *constraint polynomial* has been constructed, we evaluate it over *D<sub>lde</sub>* and put the resulting values into a Merkle tree. Since our values are 64 bits, but Merkle tree leaves are 256 bits, we put 4 consecutive evaluations into a single leaf like so:
+Once the *constraint polynomial* has been constructed, we evaluate it over *D<sub>lde</sub>* and put the resulting values into a Merkle tree. Since our values are 128 bits (we are working in a 128-bit prime field), but Merkle tree leaves are 256 bits, we put 2 consecutive evaluations into a single leaf like so:
 
 <p align="center">
-Leaf<sub>i</sub> = (C(x<sub>4i</sub>), C(x<sub>4i+1</sub>), C(x<sub>4i+2</sub>), C(x<sub>4i + 3</sub>))
+Leaf<sub>i</sub> = (C(x<sub>2i</sub>), C(x<sub>2i+1</sub>))
 </p>
 
 where, *x<sub>i</sub> = ω<sup>i</sup><sub>lde</sub>* for all *i* in the low degree extension domain.
@@ -325,10 +325,10 @@ where:
 * *n* - number of queries.
 * *r* - grinding factor.
 
-For example, for the default config values (*ρ = 1/8, n = 32, r = 24*), proof soundness can be estimated as:
+For example, for the default config values (*ρ = 1/4, n = 50, r = 20*), proof soundness can be estimated as:
 
 <p align="center">
-<img src="https://render.githubusercontent.com/render/math?math=\large log_2 8 \cdot 32 %2B 24 = 120">
+<img src="https://render.githubusercontent.com/render/math?math=\large log_2 4 \cdot 50 %2B 20 = 120">
 </p>
 
 In other words, default security level is 120 bits.

@@ -1,11 +1,11 @@
 use criterion::{ black_box, criterion_group, Criterion };
-use distaff::{ field, fft};
+use distaff::{ F64, FiniteField, fft};
 
 pub fn fft_in_place(c: &mut Criterion) {
 
     let size: usize = 1 << 12;
-    let mut values = field::rand_vector(size);
-    let r = field::get_root_of_unity(size as u64);
+    let mut values = F64::rand_vector(size);
+    let r = F64::get_root_of_unity(size);
     let twiddles = fft::get_twiddles(r, size);
 
     c.bench_function("FFT (in-place)", |bench| {

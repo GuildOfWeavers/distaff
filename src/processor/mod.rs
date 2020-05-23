@@ -1,19 +1,22 @@
 use log::debug;
-use std::cmp;
-use std::time::Instant;
+use std::{ cmp, time::Instant };
+use crate::math::{ F128, FiniteField };
 use crate::stark::{ self, ProofOptions, StarkProof, MAX_INPUTS, MAX_OUTPUTS, MIN_TRACE_LENGTH };
-use crate::utils::CopyInto;
+use crate::utils::{ as_bytes };
 
 mod tests;
 pub mod opcodes;
+
+// TODO: transforming execute() into a fully generic version results in about 10% - 15% runtime
+// penalty (mostly in running FFT). So, keeping it non-generic for now.
 
 /// Executes the specified `program` and returns the result together with program hash
 /// and STARK-based proof of execution.
 /// 
 /// * `inputs` specify the initial stack state the with inputs[0] being the top of the stack;
 /// * `num_outputs` specifies the number of elements from the top of the stack to be returned;
-pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize, options: &ProofOptions) -> (Vec<u64>, [u8; 32], StarkProof) {
-
+pub fn execute(program: &[F128], inputs: &[F128], num_outputs: usize, options: &ProofOptions) -> (Vec<F128>, [u8; 32], StarkProof<F128>)
+{
     assert!(inputs.len() <= MAX_INPUTS,
         "Expected no more than {} inputs, but received {}", MAX_INPUTS, inputs.len());
     assert!(num_outputs <= MAX_OUTPUTS, 
@@ -33,16 +36,20 @@ pub fn execute(program: &[u64], inputs: &[u64], num_outputs: usize, options: &Pr
     // copy the stack state the the last step to return as output
     let last_state = trace.get_state(trace.unextended_length() - 1);
     let outputs = last_state.get_stack()[0..num_outputs].to_vec();
-    
+
+    // construct program hash
+    let mut program_hash = [0u8; 32];
+    program_hash.copy_from_slice(as_bytes(&trace.get_program_hash()));
+
     // generate STARK proof
     let proof = stark::prove(&mut trace, inputs, &outputs, options);
-    return (outputs, trace.get_program_hash().copy_into(), proof);
+    return (outputs, program_hash, proof);
 }
 
 /// Verifies that if a program with the specified `program_hash` is executed with the 
 /// provided `inputs`, the result is equal to the `outputs`.
-pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &StarkProof) -> Result<bool, String> {
-
+pub fn verify(program_hash: &[u8; 32], inputs: &[F128], outputs: &[F128], proof: &StarkProof<F128>) -> Result<bool, String>
+{
     return stark::verify(program_hash, inputs, outputs, proof);
 }
 
@@ -50,10 +57,10 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u64], outputs: &[u64], proof: &
 /// 1. The length of the program is at least 16;
 /// 2. The length of the program is a power of 2;
 /// 3. The program terminates with a NOOP.
-pub fn pad_program(program: &[u64]) -> Vec<u64> {
+pub fn pad_program<T: FiniteField>(program: &[T]) -> Vec<T> {
     let mut program = program.to_vec();
     let trace_length = if program.len() == program.len().next_power_of_two() {
-        if program[program.len() - 1] == opcodes::NOOP {
+        if program[program.len() - 1] == T::from(opcodes::NOOP) {
             program.len()
         }
         else {
@@ -63,6 +70,14 @@ pub fn pad_program(program: &[u64]) -> Vec<u64> {
     else {
         program.len().next_power_of_two()
     };
-    program.resize(cmp::max(trace_length, MIN_TRACE_LENGTH), opcodes::NOOP);
+    program.resize(cmp::max(trace_length, MIN_TRACE_LENGTH), T::from(opcodes::NOOP));
     return program;
+}
+
+/// Returns a hash value of the program.
+pub fn hash_program<T: stark::Accumulator>(program: &[T]) -> [u8; 32] {
+    assert!(program.len().is_power_of_two(), "program length must be a power of 2");
+    assert!(program.len() >= MIN_TRACE_LENGTH, "program must consist of at least {} operations", MIN_TRACE_LENGTH);
+    assert!(program[program.len() - 1] == T::from(opcodes::NOOP), "last operation of a program must be NOOP");
+    return T::digest(&program[..(program.len() - 1)]);
 }

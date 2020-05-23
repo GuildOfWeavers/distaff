@@ -1,5 +1,5 @@
 use crossbeam_utils::thread;
-use crate::math::field;
+use crate::math::{ FiniteField };
 
 // CONSTANTS
 // ================================================================================================
@@ -9,11 +9,15 @@ const MAX_LOOP: usize = 256;
 // PUBLIC FUNCTIONS
 // ================================================================================================
 
+// TODO: generic version seems to be about 10% slower than concrete versions; investigate.
+
 /// In-place recursive FFT with permuted output. If `num_threads` is > 1, the computation is
 /// performed in multiple threads. Number of threads must be a power of 2.
 /// 
 /// Adapted from: https://github.com/0xProject/OpenZKP/tree/master/algebra/primefield/src/fft
-pub fn fft_in_place(values: &mut [u64], twiddles: &[u64], count: usize, stride: usize, offset: usize, num_threads: usize) {
+pub fn fft_in_place<T>(values: &mut [T], twiddles: &[T], count: usize, stride: usize, offset: usize, num_threads: usize)
+    where T: FiniteField
+{
     
     let size = values.len() / stride;
     debug_assert!(size.is_power_of_two());
@@ -30,7 +34,7 @@ pub fn fft_in_place(values: &mut [u64], twiddles: &[u64], count: usize, stride: 
             thread::scope(|s| {
                 // get another mutable reference to values to be used inside the new thread;
                 // this is OK because halves of FFT don't step on each other
-                let values2 = unsafe { &mut *(values as *mut [u64]) };
+                let values2 = unsafe { &mut *(values as *mut [T]) };
                 s.spawn(move |_| {
                     fft_in_place(values2, twiddles, count, 2 * stride, offset, num_threads / 2);
                 });
@@ -55,20 +59,24 @@ pub fn fft_in_place(values: &mut [u64], twiddles: &[u64], count: usize, stride: 
     }
 }
 
-pub fn get_twiddles(root: u64, size: usize) -> Vec<u64> {
+pub fn get_twiddles<T>(root: T, size: usize) -> Vec<T> 
+    where T: FiniteField
+{
     assert!(size.is_power_of_two());
-    assert!(field::exp(root, size as u64) == 1);
-    let mut twiddles = field::get_power_series(root, size / 2);
+    assert!(T::exp(root, T::from_usize(size)) == T::ONE);
+    let mut twiddles = T::get_power_series(root, size / 2);
     permute(&mut twiddles);
     return twiddles;
 }
 
-pub fn get_inv_twiddles(root: u64, size: usize) -> Vec<u64> {
-    let inv_root = field::exp(root, (size - 1) as u64);
+pub fn get_inv_twiddles<T>(root: T, size: usize) -> Vec<T> 
+    where T: FiniteField
+{
+    let inv_root = T::exp(root, T::from_usize(size - 1));
     return get_twiddles(inv_root, size);
 }
 
-pub fn permute(v: &mut [u64]) {
+pub fn permute<T>(v: &mut [T]) {
     let n = v.len();
     for i in 0..n {
         let j = permute_index(n, i);
@@ -89,35 +97,39 @@ fn permute_index(size: usize, index: usize) -> usize {
 }
 
 #[inline(always)]
-fn butterfly(values: &mut [u64], offset: usize, stride: usize) {
+fn butterfly<T>(values: &mut [T], offset: usize, stride: usize)
+    where T: FiniteField
+{
     let i = offset;
     let j = offset + stride;
     let temp = values[i];
-    values[i] = field::add(temp, values[j]);
-    values[j] = field::sub(temp, values[j]);
+    values[i] = T::add(temp, values[j]);
+    values[j] = T::sub(temp, values[j]);
 }
 
 #[inline(always)]
-fn butterfly_twiddle(values: &mut [u64], twiddle: u64, offset: usize, stride: usize) {
+fn butterfly_twiddle<T>(values: &mut [T], twiddle: T, offset: usize, stride: usize)
+    where T: FiniteField
+{
     let i = offset;
     let j = offset + stride;
     let temp = values[i];
-    values[j] = field::mul(values[j], twiddle);
-    values[i] = field::add(temp, values[j]);
-    values[j] = field::sub(temp, values[j]);
+    values[j] = T::mul(values[j], twiddle);
+    values[i] = T::add(temp, values[j]);
+    values[j] = T::sub(temp, values[j]);
 }
 
 // TESTS
 // ================================================================================================
 #[cfg(test)]
 mod tests {
-    use crate::math::{ field, polynom };
+    use crate::math::{ F64, FiniteField, polynom };
 
     #[test]
     fn fft_in_place() {
         // degree 3
-        let mut p = [1u64, 2, 3, 4];
-        let g = field::get_root_of_unity(4);
+        let mut p: [F64; 4] = [1, 2, 3, 4];
+        let g = F64::get_root_of_unity(4);
         let twiddles = super::get_twiddles(g, 4);
         let expected = vec![ 10, 7428598796440720870, 18446743880436023295, 11018145083995302423 ];
         super::fft_in_place(&mut p, &twiddles, 1, 1, 0, 1);
@@ -125,8 +137,8 @@ mod tests {
         assert_eq!(expected, p);
 
         // degree 7
-        let mut p = [1u64, 2, 3, 4, 5, 6, 7, 8];
-        let g = field::get_root_of_unity(8);
+        let mut p: [F64; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
+        let g = F64::get_root_of_unity(8);
         let twiddles = super::get_twiddles(g, 8);
         let expected = vec![
                               36, 15351167094271246394, 14857197592881441740, 4083515788944386203,
@@ -137,8 +149,8 @@ mod tests {
         assert_eq!(expected, p);
 
         // degree 15
-        let mut p = [1u64, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-        let g = field::get_root_of_unity(16);
+        let mut p: [F64; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        let g = F64::get_root_of_unity(16);
         let twiddles = super::get_twiddles(g, 16);
         let expected = vec![
                              136,   975820629354483782, 12255590308106469491,  7040425242073983439,
@@ -151,10 +163,10 @@ mod tests {
         assert_eq!(expected, p);
 
         // degree 1023
-        let mut p = field::rand_vector(1024);
-        let g = field::get_root_of_unity(1024);
-        let roots = field::get_power_series(g, 1024);
-        let expected = roots.iter().map(|x| polynom::eval(&p, *x)).collect::<Vec<u64>>();
+        let mut p = F64::rand_vector(1024);
+        let g = F64::get_root_of_unity(1024);
+        let roots = F64::get_power_series(g, 1024);
+        let expected = roots.iter().map(|x| polynom::eval(&p, *x)).collect::<Vec<F64>>();
         let twiddles = super::get_twiddles(g, 1024);
         super::fft_in_place(&mut p, &twiddles, 1, 1, 0, 1);
         super::permute(&mut p);

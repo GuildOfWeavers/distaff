@@ -1,22 +1,23 @@
-use crate::math::{ field, parallel, fft, polynom };
-use crate::stark::{ TraceTable, TraceState };
+use crate::math::{ FiniteField, parallel, fft, polynom };
+use crate::stark::{ TraceTable, TraceState, Accumulator };
 use crate::utils::{ uninit_vector };
 use super::{ ConstraintEvaluator, ConstraintPoly };
 
 // TYPES AND INTERFACES
 // ================================================================================================
-pub struct ConstraintTable {
-    evaluator       : ConstraintEvaluator,
-    i_evaluations   : Vec<u64>, // combined evaluations of boundary constraints at the first step
-    f_evaluations   : Vec<u64>, // combined evaluations of boundary constraints at the last step
-    t_evaluations   : Vec<u64>, // combined evaluations of transition constraints
+pub struct ConstraintTable<T: FiniteField + Accumulator> {
+    evaluator       : ConstraintEvaluator<T>,
+    i_evaluations   : Vec<T>,   // combined evaluations of boundary constraints at the first step
+    f_evaluations   : Vec<T>,   // combined evaluations of boundary constraints at the last step
+    t_evaluations   : Vec<T>,   // combined evaluations of transition constraints
 }
 
 // CONSTRAINT TABLE IMPLEMENTATION
 // ================================================================================================
-impl ConstraintTable {
-
-    pub fn new(trace: &TraceTable, trace_root: &[u64; 4], inputs: &[u64], outputs: &[u64]) -> ConstraintTable {
+impl <T> ConstraintTable<T>
+    where T: FiniteField + Accumulator
+{
+    pub fn new(trace: &TraceTable<T>, trace_root: &[u8; 32], inputs: &[T], outputs: &[T]) -> ConstraintTable<T> {
         let evaluator = ConstraintEvaluator::from_trace(trace, trace_root, inputs, outputs);
         let evaluation_domain_size = evaluator.domain_size();
         return ConstraintTable {
@@ -43,7 +44,7 @@ impl ConstraintTable {
     }
 
     /// Evaluates transition and boundary constraints at the specified step.
-    pub fn evaluate(&mut self, current: &TraceState, next: &TraceState, x: u64, step: usize) {
+    pub fn evaluate(&mut self, current: &TraceState<T>, next: &TraceState<T>, x: T, step: usize) {
         let (init_bound, last_bound) = self.evaluator.evaluate_boundaries(current, x);
         self.i_evaluations[step] = init_bound;
         self.f_evaluations[step] = last_bound;
@@ -52,9 +53,9 @@ impl ConstraintTable {
 
     /// Interpolates all constraint evaluations into polynomials and combines all these 
     /// polynomials into a single polynomial using pseudo-random linear combination.
-    pub fn combine_polys(mut self) -> ConstraintPoly {
+    pub fn combine_polys(mut self) -> ConstraintPoly<T> {
 
-        let combination_root = field::get_root_of_unity(self.evaluation_domain_size() as u64);
+        let combination_root = T::get_root_of_unity(self.evaluation_domain_size());
         let inv_twiddles = fft::get_inv_twiddles(combination_root, self.evaluation_domain_size());
         
         let mut combined_poly = uninit_vector(self.evaluation_domain_size());
@@ -63,7 +64,7 @@ impl ConstraintTable {
         // interpolate initial step boundary constraint combination into a polynomial, divide the 
         // polynomial by Z(x) = (x - 1), and add it to the result
         polynom::interpolate_fft_twiddles(&mut self.i_evaluations, &inv_twiddles, true);
-        polynom::syn_div_in_place(&mut self.i_evaluations, field::ONE);
+        polynom::syn_div_in_place(&mut self.i_evaluations, T::ONE);
         combined_poly.copy_from_slice(&self.i_evaluations);
 
         // 2 ----- boundary constraints for the final step ----------------------------------------

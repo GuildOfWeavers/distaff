@@ -1,7 +1,7 @@
 use std::env;
 use std::io::Write;
 use std::time::Instant;
-use distaff::{ ProofOptions, StarkProof, processor, processor::opcodes, field, hash_acc, utils::CopyInto };
+use distaff::{ ProofOptions, StarkProof, processor, processor::opcodes::f128 as opcodes, FiniteField, F128 };
 
 fn main() {
 
@@ -16,7 +16,7 @@ fn main() {
     // generate the program and expected results
     let program = generate_fibonacci_program(n);
     let expected_result = compute_fibonacci(n);
-    let expected_hash = hash_acc::digest(&program[..(program.len() - 1)]).copy_into();
+    let expected_hash = processor::hash_program(&program);
     println!("Generated a program to compute {}-th Fibonacci term; expected result: {}", 
         n,
         expected_result);
@@ -44,7 +44,7 @@ fn main() {
 
     // verify that executing a program with a given hash and given inputs
     // results in the expected output
-    let proof = bincode::deserialize::<StarkProof>(&proof_bytes).unwrap();
+    let proof = bincode::deserialize::<StarkProof<F128>>(&proof_bytes).unwrap();
     let now = Instant::now();
     match processor::verify(&program_hash, &inputs, &outputs, &proof) {
         Ok(_) => println!("Execution verified in {} ms", now.elapsed().as_millis()),
@@ -85,7 +85,7 @@ fn read_args() -> (usize, ProofOptions) {
 }
 
 /// Generates a program to compute the `n`-th term of Fibonacci sequence
-fn generate_fibonacci_program(n: usize) -> Vec<u64> {
+fn generate_fibonacci_program(n: usize) -> Vec<F128> {
     let mut program = Vec::new();
 
     // the program is a simple repetition of 3 stack operations:
@@ -103,12 +103,12 @@ fn generate_fibonacci_program(n: usize) -> Vec<u64> {
 }
 
 /// Computes the `n`-th term of Fibonacci sequence
-fn compute_fibonacci(n: usize) -> u64 {
+fn compute_fibonacci(n: usize) -> u128 {
     let mut n1 = 0;
     let mut n2 = 1;
 
     for _ in 0..(n - 1) {
-        let n3 = field::add(n1, n2);
+        let n3 = F128::add(n1, n2);
         n1 = n2;
         n2 = n3;
     }

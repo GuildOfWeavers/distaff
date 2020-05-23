@@ -1,23 +1,17 @@
-pub fn uninit_vector(length: usize) -> Vec<u64> {
+use std::{ mem, slice };
+
+// VECTOR FUNCTIONS
+// ================================================================================================
+pub fn uninit_vector<T>(length: usize) -> Vec<T> {
     let mut vector = Vec::with_capacity(length);
     unsafe { vector.set_len(length); }
     return vector;
 }
 
-pub fn zero_filled_vector(length: usize, capacity: usize) -> Vec<u64> {
-    let mut vector = vec![0; capacity];
+pub fn filled_vector<T: Copy>(length: usize, capacity: usize, value: T) -> Vec<T> {
+    let mut vector = vec![value; capacity];
     vector.truncate(length);
     return vector;
-}
-
-/// Computes log_2(base^exponent)
-pub fn pow_log2(base: u64, mut exponent: u32) -> u64 {
-    let mut twos = 0;
-    while exponent % 2 == 0 {
-        twos += 1;
-        exponent = exponent / 2;
-    }
-    return u64::pow(2, twos) * (64 - u64::pow(base, exponent).leading_zeros() as u64 - 1);
 }
 
 pub fn remove_leading_zeros(values: &[u64]) -> Vec<u64> {
@@ -48,12 +42,33 @@ impl CopyInto<[u64; 4]> for [u8; 32] {
     }
 }
 
+pub fn as_bytes<T>(values: &[T]) -> &[u8] {
+    let value_size = mem::size_of::<T>();
+    let result = unsafe {
+        slice::from_raw_parts(values.as_ptr() as *const u8, values.len() * value_size)
+    };
+    return result;
+}
+
 // TESTS
 // ================================================================================================
 #[cfg(test)]
 mod tests {
     
     use super::CopyInto;
+
+    #[test]
+    fn as_bytes() {
+        let source: [u64; 4] = [1, 2, 3, 4];
+        
+        // should convert correctly
+        let bytes = super::as_bytes(&source);
+        let expected = [
+            1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0,
+            3, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0,
+        ];
+        assert_eq!(expected, bytes);
+    }
 
     #[test]
     fn u8x32_into_u64x8() {

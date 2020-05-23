@@ -1,68 +1,76 @@
-use crate::math::field;
+use crate::math::{ FiniteField };
 use crate::stark::{ MAX_REGISTER_COUNT, MAX_INPUTS, MAX_OUTPUTS, MAX_TRANSITION_CONSTRAINTS };
-use crate::utils::{ CopyInto };
+
+// CONSTANTS
+// ================================================================================================
+const NUM_CONSTRAINTS: usize = MAX_INPUTS + MAX_OUTPUTS + MAX_TRANSITION_CONSTRAINTS;
 
 // TYPES AND INTERFACES
 // ================================================================================================
-pub struct ConstraintCoefficients {
-    pub inputs      : [u64; 2 * MAX_INPUTS],
-    pub outputs     : [u64; 2 * MAX_OUTPUTS],
-    pub transition  : [u64; 2 * MAX_TRANSITION_CONSTRAINTS],
+pub struct ConstraintCoefficients<T>
+    where T: FiniteField
+{
+    pub inputs      : [T; 2 * MAX_INPUTS],
+    pub outputs     : [T; 2 * MAX_OUTPUTS],
+    pub transition  : [T; 2 * MAX_TRANSITION_CONSTRAINTS],
 }
 
-pub struct CompositionCoefficients {
-    pub trace1      : [u64; 2 * MAX_REGISTER_COUNT],
-    pub trace2      : [u64; 2 * MAX_REGISTER_COUNT],
-    pub t1_degree   : u64,
-    pub t2_degree   : u64,
-    pub constraints : u64,
+pub struct CompositionCoefficients<T>
+    where T: FiniteField
+{
+    pub trace1      : [T; 2 * MAX_REGISTER_COUNT],
+    pub trace2      : [T; 2 * MAX_REGISTER_COUNT],
+    pub t1_degree   : T,
+    pub t2_degree   : T,
+    pub constraints : T,
 }
 
 // IMPLEMENTATIONS
 // ================================================================================================
-impl ConstraintCoefficients {
-
-    pub fn new(seed: &[u64; 4]) -> ConstraintCoefficients {
+impl <T> ConstraintCoefficients<T>
+    where T: FiniteField
+{
+    pub fn new(seed: [u8; 32]) -> ConstraintCoefficients<T> {
 
         // generate a pseudo-random list of coefficients
-        let coefficients = field::prng_vector(seed.copy_into(),
-            2 * (MAX_INPUTS + MAX_OUTPUTS + MAX_TRANSITION_CONSTRAINTS));
+        let coefficients = T::prng_vector(seed, 2 * NUM_CONSTRAINTS);
         
         // copy coefficients to their respective segments
         let end_index = 2 * MAX_INPUTS;
-        let mut inputs = [0u64; 2 * MAX_INPUTS];
+        let mut inputs = [T::ZERO; 2 * MAX_INPUTS];
         inputs.copy_from_slice(&coefficients[..end_index]);
 
         let start_index = end_index;
         let end_index = start_index + 2 * MAX_OUTPUTS;
-        let mut outputs = [0u64; 2 * MAX_OUTPUTS];
+        let mut outputs = [T::ZERO; 2 * MAX_OUTPUTS];
         outputs.copy_from_slice(&coefficients[start_index..end_index]);
 
         let start_index = end_index;
-        let mut transition = [0u64; 2 * MAX_TRANSITION_CONSTRAINTS];
+        let mut transition = [T::ZERO; 2 * MAX_TRANSITION_CONSTRAINTS];
         transition.copy_from_slice(&coefficients[start_index..]);
 
         return ConstraintCoefficients { inputs, outputs, transition };
     }
 }
 
-impl CompositionCoefficients {
-
-    pub fn new(seed: &[u64; 4]) -> CompositionCoefficients {
+impl <T> CompositionCoefficients<T>
+    where T: FiniteField
+{
+    pub fn new(seed: [u8; 32]) -> CompositionCoefficients<T> {
         // generate a pseudo-random list of coefficients
-        let coefficients = field::prng_vector(seed.copy_into(), 4 * MAX_REGISTER_COUNT + 3 + 1);
+        let coefficients = T::prng_vector(seed, 1 + 4 * MAX_REGISTER_COUNT + 3);
 
         // skip the first value because it is used up by deep point z
         let start_index = 1;
 
         // copy coefficients to their respective segments
         let end_index = start_index + 2 * MAX_REGISTER_COUNT;
-        let mut trace1 = [0u64; 2 * MAX_REGISTER_COUNT];
+        let mut trace1 = [T::ZERO; 2 * MAX_REGISTER_COUNT];
         trace1.copy_from_slice(&coefficients[start_index..end_index]);
 
         let start_index = end_index;
         let end_index = start_index + 2 * MAX_REGISTER_COUNT;
-        let mut trace2 = [0u64; 2 * MAX_REGISTER_COUNT];
+        let mut trace2 = [T::ZERO; 2 * MAX_REGISTER_COUNT];
         trace2.copy_from_slice(&coefficients[start_index..end_index]);
 
         let index = end_index;

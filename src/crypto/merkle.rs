@@ -6,14 +6,14 @@ use crate::crypto::{ HashFunction };
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct MerkleTree {
-    nodes   : Vec<[u64; 4]>,
-    values  : Vec<[u64; 4]>
+    nodes   : Vec<[u8; 32]>,
+    values  : Vec<[u8; 32]>
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BatchMerkleProof {
-    pub values  : Vec<[u64; 4]>,
-    pub nodes   : Vec<Vec<[u64; 4]>>,
+    pub values  : Vec<[u8; 32]>,
+    pub nodes   : Vec<Vec<[u8; 32]>>,
     pub depth   : u8
 }
 
@@ -22,7 +22,7 @@ pub struct BatchMerkleProof {
 impl MerkleTree {
 
     /// Creates a new merkle tree from the provide leaves and using the provided hash function.
-    pub fn new(leaves: Vec<[u64; 4]>, hash: HashFunction) -> MerkleTree {
+    pub fn new(leaves: Vec<[u8; 32]>, hash: HashFunction) -> MerkleTree {
         assert!(leaves.len().is_power_of_two(), "number of leaves must be a power of 2");
         assert!(leaves.len() >= 2, "a tree must contain at least 2 leaves");
 
@@ -34,17 +34,17 @@ impl MerkleTree {
     }
 
     /// Returns the root of the tree
-    pub fn root(&self) -> &[u64; 4] {
+    pub fn root(&self) -> &[u8; 32] {
         return &self.nodes[1];
     }
 
     /// Returns leaf nodes of the tree
-    pub fn leaves(&self) -> &[[u64; 4]] {
+    pub fn leaves(&self) -> &[[u8; 32]] {
         return &self.values;
     }
 
     /// Computes merkle path the given leaf index.
-    pub fn prove(&self, index: usize) -> Vec<[u64; 4]> {
+    pub fn prove(&self, index: usize) -> Vec<[u8; 32]> {
         assert!(index < self.values.len(), "invalid index {}", index);
 
         let mut proof = Vec::new();
@@ -66,8 +66,8 @@ impl MerkleTree {
 
         let index_map = map_indexes(indexes, n);
         let indexes = normalize_indexes(indexes);
-        let mut values = vec![[0, 0, 0, 0]; index_map.len()];
-        let mut nodes: Vec<Vec<[u64; 4]>> = Vec::with_capacity(indexes.len());
+        let mut values = vec![[0u8; 32]; index_map.len()];
+        let mut nodes: Vec<Vec<[u8; 32]>> = Vec::with_capacity(indexes.len());
 
         // populate the proof with leaf node values
         let mut next_indexes: Vec<usize> = Vec::new();
@@ -124,24 +124,24 @@ impl MerkleTree {
     }
 
     /// Checks whether the path for the specified index is valid.
-    pub fn verify(root: &[u64; 4], index: usize, proof: &[[u64; 4]], hash: HashFunction) -> bool {
-        let mut buf = [0u64; 8];
-        let mut v = [0u64; 4];
+    pub fn verify(root: &[u8; 32], index: usize, proof: &[[u8; 32]], hash: HashFunction) -> bool {
+        let mut buf = [0u8; 64];
+        let mut v = [0u8; 32];
 
         let r = index & 1;
-        &buf[0..4].copy_from_slice(&proof[r]);
-        &buf[4..8].copy_from_slice(&proof[1 - r]);
+        &buf[0..32].copy_from_slice(&proof[r]);
+        &buf[32..64].copy_from_slice(&proof[1 - r]);
         hash(&buf, &mut v);
 
         let mut index = (index + usize::pow(2, (proof.len() - 1) as u32)) >> 1;
         for i in 2..proof.len() {
             if index & 1 == 0 {
-                &buf[0..4].copy_from_slice(&v);
-                &buf[4..8].copy_from_slice(&proof[i]);
+                &buf[0..32].copy_from_slice(&v);
+                &buf[32..64].copy_from_slice(&proof[i]);
             }
             else {
-                &buf[0..4].copy_from_slice(&proof[i]);
-                &buf[4..8].copy_from_slice(&v);
+                &buf[0..32].copy_from_slice(&proof[i]);
+                &buf[32..64].copy_from_slice(&v);
             }
             hash(&buf, &mut v);
             index = index >> 1;
@@ -151,9 +151,9 @@ impl MerkleTree {
     }
 
     /// Checks whether the batch proof contains merkle paths for the of the specified indexes.
-    pub fn verify_batch(root: &[u64; 4], indexes: &[usize], proof: &BatchMerkleProof, hash: HashFunction) -> bool {
-        let mut buf = [0u64; 8];
-        let mut v: HashMap<usize, [u64; 4]> = HashMap::new();
+    pub fn verify_batch(root: &[u8; 32], indexes: &[usize], proof: &BatchMerkleProof, hash: HashFunction) -> bool {
+        let mut buf = [0u8; 64];
+        let mut v: HashMap<usize, [u8; 32]> = HashMap::new();
 
         // replace odd indexes, offset, and sort in ascending order
         let offset = usize::pow(2, proof.depth as u32);
@@ -169,27 +169,27 @@ impl MerkleTree {
             match index_map.get(&index) {
                 Some(&index1) => {
                     if proof.values.len() <= index1 { return false }
-                    &buf[0..4].copy_from_slice(&proof.values[index1]);
+                    &buf[0..32].copy_from_slice(&proof.values[index1]);
                     match index_map.get(&(index + 1)) {
                         Some(&index2) => {
                             if proof.values.len() <= index2 { return false }
-                            &buf[4..8].copy_from_slice(&proof.values[index2]);
+                            &buf[32..64].copy_from_slice(&proof.values[index2]);
                             proof_pointers.push(0);
                         },
                         None => {
                             if proof.nodes[i].len() < 1 { return false }
-                            &buf[4..8].copy_from_slice(&proof.nodes[i][0]);
+                            &buf[32..64].copy_from_slice(&proof.nodes[i][0]);
                             proof_pointers.push(1);
                         }
                     }
                 },
                 None => {
                     if proof.nodes[i].len() < 1 { return false }
-                    &buf[0..4].copy_from_slice(&proof.nodes[i][0]);
+                    &buf[0..32].copy_from_slice(&proof.nodes[i][0]);
                     match index_map.get(&(index + 1)) {
                         Some(&index2) => {
                             if proof.values.len() <= index2 { return false }
-                            &buf[4..8].copy_from_slice(&proof.values[index2]);
+                            &buf[32..64].copy_from_slice(&proof.values[index2]);
                         },
                         None => return false
                     }
@@ -198,7 +198,7 @@ impl MerkleTree {
             }
 
             // hash sibling nodes into their parent
-            let mut parent = [0u64; 4];
+            let mut parent = [0u8; 32];
             hash(&buf, &mut parent);
 
             let parent_index = offset + index >> 1;
@@ -217,7 +217,7 @@ impl MerkleTree {
                 let sibling_index = node_index ^ 1;
 
                 // determine the sibling
-                let sibling: &[u64; 4];
+                let sibling: &[u8; 32];
                 if i + 1 < indexes.len() && indexes[i + 1] == sibling_index {
                     sibling = match v.get(&sibling_index) {
                         Some(sibling) => sibling,
@@ -240,14 +240,14 @@ impl MerkleTree {
 
                 // compute parent node from node and sibling
                 if node_index & 1 != 0 {
-                    &buf[0..4].copy_from_slice(sibling);
-                    &buf[4..8].copy_from_slice(node);
+                    &buf[0..32].copy_from_slice(sibling);
+                    &buf[32..64].copy_from_slice(node);
                 }
                 else {
-                    &buf[0..4].copy_from_slice(node);
-                    &buf[4..8].copy_from_slice(sibling);
+                    &buf[0..32].copy_from_slice(node);
+                    &buf[32..64].copy_from_slice(sibling);
                 }
-                let mut parent = [0u64; 4];
+                let mut parent = [0u8; 32];
                 hash(&buf, &mut parent);
 
                 // add the parent node to the next set of nodes
@@ -266,16 +266,16 @@ impl MerkleTree {
 // HELPER FUNCTIONS
 // ================================================================================================
 
-fn build_merkle_nodes(leaves: &[[u64; 4]], hash: HashFunction) -> Vec<[u64; 4]> {
+fn build_merkle_nodes(leaves: &[[u8; 32]], hash: HashFunction) -> Vec<[u8; 32]> {
     let n = leaves.len() / 2;
 
     // create un-initialized array to hold all intermediate nodes
-    let mut nodes: Vec<[u64; 4]> = Vec::with_capacity(2 * n);
+    let mut nodes: Vec<[u8; 32]> = Vec::with_capacity(2 * n);
     unsafe { nodes.set_len(2 * n); }
-    nodes[0] = [0, 0, 0, 0];
+    nodes[0] = [0u8; 32];
 
     // re-interpret leaves as an array of two leaves fused together
-    let two_leaves = unsafe { slice::from_raw_parts(leaves.as_ptr() as *const [u64; 8], n) };
+    let two_leaves = unsafe { slice::from_raw_parts(leaves.as_ptr() as *const [u8; 64], n) };
 
     // build first row of internal nodes (parents of leaves)
     for (i, j) in (0..n).zip(n..nodes.len()) {
@@ -283,7 +283,7 @@ fn build_merkle_nodes(leaves: &[[u64; 4]], hash: HashFunction) -> Vec<[u64; 4]> 
     }
 
     // re-interpret nodes as an array of two nodes fused together
-    let two_nodes = unsafe { slice::from_raw_parts(nodes.as_ptr() as *const [u64; 8], n) };
+    let two_nodes = unsafe { slice::from_raw_parts(nodes.as_ptr() as *const [u8; 64], n) };
 
     // calculate all other tree nodes
     for i in (1..n).rev() {
@@ -318,34 +318,34 @@ mod tests {
 
     use crate::hash;
 
-    static LEAVES4: [[u64; 4]; 4] = [
-        [6240958401110583462u64,  7913251457734141410,  10424272014552449446,  8926189284258310218],
-        [  16554193988646091251, 18107256576288978408,   9223357806195242659,  7591105067405469359],
-        [  11143668108497789195,  3289331174328174429,  18085733244798495096, 16874288619384630339],
-        [  13458213771757530415, 15574026171644776407,   2236303685881236230, 16652047415881651529]
+    static LEAVES4: [[u8; 32]; 4] = [
+        [166, 168,  47, 140, 153, 86, 156,  86, 226, 229, 149,  76,  70, 132, 209, 109, 166, 193, 113, 197,  42, 116, 170, 144,  74, 104,  29, 110, 220, 49, 224, 123],
+        [243,  57,  40, 140, 185, 79, 188, 229, 232, 117, 143, 118, 235, 229,  73, 251, 163, 246, 151, 170,  14, 243, 255, 127, 175, 230,  94, 227, 214,  5,  89, 105],
+        [ 11,  33, 220,  93,  26, 67, 166, 154,  93,   7, 115, 130,  70,  13, 166,  45, 120, 233, 175,  86, 144, 110, 253, 250,  67, 108, 214, 115,  24, 132, 45, 234],
+        [ 47, 173, 224, 232,  30, 46, 197, 186, 215,  15, 134, 211,  73,  14,  34, 216,   6,  11, 217, 150,  90, 242,   8,  31,  73,  85, 150, 254, 229, 244, 23, 231],
     ];
 
-    static LEAVES8: [[u64; 4]; 8] = [
-        [10241768711231905139u64,  9543515656056738355,  3787122002184510141,  9354315911492805116],
-        [   14373792471285313076, 10259803863341799909,  4361913119464376502, 14664313136545201958],
-        [   10131098303839284098,  5921316728206729490, 10334290713044556732,  8643164606753777491],
-        [    3453858615599341263, 17558389957719367849,  9827054574735249697,  8012452355193068045],
-        [    9196785718850699443,  6184806869699853092,  1586592971438511472,   555830527090219830],
-        [    9952908082911899749,  3740909091289176615,   284496432800007785, 12636108119248205469],
-        [   15468185072990248985,  9202716477534013353, 15320321401254534633,  9244660312647244009],
-        [   13492130182068317175, 11411250703184174957,  5614217056664461616, 12322142689514354888]
+    static LEAVES8: [[u8; 32]; 8] = [
+        [115,  29, 176,  48,  97,  18,  34, 142,  51,  18, 164, 235, 236,  96, 113, 132, 189,  26,  70,  93, 101, 143, 142,  52, 252,  33,  80, 157, 194,  52, 209, 129],
+        [ 52,  46,  37, 214,  24, 248, 121, 199, 229,  25, 171,  67,  65,  37,  98, 142, 182,  72, 202,  42, 223, 160, 136,  60,  38, 255, 222,  82,  26,  27, 130, 203],
+        [130,  43, 231,   0,  59, 228, 152, 140,  18,  33,  87,  27,  49, 190,  44,  82, 188, 155, 163, 108, 166, 198, 106, 143,  83, 167, 201, 152, 106, 176, 242, 119],
+        [207, 158,  56, 143,  28, 146, 238,  47, 169,  32, 166,  97, 163, 238, 171, 243,  33, 209, 120, 219,  17, 182,  96, 136,  13,  90,   6,  27, 247, 242,  49, 111],
+        [179,  64, 123, 119, 226, 139, 161, 127,  36, 251, 218,  88,  20, 217, 212,  85, 112,  85, 185, 193, 230, 181,   4,  22,  54, 219, 135,  98, 235, 180, 182,   7],
+        [101, 240,  19,  44,  43, 213,  31, 138,  39,  26,  82, 147, 255,  96, 234,  51, 105,   6, 233, 144, 255, 187, 242,   3, 157, 246,  55, 175,  98, 121,  92, 175],
+        [ 25,  96, 149, 179,  94,   8, 170, 214, 169, 135,  12, 212, 224, 157, 182, 127, 233,  93, 151, 214,  36, 183, 156, 212, 233, 152, 125, 244, 146, 161,  75, 128],
+        [247,  43, 130, 141, 234, 172,  61, 187, 109,  31,  56,  30,  14, 232,  92, 158,  48, 161, 108, 234, 170, 180, 233,  77, 200, 248,  45, 152, 125,  11,   1, 171],
     ];
 
     #[test]
     fn new_tree() {
         let leaves = LEAVES4.to_vec();
         let tree = super::MerkleTree::new(leaves, hash::poseidon);
-        let root = [5235193944924908127, 18013308191860768494, 18032205349443695315, 17970675247944706304];
+        let root = [95, 106, 134, 217, 39, 37, 167, 72, 238, 190, 126, 165, 92, 32, 252, 249, 211, 114, 125, 2, 58, 67, 63, 250, 0, 41, 166, 223, 236, 169, 100, 249];
         assert_eq!(&root, tree.root());
 
         let leaves = LEAVES8.to_vec();
         let tree = super::MerkleTree::new(leaves, hash::poseidon);
-        let root = [8660861239908155826, 6490529732357677518, 5539604525820699984, 17472140730726223769];
+        let root = [178, 193, 172, 21, 105, 143, 49, 120, 206, 97, 74, 61, 103, 254, 18, 90, 80, 101, 176, 85, 247, 160, 224, 76, 153, 15, 146, 88, 108, 131, 121, 242];
         assert_eq!(&root, tree.root());
     }
 
@@ -356,16 +356,16 @@ mod tests {
         let tree = super::MerkleTree::new(leaves, hash::poseidon);
 
         let proof = vec![
-            [16554193988646091251u64, 18107256576288978408,  9223357806195242659,  7591105067405469359],
-            [    6240958401110583462,  7913251457734141410, 10424272014552449446,  8926189284258310218],
-            [    7687062139022541075, 11330299340636142278, 12047930580301070421, 14108397826062915505]
+            [243,  57,  40, 140, 185,  79, 188, 229, 232, 117, 143, 118, 235, 229,  73, 251, 163, 246, 151, 170, 14, 243, 255, 127, 175, 230, 94, 227, 214,  5,  89, 105],
+            [166, 168,  47, 140, 153,  86, 156,  86, 226, 229, 149,  76,  70, 132, 209, 109, 166, 193, 113, 197, 42, 116, 170, 144,  74, 104, 29, 110, 220, 49, 224, 123],
+            [ 19,   1, 203, 162,  73, 238, 173, 106, 198, 186, 117,  69,  56,  79,  61, 157,  85,  64, 105, 181,  7, 217,  50, 167, 177, 151, 95, 196,  18, 25, 203, 195],
         ];
         assert_eq!(proof, tree.prove(1));
 
         let proof = vec![
-            [11143668108497789195u64,  3289331174328174429, 18085733244798495096, 16874288619384630339],
-            [   13458213771757530415, 15574026171644776407,  2236303685881236230, 16652047415881651529],
-            [   13561797516333500728,  8216566980108857093,  1571520667796023534,  7179744582708748410]
+            [11,  33, 220,  93,  26, 67, 166, 154,  93,   7, 115, 130, 70, 13, 166,  45, 120, 233, 175,  86, 144, 110, 253, 250,  67, 108, 214, 115,  24, 132,  45, 234],
+            [47, 173, 224, 232,  30, 46, 197, 186, 215,  15, 134, 211, 73, 14,  34, 216,   6,  11, 217, 150,  90, 242,   8,  31,  73,  85, 150, 254, 229, 244,  23, 231],
+            [56,  73, 213, 212, 252, 46,  53, 188,   5, 175, 151, 154, 34, 28,   7, 114, 238, 168,  42, 153, 184,  41, 207,  21, 122, 224,  99, 118, 168, 147, 163,  99],
         ];
         assert_eq!(proof, tree.prove(2));
 
@@ -374,18 +374,18 @@ mod tests {
         let tree = super::MerkleTree::new(leaves, hash::poseidon);
 
         let proof = vec![
-            [14373792471285313076u64, 10259803863341799909, 4361913119464376502, 14664313136545201958],
-            [   10241768711231905139,  9543515656056738355, 3787122002184510141,  9354315911492805116],
-            [      44908261164380711,  3641300267207966756, 9037481878828096793,  1015347137991923011],
-            [   10450220324776338674,  4170064214771947868, 3580214161055284290, 10659497852322269609]
+            [ 52,  46,  37, 214,  24, 248, 121, 199, 229,  25, 171,  67,  65,  37,  98, 142, 182,  72, 202,  42, 223, 160, 136,  60,  38, 255, 222,  82,  26, 27, 130, 203],
+            [115,  29, 176,  48,  97,  18,  34, 142,  51,  18, 164, 235, 236,  96, 113, 132, 189,  26,  70,  93, 101, 143, 142,  52, 252,  33,  80, 157, 194, 52, 209, 129],
+            [ 39, 242,  46,  90, 211, 139, 159,   0,  36,  64, 119, 243,  76, 127, 136,  50,  25,  29, 148, 219, 226, 149, 107, 125,  67, 213, 183, 171, 215, 60,  23,  14],
+            [242, 100, 220, 138,   4, 164,   6, 145,  92, 217,  12,  52,  79,  11, 223,  57,  66, 252, 133, 137, 207, 121, 175,  49, 169,  73, 181, 251, 209, 36, 238, 147]
         ];
         assert_eq!(proof, tree.prove(1));
 
         let proof = vec![
-            [15468185072990248985u64,  9202716477534013353,  15320321401254534633,  9244660312647244009],
-            [   13492130182068317175, 11411250703184174957,   5614217056664461616, 12322142689514354888],
-            [    4955870195980606083, 11478659773640590941,   5548116754451226534, 14304409171415235034],
-            [    3026191785366862170,  5135587167437964504,  14843759496938774975,  7330364722345621919]
+            [ 25,  96, 149, 179,  94,   8, 170, 214, 169, 135,  12, 212, 224, 157, 182, 127, 233,  93, 151, 214,  36, 183, 156, 212, 233, 152, 125, 244, 146, 161,  75, 128],
+            [247,  43, 130, 141, 234, 172,  61, 187, 109,  31,  56,  30,  14, 232,  92, 158,  48, 161, 108, 234, 170, 180, 233,  77, 200, 248,  45, 152, 125,  11,   1, 171],
+            [131, 154,  94, 152, 175, 201, 198,  68,  93, 198, 105,  97,  63, 100,  76, 159, 166,  95, 117,   1, 203, 222, 254,  76, 218, 121,  11, 120,  90, 120, 131, 198],
+            [ 90,  57, 255,  52, 101,  49, 255,  41, 216, 196,  49, 188,  81,  69,  69,  71, 191, 225,  93, 234, 157, 160, 255, 205, 159,  57, 119, 133, 224, 175, 186, 101]
         ];
         assert_eq!(proof, tree.prove(6));
     }
@@ -419,13 +419,13 @@ mod tests {
         // 1 index
         let proof = tree.prove_batch(&[1]);
         let expected_values = vec![
-            [14373792471285313076u64, 10259803863341799909,  4361913119464376502, 14664313136545201958]
+            [52, 46, 37, 214, 24, 248, 121, 199, 229, 25, 171, 67, 65, 37, 98, 142, 182, 72, 202, 42, 223, 160, 136, 60, 38, 255, 222, 82, 26, 27, 130, 203]
         ];
         let expected_nodes = vec![
             vec![
-                [10241768711231905139u64, 9543515656056738355, 3787122002184510141,  9354315911492805116],
-                [      44908261164380711, 3641300267207966756, 9037481878828096793,  1015347137991923011],
-                [   10450220324776338674, 4170064214771947868, 3580214161055284290, 10659497852322269609]
+                [115,  29, 176,  48,  97,  18,  34, 142, 51,  18, 164, 235, 236,  96, 113, 132, 189,  26,  70,  93, 101, 143, 142,  52, 252,  33,  80, 157, 194, 52, 209, 129],
+                [ 39, 242,  46,  90, 211, 139, 159,   0, 36,  64, 119, 243,  76, 127, 136,  50,  25,  29, 148, 219, 226, 149, 107, 125,  67, 213, 183, 171, 215, 60,  23,  14],
+                [242, 100, 220, 138,   4, 164,   6, 145, 92, 217,  12,  52,  79,  11, 223,  57,  66, 252, 133, 137, 207, 121, 175,  49, 169,  73, 181, 251, 209, 36, 238, 147]
             ]
         ];
         assert_eq!(expected_values, proof.values);
@@ -435,16 +435,16 @@ mod tests {
         // 2 indexes
         let proof = tree.prove_batch(&[1, 2]);
         let expected_values = vec![
-            [14373792471285313076u64, 10259803863341799909,  4361913119464376502, 14664313136545201958],
-            [   10131098303839284098,  5921316728206729490, 10334290713044556732,  8643164606753777491]
+            [52,  46,  37, 214, 24, 248, 121, 199, 229, 25, 171, 67, 65,  37, 98, 142, 182,  72, 202,  42, 223, 160, 136,  60, 38, 255, 222,  82,  26,  27, 130, 203],
+            [130, 43, 231,   0, 59, 228, 152, 140,  18, 33,  87, 27, 49, 190, 44,  82, 188, 155, 163, 108, 166, 198, 106, 143, 83, 167, 201, 152, 106, 176, 242, 119]
         ];
         let expected_nodes = vec![
             vec![
-                [10241768711231905139u64, 9543515656056738355, 3787122002184510141,  9354315911492805116],
-                [   10450220324776338674, 4170064214771947868, 3580214161055284290, 10659497852322269609]
+                [115,  29, 176,  48, 97,  18,  34, 142,  51 , 18, 164, 235, 236,  96, 113, 132, 189,  26,  70,  93, 101, 143, 142,  52, 252, 33,  80, 157, 194,  52, 209, 129],
+                [242, 100, 220, 138,  4, 164,   6, 145,  92, 217,  12,  52,  79,  11, 223,  57,  66, 252, 133, 137, 207, 121, 175,  49, 169, 73, 181, 251, 209,  36, 238, 147]
             ],
             vec![
-                [    3453858615599341263, 17558389957719367849, 9827054574735249697, 8012452355193068045]
+                [207, 158,  56, 143, 28, 146, 238,  47, 169,  32, 166,  97, 163, 238, 171, 243,  33, 209, 120, 219,  17, 182,  96, 136,  13, 90,   6,  27, 247, 242,  49, 111]
             ]
         ];
         assert_eq!(expected_values, proof.values);
@@ -454,17 +454,17 @@ mod tests {
         // 2 indexes on opposite sides
         let proof = tree.prove_batch(&[1, 6]);
         let expected_values = vec![
-            [14373792471285313076u64, 10259803863341799909,  4361913119464376502, 14664313136545201958],
-            [   15468185072990248985,  9202716477534013353, 15320321401254534633,  9244660312647244009]
+            [52, 46,  37, 214, 24, 248, 121, 199, 229,  25, 171,  67,  65,  37,  98, 142, 182, 72, 202,  42, 223, 160, 136,  60,  38, 255, 222,  82,  26,  27, 130, 203],
+            [25, 96, 149, 179, 94,   8, 170, 214, 169, 135,  12, 212, 224, 157, 182, 127, 233, 93, 151, 214,  36, 183, 156, 212, 233, 152, 125, 244, 146, 161,  75, 128]
         ];
         let expected_nodes = vec![
             vec![
-                [10241768711231905139u64, 9543515656056738355, 3787122002184510141,  9354315911492805116],
-                [      44908261164380711, 3641300267207966756, 9037481878828096793,  1015347137991923011]
+                [115,  29, 176, 48,  97,  18,  34, 142, 51, 18, 164, 235, 236,  96, 113, 132, 189, 26,  70,  93, 101, 143, 142,  52, 252,  33,  80, 157, 194, 52, 209, 129],
+                [ 39, 242,  46, 90, 211, 139, 159,   0, 36, 64, 119, 243,  76, 127, 136,  50,  25, 29, 148, 219, 226, 149, 107, 125,  67, 213, 183, 171, 215, 60,  23,  14]
             ],
             vec![
-                [   13492130182068317175, 11411250703184174957, 5614217056664461616, 12322142689514354888],
-                [    4955870195980606083, 11478659773640590941, 5548116754451226534, 14304409171415235034]
+                [247,  43, 130, 141, 234, 172,  61, 187, 109, 31,  56, 30, 14, 232, 92, 158,  48, 161, 108, 234, 170, 180, 233, 77, 200, 248, 45, 152, 125,  11,   1, 171],
+                [131, 154,  94, 152, 175, 201, 198, 68,  93, 198, 105, 97, 63, 100, 76, 159, 166,  95, 117,   1, 203, 222, 254, 76, 218, 121, 11, 120,  90, 120, 131, 198]
             ]
         ];
         assert_eq!(expected_values, proof.values);
@@ -474,7 +474,7 @@ mod tests {
         // all indexes
         let proof = tree.prove_batch(&[0, 1, 2, 3, 4, 5, 6, 7]);
         let expected_values = LEAVES8.to_vec();
-        let expected_nodes: Vec<Vec<[u64; 4]>> = vec![ vec![], vec![], vec![], vec![]];
+        let expected_nodes: Vec<Vec<[u8; 32]>> = vec![ vec![], vec![], vec![], vec![]];
         assert_eq!(expected_values, proof.values);
         assert_eq!(expected_nodes, proof.nodes);
         assert_eq!(3, proof.depth);
