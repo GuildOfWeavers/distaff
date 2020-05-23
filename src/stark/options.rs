@@ -4,9 +4,9 @@ use super::MAX_CONSTRAINT_DEGREE;
 
 // CONSTANTS
 // ================================================================================================
-const DEFAULT_EXTENSION_FACTOR: u8 = (MAX_CONSTRAINT_DEGREE * 8) as u8;
-const DEFAULT_NUM_QUERIES     : u8 = 28;
-const DEFAULT_GRINDING_FACTOR : u8 = 16;
+const DEFAULT_EXTENSION_FACTOR: u8 = (MAX_CONSTRAINT_DEGREE * 4) as u8;
+const DEFAULT_NUM_QUERIES     : u8 = 50;
+const DEFAULT_GRINDING_FACTOR : u8 = 20;
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -14,7 +14,7 @@ const DEFAULT_GRINDING_FACTOR : u8 = 16;
 // TODO: validate field values on de-serialization
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ProofOptions {
-    extension_factor    : u8,
+    extension_factor    : u8,   // stored as power of 2
     num_queries         : u8,
     grinding_factor     : u8,
 
@@ -34,7 +34,7 @@ impl ProofOptions {
     {
         assert!(extension_factor.is_power_of_two(), "extension_factor must be a power of 2");
         assert!(extension_factor >= 16, "extension_factor cannot be smaller than 16");
-        assert!(extension_factor <= 128, "extension_factor cannot be greater than 128");
+        assert!(extension_factor <= 256, "extension_factor cannot be greater than 256");
 
         assert!(num_queries > 0, "num_queries must be greater than 0");
         assert!(num_queries <= 128, "num_queries cannot be greater than 128");
@@ -42,7 +42,7 @@ impl ProofOptions {
         assert!(grinding_factor <= 32, "grinding factor cannot be greater than 32");
 
         return ProofOptions {
-            extension_factor    : extension_factor as u8,
+            extension_factor    : extension_factor.trailing_zeros() as u8,
             num_queries         : num_queries as u8,
             grinding_factor     : grinding_factor as u8,
             hash_function
@@ -50,7 +50,7 @@ impl ProofOptions {
     }
 
     pub fn extension_factor(&self) -> usize {
-        return self.extension_factor as usize;
+        return 1 << (self.extension_factor as usize)
     }
 
     pub fn num_queries(&self) -> usize {
@@ -83,7 +83,7 @@ impl Default for ProofOptions {
 
     fn default() -> ProofOptions {
         return ProofOptions {
-            extension_factor    : DEFAULT_EXTENSION_FACTOR,
+            extension_factor    : DEFAULT_EXTENSION_FACTOR.trailing_zeros() as u8,
             num_queries         : DEFAULT_NUM_QUERIES,
             grinding_factor     : DEFAULT_GRINDING_FACTOR,
             hash_function       : hash::blake3,
