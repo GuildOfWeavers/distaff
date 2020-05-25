@@ -181,9 +181,9 @@ Here are some very informal benchmarks of running the Fibonacci calculator on In
 | --------------- | :------------: | :------------: | :---------------: | :--------: |
 | 2<sup>8</sup>   | 180 ms         | negligible     | 2 ms              | 58 KB      |
 | 2<sup>10</sup>  | 260 ms         | negligible     | 2 ms              | 76 KB      |
-| 2<sup>12</sup>  | 920 ms         | negligible     | 2 ms              | 99 KB      |
-| 2<sup>14</sup>  | 2.7 sec        | 160 MB         | 3 ms              | 127 KB     |
-| 2<sup>16</sup>  | 11.5 sec       | 980 MB         | 3 ms              | 155 KB     |
+| 2<sup>12</sup>  | 920 ms         | < 100 MB     | 2 ms              | 99 KB      |
+| 2<sup>14</sup>  | 2.7 sec        | 300 MB         | 3 ms              | 127 KB     |
+| 2<sup>16</sup>  | 11.5 sec       | 1.2 GB         | 3 ms              | 155 KB     |
 | 2<sup>18</sup>  | 48 sec         | 4.4 GB         | 3 ms              | 189 KB     |
 | 2<sup>20</sup>  | 12 min         | > 5.6 GB       | 4 ms              | 224 KB     |
 
