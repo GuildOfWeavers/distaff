@@ -42,6 +42,9 @@ impl <T> Stack<T>
         Self::op_swap2(&mut expected_stack, current_stack, op_flags[opcodes::SWAP2 as usize]);
         Self::op_swap4(&mut expected_stack, current_stack, op_flags[opcodes::SWAP4 as usize]);
     
+        Self::op_roll4(&mut expected_stack, current_stack, op_flags[opcodes::ROLL4 as usize]);
+        Self::op_roll8(&mut expected_stack, current_stack, op_flags[opcodes::ROLL8 as usize]);
+
         Self::op_push(&mut expected_stack,  current_stack, next.get_op_code(), op_flags[opcodes::PUSH as usize]);
         Self::op_dup(&mut expected_stack,   current_stack, op_flags[opcodes::DUP as usize]);
         Self::op_dup2(&mut expected_stack,  current_stack, op_flags[opcodes::DUP2 as usize]);
@@ -71,7 +74,7 @@ impl <T> Stack<T>
         next[1] = T::add(next[1], T::mul(current[3], op_flag));
         next[2] = T::add(next[2], T::mul(current[0], op_flag));
         next[3] = T::add(next[3], T::mul(current[1], op_flag));
-        T::mul_acc(&mut next[4..], &current[3..], op_flag);
+        T::mul_acc(&mut next[4..], &current[4..], op_flag);
     }
     
     fn op_swap4(next: &mut [T], current: &[T], op_flag: T) {
@@ -83,7 +86,27 @@ impl <T> Stack<T>
         next[5] = T::add(next[5], T::mul(current[1], op_flag));
         next[6] = T::add(next[6], T::mul(current[2], op_flag));
         next[7] = T::add(next[7], T::mul(current[3], op_flag));
-        T::mul_acc(&mut next[8..], &current[3..], op_flag);
+        T::mul_acc(&mut next[8..], &current[8..], op_flag);
+    }
+
+    fn op_roll4(next: &mut [T], current: &[T], op_flag: T) {
+        next[0] = T::add(next[0], T::mul(current[3], op_flag));
+        next[1] = T::add(next[1], T::mul(current[0], op_flag));
+        next[2] = T::add(next[2], T::mul(current[1], op_flag));
+        next[3] = T::add(next[3], T::mul(current[2], op_flag));
+        T::mul_acc(&mut next[4..], &current[4..], op_flag);
+    }
+    
+    fn op_roll8(next: &mut [T], current: &[T], op_flag: T) {
+        next[0] = T::add(next[0], T::mul(current[7], op_flag));
+        next[1] = T::add(next[1], T::mul(current[0], op_flag));
+        next[2] = T::add(next[2], T::mul(current[1], op_flag));
+        next[3] = T::add(next[3], T::mul(current[2], op_flag));
+        next[4] = T::add(next[4], T::mul(current[3], op_flag));
+        next[5] = T::add(next[5], T::mul(current[4], op_flag));
+        next[6] = T::add(next[6], T::mul(current[5], op_flag));
+        next[7] = T::add(next[7], T::mul(current[6], op_flag));
+        T::mul_acc(&mut next[8..], &current[8..], op_flag);
     }
 
     fn op_push(next: &mut [T], current: &[T], op_code: T, op_flag: T) {

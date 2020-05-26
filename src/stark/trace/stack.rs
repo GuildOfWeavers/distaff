@@ -54,6 +54,9 @@ pub fn execute<T>(program: &[T], inputs: &[T], extension_factor: usize) -> Vec<V
             opcodes::SWAP2 => stack.swap2(i),
             opcodes::SWAP4 => stack.swap4(i),
 
+            opcodes::ROLL4 => stack.roll4(i),
+            opcodes::ROLL8 => stack.roll8(i),
+
             opcodes::DROP  => stack.drop(i),
             opcodes::ADD   => stack.add(i),
             opcodes::SUB   => stack.sub(i),
@@ -117,6 +120,28 @@ impl <T> StackTrace<T>
         self.registers[5][step + 1] = self.registers[1][step];
         self.registers[6][step + 1] = self.registers[2][step];
         self.registers[7][step + 1] = self.registers[3][step];
+        self.copy_state(step, 8);
+    }
+
+    fn roll4(&mut self, step: usize) {
+        // TODO: update depth?
+        self.registers[0][step + 1] = self.registers[3][step];
+        self.registers[1][step + 1] = self.registers[0][step];
+        self.registers[2][step + 1] = self.registers[1][step];
+        self.registers[3][step + 1] = self.registers[2][step];
+        self.copy_state(step, 4);
+    }
+
+    fn roll8(&mut self, step: usize) {
+        // TODO: update depth?
+        self.registers[0][step + 1] = self.registers[7][step];
+        self.registers[1][step + 1] = self.registers[0][step];
+        self.registers[2][step + 1] = self.registers[1][step];
+        self.registers[3][step + 1] = self.registers[2][step];
+        self.registers[4][step + 1] = self.registers[3][step];
+        self.registers[5][step + 1] = self.registers[4][step];
+        self.registers[6][step + 1] = self.registers[5][step];
+        self.registers[7][step + 1] = self.registers[6][step];
         self.copy_state(step, 8);
     }
 
@@ -272,6 +297,26 @@ mod tests {
         let mut stack = init_stack(&[1, 2, 3, 4, 5, 6, 7, 8]);
         stack.swap4(0);
         assert_eq!(vec![5, 6, 7, 8, 1, 2, 3, 4], get_stack_state(&stack, 1));
+
+        assert_eq!(8, stack.depth);
+        assert_eq!(8, stack.max_depth);
+    }
+
+    #[test]
+    fn roll4() {
+        let mut stack = init_stack(&[1, 2, 3, 4]);
+        stack.roll4(0);
+        assert_eq!(vec![4, 1, 2, 3, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+        assert_eq!(4, stack.depth);
+        assert_eq!(4, stack.max_depth);
+    }
+
+    #[test]
+    fn roll8() {
+        let mut stack = init_stack(&[1, 2, 3, 4, 5, 6, 7, 8]);
+        stack.roll8(0);
+        assert_eq!(vec![8, 1, 2, 3, 4, 5, 6, 7], get_stack_state(&stack, 1));
 
         assert_eq!(8, stack.depth);
         assert_eq!(8, stack.max_depth);

@@ -29,8 +29,8 @@ pub const MUL : u8     = 0b000_10_011;
 pub const SWAP: u8     = 0b000_11_010;
 pub const SWAP2: u8    = 0b000_11_011;
 pub const SWAP4: u8    = 0b000_11_100;
-//pub const ROLL4: u8    = 0b000_11_101;
-//pub const ROLL8: u8    = 0b000_11_110;
+pub const ROLL4: u8    = 0b000_11_101;
+pub const ROLL8: u8    = 0b000_11_110;
 //pub const START : u8   = 0b000_11_111;
 
 /// 128-bit versions of opcodes
