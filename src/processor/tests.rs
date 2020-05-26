@@ -4,12 +4,10 @@ use crate::{ ProofOptions, opcodes, F128, Accumulator };
 #[test]
 fn execute_verify() {
     let program = [
-        opcodes::DUP, opcodes::PULL2, opcodes::ADD,
-        opcodes::DUP, opcodes::PULL2, opcodes::ADD,
-        opcodes::DUP, opcodes::PULL2, opcodes::ADD,
-        opcodes::DUP, opcodes::PULL2, opcodes::ADD,
-        opcodes::DUP, opcodes::PULL2, opcodes::ADD,
-        opcodes::NOOP
+        opcodes::SWAP, opcodes::DUP2, opcodes::DROP, opcodes::ADD,
+        opcodes::SWAP, opcodes::DUP2, opcodes::DROP, opcodes::ADD,
+        opcodes::SWAP, opcodes::DUP2, opcodes::DROP, opcodes::ADD,
+        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
     ].iter().map(|&op| op as u128).collect::<Vec<F128>>();
     let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
 
@@ -18,7 +16,7 @@ fn execute_verify() {
     let num_outputs = 1;
 
     let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
-    assert_eq!(outputs, [8]);
+    assert_eq!(outputs, [3]);
     assert_eq!(program_hash, expected_hash);
 
     let result = super::verify(&program_hash, &inputs, &outputs, &proof);
@@ -28,12 +26,10 @@ fn execute_verify() {
 #[test]
 fn execute_verify_fail() {
     let program = [
-        opcodes::DUP, opcodes::PULL2, opcodes::ADD,
-        opcodes::DUP, opcodes::PULL2, opcodes::ADD,
-        opcodes::DUP, opcodes::PULL2, opcodes::ADD,
-        opcodes::DUP, opcodes::PULL2, opcodes::ADD,
-        opcodes::DUP, opcodes::PULL2, opcodes::ADD,
-        opcodes::NOOP
+        opcodes::SWAP, opcodes::DUP2, opcodes::DROP, opcodes::ADD,
+        opcodes::SWAP, opcodes::DUP2, opcodes::DROP, opcodes::ADD,
+        opcodes::SWAP, opcodes::DUP2, opcodes::DROP, opcodes::ADD,
+        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
     ].iter().map(|&op| op as u128).collect::<Vec<F128>>();
     let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
 
@@ -42,7 +38,7 @@ fn execute_verify_fail() {
     let num_outputs = 1;
 
     let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
-    assert_eq!(outputs, [8]);
+    assert_eq!(outputs, [3]);
     assert_eq!(program_hash, expected_hash);
 
     // wrong inputs
@@ -51,7 +47,7 @@ fn execute_verify_fail() {
     assert_eq!(Err(err_msg), result);
 
     // wrong outputs
-    let result = super::verify(&program_hash, &inputs, &[13], &proof);
+    let result = super::verify(&program_hash, &inputs, &[5], &proof);
     let err_msg = format!("verification of low-degree proof failed: evaluations did not match column value at depth 0");
     assert_eq!(Err(err_msg), result);
 

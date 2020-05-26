@@ -88,14 +88,16 @@ fn read_args() -> (usize, ProofOptions) {
 fn generate_fibonacci_program(n: usize) -> Vec<F128> {
     let mut program = Vec::new();
 
+    // TODO: update comment
     // the program is a simple repetition of 3 stack operations:
     // the first operation duplicates the top stack item,
     // the second operation moves the 3rd item to the top of the stack,
     // the last operation pops top 2 stack items, adds them, and pushes
     // the result back onto the stack
     for _ in 0..(n - 1) {
-        program.push(opcodes::DUP);
-        program.push(opcodes::PULL2);
+        program.push(opcodes::SWAP);
+        program.push(opcodes::DUP2);
+        program.push(opcodes::DROP);
         program.push(opcodes::ADD);
     }
 
