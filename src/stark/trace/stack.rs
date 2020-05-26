@@ -93,7 +93,6 @@ struct StackTrace<T>
 impl <T> StackTrace<T>
     where T: FiniteField
 {
-
     // OPERATIONS
     // --------------------------------------------------------------------------------------------
     fn noop(&mut self, step: usize) {

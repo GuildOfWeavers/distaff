@@ -35,16 +35,20 @@ pub const ROLL8: u8    = 0b000_11_110;
 
 /// 128-bit versions of opcodes
 pub mod f128 {
-    pub const NOOP  : u128 = super::NOOP as u128;
-    pub const SWAP  : u128 = super::SWAP as u128;
-    pub const SWAP2 : u128 = super::SWAP2 as u128;
-    pub const SWAP4 : u128 = super::SWAP4 as u128;
-    pub const PUSH  : u128 = super::PUSH as u128;
-    pub const DUP   : u128 = super::DUP as u128;
-    pub const DUP2  : u128 = super::DUP2 as u128;
-    pub const DUP4  : u128 = super::DUP4 as u128;
-    pub const DROP  : u128 = super::DROP as u128;
-    pub const ADD   : u128 = super::ADD as u128;
-    pub const SUB   : u128 = super::SUB as u128;
-    pub const MUL   : u128 = super::MUL as u128;
+    pub const NOOP    : u128 = super::NOOP as u128;
+    pub const SWAP    : u128 = super::SWAP as u128;
+    pub const SWAP2   : u128 = super::SWAP2 as u128;
+    pub const SWAP4   : u128 = super::SWAP4 as u128;
+    pub const ROLL4   : u128 = super::ROLL4 as u128;
+    pub const ROLL8   : u128 = super::ROLL8 as u128;
+    pub const CHOOSE  : u128 = super::CHOOSE as u128;
+    pub const CHOOSE2 : u128 = super::CHOOSE2 as u128;
+    pub const PUSH    : u128 = super::PUSH as u128;
+    pub const DUP     : u128 = super::DUP as u128;
+    pub const DUP2    : u128 = super::DUP2 as u128;
+    pub const DUP4    : u128 = super::DUP4 as u128;
+    pub const DROP    : u128 = super::DROP as u128;
+    pub const ADD     : u128 = super::ADD as u128;
+    pub const SUB     : u128 = super::SUB as u128;
+    pub const MUL     : u128 = super::MUL as u128;
 }
