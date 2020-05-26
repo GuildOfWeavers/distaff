@@ -5,7 +5,8 @@ use crate::processor::{ opcodes };
 
 // CONSTANTS
 // ================================================================================================
-const CONSTRAINT_DEGREES: [usize; MAX_STACK_DEPTH] = [6; MAX_STACK_DEPTH];
+// TODO: set correct degrees for all stack registers
+const CONSTRAINT_DEGREES: [usize; MAX_STACK_DEPTH] = [7; MAX_STACK_DEPTH];
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -37,7 +38,7 @@ impl <T> Stack<T>
     
         T::mul_acc(&mut expected_stack,  current_stack, op_flags[opcodes::NOOP as usize]);
     
-        Self::op_pull1(&mut expected_stack, current_stack, op_flags[opcodes::PULL1 as usize]);
+        Self::op_swap(&mut expected_stack, current_stack, op_flags[opcodes::SWAP as usize]);
         Self::op_pull2(&mut expected_stack, current_stack, op_flags[opcodes::PULL2 as usize]);
     
         Self::op_push(&mut expected_stack,  current_stack, next.get_op_code(), op_flags[opcodes::PUSH as usize]);
@@ -57,7 +58,7 @@ impl <T> Stack<T>
 
     // OPERATIONS
     // --------------------------------------------------------------------------------------------
-    fn op_pull1(next: &mut [T], current: &[T], op_flag: T) {
+    fn op_swap(next: &mut [T], current: &[T], op_flag: T) {
         next[0] = T::add(next[0], T::mul(current[1], op_flag));
         next[1] = T::add(next[1], T::mul(current[0], op_flag));
         T::mul_acc(&mut next[2..], &current[2..], op_flag);

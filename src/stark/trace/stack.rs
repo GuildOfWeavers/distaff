@@ -49,7 +49,7 @@ pub fn execute<T>(program: &[T], inputs: &[T], extension_factor: usize) -> Vec<V
             opcodes::DUP0  => stack.dup0(i),
             opcodes::DUP1  => stack.dup1(i),
 
-            opcodes::PULL1 => stack.pull1(i),
+            opcodes::SWAP => stack.swap(i),
             opcodes::PULL2 => stack.pull2(i),
 
             opcodes::DROP  => stack.drop(i),
@@ -90,7 +90,7 @@ impl <T> StackTrace<T>
         self.copy_state(step, 0);
     }
 
-    fn pull1(&mut self, step: usize) {
+    fn swap(&mut self, step: usize) {
         self.registers[0][step + 1] = self.registers[1][step];
         self.registers[1][step + 1] = self.registers[0][step];
         self.copy_state(step, 2);
@@ -224,9 +224,9 @@ mod tests {
     }
 
     #[test]
-    fn pull1() {
+    fn swap() {
         let mut stack = init_stack(&[1, 2, 3, 4]);
-        stack.pull1(0);
+        stack.swap(0);
         assert_eq!(vec![2, 1, 3, 4, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
         assert_eq!(4, stack.depth);
