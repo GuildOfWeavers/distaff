@@ -4,11 +4,11 @@ use crate::{ ProofOptions, opcodes, F128, Accumulator };
 #[test]
 fn execute_verify() {
     let program = [
-        opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
-        opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
-        opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
-        opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
-        opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
+        opcodes::DUP, opcodes::PULL2, opcodes::ADD,
+        opcodes::DUP, opcodes::PULL2, opcodes::ADD,
+        opcodes::DUP, opcodes::PULL2, opcodes::ADD,
+        opcodes::DUP, opcodes::PULL2, opcodes::ADD,
+        opcodes::DUP, opcodes::PULL2, opcodes::ADD,
         opcodes::NOOP
     ].iter().map(|&op| op as u128).collect::<Vec<F128>>();
     let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
@@ -28,11 +28,11 @@ fn execute_verify() {
 #[test]
 fn execute_verify_fail() {
     let program = [
-        opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
-        opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
-        opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
-        opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
-        opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
+        opcodes::DUP, opcodes::PULL2, opcodes::ADD,
+        opcodes::DUP, opcodes::PULL2, opcodes::ADD,
+        opcodes::DUP, opcodes::PULL2, opcodes::ADD,
+        opcodes::DUP, opcodes::PULL2, opcodes::ADD,
+        opcodes::DUP, opcodes::PULL2, opcodes::ADD,
         opcodes::NOOP
     ].iter().map(|&op| op as u128).collect::<Vec<F128>>();
     let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);

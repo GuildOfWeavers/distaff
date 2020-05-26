@@ -94,7 +94,7 @@ fn generate_fibonacci_program(n: usize) -> Vec<F128> {
     // the last operation pops top 2 stack items, adds them, and pushes
     // the result back onto the stack
     for _ in 0..(n - 1) {
-        program.push(opcodes::DUP0);
+        program.push(opcodes::DUP);
         program.push(opcodes::PULL2);
         program.push(opcodes::ADD);
     }

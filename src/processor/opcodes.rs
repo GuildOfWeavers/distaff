@@ -9,9 +9,9 @@ pub const NOOP: u8     = 0b000_00_000;
 pub const PUSH: u8     = 0b000_01_000;
 //pub const READ: u8     = 0b000_01_001;
 //pub const PAD: u8      = 0b000_01_010;
-pub const DUP0: u8     = 0b000_01_011;
-pub const DUP1: u8     = 0b000_01_100;  // TODO: replace with DUP2
-//pub const DUP4: u8     = 0b000_01_101;
+pub const DUP: u8      = 0b000_01_011;
+pub const DUP2: u8     = 0b000_01_100;
+pub const DUP4: u8     = 0b000_01_101;
 //pub const ???: u8    = 0b000_01_110;
 pub const PULL2: u8    = 0b000_01_111;  // TODO: remove
 
@@ -39,8 +39,9 @@ pub mod f128 {
     pub const SWAP  : u128 = super::SWAP as u128;
     pub const PULL2 : u128 = super::PULL2 as u128;
     pub const PUSH  : u128 = super::PUSH as u128;
-    pub const DUP0  : u128 = super::DUP0 as u128;
-    pub const DUP1  : u128 = super::DUP1 as u128;
+    pub const DUP   : u128 = super::DUP as u128;
+    pub const DUP2  : u128 = super::DUP2 as u128;
+    pub const DUP4  : u128 = super::DUP4 as u128;
     pub const DROP  : u128 = super::DROP as u128;
     pub const ADD   : u128 = super::ADD as u128;
     pub const SUB   : u128 = super::SUB as u128;

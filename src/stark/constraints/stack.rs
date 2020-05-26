@@ -38,12 +38,13 @@ impl <T> Stack<T>
     
         T::mul_acc(&mut expected_stack,  current_stack, op_flags[opcodes::NOOP as usize]);
     
-        Self::op_swap(&mut expected_stack, current_stack, op_flags[opcodes::SWAP as usize]);
+        Self::op_swap(&mut expected_stack,  current_stack, op_flags[opcodes::SWAP as usize]);
         Self::op_pull2(&mut expected_stack, current_stack, op_flags[opcodes::PULL2 as usize]);
     
         Self::op_push(&mut expected_stack,  current_stack, next.get_op_code(), op_flags[opcodes::PUSH as usize]);
-        Self::op_dup0(&mut expected_stack,  current_stack, op_flags[opcodes::DUP0 as usize]);
-        Self::op_dup1(&mut expected_stack,  current_stack, op_flags[opcodes::DUP1 as usize]);
+        Self::op_dup(&mut expected_stack,   current_stack, op_flags[opcodes::DUP as usize]);
+        Self::op_dup2(&mut expected_stack,  current_stack, op_flags[opcodes::DUP2 as usize]);
+        Self::op_dup4(&mut expected_stack,  current_stack, op_flags[opcodes::DUP4 as usize]);
     
         Self::op_drop(&mut expected_stack,  current_stack, op_flags[opcodes::DROP as usize]);
         Self::op_add(&mut expected_stack,   current_stack, op_flags[opcodes::ADD as usize]);
@@ -76,16 +77,25 @@ impl <T> Stack<T>
         T::mul_acc(&mut next[1..], &current[0..], op_flag);
     }
     
-    fn op_dup0(next: &mut [T], current: &[T], op_flag: T) {
+    fn op_dup(next: &mut [T], current: &[T], op_flag: T) {
         next[0] = T::add(next[0], T::mul(current[0], op_flag));
         T::mul_acc(&mut next[1..], &current[0..], op_flag);
     }
     
-    fn op_dup1(next: &mut [T], current: &[T], op_flag: T) {
-        next[0] = T::add(next[0], T::mul(current[1], op_flag));
-        T::mul_acc(&mut next[1..], &current[0..], op_flag);
+    fn op_dup2(next: &mut [T], current: &[T], op_flag: T) {
+        next[0] = T::add(next[0], T::mul(current[0], op_flag));
+        next[1] = T::add(next[1], T::mul(current[1], op_flag));
+        T::mul_acc(&mut next[2..], &current[0..], op_flag);
     }
     
+    fn op_dup4(next: &mut [T], current: &[T], op_flag: T) {
+        next[0] = T::add(next[0], T::mul(current[0], op_flag));
+        next[1] = T::add(next[1], T::mul(current[1], op_flag));
+        next[2] = T::add(next[2], T::mul(current[2], op_flag));
+        next[3] = T::add(next[3], T::mul(current[3], op_flag));
+        T::mul_acc(&mut next[4..], &current[0..], op_flag);
+    }
+
     fn op_drop(next: &mut [T], current: &[T], op_flag: T) {
         let n = next.len() - 1;
         T::mul_acc(&mut next[0..n], &current[1..], op_flag);

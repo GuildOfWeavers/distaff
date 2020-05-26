@@ -345,11 +345,11 @@ mod tests {
 
     fn build_trace_table() -> TraceTable<F64> {
         let program = [
-            opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
-            opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
-            opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
-            opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
-            opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
+            opcodes::DUP, opcodes::PULL2, opcodes::ADD,
+            opcodes::DUP, opcodes::PULL2, opcodes::ADD,
+            opcodes::DUP, opcodes::PULL2, opcodes::ADD,
+            opcodes::DUP, opcodes::PULL2, opcodes::ADD,
+            opcodes::DUP, opcodes::PULL2, opcodes::ADD,
             opcodes::NOOP
         ].iter().map(|&op| op as u64).collect::<Vec<F64>>();
         return TraceTable::new(&program, &[1, 0], EXT_FACTOR);

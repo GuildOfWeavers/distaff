@@ -46,8 +46,9 @@ pub fn execute<T>(program: &[T], inputs: &[T], extension_factor: usize) -> Vec<V
                 i += 1;
                 stack.noop(i);
             },
-            opcodes::DUP0  => stack.dup0(i),
-            opcodes::DUP1  => stack.dup1(i),
+            opcodes::DUP   => stack.dup(i),
+            opcodes::DUP2  => stack.dup2(i),
+            opcodes::DUP4  => stack.dup4(i),
 
             opcodes::SWAP => stack.swap(i),
             opcodes::PULL2 => stack.pull2(i),
@@ -108,16 +109,23 @@ impl <T> StackTrace<T>
         self.registers[0][step + 1] = value;
     }
 
-    fn dup0(&mut self, step: usize) {
+    fn dup(&mut self, step: usize) {
         self.shift_right(step, 0, 1);
-        let value = self.registers[0][step];
-        self.registers[0][step + 1] = value;
+        self.registers[0][step + 1] = self.registers[0][step];
     }
 
-    fn dup1(&mut self, step: usize) {
-        self.shift_right(step, 0, 1);
-        let value = self.registers[1][step];
-        self.registers[0][step + 1] = value;
+    fn dup2(&mut self, step: usize) {
+        self.shift_right(step, 0, 2);
+        self.registers[0][step + 1] = self.registers[0][step];
+        self.registers[1][step + 1] = self.registers[1][step];
+    }
+
+    fn dup4(&mut self, step: usize) {
+        self.shift_right(step, 0, 4);
+        self.registers[0][step + 1] = self.registers[0][step];
+        self.registers[1][step + 1] = self.registers[1][step];
+        self.registers[2][step + 1] = self.registers[2][step];
+        self.registers[3][step + 1] = self.registers[3][step];
     }
 
     fn drop(&mut self, step: usize) {
@@ -254,9 +262,9 @@ mod tests {
     }
     
     #[test]
-    fn dup0() {
+    fn dup() {
         let mut stack = init_stack(&[1, 2]);
-        stack.dup0(0);
+        stack.dup(0);
         assert_eq!(vec![1, 1, 2, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
         assert_eq!(3, stack.depth);
@@ -264,13 +272,23 @@ mod tests {
     }
 
     #[test]
-    fn dup1() {
-        let mut stack = init_stack(&[1, 2]);
-        stack.dup1(0);
-        assert_eq!(vec![2, 1, 2, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+    fn dup2() {
+        let mut stack = init_stack(&[1, 2, 3, 4]);
+        stack.dup2(0);
+        assert_eq!(vec![1, 2, 1, 2, 3, 4, 0, 0], get_stack_state(&stack, 1));
 
-        assert_eq!(3, stack.depth);
-        assert_eq!(3, stack.max_depth);
+        assert_eq!(6, stack.depth);
+        assert_eq!(6, stack.max_depth);
+    }
+
+    #[test]
+    fn dup4() {
+        let mut stack = init_stack(&[1, 2, 3, 4]);
+        stack.dup4(0);
+        assert_eq!(vec![1, 2, 3, 4, 1, 2, 3, 4], get_stack_state(&stack, 1));
+
+        assert_eq!(8, stack.depth);
+        assert_eq!(8, stack.max_depth);
     }
 
     #[test]
