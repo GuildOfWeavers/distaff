@@ -24,8 +24,8 @@ pub const MUL : u8     = 0b000_10_011;
 //pub const GT : u8     = 0b000_10_110;
 //pub const ???: u8     = 0b000_10_111;
 
-//pub const CHOOSE: u8   = 0b000_11_000;
-//pub const CHOOSE2: u8  = 0b000_11_001;
+pub const CHOOSE: u8   = 0b000_11_000;
+pub const CHOOSE2: u8  = 0b000_11_001;
 pub const SWAP: u8     = 0b000_11_010;
 pub const SWAP2: u8    = 0b000_11_011;
 pub const SWAP4: u8    = 0b000_11_100;

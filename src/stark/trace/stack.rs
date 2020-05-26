@@ -46,21 +46,26 @@ pub fn execute<T>(program: &[T], inputs: &[T], extension_factor: usize) -> Vec<V
                 i += 1;
                 stack.noop(i);
             },
-            opcodes::DUP   => stack.dup(i),
-            opcodes::DUP2  => stack.dup2(i),
-            opcodes::DUP4  => stack.dup4(i),
 
-            opcodes::SWAP  => stack.swap(i),
-            opcodes::SWAP2 => stack.swap2(i),
-            opcodes::SWAP4 => stack.swap4(i),
+            opcodes::DROP    => stack.drop(i),
 
-            opcodes::ROLL4 => stack.roll4(i),
-            opcodes::ROLL8 => stack.roll8(i),
+            opcodes::DUP     => stack.dup(i),
+            opcodes::DUP2    => stack.dup2(i),
+            opcodes::DUP4    => stack.dup4(i),
 
-            opcodes::DROP  => stack.drop(i),
-            opcodes::ADD   => stack.add(i),
-            opcodes::SUB   => stack.sub(i),
-            opcodes::MUL   => stack.mul(i),
+            opcodes::SWAP    => stack.swap(i),
+            opcodes::SWAP2   => stack.swap2(i),
+            opcodes::SWAP4   => stack.swap4(i),
+
+            opcodes::ROLL4   => stack.roll4(i),
+            opcodes::ROLL8   => stack.roll8(i),
+
+            opcodes::CHOOSE  => stack.choose(i),
+            opcodes::CHOOSE2 => stack.choose2(i),
+
+            opcodes::ADD     => stack.add(i),
+            opcodes::SUB     => stack.sub(i),
+            opcodes::MUL     => stack.mul(i),
 
             _ => panic!("operation {} is not supported", program[i])
         }
@@ -143,6 +148,38 @@ impl <T> StackTrace<T>
         self.registers[6][step + 1] = self.registers[5][step];
         self.registers[7][step + 1] = self.registers[6][step];
         self.copy_state(step, 8);
+    }
+
+    fn choose(&mut self, step: usize) {
+        // TODO: check depth?
+        let condition = self.registers[2][step];
+        if condition == T::ONE {
+            self.registers[0][step + 1] = self.registers[0][step];
+        }
+        else if condition == T::ZERO {
+            self.registers[0][step + 1] = self.registers[1][step];
+        }
+        else {
+            assert!(false, "cannot CHOOSE on a non-binary condition");
+        }
+        self.shift_left(step, 3, 2);
+    }
+
+    fn choose2(&mut self, step: usize) {
+        // TODO: check depth?
+        let condition = self.registers[4][step];
+        if condition == T::ONE {
+            self.registers[0][step + 1] = self.registers[0][step];
+            self.registers[1][step + 1] = self.registers[1][step];
+        }
+        else if condition == T::ZERO {
+            self.registers[0][step + 1] = self.registers[2][step];
+            self.registers[1][step + 1] = self.registers[3][step];
+        }
+        else {
+            assert!(false, "cannot CHOOSE on a non-binary condition");
+        }
+        self.shift_left(step, 6, 4);
     }
 
     fn push(&mut self, step: usize, value: T) {
@@ -320,6 +357,51 @@ mod tests {
 
         assert_eq!(8, stack.depth);
         assert_eq!(8, stack.max_depth);
+    }
+
+    #[test]
+    fn choose() {
+        // choose on true
+        let mut stack = init_stack(&[2, 3, 0]);
+        stack.choose(0);
+        assert_eq!(vec![3, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+        assert_eq!(1, stack.depth);
+        assert_eq!(3, stack.max_depth);
+
+        let mut stack = init_stack(&[2, 3, 0, 4]);
+        stack.choose(0);
+        assert_eq!(vec![3, 4, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+        assert_eq!(2, stack.depth);
+        assert_eq!(4, stack.max_depth);
+
+        // choose on false
+        let mut stack = init_stack(&[2, 3, 1, 4]);
+        stack.choose(0);
+        assert_eq!(vec![2, 4, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+        assert_eq!(2, stack.depth);
+        assert_eq!(4, stack.max_depth);
+    }
+
+    #[test]
+    fn choose2() {
+        // choose on true
+        let mut stack = init_stack(&[2, 3, 4, 5, 0, 6, 7]);
+        stack.choose2(0);
+        assert_eq!(vec![4, 5, 7, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+        assert_eq!(3, stack.depth);
+        assert_eq!(7, stack.max_depth);
+
+        // choose on false
+        let mut stack = init_stack(&[2, 3, 4, 5, 1, 6, 7]);
+        stack.choose2(0);
+        assert_eq!(vec![2, 3, 7, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+        assert_eq!(3, stack.depth);
+        assert_eq!(7, stack.max_depth);
     }
 
     #[test]
