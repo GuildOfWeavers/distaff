@@ -233,7 +233,7 @@ impl <T> StackTrace<T>
     }
 
     fn hash(&mut self, step: usize) {
-        let mut state = Vec::with_capacity(T::STATE_WIDTH);
+        let mut state = vec![T::ZERO; T::STATE_WIDTH];
         for i in 0..T::STATE_WIDTH {
             state[i] = self.registers[i][step];
         }
@@ -243,6 +243,8 @@ impl <T> StackTrace<T>
         for i in 0..T::STATE_WIDTH {
             self.registers[i][step + 1] = state[i];
         }
+
+        self.copy_state(step, 6);
     }
 
     // HELPER METHODS
@@ -308,6 +310,7 @@ impl <T> StackTrace<T>
 mod tests {
     
     use crate::math::{ F128, FiniteField };
+    use crate::stark::{ Hasher };
     use crate::utils::{ filled_vector };
 
     const TRACE_LENGTH: usize = 16;
@@ -496,6 +499,23 @@ mod tests {
 
         assert_eq!(1, stack.depth);
         assert_eq!(2, stack.max_depth);
+    }
+
+    #[test]
+    fn hash() {
+        let mut stack = init_stack(&[0, 0, 4, 3, 2, 1]);
+        let mut expected = vec![0, 0, 4, 3, 2, 1, 0, 0];
+
+        stack.hash(0);
+        <F128 as Hasher>::apply_round(&mut expected[..F128::STATE_WIDTH], 0);
+        assert_eq!(expected, get_stack_state(&stack, 1));
+
+        stack.hash(1);
+        <F128 as Hasher>::apply_round(&mut expected[..F128::STATE_WIDTH], 1);
+        assert_eq!(expected, get_stack_state(&stack, 2));
+
+        assert_eq!(6, stack.depth);
+        assert_eq!(6, stack.max_depth);
     }
 
     fn init_stack(inputs: &[F128]) -> super::StackTrace<F128> {
