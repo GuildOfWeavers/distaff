@@ -4,12 +4,13 @@ use crate::stark::{ TraceState, utils::Accumulator };
 
 // CONSTANTS
 // ================================================================================================
-const NUM_CONSTRAINTS: usize = F128::STATE_WIDTH + 6; // TODO
+const OP_CODE_CONSTRAINTS: usize = 6;
+const NUM_CONSTRAINTS: usize = F128::STATE_WIDTH + OP_CODE_CONSTRAINTS; // TODO
 
 /// Degree of operation decoder constraints.
 const CONSTRAINT_DEGREES: [usize; NUM_CONSTRAINTS] = [
     2, 2, 2, 2, 2,  // op_bits are binary
-    6,              // when previous op is not a push, op_bits are a binary decomposition of op_code
+    6,              // when current op is not a push, next op_bits are a binary decomposition of op_code
     6, 6, 6, 6      // op_code hash accumulator constraints
 ];
 
@@ -54,7 +55,7 @@ impl <T> Decoder <T>
     // --------------------------------------------------------------------------------------------
     pub fn evaluate(&self, current: &TraceState<T>, next: &TraceState<T>, step: usize, result: &mut [T]) {
 
-        // 9 constraints to decode op_code
+        // 6 constraints to decode op_code
         self.decode_opcode(current, next, result);
 
         // constraints to hash op_code
@@ -62,7 +63,7 @@ impl <T> Decoder <T>
     }
 
     pub fn evaluate_at(&self, current: &TraceState<T>, next: &TraceState<T>, x: T, result: &mut [T]) {
-        // 9 constraints to decode op_code
+        // 96 constraints to decode op_code
         self.decode_opcode(current, next, result);
 
         // constraints to hash op_code
@@ -80,21 +81,18 @@ impl <T> Decoder <T>
     // EVALUATION HELPERS
     // --------------------------------------------------------------------------------------------
     fn decode_opcode(&self, current: &TraceState<T>, next: &TraceState<T>, result: &mut [T]) {
-        // TODO: degree of expanded op_bits is assumed to be 5, but in reality can be less than 5
-        // if opcodes used in the program don't touch some op_bits. Thus, all degrees that assume
-        // op_flag values to have degree 5, may be off.
-
+        
         // 5 constraints, degree 2: op_bits must be binary
         let op_bits = current.get_op_bits();
         for i in 0..5 {
             result[i] = is_binary(op_bits[i]);
         }
 
-        // 1 constraint, degree 6: if previous operation was not a PUSH, op_bits must be a binary
-        // decomposition of op_code, otherwise all op_bits must be 0 (NOOP)
-        let was_push = current.get_op_flags()[opcodes::PUSH as usize];
-        let op_bits_value = next.get_op_bits_value();
-        let op_code = T::mul(next.get_op_code(), binary_not(was_push));
+        // 1 constraint, degree 6: if current operation is a PUSH, next op_bits must be all
+        // zeros (NOOP), otherwise next op_bits must be a binary decomposition of next op_code
+        let is_push = current.get_op_flags()[opcodes::PUSH as usize];
+        let op_bits_value = combine_bits(next.get_op_bits());
+        let op_code = T::mul(next.get_op_code(), binary_not(is_push));
         result[5] = T::sub(op_code, op_bits_value);
     }
 
@@ -128,14 +126,20 @@ impl <T> Decoder <T>
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn is_binary<T>(v: T) -> T
-    where T: FiniteField
-{
+fn is_binary<T: FiniteField>(v: T) -> T {
     return T::sub(T::mul(v, v), v);
 }
 
-fn binary_not<T>(v: T) -> T
-    where T: FiniteField
-{
+fn binary_not<T: FiniteField>(v: T) -> T {
     return T::sub(T::ONE, v);
+}
+
+fn combine_bits<T: FiniteField>(op_bits: &[T]) -> T {
+    let mut value = op_bits[0];
+    let mut power_of_two = 1;
+    for i in 1..op_bits.len() {
+        power_of_two = power_of_two << 1;
+        value = T::add(value, T::mul(op_bits[i], T::from(power_of_two)));
+    }
+    return value;
 }

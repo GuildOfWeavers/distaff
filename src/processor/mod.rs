@@ -17,10 +17,14 @@ pub mod opcodes;
 /// * `num_outputs` specifies the number of elements from the top of the stack to be returned;
 pub fn execute(program: &[F128], inputs: &[F128], num_outputs: usize, options: &ProofOptions) -> (Vec<F128>, [u8; 32], StarkProof<F128>)
 {
+    assert!(program.len() > 1,
+        "expected a program with at last two operations, but received {}", program.len());
+    assert!(program[0] == F128::from(opcodes::BEGIN),
+        "a program must start with BEGIN operation");
     assert!(inputs.len() <= MAX_INPUTS,
-        "Expected no more than {} inputs, but received {}", MAX_INPUTS, inputs.len());
+        "expected no more than {} inputs, but received {}", MAX_INPUTS, inputs.len());
     assert!(num_outputs <= MAX_OUTPUTS, 
-        "Cannot produce more than {} outputs, but requested {}", MAX_OUTPUTS, num_outputs);
+        "cannot produce more than {} outputs, but requested {}", MAX_OUTPUTS, num_outputs);
 
     // pad the program with the appropriate number of NOOPs
     let program = pad_program(program);
@@ -78,6 +82,7 @@ pub fn pad_program<T: FiniteField>(program: &[T]) -> Vec<T> {
 pub fn hash_program<T: stark::Accumulator>(program: &[T]) -> [u8; 32] {
     assert!(program.len().is_power_of_two(), "program length must be a power of 2");
     assert!(program.len() >= MIN_TRACE_LENGTH, "program must consist of at least {} operations", MIN_TRACE_LENGTH);
-    assert!(program[program.len() - 1] == T::from(opcodes::NOOP), "last operation of a program must be NOOP");
+    assert!(program[0] == T::from(opcodes::BEGIN), "program must start with BEGIN operation");
+    assert!(program[program.len() - 1] == T::from(opcodes::NOOP), "program must end with NOOP operation");
     return T::digest(&program[..(program.len() - 1)]);
 }

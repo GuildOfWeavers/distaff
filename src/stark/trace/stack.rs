@@ -9,14 +9,15 @@ use super::{ MAX_INPUTS, MIN_STACK_DEPTH, MAX_STACK_DEPTH };
 pub fn execute<T>(program: &[T], inputs: &[T], extension_factor: usize) -> Vec<Vec<T>>
     where T: FiniteField
 {
-
     let trace_length = program.len();
     let domain_size = trace_length * extension_factor;
 
-    assert!(inputs.len() <= MAX_INPUTS, "expected {} or fewer inputs, received {}", MAX_INPUTS, inputs.len());
-    assert!(trace_length.is_power_of_two(), "trace length must be a power of 2");
+    assert!(program.len() > 1, "program length must be greater than 1");
+    assert!(program.len().is_power_of_two(), "program length must be a power of 2");
+    assert!(program[0] == T::from(opcodes::BEGIN), "first operation of a program must be BEGIN");
+    assert!(program[program.len() - 1] == T::from(opcodes::NOOP), "last operation of a program must be NOOP");
     assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
-    assert!(program[trace_length - 1] == T::from(opcodes::NOOP), "last operation of a program must be NOOP");
+    assert!(inputs.len() <= MAX_INPUTS, "expected {} or fewer inputs, received {}", MAX_INPUTS, inputs.len());
 
     // allocate space for stack registers and populate the first state with input values
     let init_stack_depth = cmp::max(inputs.len(), MIN_STACK_DEPTH);
@@ -37,6 +38,7 @@ pub fn execute<T>(program: &[T], inputs: &[T], extension_factor: usize) -> Vec<V
         // update stack state based on the current operation
         // TODO: make sure operation can be safely cast to u8
         match program[i].as_u8() {
+            opcodes::BEGIN => stack.noop(i),
             opcodes::NOOP  => stack.noop(i),
 
             opcodes::PUSH  => {

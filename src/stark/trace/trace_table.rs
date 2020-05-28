@@ -22,9 +22,11 @@ impl <T> TraceTable<T>
     /// trace table is allocated in accordance with the specified `extension_factor`.
     pub fn new(program: &[T], inputs: &[T], extension_factor: usize) -> TraceTable<T> {
         
+        assert!(program.len() > 1, "program length must be greater than 1");
         assert!(program.len().is_power_of_two(), "program length must be a power of 2");
-        assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
+        assert!(program[0] == T::from(opcodes::BEGIN), "first operation of a program must be BEGIN");
         assert!(program[program.len() - 1] == T::from(opcodes::NOOP), "last operation of a program must be NOOP");
+        assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
 
         // create different segments of the trace
         let decoder_registers = decoder::process(program, extension_factor);
@@ -345,10 +347,10 @@ mod tests {
 
     fn build_trace_table() -> TraceTable<F64> {
         let program = [
-            opcodes::SWAP, opcodes::DUP2, opcodes::DROP, opcodes::ADD,
-            opcodes::SWAP, opcodes::DUP2, opcodes::DROP, opcodes::ADD,
-            opcodes::SWAP, opcodes::DUP2, opcodes::DROP, opcodes::ADD,
-            opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
+            opcodes::BEGIN, opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
+            opcodes::ADD,   opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
+            opcodes::ADD,   opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
+            opcodes::ADD,   opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
         ].iter().map(|&op| op as u64).collect::<Vec<F64>>();
         return TraceTable::new(&program, &[1, 0], EXT_FACTOR);
     }

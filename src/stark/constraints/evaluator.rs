@@ -1,5 +1,6 @@
 use std::mem;
 use crate::math::{ FiniteField };
+use crate::processor::{ opcodes };
 use crate::stark::{ StarkProof, TraceTable, TraceState, ConstraintCoefficients, Accumulator };
 use crate::utils::{ uninit_vector };
 use super::{ decoder::Decoder, stack::Stack, MAX_CONSTRAINT_DEGREE };
@@ -192,19 +193,21 @@ impl <T> Evaluator<T>
         let cc = self.coefficients.i_boundary;
         let mut cc_idx = 0;
 
-        // make sure op_code and ob_bits are initialized to NOOP
+        // make sure op_code and ob_bits are set to BEGIN
         let op_code = current.get_op_code();
-        i_result = T::add(i_result, T::mul(op_code, cc[cc_idx]));
-        result_adj = T::add(result_adj, T::mul(op_code, cc[cc_idx]));
+        let val = T::sub(op_code, T::from(opcodes::BEGIN));
+        i_result = T::add(i_result, T::mul(val, cc[cc_idx]));
+        result_adj = T::add(result_adj, T::mul(val, cc[cc_idx]));
 
         let op_bits = current.get_op_bits();
         for i in 0..op_bits.len() {
             cc_idx += 2;
-            i_result = T::add(i_result, T::mul(op_bits[i], cc[cc_idx]));
-            result_adj = T::add(result_adj, T::mul(op_bits[i], cc[cc_idx + 1]));
+            let val = T::sub(op_bits[i], T::ONE);
+            i_result = T::add(i_result, T::mul(val, cc[cc_idx]));
+            result_adj = T::add(result_adj, T::mul(val, cc[cc_idx + 1]));
         }
 
-        // make sure operation accumulator registers are initialized to zeros 
+        // make sure operation accumulator registers are set to zeros 
         let op_acc = current.get_op_acc();
         for i in 0..op_acc.len() {
             cc_idx += 2;
@@ -212,7 +215,7 @@ impl <T> Evaluator<T>
             result_adj = T::add(result_adj, T::mul(op_acc[i], cc[cc_idx + 1]));
         }
 
-        // make sure stack registers are initialized to inputs
+        // make sure stack registers are set to inputs
         let stack = current.get_stack();
         for i in 0..self.inputs.len() {
             cc_idx += 2;
@@ -298,6 +301,7 @@ impl <T> Evaluator<T>
         return result;
     }
 
+    #[cfg(debug_assertions)]
     fn save_transition_evaluations(&self, evaluations: &[T], step: usize) {
         unsafe {
             let mutable_self = &mut *(self as *const _ as *mut Evaluator<T>);

@@ -36,7 +36,8 @@ impl <T> Stack<T>
         let current_stack = current.get_stack();
         let mut expected_stack = vec![T::ZERO; cmp::max(self.stack_depth, MIN_STACK_DEPTH)];
     
-        T::mul_acc(&mut expected_stack,  current_stack, op_flags[opcodes::NOOP as usize]);
+        T::mul_acc(&mut expected_stack,       current_stack, op_flags[opcodes::BEGIN as usize]);
+        T::mul_acc(&mut expected_stack,       current_stack, op_flags[opcodes::NOOP as usize]);
     
         Self::op_swap(&mut expected_stack,    current_stack, op_flags[opcodes::SWAP as usize]);
         Self::op_swap2(&mut expected_stack,   current_stack, op_flags[opcodes::SWAP2 as usize]);

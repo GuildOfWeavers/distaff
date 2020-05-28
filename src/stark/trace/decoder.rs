@@ -41,9 +41,11 @@ pub fn process<T>(program: &[T], extension_factor: usize) -> Vec<Vec<T>>
     let trace_length = program.len();
     let domain_size = trace_length * extension_factor;
 
-    assert!(trace_length.is_power_of_two(), "trace length must be a power of 2");
+    assert!(program.len() > 1, "program length must be greater than 1");
+    assert!(program.len().is_power_of_two(), "program length must be a power of 2");
+    assert!(program[0] == T::from(opcodes::BEGIN), "first operation of a program must be BEGIN");
+    assert!(program[program.len() - 1] == T::from(opcodes::NOOP), "last operation of a program must be NOOP");
     assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
-    assert!(program[trace_length - 1] == T::from(opcodes::NOOP), "last operation of a program must be NOOP");
 
     // create op_code register and copy program into it
     let mut op_code = filled_vector(trace_length, domain_size, T::ZERO);

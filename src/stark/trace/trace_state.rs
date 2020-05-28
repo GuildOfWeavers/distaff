@@ -67,16 +67,6 @@ impl <T> TraceState<T>
         return &self.registers[decoder::OP_BITS_RANGE];
     }
 
-    pub fn get_op_bits_value(&self) -> T {
-        let op_bits = self.get_op_bits();
-        let mut value = op_bits[0];
-        value = T::add(value, T::mul(op_bits[1], T::from( 2)));
-        value = T::add(value, T::mul(op_bits[2], T::from( 4)));
-        value = T::add(value, T::mul(op_bits[3], T::from( 8)));
-        value = T::add(value, T::mul(op_bits[4], T::from(16)));
-        return value;
-    }
-
     pub fn get_op_flags(&self) -> [T; NUM_LD_OPS] {
         if !self.op_flags_set {
             unsafe {
