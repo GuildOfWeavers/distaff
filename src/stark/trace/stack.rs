@@ -1,13 +1,14 @@
 use std::cmp;
 use crate::math::{ FiniteField };
 use crate::processor::opcodes;
+use crate::stark::utils::{ Hasher };
 use crate::utils::{ filled_vector };
 use super::{ MAX_INPUTS, MIN_STACK_DEPTH, MAX_STACK_DEPTH };
 
 // TRACE BUILDER
 // ================================================================================================
 pub fn execute<T>(program: &[T], inputs: &[T], extension_factor: usize) -> Vec<Vec<T>>
-    where T: FiniteField
+    where T: FiniteField + Hasher
 {
     let trace_length = program.len();
     let domain_size = trace_length * extension_factor;
@@ -68,6 +69,7 @@ pub fn execute<T>(program: &[T], inputs: &[T], extension_factor: usize) -> Vec<V
             opcodes::ADD     => stack.add(i),
             opcodes::SUB     => stack.sub(i),
             opcodes::MUL     => stack.mul(i),
+            opcodes::HASH    => stack.hash(i),
 
             _ => panic!("operation {} is not supported", program[i])
         }
@@ -82,9 +84,7 @@ pub fn execute<T>(program: &[T], inputs: &[T], extension_factor: usize) -> Vec<V
 
 // TYPES AND INTERFACES
 // ================================================================================================
-struct StackTrace<T> 
-    where T: FiniteField
-{
+struct StackTrace<T: FiniteField + Hasher> {
     registers   : Vec<Vec<T>>,
     max_depth   : usize,
     depth       : usize,
@@ -93,7 +93,7 @@ struct StackTrace<T>
 // STACK IMPLEMENTATION
 // ================================================================================================
 impl <T> StackTrace<T>
-    where T: FiniteField
+    where T: FiniteField + Hasher
 {
     // OPERATIONS
     // --------------------------------------------------------------------------------------------
@@ -232,6 +232,19 @@ impl <T> StackTrace<T>
         self.shift_left(step, 2, 1);
     }
 
+    fn hash(&mut self, step: usize) {
+        let mut state = Vec::with_capacity(T::STATE_WIDTH);
+        for i in 0..T::STATE_WIDTH {
+            state[i] = self.registers[i][step];
+        }
+
+        T::apply_round(&mut state, step);
+
+        for i in 0..T::STATE_WIDTH {
+            self.registers[i][step + 1] = state[i];
+        }
+    }
+
     // HELPER METHODS
     // --------------------------------------------------------------------------------------------
 
@@ -294,7 +307,7 @@ impl <T> StackTrace<T>
 #[cfg(test)]
 mod tests {
     
-    use crate::math::{ F64, FiniteField };
+    use crate::math::{ F128, FiniteField };
     use crate::utils::{ filled_vector };
 
     const TRACE_LENGTH: usize = 16;
@@ -485,10 +498,10 @@ mod tests {
         assert_eq!(2, stack.max_depth);
     }
 
-    fn init_stack(inputs: &[u64]) -> super::StackTrace<u64> {
-        let mut registers: Vec<Vec<u64>> = Vec::with_capacity(super::MIN_STACK_DEPTH);
+    fn init_stack(inputs: &[F128]) -> super::StackTrace<F128> {
+        let mut registers: Vec<Vec<F128>> = Vec::with_capacity(super::MIN_STACK_DEPTH);
         for i in 0..super::MIN_STACK_DEPTH {
-            let mut register = filled_vector(TRACE_LENGTH, TRACE_LENGTH * EXTENSION_FACTOR, F64::ZERO);
+            let mut register = filled_vector(TRACE_LENGTH, TRACE_LENGTH * EXTENSION_FACTOR, F128::ZERO);
             if i < inputs.len() { 
                 register[0] = inputs[i];
             }
@@ -498,7 +511,7 @@ mod tests {
         return super::StackTrace { registers, max_depth: inputs.len(), depth: inputs.len() };
     }
 
-    fn get_stack_state(stack: &super::StackTrace<u64>, step: usize) -> Vec<u64> {
+    fn get_stack_state(stack: &super::StackTrace<F128>, step: usize) -> Vec<F128> {
         let mut state = Vec::with_capacity(stack.registers.len());
         for i in 0..stack.registers.len() {
             state.push(stack.registers[i][step]);

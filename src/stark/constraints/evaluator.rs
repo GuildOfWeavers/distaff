@@ -1,14 +1,14 @@
 use std::mem;
 use crate::math::{ FiniteField };
 use crate::processor::{ opcodes };
-use crate::stark::{ StarkProof, TraceTable, TraceState, ConstraintCoefficients, Accumulator };
+use crate::stark::{ StarkProof, TraceTable, TraceState, ConstraintCoefficients, Accumulator, Hasher };
 use crate::utils::{ uninit_vector };
 use super::{ decoder::Decoder, stack::Stack, MAX_CONSTRAINT_DEGREE };
 
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct Evaluator<T>
-    where T: FiniteField + Accumulator
+    where T: FiniteField + Accumulator + Hasher
 {
     decoder         : Decoder<T>,
     stack           : Stack<T>,
@@ -31,7 +31,7 @@ pub struct Evaluator<T>
 // EVALUATOR IMPLEMENTATION
 // ================================================================================================
 impl <T> Evaluator<T>
-    where T: FiniteField + Accumulator
+    where T: FiniteField + Accumulator + Hasher
 {
     pub fn from_trace(trace: &TraceTable<T>, trace_root: &[u8; 32], inputs: &[T], outputs: &[T]) -> Evaluator<T> {
 

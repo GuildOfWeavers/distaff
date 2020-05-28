@@ -24,6 +24,7 @@ pub use constraints::{
     MAX_TRANSITION_CONSTRAINTS };
 
 pub use utils::{
+    Hasher,
     Accumulator,
     ConstraintCoefficients,
     CompositionCoefficients };

@@ -1,12 +1,12 @@
 use std::mem;
 use crate::{ math::{ FiniteField }, crypto::{ MerkleTree } };
-use super::{ StarkProof, TraceState, ConstraintEvaluator, CompositionCoefficients, Accumulator, fri, utils };
+use super::{ StarkProof, TraceState, ConstraintEvaluator, CompositionCoefficients, Accumulator, Hasher, fri, utils };
 
 // VERIFIER FUNCTION
 // ================================================================================================
 
 pub fn verify<T>(program_hash: &[u8; 32], inputs: &[T], outputs: &[T], proof: &StarkProof<T>) -> Result<bool, String>
-    where T: FiniteField + Accumulator
+    where T: FiniteField + Accumulator + Hasher
 {
     let options = proof.options();
     let hash_fn = options.hash_function();
@@ -70,7 +70,7 @@ pub fn verify<T>(program_hash: &[u8; 32], inputs: &[T], outputs: &[T], proof: &S
 // HELPER FUNCTIONS
 // ================================================================================================
 fn evaluate_constraints<T>(evaluator: ConstraintEvaluator<T>, state1: TraceState<T>, state2: TraceState<T>, x: T) -> T
-    where T: FiniteField + Accumulator
+    where T: FiniteField + Accumulator + Hasher
 {
     let (i_value, f_value) = evaluator.evaluate_boundaries(&state1, x);
     let t_value = evaluator.evaluate_transition_at(&state1, &state2, x);

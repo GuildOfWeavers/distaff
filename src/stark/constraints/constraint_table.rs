@@ -1,11 +1,11 @@
 use crate::math::{ FiniteField, parallel, fft, polynom };
-use crate::stark::{ TraceTable, TraceState, Accumulator };
+use crate::stark::{ TraceTable, TraceState, Accumulator, Hasher };
 use crate::utils::{ uninit_vector };
 use super::{ ConstraintEvaluator, ConstraintPoly };
 
 // TYPES AND INTERFACES
 // ================================================================================================
-pub struct ConstraintTable<T: FiniteField + Accumulator> {
+pub struct ConstraintTable<T: FiniteField + Accumulator + Hasher> {
     evaluator       : ConstraintEvaluator<T>,
     i_evaluations   : Vec<T>,   // combined evaluations of boundary constraints at the first step
     f_evaluations   : Vec<T>,   // combined evaluations of boundary constraints at the last step
@@ -15,7 +15,7 @@ pub struct ConstraintTable<T: FiniteField + Accumulator> {
 // CONSTRAINT TABLE IMPLEMENTATION
 // ================================================================================================
 impl <T> ConstraintTable<T>
-    where T: FiniteField + Accumulator
+    where T: FiniteField + Accumulator + Hasher
 {
     pub fn new(trace: &TraceTable<T>, trace_root: &[u8; 32], inputs: &[T], outputs: &[T]) -> ConstraintTable<T> {
         let evaluator = ConstraintEvaluator::from_trace(trace, trace_root, inputs, outputs);

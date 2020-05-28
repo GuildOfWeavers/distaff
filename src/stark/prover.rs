@@ -5,13 +5,13 @@ use crate::crypto::{ MerkleTree };
 
 use super::trace::{ TraceTable, TraceState };
 use super::constraints::{ ConstraintTable, ConstraintPoly, MAX_CONSTRAINT_DEGREE };
-use super::{ ProofOptions, StarkProof, Accumulator, CompositionCoefficients, DeepValues, fri, utils };
+use super::{ ProofOptions, StarkProof, Accumulator, Hasher, CompositionCoefficients, DeepValues, fri, utils };
 
 // PROVER FUNCTION
 // ================================================================================================
 
 pub fn prove<T>(trace: &mut TraceTable<T>, inputs: &[T], outputs: &[T], options: &ProofOptions) -> StarkProof<T>
-    where T: FiniteField + Accumulator
+    where T: FiniteField + Accumulator + Hasher
 {
     // 1 ----- extend execution trace -------------------------------------------------------------
     let now = Instant::now();
@@ -184,7 +184,7 @@ fn evaluations_to_leaves<T: FiniteField>(evaluations: Vec<T>) -> Vec<[u8; 32]> {
 }
 
 fn build_composition_poly<T>(trace: &TraceTable<T>, constraint_poly: ConstraintPoly<T>, seed: &[u8; 32]) -> (Vec<T>, DeepValues<T>)
-    where T: FiniteField + Accumulator
+    where T: FiniteField + Accumulator + Hasher
 {
     // pseudo-randomly selection deep point z and coefficients for the composition
     let z = T::prng(*seed);
