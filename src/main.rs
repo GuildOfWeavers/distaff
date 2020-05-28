@@ -86,7 +86,8 @@ fn read_args() -> (usize, ProofOptions) {
 
 /// Generates a program to compute the `n`-th term of Fibonacci sequence
 fn generate_fibonacci_program(n: usize) -> Vec<F128> {
-    let mut program = Vec::new();
+
+    let mut program = vec![opcodes::NOOP];
 
     // TODO: update comment
     // the program is a simple repetition of 3 stack operations:

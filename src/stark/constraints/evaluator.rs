@@ -176,58 +176,91 @@ impl <T> Evaluator<T>
         return self.combine_transition_constraints(&evaluations, x);
     }
 
-    /// Computes pseudo-random linear combination of boundary constraints B_i at point x 
-    /// separately for input and output constraints; the constraints are computed as:
+    /// Computes pseudo-random linear combination of boundary constraints B_i at point x  separately
+    /// for the first and for the last steps of the program; the constraints are computed as:
     /// cc_{i * 2} * B_i + cc_{i * 2 + 1} * B_i * x^p for all i, where cc_j are the coefficients
     /// used in the linear combination and x^p is a degree adjustment factor.
     pub fn evaluate_boundaries(&self, current: &TraceState<T>, x: T) -> (T, T) {
         
-        let cc = self.coefficients.inputs;
-        let stack = current.get_stack();
-        
-        // compute adjustment factor
+        // compute degree adjustment factor
         let xp = T::exp(x, self.b_degree_adj);
 
-        // 1 ----- compute combination of input constraints ---------------------------------------
+        // 1 ----- compute combination of boundary constraints for the first step ------------------
         let mut i_result = T::ZERO;
         let mut result_adj = T::ZERO;
 
-        // separately compute P(x) - input for adjusted and un-adjusted terms
+        let cc = self.coefficients.i_boundary;
+        let mut cc_idx = 0;
+
+        // make sure op_code and ob_bits are initialized to NOOP
+        let op_code = current.get_op_code();
+        i_result = T::add(i_result, T::mul(op_code, cc[cc_idx]));
+        result_adj = T::add(result_adj, T::mul(op_code, cc[cc_idx]));
+
+        let op_bits = current.get_op_bits();
+        for i in 0..op_bits.len() {
+            cc_idx += 2;
+            i_result = T::add(i_result, T::mul(op_bits[i], cc[cc_idx]));
+            result_adj = T::add(result_adj, T::mul(op_bits[i], cc[cc_idx + 1]));
+        }
+
+        // make sure operation accumulator registers are initialized to zeros 
+        let op_acc = current.get_op_acc();
+        for i in 0..op_acc.len() {
+            cc_idx += 2;
+            i_result = T::add(i_result, T::mul(op_acc[i], cc[cc_idx]));
+            result_adj = T::add(result_adj, T::mul(op_acc[i], cc[cc_idx + 1]));
+        }
+
+        // make sure stack registers are initialized to inputs
+        let stack = current.get_stack();
         for i in 0..self.inputs.len() {
+            cc_idx += 2;
             let val = T::sub(stack[i], self.inputs[i]);
-            i_result = T::add(i_result, T::mul(val, cc[i * 2]));
-            result_adj = T::add(result_adj, T::mul(val, cc[i * 2 + 1]));
+            i_result = T::add(i_result, T::mul(val, cc[cc_idx]));
+            result_adj = T::add(result_adj, T::mul(val, cc[cc_idx + 1]));
         }
 
         // raise the degree of adjusted terms and sum all the terms together
         i_result = T::add(i_result, T::mul(result_adj, xp));
 
-        // 2 ----- compute combination of output constraints ---------------------------------------
+        // 2 ----- compute combination of boundary constraints for the last step -------------------
         let mut f_result = T::ZERO;
         let mut result_adj = T::ZERO;
 
-        // separately compute P(x) - output for adjusted and un-adjusted terms
+        let cc = self.coefficients.f_boundary;
+        let mut cc_idx = 0;
+
+        // make sure op_code and op_bits are set to NOOP
+        let op_code = current.get_op_code();
+        f_result = T::add(f_result, T::mul(op_code, cc[cc_idx]));
+        result_adj = T::add(result_adj, T::mul(op_code, cc[cc_idx + 1]));
+
+        let op_bits = current.get_op_bits();
+        for i in 0..op_bits.len() {
+            cc_idx += 2;
+            f_result = T::add(f_result, T::mul(op_bits[i], cc[cc_idx]));
+            result_adj = T::add(result_adj, T::mul(op_bits[i], cc[cc_idx + 1]));
+        }
+
+        // make sure operation accumulator contains program hash
+        let program_hash = current.get_program_hash();
+        for i in 0..self.program_hash.len() {
+            cc_idx += 2;
+            let val = T::sub(program_hash[i], self.program_hash[i]);
+            f_result = T::add(f_result, T::mul(val, cc[cc_idx]));
+            result_adj = T::add(result_adj, T::mul(val, cc[cc_idx + 1]));
+        }
+
+        // make sure stack registers are set to outputs
         for i in 0..self.outputs.len() {
+            cc_idx += 2;
             let val = T::sub(stack[i], self.outputs[i]);
-            f_result = T::add(f_result, T::mul(val, cc[i * 2]));
-            result_adj = T::add(result_adj, T::mul(val, cc[i * 2 + 1]));
+            f_result = T::add(f_result, T::mul(val, cc[cc_idx]));
+            result_adj = T::add(result_adj, T::mul(val, cc[cc_idx + 1]));
         }
 
         // raise the degree of adjusted terms and sum all the terms together
-        f_result = T::add(f_result, T::mul(result_adj, xp));
-
-        // 3 ----- compute combination of program hash constraints --------------------------------
-        let mut result_adj = T::ZERO;
-
-        // because we check program hash at the last step, we add the constraints to the
-        // constraint evaluations to the output constraint combination
-        let program_hash = current.get_program_hash();
-        for i in 0..self.program_hash.len() {
-            let val = T::sub(program_hash[i], self.program_hash[i]);
-            f_result = T::add(f_result, T::mul(val, cc[i * 2]));
-            result_adj = T::add(result_adj, T::mul(val, cc[i * 2 + 1]));
-        }
-
         f_result = T::add(f_result, T::mul(result_adj, xp));
 
         return (i_result, f_result);

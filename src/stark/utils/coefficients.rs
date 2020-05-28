@@ -3,15 +3,16 @@ use crate::stark::{ MAX_REGISTER_COUNT, MAX_INPUTS, MAX_OUTPUTS, MAX_TRANSITION_
 
 // CONSTANTS
 // ================================================================================================
-const NUM_CONSTRAINTS: usize = MAX_INPUTS + MAX_OUTPUTS + MAX_TRANSITION_CONSTRAINTS;
+const DECODER_WIDTH: usize = 10;
+const NUM_CONSTRAINTS: usize = MAX_INPUTS + MAX_OUTPUTS + MAX_TRANSITION_CONSTRAINTS + 2 * DECODER_WIDTH;
 
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct ConstraintCoefficients<T>
     where T: FiniteField
 {
-    pub inputs      : [T; 2 * MAX_INPUTS],
-    pub outputs     : [T; 2 * MAX_OUTPUTS],
+    pub i_boundary  : [T; 2 * (DECODER_WIDTH + MAX_INPUTS) ],
+    pub f_boundary  : [T; 2 * (DECODER_WIDTH + MAX_OUTPUTS)],
     pub transition  : [T; 2 * MAX_TRANSITION_CONSTRAINTS],
 }
 
@@ -34,22 +35,22 @@ impl <T> ConstraintCoefficients<T>
 
         // generate a pseudo-random list of coefficients
         let coefficients = T::prng_vector(seed, 2 * NUM_CONSTRAINTS);
-        
+
         // copy coefficients to their respective segments
-        let end_index = 2 * MAX_INPUTS;
-        let mut inputs = [T::ZERO; 2 * MAX_INPUTS];
-        inputs.copy_from_slice(&coefficients[..end_index]);
+        let end_index = 2 * (DECODER_WIDTH + MAX_INPUTS);
+        let mut i_boundary = [T::ZERO; 2 * (DECODER_WIDTH + MAX_INPUTS)];
+        i_boundary.copy_from_slice(&coefficients[..end_index]);
 
         let start_index = end_index;
-        let end_index = start_index + 2 * MAX_OUTPUTS;
-        let mut outputs = [T::ZERO; 2 * MAX_OUTPUTS];
-        outputs.copy_from_slice(&coefficients[start_index..end_index]);
+        let end_index = start_index + 2 * (DECODER_WIDTH + MAX_OUTPUTS);
+        let mut f_boundary = [T::ZERO; 2 * (DECODER_WIDTH + MAX_OUTPUTS)];
+        f_boundary.copy_from_slice(&coefficients[start_index..end_index]);
 
         let start_index = end_index;
         let mut transition = [T::ZERO; 2 * MAX_TRANSITION_CONSTRAINTS];
         transition.copy_from_slice(&coefficients[start_index..]);
 
-        return ConstraintCoefficients { inputs, outputs, transition };
+        return ConstraintCoefficients { i_boundary, f_boundary, transition };
     }
 }
 

@@ -1,10 +1,10 @@
-use crate::math::{ F64, FiniteField, polynom };
+use crate::math::{ F128, FiniteField, polynom };
 use crate::processor::{ opcodes };
 use crate::stark::{ TraceState, utils::Accumulator };
 
 // CONSTANTS
 // ================================================================================================
-const NUM_CONSTRAINTS: usize = F64::STATE_WIDTH + 9;
+const NUM_CONSTRAINTS: usize = F128::STATE_WIDTH + 9;
 
 /// Degree of operation decoder constraints.
 const CONSTRAINT_DEGREES: [usize; NUM_CONSTRAINTS] = [
@@ -13,8 +13,7 @@ const CONSTRAINT_DEGREES: [usize; NUM_CONSTRAINTS] = [
     5,                  // push_flag is set after a PUSH operation
     2,                  // push_flag gets reset on the next step
     2,                  // when push_flag = 0, op_bits are a binary decomposition of op_code
-    6, 6, 6, 6, 6, 6,   // op_code hash accumulator constraints
-    6, 6, 6, 6, 6, 6
+    6, 6, 6, 6   // op_code hash accumulator constraints
 ];
 
 // TYPES AND INTERFACES
@@ -61,7 +60,7 @@ impl <T> Decoder <T>
         // 9 constraints to decode op_code
         self.decode_opcode(current, next, result);
 
-        // 12 constraints to hash op_code
+        // constraints to hash op_code
         self.hash_opcode(current, next, &self.rescue_ark[step % self.hash_cycle], &mut result[9..]);
     }
 

@@ -4,10 +4,10 @@ use crate::{ ProofOptions, opcodes::f128 as opcodes, F128, Accumulator };
 #[test]
 fn execute_verify() {
     let program = [
-        opcodes::SWAP, opcodes::DUP2, opcodes::DROP, opcodes::ADD,
-        opcodes::SWAP, opcodes::DUP2, opcodes::DROP, opcodes::ADD,
-        opcodes::SWAP, opcodes::DUP2, opcodes::DROP, opcodes::ADD,
-        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
+        opcodes::NOOP, opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
+        opcodes::ADD,  opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
+        opcodes::ADD,  opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
+        opcodes::ADD,  opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
     ];
     let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
 
@@ -26,10 +26,10 @@ fn execute_verify() {
 #[test]
 fn execute_verify_fail() {
     let program = [
-        opcodes::SWAP, opcodes::DUP2, opcodes::DROP, opcodes::ADD,
-        opcodes::SWAP, opcodes::DUP2, opcodes::DROP, opcodes::ADD,
-        opcodes::SWAP, opcodes::DUP2, opcodes::DROP, opcodes::ADD,
-        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
+        opcodes::NOOP, opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
+        opcodes::ADD,  opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
+        opcodes::ADD,  opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
+        opcodes::ADD,  opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
     ];
     let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
 
@@ -62,10 +62,10 @@ fn execute_verify_fail() {
 #[test]
 fn stack_operations() {
     let program = [
-        opcodes::SWAP, opcodes::SWAP2, opcodes::SWAP4, opcodes::CHOOSE,
-        opcodes::ROLL4, opcodes::DUP, opcodes::PUSH, 11, opcodes::ROLL8,
-        opcodes::DROP, opcodes::SWAP2, opcodes::CHOOSE2, opcodes::DUP2,
-        opcodes::DUP4, opcodes::DROP, opcodes::NOOP
+        opcodes::NOOP,   opcodes::SWAP,    opcodes::SWAP2, opcodes::SWAP4,
+        opcodes::CHOOSE, opcodes::PUSH,    11,             opcodes::ROLL4, 
+        opcodes::DUP,    opcodes::CHOOSE2, opcodes::DUP4,  opcodes::ROLL8,
+        opcodes::DROP,   opcodes::DROP,    opcodes::DUP2,  opcodes::NOOP
     ];
     let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
 
@@ -74,7 +74,7 @@ fn stack_operations() {
     let num_outputs = 8;
 
     let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
-    assert_eq!(outputs, [4, 11, 4, 11, 4, 11, 4, 6]);
+    assert_eq!(outputs, [3, 6, 3, 6, 7, 11, 3, 6]);
     assert_eq!(program_hash, expected_hash);
 
     let result = super::verify(&program_hash, &inputs, &outputs, &proof);
@@ -84,8 +84,8 @@ fn stack_operations() {
 #[test]
 fn math_operations() {
     let program = [
-        opcodes::ADD, opcodes::MUL, opcodes::SWAP, opcodes::SUB,
-        opcodes::ADD, opcodes::MUL, opcodes::NOOP, opcodes::NOOP,
+        opcodes::NOOP, opcodes::ADD,  opcodes::MUL,  opcodes::SWAP,
+        opcodes::SUB,  opcodes::ADD,  opcodes::MUL,  opcodes::NOOP,
         opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
         opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
     ];
