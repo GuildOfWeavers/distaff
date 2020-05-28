@@ -55,10 +55,6 @@ impl <T> TraceState<T>
         return self.registers[decoder::OP_CODE_IDX];
     }
 
-    pub fn get_push_flag(&self) -> T {
-        return self.registers[decoder::PUSH_FLAG_IDX];
-    }
-
     pub fn get_op_acc(&self) -> &[T] {
         return &self.registers[decoder::op_acc_range::<T>()];
     }
@@ -147,10 +143,10 @@ impl <T> fmt::Display for TraceState<T>
     where T: FiniteField + Accumulator
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{}]\t[{}]\t{:?}\t{:?}",
+        write!(f, "[{}]\t{:?}\t{:?}\t{:?}",
             self.get_op_code(), 
-            self.get_push_flag(),
             self.get_op_bits(),
+            self.get_op_acc(),
             self.get_stack())
     }
 }

@@ -4,16 +4,13 @@ use crate::stark::{ TraceState, utils::Accumulator };
 
 // CONSTANTS
 // ================================================================================================
-const NUM_CONSTRAINTS: usize = F128::STATE_WIDTH + 9;
+const NUM_CONSTRAINTS: usize = F128::STATE_WIDTH + 6; // TODO
 
 /// Degree of operation decoder constraints.
 const CONSTRAINT_DEGREES: [usize; NUM_CONSTRAINTS] = [
-    2, 2, 2, 2, 2,      // op_bits are binary
-    2,                  // push_flag is binary
-    5,                  // push_flag is set after a PUSH operation
-    2,                  // push_flag gets reset on the next step
-    2,                  // when push_flag = 0, op_bits are a binary decomposition of op_code
-    6, 6, 6, 6   // op_code hash accumulator constraints
+    2, 2, 2, 2, 2,  // op_bits are binary
+    6,              // when previous op is not a push, op_bits are a binary decomposition of op_code
+    6, 6, 6, 6      // op_code hash accumulator constraints
 ];
 
 // TYPES AND INTERFACES
@@ -93,21 +90,12 @@ impl <T> Decoder <T>
             result[i] = is_binary(op_bits[i]);
         }
 
-        // 1 constraint, degree 2: push_flag must be binary
-        result[5] = is_binary(current.get_push_flag());
-
-        // 1 constraint, degree 5: push_flag must be set to 1 after a PUSH operation
-        let op_flags = current.get_op_flags();
-        result[6] = T::sub(op_flags[opcodes::PUSH as usize], next.get_push_flag());
-
-        // 1 constraint, degree 2: push_flag cannot be 1 for two consecutive operations
-        result[7] = T::mul(current.get_push_flag(), next.get_push_flag());
-
-        // 1 constraint, degree 2: when push_flag = 0, op_bits must be a binary decomposition
-        // of op_code, otherwise all op_bits must be 0 (NOOP)
-        let op_bits_value = current.get_op_bits_value();
-        let op_code = T::mul(current.get_op_code(), binary_not(current.get_push_flag()));
-        result[8] = T::sub(op_code, op_bits_value);
+        // 1 constraint, degree 6: if previous operation was not a PUSH, op_bits must be a binary
+        // decomposition of op_code, otherwise all op_bits must be 0 (NOOP)
+        let was_push = current.get_op_flags()[opcodes::PUSH as usize];
+        let op_bits_value = next.get_op_bits_value();
+        let op_code = T::mul(next.get_op_code(), binary_not(was_push));
+        result[5] = T::sub(op_code, op_bits_value);
     }
 
     fn hash_opcode(&self, current: &TraceState<T>, next: &TraceState<T>, ark: &[T], result: &mut [T]) {
