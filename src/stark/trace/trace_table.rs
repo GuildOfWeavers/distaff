@@ -3,7 +3,7 @@ use crate::crypto::{ MerkleTree, HashFunction };
 use crate::processor::opcodes;
 use crate::utils::{ uninit_vector, filled_vector, as_bytes };
 use crate::stark::{ CompositionCoefficients, Accumulator, Hasher, utils };
-use super::{ TraceState, decoder, stack, MAX_REGISTER_COUNT };
+use super::{ TraceState, decoder, stack, MAX_REGISTER_COUNT, DECODER_WIDTH, PROG_HASH_RANGE };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -53,8 +53,8 @@ impl <T> TraceTable<T>
             self.unextended_length() - 1
         };
 
-        let mut result = vec![T::ZERO; <T as Accumulator>::DIGEST_SIZE];
-        for (i, j) in decoder::prog_hash_range::<T>().enumerate() {
+        let mut result = vec![T::ZERO; PROG_HASH_RANGE.end - PROG_HASH_RANGE.start];
+        for (i, j) in PROG_HASH_RANGE.enumerate() {
             result[i] = self.registers[j][last_step];
         }
         return result;
@@ -96,7 +96,7 @@ impl <T> TraceTable<T>
 
     /// Returns the number of registers used by the stack.
     pub fn max_stack_depth(&self) -> usize {
-        return self.registers.len() - decoder::num_registers::<T>();
+        return self.registers.len() - DECODER_WIDTH;
     }
 
     /// Returns trace of the register at the specified `index`.
@@ -113,7 +113,7 @@ impl <T> TraceTable<T>
 
     /// Returns trace of the stack register at the specified `index`.
     pub fn get_stack_register_trace(&self, index: usize) -> &[T] {
-        return &self.registers[index + decoder::num_registers::<T>()];
+        return &self.registers[index + DECODER_WIDTH];
     }
 
     /// Returns values of all registers at the specified `positions`.
