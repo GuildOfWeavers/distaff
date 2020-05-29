@@ -10,6 +10,7 @@ use super::{
     OP_BITS_RANGE,
     OP_ACC_RANGE,
     PROG_HASH_RANGE,
+    AUX_WIDTH,
 };
 
 // TYPES AND INTERFACES
@@ -88,6 +89,10 @@ impl <T> TraceState<T>
 
     pub fn get_stack(&self) -> &[T] {
         return &self.registers[DECODER_WIDTH..];
+    }
+
+    pub fn get_user_stack(&self) -> &[T] {
+        return &self.registers[(DECODER_WIDTH + AUX_WIDTH)..];
     }
 
     pub fn compute_stack_depth(trace_register_count: usize) -> usize {

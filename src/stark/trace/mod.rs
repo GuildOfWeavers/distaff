@@ -35,12 +35,13 @@ pub const PROG_HASH_RANGE   : Range<usize> = Range { start: 6, end:  8 };
 // ================================================================================================
 // Stack trace consists of at between 3 and 32 registers and has the following layout:
 //
-// ╒══ aux ════╕╒════════════════ user stack ══════════════════╕
+// ╒══ aux ════╕╒═════════════ user registers ═════════════════╕
 //    0      1    2    .................................    30
 // ├─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┤
 
 pub const MAX_INPUTS        : usize = 8;
 pub const MAX_OUTPUTS       : usize = 8;
-pub const MIN_STACK_DEPTH   : usize = 8;
+pub const MIN_STACK_DEPTH   : usize = 10;
 pub const MAX_STACK_DEPTH   : usize = 32;
 pub const AUX_WIDTH         : usize = 2;
+pub const HASH_STATE_WIDTH  : usize = 4;

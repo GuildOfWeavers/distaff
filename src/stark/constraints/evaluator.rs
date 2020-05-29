@@ -216,10 +216,10 @@ impl <T> Evaluator<T>
         }
 
         // make sure stack registers are set to inputs
-        let stack = current.get_stack();
+        let user_stack = current.get_user_stack();
         for i in 0..self.inputs.len() {
             cc_idx += 2;
-            let val = T::sub(stack[i], self.inputs[i]);
+            let val = T::sub(user_stack[i], self.inputs[i]);
             i_result = T::add(i_result, T::mul(val, cc[cc_idx]));
             result_adj = T::add(result_adj, T::mul(val, cc[cc_idx + 1]));
         }
@@ -258,7 +258,7 @@ impl <T> Evaluator<T>
         // make sure stack registers are set to outputs
         for i in 0..self.outputs.len() {
             cc_idx += 2;
-            let val = T::sub(stack[i], self.outputs[i]);
+            let val = T::sub(user_stack[i], self.outputs[i]);
             f_result = T::add(f_result, T::mul(val, cc[cc_idx]));
             result_adj = T::add(result_adj, T::mul(val, cc[cc_idx + 1]));
         }

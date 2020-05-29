@@ -37,9 +37,9 @@ pub fn execute(program: &[F128], inputs: &[F128], num_outputs: usize, options: &
         trace.unextended_length(),
         now.elapsed().as_millis());
 
-    // copy the stack state the the last step to return as output
+    // copy the user stack state the the last step to return as output
     let last_state = trace.get_state(trace.unextended_length() - 1);
-    let outputs = last_state.get_stack()[0..num_outputs].to_vec();
+    let outputs = last_state.get_user_stack()[0..num_outputs].to_vec();
 
     // construct program hash
     let mut program_hash = [0u8; 32];

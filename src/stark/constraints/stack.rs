@@ -1,6 +1,6 @@
-use std::{ cmp, marker::PhantomData };
+use std::{ marker::PhantomData };
 use crate::math::{ FiniteField };
-use crate::stark::{ TraceState, Accumulator, MIN_STACK_DEPTH, MAX_STACK_DEPTH };
+use crate::stark::{ TraceState, Accumulator, MAX_STACK_DEPTH };
 use crate::processor::{ opcodes };
 
 // CONSTANTS
@@ -34,34 +34,46 @@ impl <T> Stack<T>
 
         let op_flags = current.get_op_flags();
         let current_stack = current.get_stack();
-        let mut expected_stack = vec![T::ZERO; cmp::max(self.stack_depth, MIN_STACK_DEPTH)];
-    
-        T::mul_acc(&mut expected_stack,       current_stack, op_flags[opcodes::BEGIN as usize]);
-        T::mul_acc(&mut expected_stack,       current_stack, op_flags[opcodes::NOOP as usize]);
-    
-        Self::op_swap(&mut expected_stack,    current_stack, op_flags[opcodes::SWAP as usize]);
-        Self::op_swap2(&mut expected_stack,   current_stack, op_flags[opcodes::SWAP2 as usize]);
-        Self::op_swap4(&mut expected_stack,   current_stack, op_flags[opcodes::SWAP4 as usize]);
-    
-        Self::op_roll4(&mut expected_stack,   current_stack, op_flags[opcodes::ROLL4 as usize]);
-        Self::op_roll8(&mut expected_stack,   current_stack, op_flags[opcodes::ROLL8 as usize]);
-
-        Self::op_choose(&mut expected_stack,  current_stack, op_flags[opcodes::CHOOSE as usize]);
-        Self::op_choose2(&mut expected_stack, current_stack, op_flags[opcodes::CHOOSE2 as usize]);
-
-        Self::op_push(&mut expected_stack,    current_stack, next.get_op_code(), op_flags[opcodes::PUSH as usize]);
-        Self::op_dup(&mut expected_stack,     current_stack, op_flags[opcodes::DUP as usize]);
-        Self::op_dup2(&mut expected_stack,    current_stack, op_flags[opcodes::DUP2 as usize]);
-        Self::op_dup4(&mut expected_stack,    current_stack, op_flags[opcodes::DUP4 as usize]);
-    
-        Self::op_drop(&mut expected_stack,    current_stack, op_flags[opcodes::DROP as usize]);
-        Self::op_add(&mut expected_stack,     current_stack, op_flags[opcodes::ADD as usize]);
-        Self::op_sub(&mut expected_stack,     current_stack, op_flags[opcodes::SUB as usize]);
-        Self::op_mul(&mut expected_stack,     current_stack, op_flags[opcodes::MUL as usize]);
-    
         let next_stack = next.get_stack();
-        for i in 0..self.stack_depth {
-            result[i] = T::sub(next_stack[i], expected_stack[i]);
+        let next_op = next.get_op_code();
+        
+        // TODO: use AUX_WIDTH
+        let c_user_stack = &current_stack[2..];
+        let n_user_stack = &next_stack[2..];
+
+        self.simple_transitions(c_user_stack, n_user_stack, op_flags, next_op, &mut result[2..]);
+    }
+
+    // TODO: use NUM_LD_OPS
+    fn simple_transitions(&self, current: &[T], next: &[T], op_flags: [T; 32], next_op: T, result: &mut [T]) {
+        
+        let mut expected = vec![T::ZERO; current.len()];
+
+        T::mul_acc(&mut expected,       current, op_flags[opcodes::BEGIN as usize]);
+        T::mul_acc(&mut expected,       current, op_flags[opcodes::NOOP as usize]);
+    
+        Self::op_swap(&mut expected,    current, op_flags[opcodes::SWAP as usize]);
+        Self::op_swap2(&mut expected,   current, op_flags[opcodes::SWAP2 as usize]);
+        Self::op_swap4(&mut expected,   current, op_flags[opcodes::SWAP4 as usize]);
+    
+        Self::op_roll4(&mut expected,   current, op_flags[opcodes::ROLL4 as usize]);
+        Self::op_roll8(&mut expected,   current, op_flags[opcodes::ROLL8 as usize]);
+
+        Self::op_choose(&mut expected,  current, op_flags[opcodes::CHOOSE as usize]);
+        Self::op_choose2(&mut expected, current, op_flags[opcodes::CHOOSE2 as usize]);
+
+        Self::op_push(&mut expected,    current, next_op, op_flags[opcodes::PUSH as usize]);
+        Self::op_dup(&mut expected,     current, op_flags[opcodes::DUP as usize]);
+        Self::op_dup2(&mut expected,    current, op_flags[opcodes::DUP2 as usize]);
+        Self::op_dup4(&mut expected,    current, op_flags[opcodes::DUP4 as usize]);
+    
+        Self::op_drop(&mut expected,    current, op_flags[opcodes::DROP as usize]);
+        Self::op_add(&mut expected,     current, op_flags[opcodes::ADD as usize]);
+        Self::op_sub(&mut expected,     current, op_flags[opcodes::SUB as usize]);
+        Self::op_mul(&mut expected,     current, op_flags[opcodes::MUL as usize]);
+    
+        for i in 0..result.len() {
+            result[i] = T::sub(next[i], expected[i]);
         }
     }
 
