@@ -42,7 +42,7 @@ impl <T> Evaluator<T>
 
         // instantiate decoder and stack constraint evaluators 
         let decoder = Decoder::new(trace_length, extension_factor);
-        let stack = Stack::new(stack_depth);
+        let stack = Stack::new(trace_length, extension_factor, stack_depth);
 
         // build a list of transition constraint degrees
         let t_constraint_degrees = [
@@ -84,7 +84,7 @@ impl <T> Evaluator<T>
         
         // instantiate decoder and stack constraint evaluators 
         let decoder = Decoder::new(trace_length, extension_factor);
-        let stack = Stack::new(stack_depth);
+        let stack = Stack::new(trace_length, extension_factor, stack_depth);
 
         // build a list of transition constraint degrees
         let t_constraint_degrees = [
@@ -144,7 +144,7 @@ impl <T> Evaluator<T>
         // evaluate transition constraints
         let mut evaluations = vec![T::ZERO; self.t_constraint_num];
         self.decoder.evaluate(&current, &next, step, &mut evaluations);
-        self.stack.evaluate(&current, &next, &mut evaluations[self.decoder.constraint_count()..]);
+        self.stack.evaluate(&current, &next, step, &mut evaluations[self.decoder.constraint_count()..]);
 
         // when in debug mode, save transition evaluations before they are combined
         #[cfg(debug_assertions)]
@@ -171,7 +171,7 @@ impl <T> Evaluator<T>
         // evaluate transition constraints
         let mut evaluations = vec![T::ZERO; self.t_constraint_num];
         self.decoder.evaluate_at(&current, &next, x, &mut evaluations);
-        self.stack.evaluate(&current, &next, &mut evaluations[self.decoder.constraint_count()..]);
+        self.stack.evaluate_at(&current, &next, x, &mut evaluations[self.decoder.constraint_count()..]);
 
         // compute a pseudo-random linear combination of all transition constraints
         return self.combine_transition_constraints(&evaluations, x);

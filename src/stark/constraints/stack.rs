@@ -1,52 +1,75 @@
-use std::{ marker::PhantomData };
-use crate::math::{ FiniteField };
-use crate::stark::{ TraceState, Accumulator, MAX_STACK_DEPTH };
+use std::cmp;
+use crate::math::{ FiniteField, polynom };
+use crate::stark::{ TraceState, Accumulator, Hasher, MAX_STACK_DEPTH };
 use crate::processor::{ opcodes };
 
 // CONSTANTS
 // ================================================================================================
 // TODO: set correct degrees for all stack registers
-const CONSTRAINT_DEGREES: [usize; MAX_STACK_DEPTH] = [7; MAX_STACK_DEPTH];
+const CONSTRAINT_DEGREES: [usize; MAX_STACK_DEPTH] = [8; MAX_STACK_DEPTH];
 
 // TYPES AND INTERFACES
 // ================================================================================================
-pub struct Stack<T> {
-    stack_depth : usize,
-    phantom     : PhantomData<T>
+pub struct Stack<T: FiniteField> {
+    stack_depth     : usize,
+    hash_evaluator  : HashEvaluator<T>,
 }
 
 // STACK CONSTRAINT EVALUATOR IMPLEMENTATION
 // ================================================================================================
 impl <T> Stack<T>
-    where T: FiniteField + Accumulator
+    where T: FiniteField + Accumulator + Hasher
 {
-    pub fn new(stack_depth: usize) -> Stack<T> {
-        return Stack { stack_depth, phantom: PhantomData };
+    pub fn new(trace_length: usize, extension_factor: usize, stack_depth: usize) -> Stack<T> {
+
+        let hash_evaluator = HashEvaluator::new(trace_length, extension_factor);
+
+        return Stack { stack_depth, hash_evaluator };
     }
 
     pub fn constraint_degrees(&self) -> &[usize] {
         return &CONSTRAINT_DEGREES[..self.stack_depth];
     }
 
-    // EVALUATOR FUNCTION
+    // EVALUATOR FUNCTIONS
     // --------------------------------------------------------------------------------------------
-    pub fn evaluate(&self, current: &TraceState<T>, next: &TraceState<T>, result: &mut [T]) {
+    pub fn evaluate(&self, current: &TraceState<T>, next: &TraceState<T>, step: usize, result: &mut [T]) {
 
         let op_flags = current.get_op_flags();
         let current_stack = current.get_stack();
         let next_stack = next.get_stack();
-        let next_op = next.get_op_code();
-        
-        // TODO: use AUX_WIDTH
-        let c_user_stack = &current_stack[2..];
-        let n_user_stack = &next_stack[2..];
 
-        self.simple_transitions(c_user_stack, n_user_stack, op_flags, next_op, &mut result[2..]);
+        // evaluate constraints for simple operations
+        let next_op = next.get_op_code();
+        self.simple_transitions(current_stack, next_stack, op_flags, next_op, result);
+
+        // evaluate constraints for hash operation
+        let hash_flag = op_flags[opcodes::HASH as usize];
+        self.hash_evaluator.evaluate(current_stack, next_stack, step, hash_flag, result);
+    }
+
+    pub fn evaluate_at(&self, current: &TraceState<T>, next: &TraceState<T>, x: T, result: &mut [T]) {
+        let op_flags = current.get_op_flags();
+        let current_stack = current.get_stack();
+        let next_stack = next.get_stack();
+
+        // evaluate constraints for simple operations
+        let next_op = next.get_op_code();
+        self.simple_transitions(current_stack, next_stack, op_flags, next_op, result);
+
+        // evaluate constraints for hash operation
+        let hash_flag = op_flags[opcodes::HASH as usize];
+        self.hash_evaluator.evaluate_at(current_stack, next_stack, x, hash_flag, result);
     }
 
     // TODO: use NUM_LD_OPS
     fn simple_transitions(&self, current: &[T], next: &[T], op_flags: [T; 32], next_op: T, result: &mut [T]) {
         
+        // TODO: use AUX_WIDTH
+        let current = &current[2..];
+        let next = &next[2..];
+        let result = &mut result[2..];
+
         let mut expected = vec![T::ZERO; current.len()];
 
         T::mul_acc(&mut expected,       current, op_flags[opcodes::BEGIN as usize]);
@@ -194,5 +217,81 @@ impl <T> Stack<T>
         next[0] = T::add(next[0], T::mul(op_result, op_flag));
         T::mul_acc(&mut next[1..n], &current[2..], op_flag);
     }
+}
 
+// HASH EVALUATOR
+// ================================================================================================
+struct HashEvaluator<T: FiniteField> {
+    trace_length    : usize,
+    cycle_length    : usize,
+    ark_values      : Vec<Vec<T>>,
+    ark_polys       : Vec<Vec<T>>,
+}
+
+impl<T> HashEvaluator <T>
+    where T: FiniteField + Hasher
+{
+    pub fn new(trace_length: usize, extension_factor: usize) -> HashEvaluator<T> {
+        let (ark_polys, ark_evaluations) = T::get_extended_constants(extension_factor);
+
+        let cycle_length = T::NUM_ROUNDS * extension_factor;
+        let mut ark_values = Vec::with_capacity(cycle_length);
+        for i in 0..(T::NUM_ROUNDS * extension_factor) {
+            ark_values.push(vec![T::ZERO; 2 * T::STATE_WIDTH]);
+            for j in 0..(2 * T::STATE_WIDTH) {
+                ark_values[i][j] = ark_evaluations[j][i];
+            }
+        }
+
+        return HashEvaluator { trace_length, cycle_length, ark_values, ark_polys };
+    }
+
+    pub fn evaluate(&self, current: &[T], next: &[T], step: usize, op_flag: T, result: &mut [T]) {
+        let ark = &self.ark_values[step % self.cycle_length];
+        self.eval_hash(current, next, ark, op_flag, result);
+        self.eval_rest(current, next, op_flag, result);
+    }
+
+    pub fn evaluate_at(&self, current: &[T], next: &[T], x: T, op_flag: T, result: &mut [T]) {
+        let num_cycles = T::from_usize(self.trace_length / T::NUM_ROUNDS);
+        let x = T::exp(x, num_cycles);
+
+        let mut ark = vec![T::ZERO; 2 * T::STATE_WIDTH];
+        for i in 0..ark.len() {
+            ark[i] = polynom::eval(&self.ark_polys[i], x);
+        }
+        self.eval_hash(current, next, &ark, op_flag, result);
+        self.eval_rest(current, next, op_flag, result);
+    }
+
+    fn eval_hash(&self, current: &[T], next: &[T], ark: &[T], op_flag: T, result: &mut [T]) {
+
+        let mut state_part1 = vec![T::ZERO; T::STATE_WIDTH];    // TODO: convert to array
+        state_part1.copy_from_slice(&current[..6]);
+        let mut state_part2 = vec![T::ZERO; T::STATE_WIDTH];    // TODO: convert to array
+        state_part2.copy_from_slice(&next[..6]);
+
+        for i in 0..T::STATE_WIDTH {
+            state_part1[i] = T::add(state_part1[i], ark[i]);
+        }
+        T::apply_sbox(&mut state_part1);
+        T::apply_mds(&mut state_part1);
+    
+        T::apply_inv_mds(&mut state_part2);
+        T::apply_sbox(&mut state_part2);
+        for i in 0..T::STATE_WIDTH {
+            state_part2[i] = T::sub(state_part2[i], ark[T::STATE_WIDTH + i]);
+        }
+
+        for i in 0..cmp::min(result.len(), 6) {
+            result[i] = T::mul(T::sub(state_part2[i], state_part1[i]), op_flag);
+        }
+
+    }
+
+    fn eval_rest(&self, current: &[T], next: &[T], op_flag: T, result: &mut [T]) {
+        for i in 6..result.len() {
+            result[i] = T::add(result[i], T::sub(next[i], T::mul(current[i], op_flag)));
+        }
+    }
 }
