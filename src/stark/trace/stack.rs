@@ -1,9 +1,10 @@
 use std::cmp;
 use crate::math::{ FiniteField };
 use crate::processor::opcodes;
+use crate::stark::{ HASH_STATE_RATE };
 use crate::stark::utils::{ Hasher };
 use crate::utils::{ filled_vector };
-use super::{ MAX_INPUTS, MIN_STACK_DEPTH, MAX_STACK_DEPTH, AUX_WIDTH, HASH_STATE_WIDTH };
+use super::{ MAX_INPUTS, MIN_STACK_DEPTH, MAX_STACK_DEPTH, AUX_WIDTH };
 
 // CONSTANTS
 // ================================================================================================
@@ -260,7 +261,7 @@ impl <T> StackTrace<T>
     }
 
     fn hash(&mut self, step: usize) {
-        assert!(self.depth >= HASH_STATE_WIDTH, "stack underflow at step {}", step);
+        assert!(self.depth >= HASH_STATE_RATE, "stack underflow at step {}", step);
         let mut state = [
             self.aux_registers[0][step],
             self.aux_registers[1][step],
@@ -279,7 +280,7 @@ impl <T> StackTrace<T>
         self.usr_registers[2][step + 1] = state[4];
         self.usr_registers[3][step + 1] = state[5];
 
-        self.copy_state(step, HASH_STATE_WIDTH);
+        self.copy_state(step, HASH_STATE_RATE);
     }
 
     // HELPER METHODS
