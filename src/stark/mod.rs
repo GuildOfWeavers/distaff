@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 mod trace;
 mod constraints;
 mod options;
@@ -7,14 +9,7 @@ mod proof;
 mod fri;
 mod utils;
 
-pub use trace::{
-    TraceTable, TraceState,
-    MAX_REGISTER_COUNT,
-    MIN_STACK_DEPTH,
-    MAX_STACK_DEPTH,
-    MAX_INPUTS,
-    MAX_OUTPUTS,
-    MIN_TRACE_LENGTH };
+pub use trace::{ TraceTable, TraceState };
 
 pub use constraints::{
     ConstraintEvaluator,
@@ -34,20 +29,51 @@ pub use proof::{ StarkProof, DeepValues };
 pub use prover::{ prove };
 pub use verifier::{ verify };
 
+// GENERAL CONSTANTS
+// ------------------------------------------------------------------------------------------------
+pub const MIN_TRACE_LENGTH  : usize = 16;
+pub const MAX_REGISTER_COUNT: usize = 128;
 
-const NUM_LD_OPS        : usize = 32;
-const STACK_HEAD_SIZE   : usize = 2;
-
-// HASH OPERATION CONSTANTS
+// HASH OPERATION
 // ------------------------------------------------------------------------------------------------
 const HASH_STATE_RATE       : usize = 4;
 const HASH_STATE_CAPACITY   : usize = 2;
 const HASH_STATE_WIDTH      : usize = HASH_STATE_RATE + HASH_STATE_CAPACITY;
 const HASH_CYCLE_LENGTH     : usize = 16;
 
-// HASH ACCUMULATOR CONSTANTS
+// HASH ACCUMULATOR
 // ------------------------------------------------------------------------------------------------
 const ACC_STATE_RATE        : usize = 2;
 const ACC_STATE_CAPACITY    : usize = 2;
 const ACC_STATE_WIDTH       : usize = ACC_STATE_RATE + ACC_STATE_CAPACITY;
 const ACC_CYCLE_LENGTH      : usize = 16;
+
+// DECODER TRACE
+// ------------------------------------------------------------------------------------------------
+//
+//   op  ╒═════════ op_bits ═══════════╕╒══════ op_acc ════════╕
+//    0      1    2     3     4     5     6     7     8     9
+// ├─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┤
+
+const NUM_OP_BITS           : usize = 5;
+const NUM_LD_OPS            : usize = 32;
+
+const DECODER_WIDTH         : usize = 1 + NUM_OP_BITS + ACC_STATE_WIDTH;
+
+const OP_CODE_INDEX         : usize = 0;
+const OP_BITS_RANGE         : Range<usize> = Range { start: 1, end: 6 };
+const OP_ACC_RANGE          : Range<usize> = Range { start: 6, end: 6 + ACC_STATE_WIDTH };
+const PROG_HASH_RANGE       : Range<usize> = Range { start: 6, end: 6 + ACC_STATE_RATE  };
+
+// STACK TRACE
+// ------------------------------------------------------------------------------------------------
+//
+// ╒══ head ═══╕╒═════════════ user registers ═════════════════╕
+//    0      1    2    .................................    31
+// ├─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┤
+
+pub const MAX_INPUTS        : usize = 8;
+pub const MAX_OUTPUTS       : usize = 8;
+pub const MIN_STACK_DEPTH   : usize = 10;
+pub const MAX_STACK_DEPTH   : usize = 32;
+const STACK_HEAD_SIZE       : usize = 2;

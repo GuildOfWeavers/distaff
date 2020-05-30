@@ -3,7 +3,8 @@ use crate::crypto::{ MerkleTree, HashFunction };
 use crate::processor::opcodes;
 use crate::utils::{ uninit_vector, filled_vector, as_bytes };
 use crate::stark::{ CompositionCoefficients, Accumulator, Hasher, utils };
-use super::{ TraceState, decoder, stack, MAX_REGISTER_COUNT, DECODER_WIDTH, PROG_HASH_RANGE };
+use crate::stark::{ MAX_REGISTER_COUNT, DECODER_WIDTH, PROG_HASH_RANGE };
+use super::{ TraceState, decoder, stack };
 
 // TYPES AND INTERFACES
 // ================================================================================================

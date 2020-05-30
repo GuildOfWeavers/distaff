@@ -1,15 +1,14 @@
 use std::cmp;
 use crate::math::{ FiniteField };
 use crate::processor::opcodes;
-use crate::stark::{ HASH_STATE_RATE };
+use crate::stark::{ MAX_INPUTS, MIN_STACK_DEPTH, MAX_STACK_DEPTH, STACK_HEAD_SIZE, HASH_STATE_RATE };
 use crate::stark::utils::{ Hasher };
 use crate::utils::{ filled_vector };
-use super::{ MAX_INPUTS, MIN_STACK_DEPTH, MAX_STACK_DEPTH, AUX_WIDTH };
 
 // CONSTANTS
 // ================================================================================================
-const MIN_USR_STACK_DEPTH: usize = MIN_STACK_DEPTH - AUX_WIDTH;
-const MAX_USR_STACK_DEPTH: usize = MAX_STACK_DEPTH - AUX_WIDTH;
+const MIN_USR_STACK_DEPTH: usize = MIN_STACK_DEPTH - STACK_HEAD_SIZE;
+const MAX_USR_STACK_DEPTH: usize = MAX_STACK_DEPTH - STACK_HEAD_SIZE;
 
 // TRACE BUILDER
 // ================================================================================================
@@ -28,23 +27,23 @@ pub fn execute<T>(program: &[T], inputs: &[T], extension_factor: usize) -> Vec<V
 
     // allocate space for stack registers and populate the first state with input values
     let init_stack_depth = cmp::max(inputs.len(), MIN_USR_STACK_DEPTH);
-    let mut usr_registers: Vec<Vec<T>> = Vec::with_capacity(init_stack_depth);
+    let mut user_registers: Vec<Vec<T>> = Vec::with_capacity(init_stack_depth);
     for i in 0..init_stack_depth {
         let mut register = filled_vector(trace_length, domain_size, T::ZERO);
         if i < inputs.len() { 
             register[0] = inputs[i];
         }
-        usr_registers.push(register);
+        user_registers.push(register);
     }
 
-    let mut aux_registers = Vec::with_capacity(AUX_WIDTH);
-    for _ in 0..AUX_WIDTH {
-        aux_registers.push(filled_vector(trace_length, domain_size, T::ZERO));
+    let mut head_registers = Vec::with_capacity(STACK_HEAD_SIZE);
+    for _ in 0..STACK_HEAD_SIZE {
+        head_registers.push(filled_vector(trace_length, domain_size, T::ZERO));
     }
 
     let mut stack = StackTrace {
-        aux_registers,
-        usr_registers,
+        head_registers,
+        user_registers,
         max_depth: inputs.len(),
         depth: inputs.len()
     };
@@ -93,10 +92,10 @@ pub fn execute<T>(program: &[T], inputs: &[T], extension_factor: usize) -> Vec<V
     }
 
     // keep only the registers used during program execution
-    stack.usr_registers.truncate(stack.max_depth);
-    let mut registers = Vec::with_capacity(AUX_WIDTH + stack.usr_registers.len());
-    registers.append(&mut stack.aux_registers);
-    registers.append(&mut stack.usr_registers);
+    stack.user_registers.truncate(stack.max_depth);
+    let mut registers = Vec::with_capacity(STACK_HEAD_SIZE + stack.user_registers.len());
+    registers.append(&mut stack.head_registers);
+    registers.append(&mut stack.user_registers);
 
     return registers;
 }
@@ -104,8 +103,8 @@ pub fn execute<T>(program: &[T], inputs: &[T], extension_factor: usize) -> Vec<V
 // TYPES AND INTERFACES
 // ================================================================================================
 struct StackTrace<T: FiniteField + Hasher> {
-    aux_registers   : Vec<Vec<T>>,
-    usr_registers   : Vec<Vec<T>>,
+    head_registers  : Vec<Vec<T>>,
+    user_registers  : Vec<Vec<T>>,
     max_depth       : usize,
     depth           : usize,
 }
@@ -123,63 +122,63 @@ impl <T> StackTrace<T>
 
     fn swap(&mut self, step: usize) {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
-        self.usr_registers[0][step + 1] = self.usr_registers[1][step];
-        self.usr_registers[1][step + 1] = self.usr_registers[0][step];
+        self.user_registers[0][step + 1] = self.user_registers[1][step];
+        self.user_registers[1][step + 1] = self.user_registers[0][step];
         self.copy_state(step, 2);
     }
 
     fn swap2(&mut self, step: usize) {
         assert!(self.depth >= 4, "stack underflow at step {}", step);
-        self.usr_registers[0][step + 1] = self.usr_registers[2][step];
-        self.usr_registers[1][step + 1] = self.usr_registers[3][step];
-        self.usr_registers[2][step + 1] = self.usr_registers[0][step];
-        self.usr_registers[3][step + 1] = self.usr_registers[1][step];
+        self.user_registers[0][step + 1] = self.user_registers[2][step];
+        self.user_registers[1][step + 1] = self.user_registers[3][step];
+        self.user_registers[2][step + 1] = self.user_registers[0][step];
+        self.user_registers[3][step + 1] = self.user_registers[1][step];
         self.copy_state(step, 4);
     }
 
     fn swap4(&mut self, step: usize) {
         assert!(self.depth >= 8, "stack underflow at step {}", step);
-        self.usr_registers[0][step + 1] = self.usr_registers[4][step];
-        self.usr_registers[1][step + 1] = self.usr_registers[5][step];
-        self.usr_registers[2][step + 1] = self.usr_registers[6][step];
-        self.usr_registers[3][step + 1] = self.usr_registers[7][step];
-        self.usr_registers[4][step + 1] = self.usr_registers[0][step];
-        self.usr_registers[5][step + 1] = self.usr_registers[1][step];
-        self.usr_registers[6][step + 1] = self.usr_registers[2][step];
-        self.usr_registers[7][step + 1] = self.usr_registers[3][step];
+        self.user_registers[0][step + 1] = self.user_registers[4][step];
+        self.user_registers[1][step + 1] = self.user_registers[5][step];
+        self.user_registers[2][step + 1] = self.user_registers[6][step];
+        self.user_registers[3][step + 1] = self.user_registers[7][step];
+        self.user_registers[4][step + 1] = self.user_registers[0][step];
+        self.user_registers[5][step + 1] = self.user_registers[1][step];
+        self.user_registers[6][step + 1] = self.user_registers[2][step];
+        self.user_registers[7][step + 1] = self.user_registers[3][step];
         self.copy_state(step, 8);
     }
 
     fn roll4(&mut self, step: usize) {
         assert!(self.depth >= 4, "stack underflow at step {}", step);
-        self.usr_registers[0][step + 1] = self.usr_registers[3][step];
-        self.usr_registers[1][step + 1] = self.usr_registers[0][step];
-        self.usr_registers[2][step + 1] = self.usr_registers[1][step];
-        self.usr_registers[3][step + 1] = self.usr_registers[2][step];
+        self.user_registers[0][step + 1] = self.user_registers[3][step];
+        self.user_registers[1][step + 1] = self.user_registers[0][step];
+        self.user_registers[2][step + 1] = self.user_registers[1][step];
+        self.user_registers[3][step + 1] = self.user_registers[2][step];
         self.copy_state(step, 4);
     }
 
     fn roll8(&mut self, step: usize) {
         assert!(self.depth >= 8, "stack underflow at step {}", step);
-        self.usr_registers[0][step + 1] = self.usr_registers[7][step];
-        self.usr_registers[1][step + 1] = self.usr_registers[0][step];
-        self.usr_registers[2][step + 1] = self.usr_registers[1][step];
-        self.usr_registers[3][step + 1] = self.usr_registers[2][step];
-        self.usr_registers[4][step + 1] = self.usr_registers[3][step];
-        self.usr_registers[5][step + 1] = self.usr_registers[4][step];
-        self.usr_registers[6][step + 1] = self.usr_registers[5][step];
-        self.usr_registers[7][step + 1] = self.usr_registers[6][step];
+        self.user_registers[0][step + 1] = self.user_registers[7][step];
+        self.user_registers[1][step + 1] = self.user_registers[0][step];
+        self.user_registers[2][step + 1] = self.user_registers[1][step];
+        self.user_registers[3][step + 1] = self.user_registers[2][step];
+        self.user_registers[4][step + 1] = self.user_registers[3][step];
+        self.user_registers[5][step + 1] = self.user_registers[4][step];
+        self.user_registers[6][step + 1] = self.user_registers[5][step];
+        self.user_registers[7][step + 1] = self.user_registers[6][step];
         self.copy_state(step, 8);
     }
 
     fn choose(&mut self, step: usize) {
         assert!(self.depth >= 3, "stack underflow at step {}", step);
-        let condition = self.usr_registers[2][step];
+        let condition = self.user_registers[2][step];
         if condition == T::ONE {
-            self.usr_registers[0][step + 1] = self.usr_registers[0][step];
+            self.user_registers[0][step + 1] = self.user_registers[0][step];
         }
         else if condition == T::ZERO {
-            self.usr_registers[0][step + 1] = self.usr_registers[1][step];
+            self.user_registers[0][step + 1] = self.user_registers[1][step];
         }
         else {
             assert!(false, "cannot CHOOSE on a non-binary condition");
@@ -189,14 +188,14 @@ impl <T> StackTrace<T>
 
     fn choose2(&mut self, step: usize) {
         assert!(self.depth >= 6, "stack underflow at step {}", step);
-        let condition = self.usr_registers[4][step];
+        let condition = self.user_registers[4][step];
         if condition == T::ONE {
-            self.usr_registers[0][step + 1] = self.usr_registers[0][step];
-            self.usr_registers[1][step + 1] = self.usr_registers[1][step];
+            self.user_registers[0][step + 1] = self.user_registers[0][step];
+            self.user_registers[1][step + 1] = self.user_registers[1][step];
         }
         else if condition == T::ZERO {
-            self.usr_registers[0][step + 1] = self.usr_registers[2][step];
-            self.usr_registers[1][step + 1] = self.usr_registers[3][step];
+            self.user_registers[0][step + 1] = self.user_registers[2][step];
+            self.user_registers[1][step + 1] = self.user_registers[3][step];
         }
         else {
             assert!(false, "cannot CHOOSE on a non-binary condition");
@@ -206,29 +205,29 @@ impl <T> StackTrace<T>
 
     fn push(&mut self, step: usize, value: T) {
         self.shift_right(step, 0, 1);
-        self.usr_registers[0][step + 1] = value;
+        self.user_registers[0][step + 1] = value;
     }
 
     fn dup(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
         self.shift_right(step, 0, 1);
-        self.usr_registers[0][step + 1] = self.usr_registers[0][step];
+        self.user_registers[0][step + 1] = self.user_registers[0][step];
     }
 
     fn dup2(&mut self, step: usize) {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
         self.shift_right(step, 0, 2);
-        self.usr_registers[0][step + 1] = self.usr_registers[0][step];
-        self.usr_registers[1][step + 1] = self.usr_registers[1][step];
+        self.user_registers[0][step + 1] = self.user_registers[0][step];
+        self.user_registers[1][step + 1] = self.user_registers[1][step];
     }
 
     fn dup4(&mut self, step: usize) {
         assert!(self.depth >= 4, "stack underflow at step {}", step);
         self.shift_right(step, 0, 4);
-        self.usr_registers[0][step + 1] = self.usr_registers[0][step];
-        self.usr_registers[1][step + 1] = self.usr_registers[1][step];
-        self.usr_registers[2][step + 1] = self.usr_registers[2][step];
-        self.usr_registers[3][step + 1] = self.usr_registers[3][step];
+        self.user_registers[0][step + 1] = self.user_registers[0][step];
+        self.user_registers[1][step + 1] = self.user_registers[1][step];
+        self.user_registers[2][step + 1] = self.user_registers[2][step];
+        self.user_registers[3][step + 1] = self.user_registers[3][step];
     }
 
     fn drop(&mut self, step: usize) {
@@ -238,47 +237,47 @@ impl <T> StackTrace<T>
 
     fn add(&mut self, step: usize) {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
-        let x = self.usr_registers[0][step];
-        let y = self.usr_registers[1][step];
-        self.usr_registers[0][step + 1] = T::add(x, y);
+        let x = self.user_registers[0][step];
+        let y = self.user_registers[1][step];
+        self.user_registers[0][step + 1] = T::add(x, y);
         self.shift_left(step, 2, 1);
     }
 
     fn sub(&mut self, step: usize) {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
-        let x = self.usr_registers[0][step];
-        let y = self.usr_registers[1][step];
-        self.usr_registers[0][step + 1] = T::sub(y, x);
+        let x = self.user_registers[0][step];
+        let y = self.user_registers[1][step];
+        self.user_registers[0][step + 1] = T::sub(y, x);
         self.shift_left(step, 2, 1);
     }
 
     fn mul(&mut self, step: usize) {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
-        let x = self.usr_registers[0][step];
-        let y = self.usr_registers[1][step];
-        self.usr_registers[0][step + 1] = T::mul(x, y);
+        let x = self.user_registers[0][step];
+        let y = self.user_registers[1][step];
+        self.user_registers[0][step + 1] = T::mul(x, y);
         self.shift_left(step, 2, 1);
     }
 
     fn hash(&mut self, step: usize) {
         assert!(self.depth >= HASH_STATE_RATE, "stack underflow at step {}", step);
         let mut state = [
-            self.aux_registers[0][step],
-            self.aux_registers[1][step],
-            self.usr_registers[0][step],
-            self.usr_registers[1][step],
-            self.usr_registers[2][step],
-            self.usr_registers[3][step],
+            self.head_registers[0][step],
+            self.head_registers[1][step],
+            self.user_registers[0][step],
+            self.user_registers[1][step],
+            self.user_registers[2][step],
+            self.user_registers[3][step],
         ];
 
         T::apply_round(&mut state, step);
 
-        self.aux_registers[0][step + 1] = state[0];
-        self.aux_registers[1][step + 1] = state[1];
-        self.usr_registers[0][step + 1] = state[2];
-        self.usr_registers[1][step + 1] = state[3];
-        self.usr_registers[2][step + 1] = state[4];
-        self.usr_registers[3][step + 1] = state[5];
+        self.head_registers[0][step + 1] = state[0];
+        self.head_registers[1][step + 1] = state[1];
+        self.user_registers[0][step + 1] = state[2];
+        self.user_registers[1][step + 1] = state[3];
+        self.user_registers[2][step + 1] = state[4];
+        self.user_registers[3][step + 1] = state[5];
 
         self.copy_state(step, HASH_STATE_RATE);
     }
@@ -288,8 +287,8 @@ impl <T> StackTrace<T>
 
     fn copy_state(&mut self, step: usize, start: usize,) {
         for i in start..self.depth {
-            let slot_value = self.usr_registers[i][step];
-            self.usr_registers[i][step + 1] = slot_value;
+            let slot_value = self.user_registers[i][step];
+            self.user_registers[i][step + 1] = slot_value;
         }
     }
 
@@ -298,13 +297,13 @@ impl <T> StackTrace<T>
         
         // shift all values by pos_count to the left
         for i in start..self.depth {
-            let slot_value = self.usr_registers[i][step];
-            self.usr_registers[i - pos_count][step + 1] = slot_value;
+            let slot_value = self.user_registers[i][step];
+            self.user_registers[i - pos_count][step + 1] = slot_value;
         }
 
         // set all "shifted-in" slots to 0
         for i in (self.depth - pos_count)..self.depth {
-            self.usr_registers[i][step + 1] = T::ZERO;
+            self.user_registers[i][step + 1] = T::ZERO;
         }
 
         // stack depth has been reduced by pos_count
@@ -318,24 +317,24 @@ impl <T> StackTrace<T>
 
         if self.depth > self.max_depth {
             self.max_depth += pos_count;
-            if self.max_depth > self.usr_registers.len() {
-                self.add_registers(self.max_depth - self.usr_registers.len());
+            if self.max_depth > self.user_registers.len() {
+                self.add_registers(self.max_depth - self.user_registers.len());
             }
         }
 
         for i in start..(self.depth - pos_count) {
-            let slot_value = self.usr_registers[i][step];
-            self.usr_registers[i + pos_count][step + 1] = slot_value;
+            let slot_value = self.user_registers[i][step];
+            self.user_registers[i + pos_count][step + 1] = slot_value;
         }
     }
 
     /// Extends the stack by the specified number of registers
     fn add_registers(&mut self, num_registers: usize) {
-        let trace_length = self.usr_registers[0].len();
-        let trace_capacity = self.usr_registers[0].capacity();
+        let trace_length = self.user_registers[0].len();
+        let trace_capacity = self.user_registers[0].capacity();
         for _ in 0..num_registers {
             let register = filled_vector(trace_length, trace_capacity, T::ZERO);
-            self.usr_registers.push(register);
+            self.user_registers.push(register);
         }
     }
 }
@@ -348,7 +347,7 @@ mod tests {
     use crate::math::{ F128, FiniteField };
     use crate::stark::{ Hasher };
     use crate::utils::{ filled_vector };
-    use super::{ AUX_WIDTH };
+    use super::{ STACK_HEAD_SIZE };
 
     const TRACE_LENGTH: usize = 16;
     const EXTENSION_FACTOR: usize = 16;
@@ -556,32 +555,32 @@ mod tests {
     }
 
     fn init_stack(inputs: &[F128]) -> super::StackTrace<F128> {
-        let mut usr_registers: Vec<Vec<F128>> = Vec::with_capacity(super::MIN_USR_STACK_DEPTH);
+        let mut user_registers: Vec<Vec<F128>> = Vec::with_capacity(super::MIN_USR_STACK_DEPTH);
         for i in 0..super::MIN_USR_STACK_DEPTH {
             let mut register = filled_vector(TRACE_LENGTH, TRACE_LENGTH * EXTENSION_FACTOR, F128::ZERO);
             if i < inputs.len() { 
                 register[0] = inputs[i];
             }
-            usr_registers.push(register);
+            user_registers.push(register);
         }
     
-        let mut aux_registers = Vec::with_capacity(AUX_WIDTH);
-        for _ in 0..AUX_WIDTH {
-            aux_registers.push(filled_vector(TRACE_LENGTH, TRACE_LENGTH * EXTENSION_FACTOR, F128::ZERO));
+        let mut head_registers = Vec::with_capacity(STACK_HEAD_SIZE);
+        for _ in 0..STACK_HEAD_SIZE {
+            head_registers.push(filled_vector(TRACE_LENGTH, TRACE_LENGTH * EXTENSION_FACTOR, F128::ZERO));
         }
 
         return super::StackTrace {
-            aux_registers,
-            usr_registers,
+            head_registers,
+            user_registers,
             max_depth: inputs.len(),
             depth: inputs.len()
         };
     }
 
     fn get_stack_state(stack: &super::StackTrace<F128>, step: usize) -> Vec<F128> {
-        let mut state = Vec::with_capacity(stack.usr_registers.len());
-        for i in 0..stack.usr_registers.len() {
-            state.push(stack.usr_registers[i][step]);
+        let mut state = Vec::with_capacity(stack.user_registers.len());
+        for i in 0..stack.user_registers.len() {
+            state.push(stack.user_registers[i][step]);
         }
         return state;
     }

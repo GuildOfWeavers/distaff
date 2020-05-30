@@ -6,7 +6,7 @@ use crate::processor::{ opcodes };
 
 // CONSTANTS
 // ================================================================================================
-// TODO: set correct degrees for all stack registers
+// TODO: set correct degrees for stack constraints
 const CONSTRAINT_DEGREES: [usize; MAX_STACK_DEPTH] = [8; MAX_STACK_DEPTH];
 
 // TYPES AND INTERFACES
@@ -52,9 +52,9 @@ impl <T> Stack<T>
         self.hash_evaluator.evaluate(current_stack, next_stack, step, hash_flag, result);
     }
 
-    /// Evaluates stack transition constraints at the specified x coordinate. Unlike the function
-    /// above, this function can evaluate constraints at any out-of-domain point, but it is much
-    /// slower than the previous function.
+    /// Evaluates stack transition constraints at the specified x coordinate and saves the
+    /// evaluations into `result`. Unlike the function above, this function can evaluate constraints
+    /// at any out-of-domain point, but it is much slower than the previous function.
     pub fn evaluate_at(&self, current: &TraceState<T>, next: &TraceState<T>, x: T, result: &mut [T]) {
         let op_flags = current.get_op_flags();
         let current_stack = current.get_stack();
@@ -246,7 +246,7 @@ impl<T> HashEvaluator <T>
         // extend rounds constants by the specified extension factor
         let (ark_polys, ark_evaluations) = T::get_extended_constants(extension_factor);
 
-        // transpose round constant evaluations so that constant for each round
+        // transpose round constant evaluations so that constants for each round
         // are stored in a single row
         let cycle_length = HASH_CYCLE_LENGTH * extension_factor;
         let mut ark_values = Vec::with_capacity(cycle_length);

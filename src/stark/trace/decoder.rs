@@ -1,8 +1,7 @@
 use crate::processor::opcodes;
 use crate::math::{ FiniteField };
-use crate::stark::utils::{ Accumulator };
+use crate::stark::{ NUM_OP_BITS, ACC_STATE_WIDTH, DECODER_WIDTH, utils::Accumulator };
 use crate::utils::filled_vector;
-use super::{ NUM_OP_BITS, ACC_STATE_WIDTH, DECODER_WIDTH };
 
 // TRACE BUILDER
 // ================================================================================================

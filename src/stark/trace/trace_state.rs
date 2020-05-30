@@ -1,15 +1,16 @@
 use std::fmt;
 use std::cmp;
 use crate::math::{ FiniteField };
-use crate::stark::{ Accumulator, NUM_LD_OPS };
-use super::{ 
+use crate::stark::{ 
+    Accumulator,
     MIN_STACK_DEPTH,
     DECODER_WIDTH,
+    STACK_HEAD_SIZE,
     OP_CODE_INDEX,
     OP_BITS_RANGE,
     OP_ACC_RANGE,
     PROG_HASH_RANGE,
-    AUX_WIDTH,
+    NUM_LD_OPS
 };
 
 // TYPES AND INTERFACES
@@ -91,7 +92,7 @@ impl <T> TraceState<T>
     }
 
     pub fn get_user_stack(&self) -> &[T] {
-        return &self.registers[(DECODER_WIDTH + AUX_WIDTH)..];
+        return &self.registers[(DECODER_WIDTH + STACK_HEAD_SIZE)..];
     }
 
     pub fn compute_stack_depth(trace_register_count: usize) -> usize {
