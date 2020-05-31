@@ -1,5 +1,5 @@
 #[cfg(test)]
-use crate::{ ProofOptions, opcodes::f128 as opcodes, F128, Accumulator };
+use crate::{ ProofOptions, opcodes::f128 as opcodes, F128, Accumulator, Hasher };
 
 #[test]
 fn execute_verify() {
@@ -98,6 +98,34 @@ fn math_operations() {
     let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
     assert_eq!(outputs, [61]);
     assert_eq!(program_hash, expected_hash);
+
+    let result = super::verify(&program_hash, &inputs, &outputs, &proof);
+    assert_eq!(Ok(true), result);
+}
+
+#[test]
+fn hash_operations() {
+    let program = [
+        opcodes::BEGIN, opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
+        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
+        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
+        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
+        opcodes::HASH,  opcodes::HASH,  opcodes::HASH,  opcodes::HASH,
+        opcodes::HASH,  opcodes::HASH,  opcodes::HASH,  opcodes::HASH,
+        opcodes::HASH,  opcodes::HASH,  opcodes::DROP,  opcodes::DROP,
+        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
+    ];
+
+    let value = [1, 2, 3, 4];
+    let mut expected_hash = <F128 as Hasher>::digest(&value);
+    expected_hash.reverse();
+
+    let options = ProofOptions::default();
+    let inputs = [4, 3, 2, 1];
+    let num_outputs = 2;
+
+    let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
+    assert_eq!(expected_hash, outputs);
 
     let result = super::verify(&program_hash, &inputs, &outputs, &proof);
     assert_eq!(Ok(true), result);
