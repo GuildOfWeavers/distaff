@@ -79,153 +79,167 @@ impl <T> Stack<T>
         // simple operations work only with the user portion of the stack
         let current = &current[STACK_HEAD_SIZE..];
         let next = &next[STACK_HEAD_SIZE..];
+
+        let mut evaluations = vec![T::ZERO; current.len()];
+
+        enforce_no_change(&mut evaluations,     current, next, op_flags[opcodes::BEGIN as usize]);
+        enforce_no_change(&mut evaluations,     current, next, op_flags[opcodes::NOOP as usize]);
+    
+        Self::enforce_swap(&mut evaluations,    current, next, op_flags[opcodes::SWAP as usize]);
+        Self::enforce_swap2(&mut evaluations,   current, next, op_flags[opcodes::SWAP2 as usize]);
+        Self::enforce_swap4(&mut evaluations,   current, next, op_flags[opcodes::SWAP4 as usize]);
+    
+        Self::enforce_roll4(&mut evaluations,   current, next, op_flags[opcodes::ROLL4 as usize]);
+        Self::enforce_roll8(&mut evaluations,   current, next, op_flags[opcodes::ROLL8 as usize]);
+
+        Self::enforce_choose(&mut evaluations,  current, next, op_flags[opcodes::CHOOSE as usize]);
+        Self::enforce_choose2(&mut evaluations, current, next, op_flags[opcodes::CHOOSE2 as usize]);
+
+        Self::enforce_push(&mut evaluations,    current, next, next_op, op_flags[opcodes::PUSH as usize]);
+        Self::enforce_dup(&mut evaluations,     current, next, op_flags[opcodes::DUP as usize]);
+        Self::enforce_dup2(&mut evaluations,    current, next, op_flags[opcodes::DUP2 as usize]);
+        Self::enforce_dup4(&mut evaluations,    current, next, op_flags[opcodes::DUP4 as usize]);
+    
+        Self::enforce_drop(&mut evaluations,    current, next, op_flags[opcodes::DROP as usize]);
+        Self::enforce_add(&mut evaluations,     current, next, op_flags[opcodes::ADD as usize]);
+        Self::enforce_sub(&mut evaluations,     current, next, op_flags[opcodes::SUB as usize]);
+        Self::enforce_mul(&mut evaluations,     current, next, op_flags[opcodes::MUL as usize]);
+
         let result = &mut result[STACK_HEAD_SIZE..];
-
-        let mut expected = vec![T::ZERO; current.len()];
-
-        T::mul_acc(&mut expected,       current, op_flags[opcodes::BEGIN as usize]);
-        T::mul_acc(&mut expected,       current, op_flags[opcodes::NOOP as usize]);
-    
-        Self::op_swap(&mut expected,    current, op_flags[opcodes::SWAP as usize]);
-        Self::op_swap2(&mut expected,   current, op_flags[opcodes::SWAP2 as usize]);
-        Self::op_swap4(&mut expected,   current, op_flags[opcodes::SWAP4 as usize]);
-    
-        Self::op_roll4(&mut expected,   current, op_flags[opcodes::ROLL4 as usize]);
-        Self::op_roll8(&mut expected,   current, op_flags[opcodes::ROLL8 as usize]);
-
-        Self::op_choose(&mut expected,  current, op_flags[opcodes::CHOOSE as usize]);
-        Self::op_choose2(&mut expected, current, op_flags[opcodes::CHOOSE2 as usize]);
-
-        Self::op_push(&mut expected,    current, next_op, op_flags[opcodes::PUSH as usize]);
-        Self::op_dup(&mut expected,     current, op_flags[opcodes::DUP as usize]);
-        Self::op_dup2(&mut expected,    current, op_flags[opcodes::DUP2 as usize]);
-        Self::op_dup4(&mut expected,    current, op_flags[opcodes::DUP4 as usize]);
-    
-        Self::op_drop(&mut expected,    current, op_flags[opcodes::DROP as usize]);
-        Self::op_add(&mut expected,     current, op_flags[opcodes::ADD as usize]);
-        Self::op_sub(&mut expected,     current, op_flags[opcodes::SUB as usize]);
-        Self::op_mul(&mut expected,     current, op_flags[opcodes::MUL as usize]);
-    
         for i in 0..result.len() {
-            result[i] = T::sub(next[i], expected[i]);
+            result[i] = T::add(result[i], evaluations[i]);
         }
     }
 
-    fn op_swap(next: &mut [T], current: &[T], op_flag: T) {
-        next[0] = T::add(next[0], T::mul(current[1], op_flag));
-        next[1] = T::add(next[1], T::mul(current[0], op_flag));
-        T::mul_acc(&mut next[2..], &current[2..], op_flag);
+    fn enforce_swap(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], current[1]));
+        result[1] = agg_op_constraint(result[0], op_flag, T::sub(next[1], current[0]));
+        enforce_no_change(&mut result[2..], &current[2..], &next[2..], op_flag);
     }
     
-    fn op_swap2(next: &mut [T], current: &[T], op_flag: T) {
-        next[0] = T::add(next[0], T::mul(current[2], op_flag));
-        next[1] = T::add(next[1], T::mul(current[3], op_flag));
-        next[2] = T::add(next[2], T::mul(current[0], op_flag));
-        next[3] = T::add(next[3], T::mul(current[1], op_flag));
-        T::mul_acc(&mut next[4..], &current[4..], op_flag);
+    fn enforce_swap2(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], current[2]));
+        result[1] = agg_op_constraint(result[1], op_flag, T::sub(next[1], current[3]));
+        result[2] = agg_op_constraint(result[2], op_flag, T::sub(next[2], current[0]));
+        result[3] = agg_op_constraint(result[3], op_flag, T::sub(next[3], current[1]));
+        enforce_no_change(&mut result[4..], &current[4..], &next[4..], op_flag);
     }
     
-    fn op_swap4(next: &mut [T], current: &[T], op_flag: T) {
-        next[0] = T::add(next[0], T::mul(current[4], op_flag));
-        next[1] = T::add(next[1], T::mul(current[5], op_flag));
-        next[2] = T::add(next[2], T::mul(current[6], op_flag));
-        next[3] = T::add(next[3], T::mul(current[7], op_flag));
-        next[4] = T::add(next[4], T::mul(current[0], op_flag));
-        next[5] = T::add(next[5], T::mul(current[1], op_flag));
-        next[6] = T::add(next[6], T::mul(current[2], op_flag));
-        next[7] = T::add(next[7], T::mul(current[3], op_flag));
-        T::mul_acc(&mut next[8..], &current[8..], op_flag);
+    fn enforce_swap4(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], current[4]));
+        result[1] = agg_op_constraint(result[1], op_flag, T::sub(next[1], current[5]));
+        result[2] = agg_op_constraint(result[2], op_flag, T::sub(next[2], current[6]));
+        result[3] = agg_op_constraint(result[3], op_flag, T::sub(next[3], current[7]));
+        result[4] = agg_op_constraint(result[4], op_flag, T::sub(next[4], current[0]));
+        result[5] = agg_op_constraint(result[5], op_flag, T::sub(next[5], current[1]));
+        result[6] = agg_op_constraint(result[6], op_flag, T::sub(next[6], current[2]));
+        result[7] = agg_op_constraint(result[7], op_flag, T::sub(next[7], current[3]));
+        enforce_no_change(&mut result[8..], &current[8..], &next[8..], op_flag);
     }
 
-    fn op_roll4(next: &mut [T], current: &[T], op_flag: T) {
-        next[0] = T::add(next[0], T::mul(current[3], op_flag));
-        next[1] = T::add(next[1], T::mul(current[0], op_flag));
-        next[2] = T::add(next[2], T::mul(current[1], op_flag));
-        next[3] = T::add(next[3], T::mul(current[2], op_flag));
-        T::mul_acc(&mut next[4..], &current[4..], op_flag);
+    fn enforce_roll4(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], current[3]));
+        result[1] = agg_op_constraint(result[1], op_flag, T::sub(next[1], current[0]));
+        result[2] = agg_op_constraint(result[2], op_flag, T::sub(next[2], current[1]));
+        result[3] = agg_op_constraint(result[3], op_flag, T::sub(next[3], current[2]));
+        enforce_no_change(&mut result[4..], &current[4..], &next[4..], op_flag);
     }
     
-    fn op_roll8(next: &mut [T], current: &[T], op_flag: T) {
-        next[0] = T::add(next[0], T::mul(current[7], op_flag));
-        next[1] = T::add(next[1], T::mul(current[0], op_flag));
-        next[2] = T::add(next[2], T::mul(current[1], op_flag));
-        next[3] = T::add(next[3], T::mul(current[2], op_flag));
-        next[4] = T::add(next[4], T::mul(current[3], op_flag));
-        next[5] = T::add(next[5], T::mul(current[4], op_flag));
-        next[6] = T::add(next[6], T::mul(current[5], op_flag));
-        next[7] = T::add(next[7], T::mul(current[6], op_flag));
-        T::mul_acc(&mut next[8..], &current[8..], op_flag);
+    fn enforce_roll8(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], current[7]));
+        result[1] = agg_op_constraint(result[1], op_flag, T::sub(next[1], current[0]));
+        result[2] = agg_op_constraint(result[2], op_flag, T::sub(next[2], current[1]));
+        result[3] = agg_op_constraint(result[3], op_flag, T::sub(next[3], current[2]));
+        result[4] = agg_op_constraint(result[4], op_flag, T::sub(next[4], current[3]));
+        result[5] = agg_op_constraint(result[5], op_flag, T::sub(next[5], current[4]));
+        result[6] = agg_op_constraint(result[6], op_flag, T::sub(next[6], current[5]));
+        result[7] = agg_op_constraint(result[7], op_flag, T::sub(next[7], current[6]));
+        enforce_no_change(&mut result[8..], &current[8..], &next[8..], op_flag);
     }
 
-    fn op_choose(next: &mut [T], current: &[T], op_flag: T) {
+    fn enforce_choose(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
         let n = next.len() - 2;
         let condition1 = current[2];
         let condition2 = T::sub(T::ONE, condition1);
-        let value = T::add(T::mul(condition1, current[0]), T::mul(condition2, current[1]));
-        next[0] = T::add(next[0], T::mul(value, op_flag));
-        T::mul_acc(&mut next[1..n], &current[3..], op_flag);
+        let op_result = T::add(T::mul(condition1, current[0]), T::mul(condition2, current[1]));
+        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], op_result));
+        enforce_no_change(&mut result[1..n], &current[3..], &next[1..n], op_flag);
     }
 
-    fn op_choose2(next: &mut [T], current: &[T], op_flag: T) {
+    fn enforce_choose2(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
         let n = next.len() - 4;
         let condition1 = current[4];
         let condition2 = T::sub(T::ONE, condition1);
-        let value1 = T::add(T::mul(condition1, current[0]), T::mul(condition2, current[2]));
-        next[0] = T::add(next[0], T::mul(value1, op_flag));
-        let value2 = T::add(T::mul(condition1, current[1]), T::mul(condition2, current[3]));
-        next[1] = T::add(next[1], T::mul(value2, op_flag));
-        T::mul_acc(&mut next[2..n], &current[6..], op_flag);
+        let op_result1 = T::add(T::mul(condition1, current[0]), T::mul(condition2, current[2]));
+        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], op_result1));
+        let op_result2 = T::add(T::mul(condition1, current[1]), T::mul(condition2, current[3]));
+        result[1] = agg_op_constraint(result[1], op_flag, T::sub(next[1], op_result2));
+        enforce_no_change(&mut result[2..n], &current[6..], &next[2..n], op_flag);
     }
 
-    fn op_push(next: &mut [T], current: &[T], op_code: T, op_flag: T) {
-        next[0] = T::add(next[0], T::mul(op_code, op_flag));
-        T::mul_acc(&mut next[1..], &current[0..], op_flag);
+    fn enforce_push(result: &mut [T], current: &[T], next: &[T], op_code: T, op_flag: T) {
+        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], op_code));
+        enforce_no_change(&mut result[1..], &current[0..], &next[1..], op_flag);
     }
     
-    fn op_dup(next: &mut [T], current: &[T], op_flag: T) {
-        next[0] = T::add(next[0], T::mul(current[0], op_flag));
-        T::mul_acc(&mut next[1..], &current[0..], op_flag);
+    fn enforce_dup(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], current[0]));
+        enforce_no_change(&mut result[1..], &current[0..], &next[1..], op_flag);
     }
     
-    fn op_dup2(next: &mut [T], current: &[T], op_flag: T) {
-        next[0] = T::add(next[0], T::mul(current[0], op_flag));
-        next[1] = T::add(next[1], T::mul(current[1], op_flag));
-        T::mul_acc(&mut next[2..], &current[0..], op_flag);
+    fn enforce_dup2(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], current[0]));
+        result[1] = agg_op_constraint(result[1], op_flag, T::sub(next[1], current[1]));
+        enforce_no_change(&mut result[2..], &current[0..], &next[2..], op_flag);
     }
     
-    fn op_dup4(next: &mut [T], current: &[T], op_flag: T) {
-        next[0] = T::add(next[0], T::mul(current[0], op_flag));
-        next[1] = T::add(next[1], T::mul(current[1], op_flag));
-        next[2] = T::add(next[2], T::mul(current[2], op_flag));
-        next[3] = T::add(next[3], T::mul(current[3], op_flag));
-        T::mul_acc(&mut next[4..], &current[0..], op_flag);
+    fn enforce_dup4(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], current[0]));
+        result[1] = agg_op_constraint(result[1], op_flag, T::sub(next[1], current[1]));
+        result[2] = agg_op_constraint(result[2], op_flag, T::sub(next[2], current[2]));
+        result[3] = agg_op_constraint(result[3], op_flag, T::sub(next[3], current[3]));
+        enforce_no_change(&mut result[4..], &current[0..], &next[4..], op_flag);
     }
 
-    fn op_drop(next: &mut [T], current: &[T], op_flag: T) {
+    fn enforce_drop(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
         let n = next.len() - 1;
-        T::mul_acc(&mut next[0..n], &current[1..], op_flag);
+        enforce_no_change(&mut result[0..n], &current[1..], &next[0..n], op_flag);
     }
     
-    fn op_add(next: &mut [T], current: &[T], op_flag: T) {
+    fn enforce_add(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
         let n = next.len() - 1;
         let op_result = T::add(current[0], current[1]);
-        next[0] = T::add(next[0], T::mul(op_result, op_flag));
-        T::mul_acc(&mut next[1..n], &current[2..], op_flag);
+        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], op_result));
+        enforce_no_change(&mut result[1..n], &current[2..], &next[1..n], op_flag);
     }
     
-    fn op_sub(next: &mut [T], current: &[T], op_flag: T) {
+    fn enforce_sub(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
         let n = next.len() - 1;
         let op_result = T::sub(current[1], current[0]);
-        next[0] = T::add(next[0], T::mul(op_result, op_flag));
-        T::mul_acc(&mut next[1..n], &current[2..], op_flag);
+        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], op_result));
+        enforce_no_change(&mut result[1..n], &current[2..], &next[1..n], op_flag);
     }
     
-    fn op_mul(next: &mut [T], current: &[T], op_flag: T) {
+    fn enforce_mul(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
         let n = next.len() - 1;
         let op_result = T::mul(current[1], current[0]);
-        next[0] = T::add(next[0], T::mul(op_result, op_flag));
-        T::mul_acc(&mut next[1..n], &current[2..], op_flag);
+        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], op_result));
+        enforce_no_change(&mut result[1..n], &current[2..], &next[1..n], op_flag);
     }
+}
+
+// HELPER FUNCTIONS
+// ================================================================================================
+#[inline(always)]
+fn enforce_no_change<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+    for i in 0..result.len() {
+        result[i] = agg_op_constraint(result[i], op_flag, T::sub(next[i], current[i]));
+    }
+}
+
+#[inline(always)]
+fn agg_op_constraint<T: FiniteField>(result: T, op_flag: T, op_constraint: T) -> T {
+    return T::add(result, T::mul(op_constraint, op_flag));
 }
 
 // HASH EVALUATOR
@@ -234,6 +248,8 @@ impl <T> Stack<T>
 struct HashEvaluator<T: FiniteField> {
     trace_length    : usize,
     cycle_length    : usize,
+    mask_values     : Vec<T>,
+    mask_poly       : Vec<T>,
     ark_values      : Vec<[T; 2 * HASH_STATE_WIDTH]>,
     ark_polys       : Vec<Vec<T>>,
 }
@@ -257,15 +273,23 @@ impl<T> HashEvaluator <T>
             }
         }
 
-        return HashEvaluator { trace_length, cycle_length, ark_values, ark_polys };
+        // TODO: populate
+        let mask_values = vec![T::ZERO; cycle_length];
+        let mask_poly = vec![T::ZERO; cycle_length];
+
+        return HashEvaluator { trace_length, cycle_length, mask_values, mask_poly, ark_values, ark_polys };
     }
 
     /// Evaluates constraints at the specified step and adds the resulting values to `result`.
     pub fn evaluate(&self, current: &[T], next: &[T], step: usize, op_flag: T, result: &mut [T]) {
-        // determine round constants for the current step
-        let ark = &self.ark_values[step % self.cycle_length];
+        let step = step % self.cycle_length;
+
+        // determine mask and round constants for the current step
+        let ark = &self.ark_values[step];
+        let mask = self.mask_values[step];
+
         // evaluate constraints for the hash function and for the rest of the stack
-        self.eval_hash(current, next, ark, op_flag, result);
+        self.eval_hash(current, next, ark, mask, op_flag, result);
         self.eval_rest(current, next, op_flag, result);
     }
 
@@ -274,24 +298,27 @@ impl<T> HashEvaluator <T>
     /// coordinate, but is significantly slower.
     pub fn evaluate_at(&self, current: &[T], next: &[T], x: T, op_flag: T, result: &mut [T]) {
 
-        // determine round constants at the specified x coordinate
+        // determine mask and round constants at the specified x coordinate
         let num_cycles = T::from_usize(self.trace_length / HASH_CYCLE_LENGTH);
         let x = T::exp(x, num_cycles);
         let mut ark = [T::ZERO; 2 * HASH_STATE_WIDTH];
         for i in 0..ark.len() {
             ark[i] = polynom::eval(&self.ark_polys[i], x);
         }
+        let mask = polynom::eval(&self.mask_poly, x);
 
         // evaluate constraints for the hash function and for the rest of the stack
-        self.eval_hash(current, next, &ark, op_flag, result);
+        self.eval_hash(current, next, &ark, mask, op_flag, result);
         self.eval_rest(current, next, op_flag, result);
     }
 
     /// Evaluates constraints for a single round of a modified Rescue hash function. Hash state is
     /// assumed to be in the first 6 registers of the stack: 2 head registers + 4 user registers.
-    fn eval_hash(&self, current: &[T], next: &[T], ark: &[T], op_flag: T, result: &mut [T]) {
+    fn eval_hash(&self, current: &[T], next: &[T], ark: &[T], mask: T, op_flag: T, result: &mut [T]) {
 
         // TODO: enforce that capacity portion of the stack resets to 0 on every 16th step
+        let is_zero0 = T::mul(T::mul(current[0], mask), op_flag);
+        let is_zero1 = T::mul(T::mul(current[1], mask), op_flag);
 
         let mut state_part1 = [T::ZERO; HASH_STATE_WIDTH];
         state_part1.copy_from_slice(&current[..HASH_STATE_WIDTH]);
