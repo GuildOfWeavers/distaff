@@ -84,6 +84,9 @@ pub fn execute<T>(program: &[T], inputs: &[T], extension_factor: usize) -> Vec<V
             opcodes::ADD     => stack.add(i),
             opcodes::SUB     => stack.sub(i),
             opcodes::MUL     => stack.mul(i),
+            opcodes::INV     => stack.inv(i),
+            opcodes::NEG     => stack.neg(i),
+
             opcodes::HASH    => stack.hash(i),
 
             _ => panic!("operation {} is not supported", program[i])
@@ -257,6 +260,20 @@ impl <T> StackTrace<T>
         let y = self.user_registers[1][step];
         self.user_registers[0][step + 1] = T::mul(x, y);
         self.shift_left(step, 2, 1);
+    }
+
+    fn inv(&mut self, step: usize) {
+        assert!(self.depth >= 1, "stack underflow at step {}", step);
+        let x = self.user_registers[0][step];
+        self.user_registers[0][step + 1] = T::inv(x);
+        self.copy_state(step, 1);
+    }
+
+    fn neg(&mut self, step: usize) {
+        assert!(self.depth >= 1, "stack underflow at step {}", step);
+        let x = self.user_registers[0][step];
+        self.user_registers[0][step + 1] = T::neg(x);
+        self.copy_state(step, 1);
     }
 
     fn hash(&mut self, step: usize) {
@@ -534,6 +551,26 @@ mod tests {
         assert_eq!(vec![6, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
         assert_eq!(1, stack.depth);
+        assert_eq!(2, stack.max_depth);
+    }
+
+    #[test]
+    fn inv() {
+        let mut stack = init_stack(&[2, 3]);
+        stack.inv(0);
+        assert_eq!(vec![F128::inv(2), 3, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+        assert_eq!(2, stack.depth);
+        assert_eq!(2, stack.max_depth);
+    }
+
+    #[test]
+    fn neg() {
+        let mut stack = init_stack(&[2, 3]);
+        stack.neg(0);
+        assert_eq!(vec![F128::neg(2), 3, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+        assert_eq!(2, stack.depth);
         assert_eq!(2, stack.max_depth);
     }
 

@@ -104,6 +104,8 @@ impl <T> Stack<T>
         Self::enforce_add(&mut evaluations,     current, next, op_flags[opcodes::ADD as usize]);
         Self::enforce_sub(&mut evaluations,     current, next, op_flags[opcodes::SUB as usize]);
         Self::enforce_mul(&mut evaluations,     current, next, op_flags[opcodes::MUL as usize]);
+        Self::enforce_inv(&mut evaluations,     current, next, op_flags[opcodes::INV as usize]);
+        Self::enforce_neg(&mut evaluations,     current, next, op_flags[opcodes::NEG as usize]);
 
         let result = &mut result[STACK_HEAD_SIZE..];
         for i in 0..result.len() {
@@ -225,6 +227,16 @@ impl <T> Stack<T>
         let op_result = T::mul(current[1], current[0]);
         result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], op_result));
         enforce_no_change(&mut result[1..n], &current[2..], &next[1..n], op_flag);
+    }
+
+    fn enforce_inv(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+        result[0] = agg_op_constraint(result[0], op_flag, T::sub(T::ONE, T::mul(next[0], current[0])));
+        enforce_no_change(&mut result[1..], &current[1..], &next[1..], op_flag);
+    }
+
+    fn enforce_neg(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+        result[0] = agg_op_constraint(result[0], op_flag, T::add(next[0], current[0]));
+        enforce_no_change(&mut result[1..], &current[1..], &next[1..], op_flag);
     }
 }
 
