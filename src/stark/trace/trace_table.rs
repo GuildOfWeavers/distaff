@@ -2,7 +2,7 @@ use crate::math::{ FiniteField, fft, polynom, parallel };
 use crate::crypto::{ MerkleTree, HashFunction };
 use crate::processor::opcodes;
 use crate::utils::{ uninit_vector, filled_vector, as_bytes };
-use crate::stark::{ CompositionCoefficients, Accumulator, Hasher, utils };
+use crate::stark::{ ProgramInputs, CompositionCoefficients, Accumulator, Hasher, utils };
 use crate::stark::{ MAX_REGISTER_COUNT, DECODER_WIDTH, PROG_HASH_RANGE };
 use super::{ TraceState, decoder, stack };
 
@@ -21,7 +21,7 @@ impl <T> TraceTable<T>
 {
     /// Returns a trace table resulting from the execution of the specified program. Space for the
     /// trace table is allocated in accordance with the specified `extension_factor`.
-    pub fn new(program: &[T], inputs: &[T], extension_factor: usize) -> TraceTable<T> {
+    pub fn new(program: &[T], inputs: &ProgramInputs<T>, extension_factor: usize) -> TraceTable<T> {
         
         assert!(program.len() > 1, "program length must be greater than 1");
         assert!(program.len().is_power_of_two(), "program length must be a power of 2");
@@ -257,7 +257,7 @@ impl <T> TraceTable<T>
 mod tests {
 
     use crate::{ crypto::hash::blake3, processor::opcodes::f128 as opcodes };
-    use crate::stark::{ TraceTable, CompositionCoefficients, MAX_CONSTRAINT_DEGREE };
+    use crate::stark::{ TraceTable, ProgramInputs, CompositionCoefficients, MAX_CONSTRAINT_DEGREE };
     use crate::math::{ F128, FiniteField, polynom, parallel, fft };
 
     const EXT_FACTOR: usize = 32;
@@ -353,6 +353,7 @@ mod tests {
             opcodes::ADD,   opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
             opcodes::ADD,   opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
         ];
-        return TraceTable::new(&program, &[1, 0], EXT_FACTOR);
+        let inputs = ProgramInputs::from_public(&[1, 0]);
+        return TraceTable::new(&program, &inputs, EXT_FACTOR);
     }
 }

@@ -17,11 +17,11 @@ pub const DUP4: u8     = 0b000_01_110;
 //pub const ???: u8    = 0b000_01_111;
 
 pub const DROP: u8     = 0b000_10_000;
-pub const ADD: u8      = 0b000_10_001;
-pub const SUB: u8      = 0b000_10_010;  // same as NEG ADD
-pub const MUL: u8      = 0b000_10_011;
-//pub const EQ: u8     = 0b000_10_100;
-//pub const ???: u8    = 0b000_10_101;
+//pub const DROP4: u8  = 0b000_10_001;
+pub const ADD: u8      = 0b000_10_010;
+pub const SUB: u8      = 0b000_10_011;  // same as NEG ADD
+pub const MUL: u8      = 0b000_10_100;
+//pub const EQ: u8     = 0b000_10_101;
 pub const CHOOSE: u8   = 0b000_10_110;
 pub const CHOOSE2: u8  = 0b000_10_111;
 

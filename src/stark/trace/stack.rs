@@ -1,8 +1,8 @@
 use std::cmp;
 use crate::math::{ FiniteField };
 use crate::processor::opcodes;
-use crate::stark::{ MAX_INPUTS, MIN_STACK_DEPTH, MAX_STACK_DEPTH, STACK_HEAD_SIZE, HASH_STATE_RATE };
-use crate::stark::utils::{ Hasher };
+use crate::stark::{ ProgramInputs, utils::Hasher };
+use crate::stark::{ MIN_STACK_DEPTH, MAX_STACK_DEPTH, STACK_HEAD_SIZE, HASH_STATE_RATE };
 use crate::utils::{ filled_vector };
 
 // CONSTANTS
@@ -12,7 +12,7 @@ const MAX_USR_STACK_DEPTH: usize = MAX_STACK_DEPTH - STACK_HEAD_SIZE;
 
 // TRACE BUILDER
 // ================================================================================================
-pub fn execute<T>(program: &[T], inputs: &[T], extension_factor: usize) -> Vec<Vec<T>>
+pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: usize) -> Vec<Vec<T>>
     where T: FiniteField + Hasher
 {
     let trace_length = program.len();
@@ -23,15 +23,15 @@ pub fn execute<T>(program: &[T], inputs: &[T], extension_factor: usize) -> Vec<V
     assert!(program[0] == T::from(opcodes::BEGIN), "first operation of a program must be BEGIN");
     assert!(program[program.len() - 1] == T::from(opcodes::NOOP), "last operation of a program must be NOOP");
     assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
-    assert!(inputs.len() <= MAX_INPUTS, "expected {} or fewer inputs, received {}", MAX_INPUTS, inputs.len());
 
-    // allocate space for stack registers and populate the first state with input values
-    let init_stack_depth = cmp::max(inputs.len(), MIN_USR_STACK_DEPTH);
+    // allocate space for stack registers and populate the first state with public inputs
+    let public_inputs = inputs.get_public_inputs();
+    let init_stack_depth = cmp::max(public_inputs.len(), MIN_USR_STACK_DEPTH);
     let mut user_registers: Vec<Vec<T>> = Vec::with_capacity(init_stack_depth);
     for i in 0..init_stack_depth {
         let mut register = filled_vector(trace_length, domain_size, T::ZERO);
-        if i < inputs.len() { 
-            register[0] = inputs[i];
+        if i < public_inputs.len() { 
+            register[0] = public_inputs[i];
         }
         user_registers.push(register);
     }
@@ -41,11 +41,20 @@ pub fn execute<T>(program: &[T], inputs: &[T], extension_factor: usize) -> Vec<V
         head_registers.push(filled_vector(trace_length, domain_size, T::ZERO));
     }
 
+    // reverse secret inputs so that they are consumed in FIFO order
+    let [secret_inputs_a, secret_inputs_b] = inputs.get_secret_inputs();
+    let mut secret_inputs_a = secret_inputs_a.clone();
+    secret_inputs_a.reverse();
+    let mut secret_inputs_b = secret_inputs_b.clone();
+    secret_inputs_b.reverse();
+
     let mut stack = StackTrace {
         head_registers,
         user_registers,
-        max_depth: inputs.len(),
-        depth: inputs.len()
+        secret_inputs_a,
+        secret_inputs_b,
+        max_depth: public_inputs.len(),
+        depth: public_inputs.len()
     };
 
     // execute the program capturing each successive stack state in the trace
@@ -108,6 +117,8 @@ pub fn execute<T>(program: &[T], inputs: &[T], extension_factor: usize) -> Vec<V
 struct StackTrace<T: FiniteField + Hasher> {
     head_registers  : Vec<Vec<T>>,
     user_registers  : Vec<Vec<T>>,
+    secret_inputs_a : Vec<T>,
+    secret_inputs_b : Vec<T>,
     max_depth       : usize,
     depth           : usize,
 }
@@ -609,8 +620,10 @@ mod tests {
         return super::StackTrace {
             head_registers,
             user_registers,
+            secret_inputs_a: vec![],
+            secret_inputs_b: vec![],
             max_depth: inputs.len(),
-            depth: inputs.len()
+            depth    : inputs.len()
         };
     }
 

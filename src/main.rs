@@ -1,7 +1,13 @@
 use std::env;
 use std::io::Write;
 use std::time::Instant;
-use distaff::{ ProofOptions, StarkProof, processor, processor::opcodes::f128 as opcodes, FiniteField, F128 };
+use distaff::{ 
+    ProofOptions,
+    ProgramInputs,
+    StarkProof,
+    processor,
+    processor::opcodes::f128 as opcodes,
+    FiniteField, F128 };
 
 fn main() {
 
@@ -22,8 +28,11 @@ fn main() {
         expected_result);
     println!("--------------------------------");
 
-    let inputs = [1, 0];    // initialize stack with 2 values; 1 will be at the top
-    let num_outputs = 1;    // a single element from the top of the stack will be the output
+    // initialize stack with 2 values; 1 will be at the top
+    let inputs = ProgramInputs::from_public(&[1, 0]);
+
+    // a single element from the top of the stack will be the output
+    let num_outputs = 1;
 
     // execute the program and generate the proof of execution
     let now = Instant::now();
@@ -46,7 +55,7 @@ fn main() {
     // results in the expected output
     let proof = bincode::deserialize::<StarkProof<F128>>(&proof_bytes).unwrap();
     let now = Instant::now();
-    match processor::verify(&program_hash, &inputs, &outputs, &proof) {
+    match processor::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof) {
         Ok(_) => println!("Execution verified in {} ms", now.elapsed().as_millis()),
         Err(msg) => println!("Failed to verify execution: {}", msg)
     }

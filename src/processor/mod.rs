@@ -1,7 +1,7 @@
 use log::debug;
 use std::{ cmp, time::Instant };
 use crate::math::{ F128, FiniteField };
-use crate::stark::{ self, ProofOptions, StarkProof, MAX_INPUTS, MAX_OUTPUTS, MIN_TRACE_LENGTH };
+use crate::stark::{ self, ProofOptions, StarkProof, ProgramInputs, MAX_OUTPUTS, MIN_TRACE_LENGTH };
 use crate::utils::{ as_bytes };
 
 mod tests;
@@ -15,14 +15,12 @@ pub mod opcodes;
 /// 
 /// * `inputs` specify the initial stack state the with inputs[0] being the top of the stack;
 /// * `num_outputs` specifies the number of elements from the top of the stack to be returned;
-pub fn execute(program: &[F128], inputs: &[F128], num_outputs: usize, options: &ProofOptions) -> (Vec<F128>, [u8; 32], StarkProof<F128>)
+pub fn execute(program: &[F128], inputs: &ProgramInputs<F128>, num_outputs: usize, options: &ProofOptions) -> (Vec<F128>, [u8; 32], StarkProof<F128>)
 {
     assert!(program.len() > 1,
         "expected a program with at last two operations, but received {}", program.len());
     assert!(program[0] == F128::from(opcodes::BEGIN),
         "a program must start with BEGIN operation");
-    assert!(inputs.len() <= MAX_INPUTS,
-        "expected no more than {} inputs, but received {}", MAX_INPUTS, inputs.len());
     assert!(num_outputs <= MAX_OUTPUTS, 
         "cannot produce more than {} outputs, but requested {}", MAX_OUTPUTS, num_outputs);
 
@@ -46,15 +44,15 @@ pub fn execute(program: &[F128], inputs: &[F128], num_outputs: usize, options: &
     program_hash.copy_from_slice(as_bytes(&trace.get_program_hash()));
 
     // generate STARK proof
-    let proof = stark::prove(&mut trace, inputs, &outputs, options);
+    let proof = stark::prove(&mut trace, inputs.get_public_inputs(), &outputs, options);
     return (outputs, program_hash, proof);
 }
 
 /// Verifies that if a program with the specified `program_hash` is executed with the 
-/// provided `inputs`, the result is equal to the `outputs`.
-pub fn verify(program_hash: &[u8; 32], inputs: &[F128], outputs: &[F128], proof: &StarkProof<F128>) -> Result<bool, String>
+/// provided `public_inputs` and some secret inputs, the result is equal to the `outputs`.
+pub fn verify(program_hash: &[u8; 32], public_inputs: &[F128], outputs: &[F128], proof: &StarkProof<F128>) -> Result<bool, String>
 {
-    return stark::verify(program_hash, inputs, outputs, proof);
+    return stark::verify(program_hash, public_inputs, outputs, proof);
 }
 
 /// Pads the program with the appropriate number of NOOPs to ensure that:

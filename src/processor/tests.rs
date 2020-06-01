@@ -1,5 +1,5 @@
 #[cfg(test)]
-use crate::{ ProofOptions, opcodes::f128 as opcodes, F128, FiniteField, Accumulator, Hasher };
+use crate::{ ProofOptions, ProgramInputs, opcodes::f128 as opcodes, F128, FiniteField, Accumulator, Hasher };
 
 #[test]
 fn execute_verify() {
@@ -12,14 +12,14 @@ fn execute_verify() {
     let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
 
     let options = ProofOptions::default();
-    let inputs = [1, 0];
+    let inputs = ProgramInputs::from_public(&[1, 0]);
     let num_outputs = 1;
 
     let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
     assert_eq!(outputs, [3]);
     assert_eq!(program_hash, expected_hash);
 
-    let result = super::verify(&program_hash, &inputs, &outputs, &proof);
+    let result = super::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
     assert_eq!(Ok(true), result);
 }
 
@@ -34,7 +34,7 @@ fn execute_verify_fail() {
     let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
 
     let options = ProofOptions::default();
-    let inputs = [1, 0];
+    let inputs = ProgramInputs::from_public(&[1, 0]);
     let num_outputs = 1;
 
     let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
@@ -47,14 +47,14 @@ fn execute_verify_fail() {
     assert_eq!(Err(err_msg), result);
 
     // wrong outputs
-    let result = super::verify(&program_hash, &inputs, &[5], &proof);
+    let result = super::verify(&program_hash, inputs.get_public_inputs(), &[5], &proof);
     let err_msg = format!("verification of low-degree proof failed: evaluations did not match column value at depth 0");
     assert_eq!(Err(err_msg), result);
 
     // wrong program hash
     let mut program_hash2 = program_hash.clone();
     program_hash2[0] = 1;
-    let result = super::verify(&program_hash2, &inputs, &outputs, &proof);
+    let result = super::verify(&program_hash2, inputs.get_public_inputs(), &outputs, &proof);
     let err_msg = format!("verification of low-degree proof failed: evaluations did not match column value at depth 0");
     assert_eq!(Err(err_msg), result);
 }
@@ -70,14 +70,14 @@ fn stack_operations() {
     let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
 
     let options = ProofOptions::default();
-    let inputs = [7, 6, 5, 4, 3, 2, 1, 0];
+    let inputs = ProgramInputs::from_public(&[7, 6, 5, 4, 3, 2, 1, 0]);
     let num_outputs = 8;
 
     let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
     assert_eq!(outputs, [3, 6, 3, 6, 7, 11, 3, 6]);
     assert_eq!(program_hash, expected_hash);
 
-    let result = super::verify(&program_hash, &inputs, &outputs, &proof);
+    let result = super::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
     assert_eq!(Ok(true), result);
 }
 
@@ -92,7 +92,7 @@ fn math_operations() {
     let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
 
     let options = ProofOptions::default();
-    let inputs = [7, 6, 5, 4, 0, 1];
+    let inputs = ProgramInputs::from_public(&[7, 6, 5, 4, 0, 1]);
     let num_outputs = 1;
 
     let expected_result = F128::neg(F128::inv(61));
@@ -101,7 +101,7 @@ fn math_operations() {
     assert_eq!(outputs, [expected_result]);
     assert_eq!(program_hash, expected_hash);
 
-    let result = super::verify(&program_hash, &inputs, &outputs, &proof);
+    let result = super::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
     assert_eq!(Ok(true), result);
 }
 
@@ -124,13 +124,13 @@ fn hash_operations() {
     expected_hash.reverse();
 
     let options = ProofOptions::default();
-    let inputs = [4, 3, 2, 1];
+    let inputs = ProgramInputs::from_public(&[4, 3, 2, 1]);
     let num_outputs = 2;
 
     let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
     assert_eq!(expected_hash, outputs);
 
-    let result = super::verify(&program_hash, &inputs, &outputs, &proof);
+    let result = super::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
     assert_eq!(Ok(true), result);
 
     // double hash
@@ -155,13 +155,13 @@ fn hash_operations() {
     expected_hash.reverse();
 
     let options = ProofOptions::default();
-    let inputs = [4, 3, 2, 1];
+    let inputs = ProgramInputs::from_public(&[4, 3, 2, 1]);
     let num_outputs = 2;
 
     let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
     assert_eq!(expected_hash, outputs);
 
-    let result = super::verify(&program_hash, &inputs, &outputs, &proof);
+    let result = super::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
     assert_eq!(Ok(true), result);
 }
 
