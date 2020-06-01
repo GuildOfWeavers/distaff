@@ -116,7 +116,7 @@ fn hash_operations() {
         opcodes::HASH,  opcodes::HASH,  opcodes::HASH,  opcodes::HASH,
         opcodes::HASH,  opcodes::HASH,  opcodes::HASH,  opcodes::HASH,
         opcodes::HASH,  opcodes::HASH,  opcodes::DROP,  opcodes::DROP,
-        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
+        opcodes::DROP,  opcodes::DROP,  opcodes::NOOP,  opcodes::NOOP,
     ];
 
     let value = [1, 2, 3, 4];
@@ -124,7 +124,7 @@ fn hash_operations() {
     expected_hash.reverse();
 
     let options = ProofOptions::default();
-    let inputs = ProgramInputs::from_public(&[4, 3, 2, 1]);
+    let inputs = ProgramInputs::from_public(&[0, 0, 4, 3, 2, 1]);
     let num_outputs = 2;
 
     let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
@@ -141,11 +141,11 @@ fn hash_operations() {
         opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
         opcodes::HASH,  opcodes::HASH,  opcodes::HASH,  opcodes::HASH,
         opcodes::HASH,  opcodes::HASH,  opcodes::HASH,  opcodes::HASH,
-        opcodes::HASH,  opcodes::HASH,  opcodes::DROP,  opcodes::DROP,
-        opcodes::PUSH,      0,          opcodes::PUSH,  0,
+        opcodes::HASH,  opcodes::HASH,  opcodes::DROP4, opcodes::NOOP,
+        opcodes::PUSH,      0,          opcodes::DUP,   opcodes::DUP2,
         opcodes::HASH,  opcodes::HASH,  opcodes::HASH,  opcodes::HASH,
         opcodes::HASH,  opcodes::HASH,  opcodes::HASH,  opcodes::HASH,
-        opcodes::HASH,  opcodes::HASH,  opcodes::DROP,  opcodes::DROP,
+        opcodes::HASH,  opcodes::HASH,  opcodes::DROP4, opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
     ];
 
@@ -155,7 +155,7 @@ fn hash_operations() {
     expected_hash.reverse();
 
     let options = ProofOptions::default();
-    let inputs = ProgramInputs::from_public(&[4, 3, 2, 1]);
+    let inputs = ProgramInputs::from_public(&[0, 0, 4, 3, 2, 1]);
     let num_outputs = 2;
 
     let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);

@@ -1,5 +1,5 @@
 use crate::math::{ FiniteField };
-use crate::stark::{ MAX_INPUTS };
+use crate::stark::{ MAX_PUBLIC_INPUTS };
 
 #[derive(Clone)]
 pub struct ProgramInputs<T: FiniteField> {
@@ -12,9 +12,9 @@ impl <T> ProgramInputs<T>
 {
     pub fn new(public: &[T], secret_a: &[T], secret_b: &[T]) -> ProgramInputs<T> {
 
-        assert!(public.len() <= MAX_INPUTS,
+        assert!(public.len() <= MAX_PUBLIC_INPUTS,
             "expected no more than {} public inputs, but received {}",
-            MAX_INPUTS,
+            MAX_PUBLIC_INPUTS,
             public.len());
         assert!(secret_a.len() >= secret_b.len(), 
             "number of primary secret inputs cannot be smaller than the number of secondary secret inputs");

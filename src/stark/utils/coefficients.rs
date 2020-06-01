@@ -1,17 +1,17 @@
 use crate::math::{ FiniteField };
-use crate::stark::{ MAX_REGISTER_COUNT, MAX_INPUTS, MAX_OUTPUTS, MAX_TRANSITION_CONSTRAINTS };
+use crate::stark::{ MAX_REGISTER_COUNT, MAX_PUBLIC_INPUTS, MAX_OUTPUTS, MAX_TRANSITION_CONSTRAINTS };
 
 // CONSTANTS
 // ================================================================================================
 const DECODER_WIDTH: usize = 10;
-const NUM_CONSTRAINTS: usize = MAX_INPUTS + MAX_OUTPUTS + MAX_TRANSITION_CONSTRAINTS + 2 * DECODER_WIDTH;
+const NUM_CONSTRAINTS: usize = MAX_PUBLIC_INPUTS + MAX_OUTPUTS + MAX_TRANSITION_CONSTRAINTS + 2 * DECODER_WIDTH;
 
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct ConstraintCoefficients<T>
     where T: FiniteField
 {
-    pub i_boundary  : [T; 2 * (DECODER_WIDTH + MAX_INPUTS) ],
+    pub i_boundary  : [T; 2 * (DECODER_WIDTH + MAX_PUBLIC_INPUTS) ],
     pub f_boundary  : [T; 2 * (DECODER_WIDTH + MAX_OUTPUTS)],
     pub transition  : [T; 2 * MAX_TRANSITION_CONSTRAINTS],
 }
@@ -37,8 +37,8 @@ impl <T> ConstraintCoefficients<T>
         let coefficients = T::prng_vector(seed, 2 * NUM_CONSTRAINTS);
 
         // copy coefficients to their respective segments
-        let end_index = 2 * (DECODER_WIDTH + MAX_INPUTS);
-        let mut i_boundary = [T::ZERO; 2 * (DECODER_WIDTH + MAX_INPUTS)];
+        let end_index = 2 * (DECODER_WIDTH + MAX_PUBLIC_INPUTS);
+        let mut i_boundary = [T::ZERO; 2 * (DECODER_WIDTH + MAX_PUBLIC_INPUTS)];
         i_boundary.copy_from_slice(&coefficients[..end_index]);
 
         let start_index = end_index;

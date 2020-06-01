@@ -5,7 +5,7 @@ use crate::stark::{
     Accumulator,
     MIN_STACK_DEPTH,
     DECODER_WIDTH,
-    STACK_HEAD_SIZE,
+    AUX_WIDTH,
     OP_CODE_INDEX,
     OP_BITS_RANGE,
     OP_ACC_RANGE,
@@ -92,7 +92,7 @@ impl <T> TraceState<T>
     }
 
     pub fn get_user_stack(&self) -> &[T] {
-        return &self.registers[(DECODER_WIDTH + STACK_HEAD_SIZE)..];
+        return &self.registers[(DECODER_WIDTH + AUX_WIDTH)..];
     }
 
     pub fn compute_stack_depth(trace_register_count: usize) -> usize {

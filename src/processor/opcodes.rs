@@ -17,7 +17,7 @@ pub const DUP4: u8     = 0b000_01_110;
 //pub const ???: u8    = 0b000_01_111;
 
 pub const DROP: u8     = 0b000_10_000;
-//pub const DROP4: u8  = 0b000_10_001;
+pub const DROP4: u8    = 0b000_10_001;  // same as DROP DROP DROP DROP
 pub const ADD: u8      = 0b000_10_010;
 pub const SUB: u8      = 0b000_10_011;  // same as NEG ADD
 pub const MUL: u8      = 0b000_10_100;
@@ -37,13 +37,15 @@ pub const BEGIN: u8    = 0b000_11_111;
 /// 128-bit versions of opcodes
 pub mod f128 {
     pub const BEGIN   : u128 = super::BEGIN as u128;
+    pub const NOOP    : u128 = super::NOOP as u128;
 
     pub const PUSH    : u128 = super::PUSH as u128;
     pub const READ    : u128 = super::READ as u128;
     pub const READ2   : u128 = super::READ2 as u128;
 
     // stack manipulation ops
-    pub const NOOP    : u128 = super::NOOP as u128;
+    pub const DROP    : u128 = super::DROP as u128;
+    pub const DROP4   : u128 = super::DROP4 as u128;
     pub const SWAP    : u128 = super::SWAP as u128;
     pub const SWAP2   : u128 = super::SWAP2 as u128;
     pub const SWAP4   : u128 = super::SWAP4 as u128;
@@ -52,7 +54,6 @@ pub mod f128 {
     pub const DUP     : u128 = super::DUP as u128;
     pub const DUP2    : u128 = super::DUP2 as u128;
     pub const DUP4    : u128 = super::DUP4 as u128;
-    pub const DROP    : u128 = super::DROP as u128;
     pub const CHOOSE  : u128 = super::CHOOSE as u128;
     pub const CHOOSE2 : u128 = super::CHOOSE2 as u128;
 

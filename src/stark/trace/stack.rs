@@ -2,13 +2,13 @@ use std::cmp;
 use crate::math::{ FiniteField };
 use crate::processor::opcodes;
 use crate::stark::{ ProgramInputs, utils::Hasher };
-use crate::stark::{ MIN_STACK_DEPTH, MAX_STACK_DEPTH, STACK_HEAD_SIZE, HASH_STATE_RATE };
+use crate::stark::{ MIN_STACK_DEPTH, MAX_STACK_DEPTH, AUX_WIDTH, HASH_STATE_WIDTH };
 use crate::utils::{ filled_vector };
 
 // CONSTANTS
 // ================================================================================================
-const MIN_USR_STACK_DEPTH: usize = MIN_STACK_DEPTH - STACK_HEAD_SIZE;
-const MAX_USR_STACK_DEPTH: usize = MAX_STACK_DEPTH - STACK_HEAD_SIZE;
+const MIN_USER_STACK_DEPTH: usize = MIN_STACK_DEPTH - AUX_WIDTH;
+const MAX_USER_STACK_DEPTH: usize = MAX_STACK_DEPTH - AUX_WIDTH;
 
 // TRACE BUILDER
 // ================================================================================================
@@ -26,7 +26,7 @@ pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: us
 
     // allocate space for stack registers and populate the first state with public inputs
     let public_inputs = inputs.get_public_inputs();
-    let init_stack_depth = cmp::max(public_inputs.len(), MIN_USR_STACK_DEPTH);
+    let init_stack_depth = cmp::max(public_inputs.len(), MIN_USER_STACK_DEPTH);
     let mut user_registers: Vec<Vec<T>> = Vec::with_capacity(init_stack_depth);
     for i in 0..init_stack_depth {
         let mut register = filled_vector(trace_length, domain_size, T::ZERO);
@@ -36,9 +36,9 @@ pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: us
         user_registers.push(register);
     }
 
-    let mut head_registers = Vec::with_capacity(STACK_HEAD_SIZE);
-    for _ in 0..STACK_HEAD_SIZE {
-        head_registers.push(filled_vector(trace_length, domain_size, T::ZERO));
+    let mut aux_registers = Vec::with_capacity(AUX_WIDTH);
+    for _ in 0..AUX_WIDTH {
+        aux_registers.push(filled_vector(trace_length, domain_size, T::ZERO));
     }
 
     // reverse secret inputs so that they are consumed in FIFO order
@@ -49,7 +49,7 @@ pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: us
     secret_inputs_b.reverse();
 
     let mut stack = StackTrace {
-        head_registers,
+        aux_registers,
         user_registers,
         secret_inputs_a,
         secret_inputs_b,
@@ -78,6 +78,7 @@ pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: us
             opcodes::READ2   => stack.read2(i),
 
             opcodes::DROP    => stack.drop(i),
+            opcodes::DROP4   => stack.drop4(i),
 
             opcodes::DUP     => stack.dup(i),
             opcodes::DUP2    => stack.dup2(i),
@@ -112,8 +113,8 @@ pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: us
 
     // keep only the registers used during program execution
     stack.user_registers.truncate(stack.max_depth);
-    let mut registers = Vec::with_capacity(STACK_HEAD_SIZE + stack.user_registers.len());
-    registers.append(&mut stack.head_registers);
+    let mut registers = Vec::with_capacity(AUX_WIDTH + stack.user_registers.len());
+    registers.append(&mut stack.aux_registers);
     registers.append(&mut stack.user_registers);
 
     return registers;
@@ -122,7 +123,7 @@ pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: us
 // TYPES AND INTERFACES
 // ================================================================================================
 struct StackTrace<T: FiniteField + Hasher> {
-    head_registers  : Vec<Vec<T>>,
+    aux_registers   : Vec<Vec<T>>,
     user_registers  : Vec<Vec<T>>,
     secret_inputs_a : Vec<T>,
     secret_inputs_b : Vec<T>,
@@ -150,7 +151,6 @@ impl <T> StackTrace<T>
         assert!(self.secret_inputs_a.len() > 0, "ran out of secret inputs at step {}", step);
         self.shift_right(step, 0, 1);
         let value = self.secret_inputs_a.pop().unwrap();
-        self.head_registers[0][step] = value;
         self.user_registers[0][step + 1] = value;
     }
 
@@ -160,10 +160,18 @@ impl <T> StackTrace<T>
         self.shift_right(step, 0, 2);
         let value_a = self.secret_inputs_a.pop().unwrap();
         let value_b = self.secret_inputs_b.pop().unwrap();
-        self.head_registers[0][step] = value_a;
-        self.head_registers[1][step] = value_b;
         self.user_registers[0][step + 1] = value_b;
         self.user_registers[1][step + 1] = value_a;
+    }
+
+    fn drop(&mut self, step: usize) {
+        assert!(self.depth >= 1, "stack underflow at step {}", step);
+        self.shift_left(step, 1, 1);
+    }
+
+    fn drop4(&mut self, step: usize) {
+        assert!(self.depth >= 4, "stack underflow at step {}", step);
+        self.shift_left(step, 4, 4);
     }
 
     fn swap(&mut self, step: usize) {
@@ -271,11 +279,6 @@ impl <T> StackTrace<T>
         self.user_registers[3][step + 1] = self.user_registers[3][step];
     }
 
-    fn drop(&mut self, step: usize) {
-        assert!(self.depth >= 1, "stack underflow at step {}", step);
-        self.shift_left(step, 1, 1);
-    }
-
     fn add(&mut self, step: usize) {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
         let x = self.user_registers[0][step];
@@ -315,26 +318,26 @@ impl <T> StackTrace<T>
     }
 
     fn hash(&mut self, step: usize) {
-        assert!(self.depth >= HASH_STATE_RATE, "stack underflow at step {}", step);
+        assert!(self.depth >= HASH_STATE_WIDTH, "stack underflow at step {}", step);
         let mut state = [
-            self.head_registers[0][step],
-            self.head_registers[1][step],
             self.user_registers[0][step],
             self.user_registers[1][step],
             self.user_registers[2][step],
             self.user_registers[3][step],
+            self.user_registers[4][step],
+            self.user_registers[5][step],
         ];
 
         T::apply_round(&mut state, step);
 
-        self.head_registers[0][step + 1] = state[0];
-        self.head_registers[1][step + 1] = state[1];
-        self.user_registers[0][step + 1] = state[2];
-        self.user_registers[1][step + 1] = state[3];
-        self.user_registers[2][step + 1] = state[4];
-        self.user_registers[3][step + 1] = state[5];
+        self.user_registers[0][step + 1] = state[0];
+        self.user_registers[1][step + 1] = state[1];
+        self.user_registers[2][step + 1] = state[2];
+        self.user_registers[3][step + 1] = state[3];
+        self.user_registers[4][step + 1] = state[4];
+        self.user_registers[5][step + 1] = state[5];
 
-        self.copy_state(step, HASH_STATE_RATE);
+        self.copy_state(step, HASH_STATE_WIDTH);
     }
 
     // HELPER METHODS
@@ -368,7 +371,7 @@ impl <T> StackTrace<T>
     fn shift_right(&mut self, step: usize, start: usize, pos_count: usize) {
         
         self.depth += pos_count;
-        assert!(self.depth <= MAX_USR_STACK_DEPTH, "stack overflow at step {}", step);
+        assert!(self.depth <= MAX_USER_STACK_DEPTH, "stack overflow at step {}", step);
 
         if self.depth > self.max_depth {
             self.max_depth += pos_count;
@@ -402,7 +405,7 @@ mod tests {
     use crate::math::{ F128, FiniteField };
     use crate::stark::{ Hasher };
     use crate::utils::{ filled_vector };
-    use super::{ STACK_HEAD_SIZE };
+    use super::{ AUX_WIDTH };
 
     const TRACE_LENGTH: usize = 16;
     const EXTENSION_FACTOR: usize = 16;
@@ -563,6 +566,16 @@ mod tests {
     }
 
     #[test]
+    fn drop4() {
+        let mut stack = init_stack(&[1, 2, 3, 4, 5], &[], &[]);
+        stack.drop4(0);
+        assert_eq!(vec![5, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+        assert_eq!(1, stack.depth);
+        assert_eq!(5, stack.max_depth);
+    }
+
+    #[test]
     fn add() {
         let mut stack = init_stack(&[1, 2], &[], &[]);
         stack.add(0);
@@ -614,16 +627,16 @@ mod tests {
 
     #[test]
     fn hash() {
-        let mut stack = init_stack(&[1, 2, 3, 4, 5, 6], &[], &[]);
-        let mut expected = vec![0, 0, 1, 2, 3, 4, 5, 6, 0, 0];
+        let mut stack = init_stack(&[0, 0, 1, 2, 3, 4], &[], &[]);
+        let mut expected = vec![0, 0, 1, 2, 3, 4, 0, 0];
 
         stack.hash(0);
         <F128 as Hasher>::apply_round(&mut expected[..F128::STATE_WIDTH], 0);
-        assert_eq!(expected[2..].to_vec(), get_stack_state(&stack, 1));
+        assert_eq!(expected, get_stack_state(&stack, 1));
 
         stack.hash(1);
         <F128 as Hasher>::apply_round(&mut expected[..F128::STATE_WIDTH], 1);
-        assert_eq!(expected[2..].to_vec(), get_stack_state(&stack, 2));
+        assert_eq!(expected, get_stack_state(&stack, 2));
 
         assert_eq!(6, stack.depth);
         assert_eq!(6, stack.max_depth);
@@ -664,8 +677,8 @@ mod tests {
     }
 
     fn init_stack(public_inputs: &[F128], secret_inputs_a: &[F128], secret_inputs_b: &[F128]) -> super::StackTrace<F128> {
-        let mut user_registers: Vec<Vec<F128>> = Vec::with_capacity(super::MIN_USR_STACK_DEPTH);
-        for i in 0..super::MIN_USR_STACK_DEPTH {
+        let mut user_registers: Vec<Vec<F128>> = Vec::with_capacity(super::MIN_USER_STACK_DEPTH);
+        for i in 0..super::MIN_USER_STACK_DEPTH {
             let mut register = filled_vector(TRACE_LENGTH, TRACE_LENGTH * EXTENSION_FACTOR, F128::ZERO);
             if i < public_inputs.len() { 
                 register[0] = public_inputs[i];
@@ -673,9 +686,9 @@ mod tests {
             user_registers.push(register);
         }
     
-        let mut head_registers = Vec::with_capacity(STACK_HEAD_SIZE);
-        for _ in 0..STACK_HEAD_SIZE {
-            head_registers.push(filled_vector(TRACE_LENGTH, TRACE_LENGTH * EXTENSION_FACTOR, F128::ZERO));
+        let mut aux_registers = Vec::with_capacity(AUX_WIDTH);
+        for _ in 0..AUX_WIDTH {
+            aux_registers.push(filled_vector(TRACE_LENGTH, TRACE_LENGTH * EXTENSION_FACTOR, F128::ZERO));
         }
 
         let mut secret_inputs_a = secret_inputs_a.to_vec();
@@ -684,7 +697,7 @@ mod tests {
         secret_inputs_b.reverse();
 
         return super::StackTrace {
-            head_registers,
+            aux_registers,
             user_registers,
             secret_inputs_a,
             secret_inputs_b,

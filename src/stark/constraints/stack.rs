@@ -1,7 +1,7 @@
 use std::cmp;
 use crate::math::{ FiniteField, polynom };
 use crate::stark::{ TraceState, Accumulator, Hasher };
-use crate::stark::{ MAX_STACK_DEPTH, STACK_HEAD_SIZE, NUM_LD_OPS, HASH_STATE_WIDTH, HASH_CYCLE_LENGTH };
+use crate::stark::{ MAX_STACK_DEPTH, AUX_WIDTH, NUM_LD_OPS, HASH_STATE_WIDTH, HASH_CYCLE_LENGTH };
 use crate::processor::{ opcodes };
 
 // CONSTANTS
@@ -47,9 +47,6 @@ impl <T> Stack<T>
         let next_op = next.get_op_code();
         self.enforce_simple_ops(current_stack, next_stack, op_flags, next_op, result);
 
-        // evaluate constraints for read operations
-        self.enforce_read_ops(current_stack, next_stack, op_flags, result);
-
         // evaluate constraints for hash operation
         let hash_flag = op_flags[opcodes::HASH as usize];
         self.hash_evaluator.evaluate(current_stack, next_stack, step, hash_flag, result);
@@ -67,9 +64,6 @@ impl <T> Stack<T>
         let next_op = next.get_op_code();
         self.enforce_simple_ops(current_stack, next_stack, op_flags, next_op, result);
 
-        // evaluate constraints for read operations
-        self.enforce_read_ops(current_stack, next_stack, op_flags, result);
-
         // evaluate constraints for hash operation
         let hash_flag = op_flags[opcodes::HASH as usize];
         self.hash_evaluator.evaluate_at(current_stack, next_stack, x, hash_flag, result);
@@ -82,15 +76,24 @@ impl <T> Stack<T>
     /// evaluation = s_next - f(s_current), where f is the transition function.
     fn enforce_simple_ops(&self, current: &[T], next: &[T], op_flags: [T; NUM_LD_OPS], next_op: T, result: &mut [T]) {
         
+        debug_assert!(AUX_WIDTH == 2, "expected 2 aux registers but found {}", AUX_WIDTH);
+
         // simple operations work only with the user portion of the stack
-        let current = &current[STACK_HEAD_SIZE..];
-        let next = &next[STACK_HEAD_SIZE..];
+        let current = &current[AUX_WIDTH..];
+        let next = &next[AUX_WIDTH..];
 
         let mut evaluations = vec![T::ZERO; current.len()];
 
         enforce_no_change(&mut evaluations,     current, next, op_flags[opcodes::BEGIN as usize]);
         enforce_no_change(&mut evaluations,     current, next, op_flags[opcodes::NOOP as usize]);
+
+        Self::enforce_push(&mut evaluations,    current, next, next_op, op_flags[opcodes::PUSH as usize]);
+        Self::enforce_read(&mut evaluations,    current, next, op_flags[opcodes::READ as usize]);
+        Self::enforce_read2(&mut evaluations,   current, next, op_flags[opcodes::READ2 as usize]);
     
+        Self::enforce_drop(&mut evaluations,    current, next, op_flags[opcodes::DROP as usize]);
+        Self::enforce_drop4(&mut evaluations,   current, next, op_flags[opcodes::DROP4 as usize]);
+        
         Self::enforce_swap(&mut evaluations,    current, next, op_flags[opcodes::SWAP as usize]);
         Self::enforce_swap2(&mut evaluations,   current, next, op_flags[opcodes::SWAP2 as usize]);
         Self::enforce_swap4(&mut evaluations,   current, next, op_flags[opcodes::SWAP4 as usize]);
@@ -101,19 +104,17 @@ impl <T> Stack<T>
         Self::enforce_choose(&mut evaluations,  current, next, op_flags[opcodes::CHOOSE as usize]);
         Self::enforce_choose2(&mut evaluations, current, next, op_flags[opcodes::CHOOSE2 as usize]);
 
-        Self::enforce_push(&mut evaluations,    current, next, next_op, op_flags[opcodes::PUSH as usize]);
         Self::enforce_dup(&mut evaluations,     current, next, op_flags[opcodes::DUP as usize]);
         Self::enforce_dup2(&mut evaluations,    current, next, op_flags[opcodes::DUP2 as usize]);
         Self::enforce_dup4(&mut evaluations,    current, next, op_flags[opcodes::DUP4 as usize]);
     
-        Self::enforce_drop(&mut evaluations,    current, next, op_flags[opcodes::DROP as usize]);
         Self::enforce_add(&mut evaluations,     current, next, op_flags[opcodes::ADD as usize]);
         Self::enforce_sub(&mut evaluations,     current, next, op_flags[opcodes::SUB as usize]);
         Self::enforce_mul(&mut evaluations,     current, next, op_flags[opcodes::MUL as usize]);
         Self::enforce_inv(&mut evaluations,     current, next, op_flags[opcodes::INV as usize]);
         Self::enforce_neg(&mut evaluations,     current, next, op_flags[opcodes::NEG as usize]);
 
-        let result = &mut result[STACK_HEAD_SIZE..];
+        let result = &mut result[AUX_WIDTH..];
         for i in 0..result.len() {
             result[i] = T::add(result[i], evaluations[i]);
         }
@@ -122,6 +123,24 @@ impl <T> Stack<T>
     fn enforce_push(result: &mut [T], current: &[T], next: &[T], op_code: T, op_flag: T) {
         result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], op_code));
         enforce_no_change(&mut result[1..], &current[0..], &next[1..], op_flag);
+    }
+
+    fn enforce_read(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+        enforce_no_change(&mut result[1..], &current[0..], &next[1..], op_flag);
+    }
+
+    fn enforce_read2(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+        enforce_no_change(&mut result[2..], &current[0..], &next[2..], op_flag);
+    }
+
+    fn enforce_drop(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+        let n = next.len() - 1;
+        enforce_no_change(&mut result[0..n], &current[1..], &next[0..n], op_flag);
+    }
+
+    fn enforce_drop4(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+        let n = next.len() - 4;
+        enforce_no_change(&mut result[0..n], &current[4..], &next[0..n], op_flag);
     }
 
     fn enforce_swap(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
@@ -208,11 +227,6 @@ impl <T> Stack<T>
         result[3] = agg_op_constraint(result[3], op_flag, T::sub(next[3], current[3]));
         enforce_no_change(&mut result[4..], &current[0..], &next[4..], op_flag);
     }
-
-    fn enforce_drop(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-        let n = next.len() - 1;
-        enforce_no_change(&mut result[0..n], &current[1..], &next[0..n], op_flag);
-    }
     
     fn enforce_add(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
         let n = next.len() - 1;
@@ -244,24 +258,6 @@ impl <T> Stack<T>
         result[0] = agg_op_constraint(result[0], op_flag, T::add(next[0], current[0]));
         enforce_no_change(&mut result[1..], &current[1..], &next[1..], op_flag);
     }
-
-    // READ OPERATIONS
-    // --------------------------------------------------------------------------------------------
-    fn enforce_read_ops(&self, current: &[T], next: &[T], op_flags: [T; NUM_LD_OPS], result: &mut [T]) {
-
-        debug_assert!(STACK_HEAD_SIZE == 2, "expected 2 aux registers but found {}", STACK_HEAD_SIZE);
-
-        // read 1 - move value from aux[0] to stack[0]
-        let op_flag = op_flags[opcodes::READ as usize];
-        result[2] = agg_op_constraint(result[2], op_flag, T::sub(next[2], current[0]));
-        enforce_no_change(&mut result[3..], &current[2..], &next[3..], op_flag);
-
-        // read 2 - move values from aux[0] to stack[1] and from aux[1] to stack[0]
-        let op_flag = op_flags[opcodes::READ2 as usize];
-        result[2] = agg_op_constraint(result[2], op_flag, T::sub(next[2], current[1]));
-        result[3] = agg_op_constraint(result[3], op_flag, T::sub(next[3], current[0]));
-        enforce_no_change(&mut result[4..], &current[2..], &next[4..], op_flag);
-    }
 }
 
 // HELPER FUNCTIONS
@@ -284,8 +280,6 @@ fn agg_op_constraint<T: FiniteField>(result: T, op_flag: T, op_constraint: T) ->
 struct HashEvaluator<T: FiniteField> {
     trace_length    : usize,
     cycle_length    : usize,
-    mask_values     : Vec<T>,
-    mask_poly       : Vec<T>,
     ark_values      : Vec<[T; 2 * HASH_STATE_WIDTH]>,
     ark_polys       : Vec<Vec<T>>,
 }
@@ -309,23 +303,18 @@ impl<T> HashEvaluator <T>
             }
         }
 
-        // TODO: populate
-        let mask_values = vec![T::ZERO; cycle_length];
-        let mask_poly = vec![T::ZERO; cycle_length];
-
-        return HashEvaluator { trace_length, cycle_length, mask_values, mask_poly, ark_values, ark_polys };
+        return HashEvaluator { trace_length, cycle_length, ark_values, ark_polys };
     }
 
     /// Evaluates constraints at the specified step and adds the resulting values to `result`.
     pub fn evaluate(&self, current: &[T], next: &[T], step: usize, op_flag: T, result: &mut [T]) {
         let step = step % self.cycle_length;
 
-        // determine mask and round constants for the current step
+        // determine round constants for the current step
         let ark = &self.ark_values[step];
-        let mask = self.mask_values[step];
 
         // evaluate constraints for the hash function and for the rest of the stack
-        self.eval_hash(current, next, ark, mask, op_flag, result);
+        self.eval_hash(current, next, ark, op_flag, result);
         self.eval_rest(current, next, op_flag, result);
     }
 
@@ -341,25 +330,20 @@ impl<T> HashEvaluator <T>
         for i in 0..ark.len() {
             ark[i] = polynom::eval(&self.ark_polys[i], x);
         }
-        let mask = polynom::eval(&self.mask_poly, x);
 
         // evaluate constraints for the hash function and for the rest of the stack
-        self.eval_hash(current, next, &ark, mask, op_flag, result);
+        self.eval_hash(current, next, &ark, op_flag, result);
         self.eval_rest(current, next, op_flag, result);
     }
 
     /// Evaluates constraints for a single round of a modified Rescue hash function. Hash state is
-    /// assumed to be in the first 6 registers of the stack: 2 head registers + 4 user registers.
-    fn eval_hash(&self, current: &[T], next: &[T], ark: &[T], mask: T, op_flag: T, result: &mut [T]) {
-
-        // TODO: enforce that capacity portion of the stack resets to 0 on every 16th step
-        let is_zero0 = T::mul(T::mul(current[0], mask), op_flag);
-        let is_zero1 = T::mul(T::mul(current[1], mask), op_flag);
+    /// assumed to be in the first 6 registers of user stack (aux registers are not affected).
+    fn eval_hash(&self, current: &[T], next: &[T], ark: &[T], op_flag: T, result: &mut [T]) {
 
         let mut state_part1 = [T::ZERO; HASH_STATE_WIDTH];
-        state_part1.copy_from_slice(&current[..HASH_STATE_WIDTH]);
+        state_part1.copy_from_slice(&current[AUX_WIDTH..(AUX_WIDTH + HASH_STATE_WIDTH)]);
         let mut state_part2 = [T::ZERO; HASH_STATE_WIDTH];
-        state_part2.copy_from_slice(&next[..HASH_STATE_WIDTH]);
+        state_part2.copy_from_slice(&next[AUX_WIDTH..(AUX_WIDTH + HASH_STATE_WIDTH)]);
 
         for i in 0..HASH_STATE_WIDTH {
             state_part1[i] = T::add(state_part1[i], ark[i]);
@@ -373,6 +357,7 @@ impl<T> HashEvaluator <T>
             state_part2[i] = T::sub(state_part2[i], ark[HASH_STATE_WIDTH + i]);
         }
 
+        let result = &mut result[AUX_WIDTH..];
         for i in 0..cmp::min(result.len(), HASH_STATE_WIDTH) {
             let evaluation = T::sub(state_part2[i], state_part1[i]);
             result[i] = T::add(result[i], T::mul(evaluation, op_flag));
@@ -381,7 +366,7 @@ impl<T> HashEvaluator <T>
 
     /// Evaluates constraints for stack registers un-affected by hash transition.
     fn eval_rest(&self, current: &[T], next: &[T], op_flag: T, result: &mut [T]) {
-        for i in HASH_STATE_WIDTH..result.len() {
+        for i in (AUX_WIDTH + HASH_STATE_WIDTH)..result.len() {
             let evaluation = T::sub(next[i], current[i]);
             result[i] = T::add(result[i], T::mul(evaluation, op_flag));
         }
