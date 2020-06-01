@@ -82,6 +82,66 @@ fn stack_operations() {
 }
 
 #[test]
+fn logic_operations() {
+    // CHOOSE
+    let program = [
+        opcodes::BEGIN,  opcodes::CHOOSE,  opcodes::CHOOSE, opcodes::NOOP,
+        opcodes::NOOP,   opcodes::NOOP,    opcodes::NOOP,   opcodes::NOOP,
+        opcodes::NOOP,   opcodes::NOOP,    opcodes::NOOP,   opcodes::NOOP,
+        opcodes::NOOP,   opcodes::NOOP,    opcodes::NOOP,   opcodes::NOOP,
+    ];
+    let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
+
+    let options = ProofOptions::default();
+    let inputs = ProgramInputs::from_public(&[3, 4, 1, 5, 0, 6, 7, 8]);
+    let num_outputs = 8;
+
+    let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
+    assert_eq!(outputs, [5, 6, 7, 8, 0, 0, 0, 0]);
+    assert_eq!(program_hash, expected_hash);
+
+    let result = super::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
+    assert_eq!(Ok(true), result);
+
+    // CHOOSE2
+    let program = [
+        opcodes::BEGIN, opcodes::PUSH,    3,                opcodes::PUSH,
+        4,              opcodes::CHOOSE2, opcodes::CHOOSE2, opcodes::NOOP,
+        opcodes::NOOP,  opcodes::NOOP,    opcodes::NOOP,    opcodes::NOOP,
+        opcodes::NOOP,  opcodes::NOOP,    opcodes::NOOP,    opcodes::NOOP,
+    ];
+    let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
+
+    let options = ProofOptions::default();
+    let inputs = ProgramInputs::from_public(&[5, 6, 1, 0, 7, 8, 0, 0]);
+    let num_outputs = 8;
+
+    let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
+    assert_eq!(outputs, [7, 8, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(program_hash, expected_hash);
+
+    let result = super::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
+    assert_eq!(Ok(true), result);
+}
+
+#[test]
+#[should_panic]
+fn logic_operations_panic() {
+    let program = [
+        opcodes::BEGIN,  opcodes::CHOOSE,  opcodes::CHOOSE, opcodes::NOOP,
+        opcodes::NOOP,   opcodes::NOOP,    opcodes::NOOP,   opcodes::NOOP,
+        opcodes::NOOP,   opcodes::NOOP,    opcodes::NOOP,   opcodes::NOOP,
+        opcodes::NOOP,   opcodes::NOOP,    opcodes::NOOP,   opcodes::NOOP,
+    ];
+
+    let options = ProofOptions::default();
+    let inputs = ProgramInputs::from_public(&[3, 4, 2, 5, 0, 6, 7, 8]);
+    let num_outputs = 8;
+
+    super::execute(&program, &inputs, num_outputs, &options);
+}
+
+#[test]
 fn math_operations() {
     let program = [
         opcodes::BEGIN, opcodes::ADD,  opcodes::MUL,  opcodes::SWAP,

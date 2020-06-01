@@ -47,6 +47,9 @@ impl <T> Stack<T>
         let next_op = next.get_op_code();
         self.enforce_simple_ops(current_stack, next_stack, op_flags, next_op, result);
 
+        // evaluate constraints for logic operations
+        self.enforce_logic_ops(current_stack, next_stack, op_flags, result);
+
         // evaluate constraints for hash operation
         let hash_flag = op_flags[opcodes::HASH as usize];
         self.hash_evaluator.evaluate(current_stack, next_stack, step, hash_flag, result);
@@ -63,6 +66,9 @@ impl <T> Stack<T>
         // evaluate constraints for simple operations
         let next_op = next.get_op_code();
         self.enforce_simple_ops(current_stack, next_stack, op_flags, next_op, result);
+
+        // evaluate constraints for logic operations
+        self.enforce_logic_ops(current_stack, next_stack, op_flags, result);
 
         // evaluate constraints for hash operation
         let hash_flag = op_flags[opcodes::HASH as usize];
@@ -100,9 +106,6 @@ impl <T> Stack<T>
     
         Self::enforce_roll4(&mut evaluations,   current, next, op_flags[opcodes::ROLL4 as usize]);
         Self::enforce_roll8(&mut evaluations,   current, next, op_flags[opcodes::ROLL8 as usize]);
-
-        Self::enforce_choose(&mut evaluations,  current, next, op_flags[opcodes::CHOOSE as usize]);
-        Self::enforce_choose2(&mut evaluations, current, next, op_flags[opcodes::CHOOSE2 as usize]);
 
         Self::enforce_pad2(&mut evaluations,    current, next, op_flags[opcodes::PAD2 as usize]);
         Self::enforce_dup(&mut evaluations,     current, next, op_flags[opcodes::DUP as usize]);
@@ -190,26 +193,6 @@ impl <T> Stack<T>
         enforce_no_change(&mut result[8..], &current[8..], &next[8..], op_flag);
     }
 
-    fn enforce_choose(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-        let n = next.len() - 2;
-        let condition1 = current[2];
-        let condition2 = T::sub(T::ONE, condition1);
-        let op_result = T::add(T::mul(condition1, current[0]), T::mul(condition2, current[1]));
-        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], op_result));
-        enforce_no_change(&mut result[1..n], &current[3..], &next[1..n], op_flag);
-    }
-
-    fn enforce_choose2(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-        let n = next.len() - 4;
-        let condition1 = current[4];
-        let condition2 = T::sub(T::ONE, condition1);
-        let op_result1 = T::add(T::mul(condition1, current[0]), T::mul(condition2, current[2]));
-        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], op_result1));
-        let op_result2 = T::add(T::mul(condition1, current[1]), T::mul(condition2, current[3]));
-        result[1] = agg_op_constraint(result[1], op_flag, T::sub(next[1], op_result2));
-        enforce_no_change(&mut result[2..n], &current[6..], &next[2..n], op_flag);
-    }
-
     fn enforce_pad2(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
         result[0] = agg_op_constraint(result[0], op_flag, next[0]);
         result[1] = agg_op_constraint(result[1], op_flag, next[1]);
@@ -265,6 +248,46 @@ impl <T> Stack<T>
         result[0] = agg_op_constraint(result[0], op_flag, T::add(next[0], current[0]));
         enforce_no_change(&mut result[1..], &current[1..], &next[1..], op_flag);
     }
+
+    // LOGIC OPS
+    // --------------------------------------------------------------------------------------------
+
+    /// Evaluates transition constraints for operations where some operands must be binary values.
+    fn enforce_logic_ops(&self, current: &[T], next: &[T], op_flags: [T; NUM_LD_OPS], result: &mut [T]) {
+
+        // logic operations work only with the user portion of the stack
+        let current = &current[AUX_WIDTH..];
+        let next = &next[AUX_WIDTH..];
+
+        let mut evaluations = vec![T::ZERO; current.len()];
+
+        // CHOOSE
+        let op_flag = op_flags[opcodes::CHOOSE as usize];
+        let n = next.len() - 2;
+        let condition1 = current[2];
+        let condition2 = T::sub(T::ONE, condition1);
+        let op_result = T::add(T::mul(condition1, current[0]), T::mul(condition2, current[1]));
+        evaluations[0] = agg_op_constraint(evaluations[0], op_flag, T::sub(next[0], op_result));
+        enforce_no_change(&mut evaluations[1..n], &current[3..], &next[1..n], op_flag);
+        result[0] = agg_op_constraint(result[0], op_flag, is_binary(condition1));
+
+        // CHOOSE2
+        let op_flag = op_flags[opcodes::CHOOSE2 as usize];
+        let n = next.len() - 4;
+        let condition1 = current[4];
+        let condition2 = T::sub(T::ONE, condition1);
+        let op_result1 = T::add(T::mul(condition1, current[0]), T::mul(condition2, current[2]));
+        let op_result2 = T::add(T::mul(condition1, current[1]), T::mul(condition2, current[3]));
+        evaluations[0] = agg_op_constraint(evaluations[0], op_flag, T::sub(next[0], op_result1));
+        evaluations[1] = agg_op_constraint(evaluations[1], op_flag, T::sub(next[1], op_result2));
+        enforce_no_change(&mut evaluations[2..n], &current[6..], &next[2..n], op_flag);
+        result[0] = agg_op_constraint(result[0], op_flag, is_binary(condition1));
+
+        let result = &mut result[AUX_WIDTH..];
+        for i in 0..result.len() {
+            result[i] = T::add(result[i], evaluations[i]);
+        }
+    }
 }
 
 // HELPER FUNCTIONS
@@ -279,6 +302,11 @@ fn enforce_no_change<T: FiniteField>(result: &mut [T], current: &[T], next: &[T]
 #[inline(always)]
 fn agg_op_constraint<T: FiniteField>(result: T, op_flag: T, op_constraint: T) -> T {
     return T::add(result, T::mul(op_constraint, op_flag));
+}
+
+#[inline(always)]
+fn is_binary<T: FiniteField>(v: T) -> T {
+    return T::sub(T::mul(v, v), v);
 }
 
 // HASH EVALUATOR
