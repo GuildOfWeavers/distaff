@@ -45,7 +45,10 @@ impl <T> Stack<T>
 
         // evaluate constraints for simple operations
         let next_op = next.get_op_code();
-        self.simple_transitions(current_stack, next_stack, op_flags, next_op, result);
+        self.enforce_simple_ops(current_stack, next_stack, op_flags, next_op, result);
+
+        // evaluate constraints for read operations
+        self.enforce_read_ops(current_stack, next_stack, op_flags, result);
 
         // evaluate constraints for hash operation
         let hash_flag = op_flags[opcodes::HASH as usize];
@@ -62,7 +65,10 @@ impl <T> Stack<T>
 
         // evaluate constraints for simple operations
         let next_op = next.get_op_code();
-        self.simple_transitions(current_stack, next_stack, op_flags, next_op, result);
+        self.enforce_simple_ops(current_stack, next_stack, op_flags, next_op, result);
+
+        // evaluate constraints for read operations
+        self.enforce_read_ops(current_stack, next_stack, op_flags, result);
 
         // evaluate constraints for hash operation
         let hash_flag = op_flags[opcodes::HASH as usize];
@@ -74,7 +80,7 @@ impl <T> Stack<T>
 
     /// Evaluates transition constraints for all operations where constraints can be described as:
     /// evaluation = s_next - f(s_current), where f is the transition function.
-    fn simple_transitions(&self, current: &[T], next: &[T], op_flags: [T; NUM_LD_OPS], next_op: T, result: &mut [T]) {
+    fn enforce_simple_ops(&self, current: &[T], next: &[T], op_flags: [T; NUM_LD_OPS], next_op: T, result: &mut [T]) {
         
         // simple operations work only with the user portion of the stack
         let current = &current[STACK_HEAD_SIZE..];
@@ -111,6 +117,11 @@ impl <T> Stack<T>
         for i in 0..result.len() {
             result[i] = T::add(result[i], evaluations[i]);
         }
+    }
+
+    fn enforce_push(result: &mut [T], current: &[T], next: &[T], op_code: T, op_flag: T) {
+        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], op_code));
+        enforce_no_change(&mut result[1..], &current[0..], &next[1..], op_flag);
     }
 
     fn enforce_swap(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
@@ -178,11 +189,6 @@ impl <T> Stack<T>
         result[1] = agg_op_constraint(result[1], op_flag, T::sub(next[1], op_result2));
         enforce_no_change(&mut result[2..n], &current[6..], &next[2..n], op_flag);
     }
-
-    fn enforce_push(result: &mut [T], current: &[T], next: &[T], op_code: T, op_flag: T) {
-        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], op_code));
-        enforce_no_change(&mut result[1..], &current[0..], &next[1..], op_flag);
-    }
     
     fn enforce_dup(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
         result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], current[0]));
@@ -237,6 +243,24 @@ impl <T> Stack<T>
     fn enforce_neg(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
         result[0] = agg_op_constraint(result[0], op_flag, T::add(next[0], current[0]));
         enforce_no_change(&mut result[1..], &current[1..], &next[1..], op_flag);
+    }
+
+    // READ OPERATIONS
+    // --------------------------------------------------------------------------------------------
+    fn enforce_read_ops(&self, current: &[T], next: &[T], op_flags: [T; NUM_LD_OPS], result: &mut [T]) {
+
+        debug_assert!(STACK_HEAD_SIZE == 2, "expected 2 aux registers but found {}", STACK_HEAD_SIZE);
+
+        // read 1 - move value from aux[0] to stack[0]
+        let op_flag = op_flags[opcodes::READ as usize];
+        result[2] = agg_op_constraint(result[2], op_flag, T::sub(next[2], current[0]));
+        enforce_no_change(&mut result[3..], &current[2..], &next[3..], op_flag);
+
+        // read 2 - move values from aux[0] to stack[1] and from aux[1] to stack[0]
+        let op_flag = op_flags[opcodes::READ2 as usize];
+        result[2] = agg_op_constraint(result[2], op_flag, T::sub(next[2], current[1]));
+        result[3] = agg_op_constraint(result[3], op_flag, T::sub(next[3], current[0]));
+        enforce_no_change(&mut result[4..], &current[2..], &next[4..], op_flag);
     }
 }
 

@@ -165,4 +165,24 @@ fn hash_operations() {
     assert_eq!(Ok(true), result);
 }
 
+#[test]
+fn read_operations() {
+    let program = [
+        opcodes::BEGIN, opcodes::READ,  opcodes::READ2, opcodes::NOOP,
+        opcodes::PUSH,      5,          opcodes::NOOP,  opcodes::NOOP,
+        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
+        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
+    ];
+
+    let options = ProofOptions::default();
+    let inputs = ProgramInputs::new(&[1], &[2, 3], &[4]);
+    let num_outputs = 5;
+
+    let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
+    assert_eq!(vec![5, 4, 3, 2, 1], outputs);
+
+    let result = super::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
+    assert_eq!(Ok(true), result);
+}
+
 // TODO: add more tests

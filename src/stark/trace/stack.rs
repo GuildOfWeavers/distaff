@@ -74,6 +74,9 @@ pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: us
                 stack.noop(i);
             },
 
+            opcodes::READ    => stack.read(i),
+            opcodes::READ2   => stack.read2(i),
+
             opcodes::DROP    => stack.drop(i),
 
             opcodes::DUP     => stack.dup(i),
@@ -102,6 +105,10 @@ pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: us
         }
         i += 1;
     }
+
+    // make sure all secret inputs have been consumed
+    assert!(stack.secret_inputs_a.len() == 0 && stack.secret_inputs_b.len() == 0,
+        "not all secret inputs have been consumed");
 
     // keep only the registers used during program execution
     stack.user_registers.truncate(stack.max_depth);
@@ -132,6 +139,31 @@ impl <T> StackTrace<T>
     // --------------------------------------------------------------------------------------------
     fn noop(&mut self, step: usize) {
         self.copy_state(step, 0);
+    }
+
+    fn push(&mut self, step: usize, value: T) {
+        self.shift_right(step, 0, 1);
+        self.user_registers[0][step + 1] = value;
+    }
+
+    fn read(&mut self, step: usize) {
+        assert!(self.secret_inputs_a.len() > 0, "ran out of secret inputs at step {}", step);
+        self.shift_right(step, 0, 1);
+        let value = self.secret_inputs_a.pop().unwrap();
+        self.head_registers[0][step] = value;
+        self.user_registers[0][step + 1] = value;
+    }
+
+    fn read2(&mut self, step: usize) {
+        assert!(self.secret_inputs_a.len() > 0, "ran out of secret inputs at step {}", step);
+        assert!(self.secret_inputs_b.len() > 0, "ran out of secret inputs at step {}", step);
+        self.shift_right(step, 0, 2);
+        let value_a = self.secret_inputs_a.pop().unwrap();
+        let value_b = self.secret_inputs_b.pop().unwrap();
+        self.head_registers[0][step] = value_a;
+        self.head_registers[1][step] = value_b;
+        self.user_registers[0][step + 1] = value_b;
+        self.user_registers[1][step + 1] = value_a;
     }
 
     fn swap(&mut self, step: usize) {
@@ -215,11 +247,6 @@ impl <T> StackTrace<T>
             assert!(false, "cannot CHOOSE on a non-binary condition");
         }
         self.shift_left(step, 6, 4);
-    }
-
-    fn push(&mut self, step: usize, value: T) {
-        self.shift_right(step, 0, 1);
-        self.user_registers[0][step + 1] = value;
     }
 
     fn dup(&mut self, step: usize) {
@@ -382,7 +409,7 @@ mod tests {
 
     #[test]
     fn noop() {
-        let mut stack = init_stack(&[1, 2, 3, 4]);
+        let mut stack = init_stack(&[1, 2, 3, 4], &[], &[]);
         stack.noop(0);
         assert_eq!(vec![1, 2, 3, 4, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -392,7 +419,7 @@ mod tests {
 
     #[test]
     fn swap() {
-        let mut stack = init_stack(&[1, 2, 3, 4]);
+        let mut stack = init_stack(&[1, 2, 3, 4], &[], &[]);
         stack.swap(0);
         assert_eq!(vec![2, 1, 3, 4, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -402,7 +429,7 @@ mod tests {
 
     #[test]
     fn swap2() {
-        let mut stack = init_stack(&[1, 2, 3, 4]);
+        let mut stack = init_stack(&[1, 2, 3, 4], &[], &[]);
         stack.swap2(0);
         assert_eq!(vec![3, 4, 1, 2, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -412,7 +439,7 @@ mod tests {
 
     #[test]
     fn swap4() {
-        let mut stack = init_stack(&[1, 2, 3, 4, 5, 6, 7, 8]);
+        let mut stack = init_stack(&[1, 2, 3, 4, 5, 6, 7, 8], &[], &[]);
         stack.swap4(0);
         assert_eq!(vec![5, 6, 7, 8, 1, 2, 3, 4], get_stack_state(&stack, 1));
 
@@ -422,7 +449,7 @@ mod tests {
 
     #[test]
     fn roll4() {
-        let mut stack = init_stack(&[1, 2, 3, 4]);
+        let mut stack = init_stack(&[1, 2, 3, 4], &[], &[]);
         stack.roll4(0);
         assert_eq!(vec![4, 1, 2, 3, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -432,7 +459,7 @@ mod tests {
 
     #[test]
     fn roll8() {
-        let mut stack = init_stack(&[1, 2, 3, 4, 5, 6, 7, 8]);
+        let mut stack = init_stack(&[1, 2, 3, 4, 5, 6, 7, 8], &[], &[]);
         stack.roll8(0);
         assert_eq!(vec![8, 1, 2, 3, 4, 5, 6, 7], get_stack_state(&stack, 1));
 
@@ -443,14 +470,14 @@ mod tests {
     #[test]
     fn choose() {
         // choose on true
-        let mut stack = init_stack(&[2, 3, 0]);
+        let mut stack = init_stack(&[2, 3, 0], &[], &[]);
         stack.choose(0);
         assert_eq!(vec![3, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
         assert_eq!(1, stack.depth);
         assert_eq!(3, stack.max_depth);
 
-        let mut stack = init_stack(&[2, 3, 0, 4]);
+        let mut stack = init_stack(&[2, 3, 0, 4], &[], &[]);
         stack.choose(0);
         assert_eq!(vec![3, 4, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -458,7 +485,7 @@ mod tests {
         assert_eq!(4, stack.max_depth);
 
         // choose on false
-        let mut stack = init_stack(&[2, 3, 1, 4]);
+        let mut stack = init_stack(&[2, 3, 1, 4], &[], &[]);
         stack.choose(0);
         assert_eq!(vec![2, 4, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -469,7 +496,7 @@ mod tests {
     #[test]
     fn choose2() {
         // choose on true
-        let mut stack = init_stack(&[2, 3, 4, 5, 0, 6, 7]);
+        let mut stack = init_stack(&[2, 3, 4, 5, 0, 6, 7], &[], &[]);
         stack.choose2(0);
         assert_eq!(vec![4, 5, 7, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -477,7 +504,7 @@ mod tests {
         assert_eq!(7, stack.max_depth);
 
         // choose on false
-        let mut stack = init_stack(&[2, 3, 4, 5, 1, 6, 7]);
+        let mut stack = init_stack(&[2, 3, 4, 5, 1, 6, 7], &[], &[]);
         stack.choose2(0);
         assert_eq!(vec![2, 3, 7, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -487,7 +514,7 @@ mod tests {
 
     #[test]
     fn push() {
-        let mut stack = init_stack(&[]);
+        let mut stack = init_stack(&[], &[], &[]);
         stack.push(0, 3);
         assert_eq!(vec![3, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -497,7 +524,7 @@ mod tests {
     
     #[test]
     fn dup() {
-        let mut stack = init_stack(&[1, 2]);
+        let mut stack = init_stack(&[1, 2], &[], &[]);
         stack.dup(0);
         assert_eq!(vec![1, 1, 2, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -507,7 +534,7 @@ mod tests {
 
     #[test]
     fn dup2() {
-        let mut stack = init_stack(&[1, 2, 3, 4]);
+        let mut stack = init_stack(&[1, 2, 3, 4], &[], &[]);
         stack.dup2(0);
         assert_eq!(vec![1, 2, 1, 2, 3, 4, 0, 0], get_stack_state(&stack, 1));
 
@@ -517,7 +544,7 @@ mod tests {
 
     #[test]
     fn dup4() {
-        let mut stack = init_stack(&[1, 2, 3, 4]);
+        let mut stack = init_stack(&[1, 2, 3, 4], &[], &[]);
         stack.dup4(0);
         assert_eq!(vec![1, 2, 3, 4, 1, 2, 3, 4], get_stack_state(&stack, 1));
 
@@ -527,7 +554,7 @@ mod tests {
 
     #[test]
     fn drop() {
-        let mut stack = init_stack(&[1, 2]);
+        let mut stack = init_stack(&[1, 2], &[], &[]);
         stack.drop(0);
         assert_eq!(vec![2, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -537,7 +564,7 @@ mod tests {
 
     #[test]
     fn add() {
-        let mut stack = init_stack(&[1, 2]);
+        let mut stack = init_stack(&[1, 2], &[], &[]);
         stack.add(0);
         assert_eq!(vec![3, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -547,7 +574,7 @@ mod tests {
 
     #[test]
     fn sub() {
-        let mut stack = init_stack(&[2, 5]);
+        let mut stack = init_stack(&[2, 5], &[], &[]);
         stack.sub(0);
         assert_eq!(vec![3, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -557,7 +584,7 @@ mod tests {
 
     #[test]
     fn mul() {
-        let mut stack = init_stack(&[2, 3]);
+        let mut stack = init_stack(&[2, 3], &[], &[]);
         stack.mul(0);
         assert_eq!(vec![6, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -567,7 +594,7 @@ mod tests {
 
     #[test]
     fn inv() {
-        let mut stack = init_stack(&[2, 3]);
+        let mut stack = init_stack(&[2, 3], &[], &[]);
         stack.inv(0);
         assert_eq!(vec![F128::inv(2), 3, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -577,7 +604,7 @@ mod tests {
 
     #[test]
     fn neg() {
-        let mut stack = init_stack(&[2, 3]);
+        let mut stack = init_stack(&[2, 3], &[], &[]);
         stack.neg(0);
         assert_eq!(vec![F128::neg(2), 3, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -587,7 +614,7 @@ mod tests {
 
     #[test]
     fn hash() {
-        let mut stack = init_stack(&[1, 2, 3, 4, 5, 6]);
+        let mut stack = init_stack(&[1, 2, 3, 4, 5, 6], &[], &[]);
         let mut expected = vec![0, 0, 1, 2, 3, 4, 5, 6, 0, 0];
 
         stack.hash(0);
@@ -602,12 +629,46 @@ mod tests {
         assert_eq!(6, stack.max_depth);
     }
 
-    fn init_stack(inputs: &[F128]) -> super::StackTrace<F128> {
+    #[test]
+    fn read() {
+        let mut stack = init_stack(&[1], &[2, 3], &[]);
+
+        stack.read(0);
+        assert_eq!(vec![2, 1, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+        assert_eq!(2, stack.depth);
+        assert_eq!(2, stack.max_depth);
+
+        stack.read(1);
+        assert_eq!(vec![3, 2, 1, 0, 0, 0, 0, 0], get_stack_state(&stack, 2));
+
+        assert_eq!(3, stack.depth);
+        assert_eq!(3, stack.max_depth);
+    }
+
+    #[test]
+    fn read2() {
+        let mut stack = init_stack(&[1], &[2, 4], &[3, 5]);
+
+        stack.read2(0);
+        assert_eq!(vec![3, 2, 1, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+        assert_eq!(3, stack.depth);
+        assert_eq!(3, stack.max_depth);
+
+        stack.read2(1);
+        assert_eq!(vec![5, 4, 3, 2, 1, 0, 0, 0], get_stack_state(&stack, 2));
+
+        assert_eq!(5, stack.depth);
+        assert_eq!(5, stack.max_depth);
+    }
+
+    fn init_stack(public_inputs: &[F128], secret_inputs_a: &[F128], secret_inputs_b: &[F128]) -> super::StackTrace<F128> {
         let mut user_registers: Vec<Vec<F128>> = Vec::with_capacity(super::MIN_USR_STACK_DEPTH);
         for i in 0..super::MIN_USR_STACK_DEPTH {
             let mut register = filled_vector(TRACE_LENGTH, TRACE_LENGTH * EXTENSION_FACTOR, F128::ZERO);
-            if i < inputs.len() { 
-                register[0] = inputs[i];
+            if i < public_inputs.len() { 
+                register[0] = public_inputs[i];
             }
             user_registers.push(register);
         }
@@ -617,13 +678,18 @@ mod tests {
             head_registers.push(filled_vector(TRACE_LENGTH, TRACE_LENGTH * EXTENSION_FACTOR, F128::ZERO));
         }
 
+        let mut secret_inputs_a = secret_inputs_a.to_vec();
+        secret_inputs_a.reverse();
+        let mut secret_inputs_b = secret_inputs_b.to_vec();
+        secret_inputs_b.reverse();
+
         return super::StackTrace {
             head_registers,
             user_registers,
-            secret_inputs_a: vec![],
-            secret_inputs_b: vec![],
-            max_depth: inputs.len(),
-            depth    : inputs.len()
+            secret_inputs_a,
+            secret_inputs_b,
+            max_depth: public_inputs.len(),
+            depth    : public_inputs.len()
         };
     }
 

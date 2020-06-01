@@ -8,8 +8,8 @@ pub const NEG: u8      = 0b000_00_100;
 //pub const ???: u8    = 0b000_00_111;
 
 pub const PUSH: u8     = 0b000_01_000;
-//pub const READ: u8   = 0b000_01_001;
-//pub const READ2: u8  = 0b000_01_010;
+pub const READ: u8     = 0b000_01_001;
+pub const READ2: u8    = 0b000_01_010;
 //pub const PAD2: u8   = 0b000_01_011;  // same as PUSH 0 DUP
 pub const DUP: u8      = 0b000_01_100;  // same as DUP2 SWAP DROP
 pub const DUP2: u8     = 0b000_01_101;
@@ -38,6 +38,10 @@ pub const BEGIN: u8    = 0b000_11_111;
 pub mod f128 {
     pub const BEGIN   : u128 = super::BEGIN as u128;
 
+    pub const PUSH    : u128 = super::PUSH as u128;
+    pub const READ    : u128 = super::READ as u128;
+    pub const READ2   : u128 = super::READ2 as u128;
+
     // stack manipulation ops
     pub const NOOP    : u128 = super::NOOP as u128;
     pub const SWAP    : u128 = super::SWAP as u128;
@@ -45,7 +49,6 @@ pub mod f128 {
     pub const SWAP4   : u128 = super::SWAP4 as u128;
     pub const ROLL4   : u128 = super::ROLL4 as u128;
     pub const ROLL8   : u128 = super::ROLL8 as u128;
-    pub const PUSH    : u128 = super::PUSH as u128;
     pub const DUP     : u128 = super::DUP as u128;
     pub const DUP2    : u128 = super::DUP2 as u128;
     pub const DUP4    : u128 = super::DUP4 as u128;
