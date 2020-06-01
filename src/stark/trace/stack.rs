@@ -77,12 +77,13 @@ pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: us
             opcodes::READ    => stack.read(i),
             opcodes::READ2   => stack.read2(i),
 
-            opcodes::DROP    => stack.drop(i),
-            opcodes::DROP4   => stack.drop4(i),
-
+            opcodes::PAD2    => stack.pad2(i),
             opcodes::DUP     => stack.dup(i),
             opcodes::DUP2    => stack.dup2(i),
             opcodes::DUP4    => stack.dup4(i),
+
+            opcodes::DROP    => stack.drop(i),
+            opcodes::DROP4   => stack.drop4(i),
 
             opcodes::SWAP    => stack.swap(i),
             opcodes::SWAP2   => stack.swap2(i),
@@ -255,6 +256,12 @@ impl <T> StackTrace<T>
             assert!(false, "cannot CHOOSE on a non-binary condition");
         }
         self.shift_left(step, 6, 4);
+    }
+
+    fn pad2(&mut self, step: usize) {
+        self.shift_right(step, 0, 2);
+        self.user_registers[0][step + 1] = T::ZERO;
+        self.user_registers[1][step + 1] = T::ZERO;
     }
 
     fn dup(&mut self, step: usize) {
@@ -525,6 +532,16 @@ mod tests {
         assert_eq!(1, stack.max_depth);
     }
     
+    #[test]
+    fn pad2() {
+        let mut stack = init_stack(&[1, 2], &[], &[]);
+        stack.pad2(0);
+        assert_eq!(vec![0, 0, 1, 2, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+        assert_eq!(4, stack.depth);
+        assert_eq!(4, stack.max_depth);
+    }
+
     #[test]
     fn dup() {
         let mut stack = init_stack(&[1, 2], &[], &[]);

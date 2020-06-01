@@ -142,7 +142,7 @@ fn hash_operations() {
         opcodes::HASH,  opcodes::HASH,  opcodes::HASH,  opcodes::HASH,
         opcodes::HASH,  opcodes::HASH,  opcodes::HASH,  opcodes::HASH,
         opcodes::HASH,  opcodes::HASH,  opcodes::DROP4, opcodes::NOOP,
-        opcodes::PUSH,      0,          opcodes::DUP,   opcodes::DUP2,
+        opcodes::PAD2,  opcodes::DUP2,  opcodes::NOOP,  opcodes::NOOP,
         opcodes::HASH,  opcodes::HASH,  opcodes::HASH,  opcodes::HASH,
         opcodes::HASH,  opcodes::HASH,  opcodes::HASH,  opcodes::HASH,
         opcodes::HASH,  opcodes::HASH,  opcodes::DROP4, opcodes::NOOP,

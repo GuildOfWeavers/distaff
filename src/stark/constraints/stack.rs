@@ -104,6 +104,7 @@ impl <T> Stack<T>
         Self::enforce_choose(&mut evaluations,  current, next, op_flags[opcodes::CHOOSE as usize]);
         Self::enforce_choose2(&mut evaluations, current, next, op_flags[opcodes::CHOOSE2 as usize]);
 
+        Self::enforce_pad2(&mut evaluations,    current, next, op_flags[opcodes::PAD2 as usize]);
         Self::enforce_dup(&mut evaluations,     current, next, op_flags[opcodes::DUP as usize]);
         Self::enforce_dup2(&mut evaluations,    current, next, op_flags[opcodes::DUP2 as usize]);
         Self::enforce_dup4(&mut evaluations,    current, next, op_flags[opcodes::DUP4 as usize]);
@@ -207,6 +208,12 @@ impl <T> Stack<T>
         let op_result2 = T::add(T::mul(condition1, current[1]), T::mul(condition2, current[3]));
         result[1] = agg_op_constraint(result[1], op_flag, T::sub(next[1], op_result2));
         enforce_no_change(&mut result[2..n], &current[6..], &next[2..n], op_flag);
+    }
+
+    fn enforce_pad2(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+        result[0] = agg_op_constraint(result[0], op_flag, next[0]);
+        result[1] = agg_op_constraint(result[1], op_flag, next[1]);
+        enforce_no_change(&mut result[2..], &current[0..], &next[2..], op_flag);
     }
     
     fn enforce_dup(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
