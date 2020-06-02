@@ -1,10 +1,10 @@
 use distaff::{ ProgramInputs, processor::opcodes::f128 as opcodes, FiniteField, F128 };
-use super::{ Example, utils::read_args };
+use super::{ Example, utils::parse_args };
 
-pub fn get_example() -> Example  {
+pub fn get_example(args: &[String]) -> Example  {
 
-    // read the length of Fibonacci sequence and proof options from the command line
-    let (n, options) = read_args();
+    // get the length of Fibonacci sequence and proof options from the arguments
+    let (n, options) = parse_args(args);
     
     // generate the program and expected results
     let program = generate_fibonacci_program(n);

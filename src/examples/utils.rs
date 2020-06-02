@@ -1,10 +1,8 @@
-use std::env;
 use distaff::{ ProofOptions };
 
-pub fn read_args() -> (usize, ProofOptions) {
+pub fn parse_args(args: &[String]) -> (usize, ProofOptions) {
+    
     let default_options = ProofOptions::default();
-
-    let args: Vec<String> = env::args().collect();
     if args.len() == 1 { return (6, default_options); }
 
     let n: usize = args[1].parse().unwrap();

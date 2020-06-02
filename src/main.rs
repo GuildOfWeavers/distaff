@@ -16,11 +16,14 @@ fn main() {
     // determine the example to run based on command-line inputs
     let ex: Example;
     let args: Vec<String> = env::args().collect();
-    if args[0] == "fibonacci" {
-        ex = examples::fibonacci::get_example();
+    if args.len() < 2 {
+        ex = examples::fibonacci::get_example(&args);
+    }
+    else if args[1] == "fibonacci" {
+        ex = examples::fibonacci::get_example(&args[1..]);
     }
     else {
-        ex = examples::fibonacci::get_example();
+        panic!("Could not find example program for '{}'", args[1]);
     }
     let Example { program, inputs, num_outputs, options, expected_result } = ex;
     println!("--------------------------------");
