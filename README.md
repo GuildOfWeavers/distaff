@@ -164,10 +164,59 @@ Distaff VM already has a rich set of instructions which make it possible to writ
 | HASHR       | 00011000 | Pops top 6 items from the stack, computes a single round of a modified [Rescue](https://eprint.iacr.org/2019/426) hash function over these values, and pushes the results back onto the stack. This operation can be used to hash up to two 256-bit values. However, to achieve 120 bits of security, the `HASH` operation must be applied at least 10 times in a row (see [here](#Hashing-in-Distaff-VM)).  |
 
 #### Potential future instructions
-If you'd like to check out some of the potential future instructions, look [here](https://github.com/GuildOfWeavers/distaff/blob/master/src/processor/opcodes.rs).
+Distaff VM is still missing a few important instructions. Specifically, comparing values is not currently supported. This makes programs with sophisticated conditional logic unsuitable for Distaff VM. To remedy this, new instructions will be added to the VM in the near future.
 
 ### Hashing in Distaff VM
-TODO
+To compute hashes in Distaff VM you can use `HASHR` operation. This operation works with the top 6 items of the stack, and depending on what you want to do, you should position the values on the stack in specific orders.
+
+Generally, we want to hash values that are 256 bits long. And since all values in Distaff VM are about 128 bits, we'll need 2 elements to represent each 256-bit value. By convention, values to be hashed are placed in the inner-most positions on the stack, and the result of hashing is also located in the inner-most positions.
+
+For example, suppose we wanted to compute `hash(x)`. First, we'd represent `x` by a pair of elements `(x0, x1)`, and then we'd position these elements on the stack like so:
+```
+[0, 0, 0, 0, x1, x0]
+```
+In other words, the first 4 items of the stack should be set to `0`'s, and the following 2 items should be set to the elements representing the value we want to hash.
+
+If we wanted to compute a hash of two values `hash(x, y)`, represented by elements `(x0, x1)` and `(y0, y1)` respectively, we'd position them on the stack like so:
+```
+[0, 0, y1, y0, x1, x0]
+```
+In both cases, after the hashing is complete, the result will be located in the 5th and 6th positions of the stack (the result is also represented by two 128-bit elements).
+
+#### Hashing programs
+
+Hashing requires multiple invocations of `HASHR` operation, and there are a few things to be aware of:
+1. To achieve adequate security (e.g. 120-bits), `HASHR` operation must be executed at least 10 times in a row. This is because each `HASHR` operation computes a single round of the hash function, and at least 10 rounds are required to achieve adequate security.
+2. `HASHR` operation uses a schedule of constants which repeat every 16 steps. So, to make sure you get consistent results, the first `HASHR` operation in every sequence must happen on the step which is a multiple of 16 (e.g. 16, 32, 48 etc.). To ensure this alignment, you can always use `NOOP` operations to pad your programs.
+3. The top two stack items are reserved for internal operations of the hash function. You need to make sure they are set to `0`'s before you start hashing values. This also means, that you can hash at most two 256-bit values at a time.
+
+You can think of sequences of `HASHR` operations as of "mini-programs". Below is an example of a program which reads two 256-bit values from input tape `A` and computes their hash:
+```
+BEGIN NOOP  NOOP  NOOP  NOOP  NOOP  NOOP  NOOP
+NOOP  NOOP  NOOP  READ  READ  READ  READ  PAD2
+HASHR HASHR HASHR HASHR HASHR HASHR HASHR HASHR
+HASHR HASHR DROP4
+```
+A quick explanation of what's happening here:
+1. First, we pad the beginning of the program with `NOOP`'s so that the first `HASHR` operation happens on the 16th step.
+2. Then, we ready 4 values from the input tape `A`. These 4 values represent our two 256-bit values. We also push two `0`'s onto the stack by executing `PAD2` operation.
+3. Then, we execute `HASHR` operation 10 times. Notice again that the first `HASHR` operation is executed on the 16th step.
+4. The result of hashing is now in the 5th and 6th positions of the stack. So, we remove top 4 times from the stack (using `DROP4` operation) to move the result to the top of the stack.
+
+#### Hash function
+As mentioned previously, Distaff VM uses a modified version of [Rescue](https://eprint.iacr.org/2019/426) hash function. This modification adds half-rounds to the beginning and to the end of the standard Rescue hash function to make the arithmetization of the function fully foldable. High-level pseudo-code for the modified version looks like so:
+```
+for 10 iterations do:
+    add round constants;
+    apply s-box;
+    apply MDS;
+    add round constants;
+    apply inverse s-box;
+    apply MDS;
+```
+This modification should not impact security properties of the function, but it is worth noting that it has not been studied to the same extent as the standard Rescue hash function.
+
+Another thing to note: current implementation of the hash function uses S-Box of power 3, but this will likely be changes to S-Box of power 5 in the future.
 
 ### Program hash
 TODO

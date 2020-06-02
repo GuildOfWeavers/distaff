@@ -98,10 +98,10 @@ fn generate_fibonacci_program(n: usize) -> Vec<F128> {
 
     let mut program = vec![opcodes::BEGIN];
 
-    // TODO: update comment
-    // the program is a simple repetition of 3 stack operations:
-    // the first operation duplicates the top stack item,
-    // the second operation moves the 3rd item to the top of the stack,
+    // the program is a simple repetition of 4 stack operations:
+    // the first operation moves the 2nd stack item to the top,
+    // the second operation duplicates the top 2 stack items,
+    // the third operation removes the top item from the stack
     // the last operation pops top 2 stack items, adds them, and pushes
     // the result back onto the stack
     for _ in 0..(n - 1) {
