@@ -51,7 +51,7 @@ impl <T> Stack<T>
         self.enforce_logic_ops(current_stack, next_stack, op_flags, result);
 
         // evaluate constraints for hash operation
-        let hash_flag = op_flags[opcodes::HASH as usize];
+        let hash_flag = op_flags[opcodes::HASHR as usize];
         self.hash_evaluator.evaluate(current_stack, next_stack, step, hash_flag, result);
     }
 
@@ -71,7 +71,7 @@ impl <T> Stack<T>
         self.enforce_logic_ops(current_stack, next_stack, op_flags, result);
 
         // evaluate constraints for hash operation
-        let hash_flag = op_flags[opcodes::HASH as usize];
+        let hash_flag = op_flags[opcodes::HASHR as usize];
         self.hash_evaluator.evaluate_at(current_stack, next_stack, x, hash_flag, result);
     }
 

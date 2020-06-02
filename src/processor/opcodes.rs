@@ -25,7 +25,7 @@ pub const MUL: u8      = 0b000_10_011;
 pub const CHOOSE: u8   = 0b000_10_110;
 pub const CHOOSE2: u8  = 0b000_10_111;
 
-pub const HASH: u8     = 0b000_11_000;
+pub const HASHR: u8    = 0b000_11_000;
 //pub const ???: u8    = 0b000_11_001;
 pub const SWAP: u8     = 0b000_11_010;
 pub const SWAP2: u8    = 0b000_11_011;
@@ -69,5 +69,5 @@ pub mod f128 {
     pub const NOT     : u128 = super::NOT as u128;
 
     // crypto ops
-    pub const HASH    : u128 = super::HASH as u128;
+    pub const HASHR   : u128 = super::HASHR as u128;
 }

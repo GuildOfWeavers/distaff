@@ -101,7 +101,7 @@ pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: us
             opcodes::NEG     => stack.neg(i),
             opcodes::NOT     => stack.not(i),
 
-            opcodes::HASH    => stack.hash(i),
+            opcodes::HASHR   => stack.hashr(i),
 
             _ => panic!("operation {} is not supported", program[i])
         }
@@ -325,7 +325,7 @@ impl <T> StackTrace<T>
         self.copy_state(step, 1);
     }
 
-    fn hash(&mut self, step: usize) {
+    fn hashr(&mut self, step: usize) {
         assert!(self.depth >= HASH_STATE_WIDTH, "stack underflow at step {}", step);
         let mut state = [
             self.user_registers[0][step],
@@ -665,15 +665,15 @@ mod tests {
     }
 
     #[test]
-    fn hash() {
+    fn hashr() {
         let mut stack = init_stack(&[0, 0, 1, 2, 3, 4], &[], &[]);
         let mut expected = vec![0, 0, 1, 2, 3, 4, 0, 0];
 
-        stack.hash(0);
+        stack.hashr(0);
         <F128 as Hasher>::apply_round(&mut expected[..F128::STATE_WIDTH], 0);
         assert_eq!(expected, get_stack_state(&stack, 1));
 
-        stack.hash(1);
+        stack.hashr(1);
         <F128 as Hasher>::apply_round(&mut expected[..F128::STATE_WIDTH], 1);
         assert_eq!(expected, get_stack_state(&stack, 2));
 
