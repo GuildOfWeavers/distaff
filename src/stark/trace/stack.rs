@@ -96,7 +96,6 @@ pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: us
             opcodes::CHOOSE2 => stack.choose2(i),
 
             opcodes::ADD     => stack.add(i),
-            opcodes::SUB     => stack.sub(i),
             opcodes::MUL     => stack.mul(i),
             opcodes::INV     => stack.inv(i),
             opcodes::NEG     => stack.neg(i),
@@ -291,14 +290,6 @@ impl <T> StackTrace<T>
         let x = self.user_registers[0][step];
         let y = self.user_registers[1][step];
         self.user_registers[0][step + 1] = T::add(x, y);
-        self.shift_left(step, 2, 1);
-    }
-
-    fn sub(&mut self, step: usize) {
-        assert!(self.depth >= 2, "stack underflow at step {}", step);
-        let x = self.user_registers[0][step];
-        let y = self.user_registers[1][step];
-        self.user_registers[0][step + 1] = T::sub(y, x);
         self.shift_left(step, 2, 1);
     }
 
@@ -596,16 +587,6 @@ mod tests {
     fn add() {
         let mut stack = init_stack(&[1, 2], &[], &[]);
         stack.add(0);
-        assert_eq!(vec![3, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
-
-        assert_eq!(1, stack.depth);
-        assert_eq!(2, stack.max_depth);
-    }
-
-    #[test]
-    fn sub() {
-        let mut stack = init_stack(&[2, 5], &[], &[]);
-        stack.sub(0);
         assert_eq!(vec![3, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
         assert_eq!(1, stack.depth);

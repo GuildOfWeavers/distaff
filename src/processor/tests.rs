@@ -144,9 +144,9 @@ fn logic_operations_panic() {
 #[test]
 fn math_operations() {
     let program = [
-        opcodes::BEGIN, opcodes::ADD,  opcodes::MUL,  opcodes::SWAP,
-        opcodes::SUB,   opcodes::ADD,  opcodes::MUL,  opcodes::INV,
+        opcodes::BEGIN, opcodes::ADD,  opcodes::MUL,  opcodes::INV,
         opcodes::NEG,   opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
+        opcodes::NOOP,  opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
     ];
     let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
@@ -155,7 +155,7 @@ fn math_operations() {
     let inputs = ProgramInputs::from_public(&[7, 6, 5, 4, 0, 1]);
     let num_outputs = 1;
 
-    let expected_result = F128::neg(F128::inv(61));
+    let expected_result = F128::neg(F128::inv(65));
 
     let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
     assert_eq!(outputs, [expected_result]);

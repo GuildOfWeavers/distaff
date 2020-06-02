@@ -10,6 +10,7 @@ pub struct ProgramInputs<T: FiniteField> {
 impl <T> ProgramInputs<T>
     where T: FiniteField
 {
+    /// Returns `ProgramInputs` initialized with the provided public and secret inputs.
     pub fn new(public: &[T], secret_a: &[T], secret_b: &[T]) -> ProgramInputs<T> {
 
         assert!(public.len() <= MAX_PUBLIC_INPUTS,
@@ -25,6 +26,16 @@ impl <T> ProgramInputs<T>
         };
     }
 
+    /// Returns `ProgramInputs` with public and secret input tapes set to empty vectors.
+    pub fn none() -> ProgramInputs<T> {
+        return ProgramInputs {
+            public  : Vec::new(),
+            secret  : [Vec::new(), Vec::new()],
+        };
+    }
+
+    /// Returns `ProgramInputs` initialized with the provided public inputs and secret
+    /// input tapes set to empty vectors.
     pub fn from_public(public: &[T]) -> ProgramInputs<T> {
         return ProgramInputs {
             public: public.to_vec(),
