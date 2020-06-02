@@ -77,10 +77,10 @@ pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: us
             opcodes::READ    => stack.read(i),
             opcodes::READ2   => stack.read2(i),
 
-            opcodes::PAD2    => stack.pad2(i),
             opcodes::DUP     => stack.dup(i),
             opcodes::DUP2    => stack.dup2(i),
             opcodes::DUP4    => stack.dup4(i),
+            opcodes::PAD2    => stack.pad2(i),
 
             opcodes::DROP    => stack.drop(i),
             opcodes::DROP4   => stack.drop4(i),
@@ -99,6 +99,7 @@ pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: us
             opcodes::MUL     => stack.mul(i),
             opcodes::INV     => stack.inv(i),
             opcodes::NEG     => stack.neg(i),
+            opcodes::NOT     => stack.not(i),
 
             opcodes::HASH    => stack.hash(i),
 
@@ -162,6 +163,34 @@ impl <T> StackTrace<T>
         let value_b = self.secret_inputs_b.pop().unwrap();
         self.user_registers[0][step + 1] = value_b;
         self.user_registers[1][step + 1] = value_a;
+    }
+
+    fn dup(&mut self, step: usize) {
+        assert!(self.depth >= 1, "stack underflow at step {}", step);
+        self.shift_right(step, 0, 1);
+        self.user_registers[0][step + 1] = self.user_registers[0][step];
+    }
+
+    fn dup2(&mut self, step: usize) {
+        assert!(self.depth >= 2, "stack underflow at step {}", step);
+        self.shift_right(step, 0, 2);
+        self.user_registers[0][step + 1] = self.user_registers[0][step];
+        self.user_registers[1][step + 1] = self.user_registers[1][step];
+    }
+
+    fn dup4(&mut self, step: usize) {
+        assert!(self.depth >= 4, "stack underflow at step {}", step);
+        self.shift_right(step, 0, 4);
+        self.user_registers[0][step + 1] = self.user_registers[0][step];
+        self.user_registers[1][step + 1] = self.user_registers[1][step];
+        self.user_registers[2][step + 1] = self.user_registers[2][step];
+        self.user_registers[3][step + 1] = self.user_registers[3][step];
+    }
+
+    fn pad2(&mut self, step: usize) {
+        self.shift_right(step, 0, 2);
+        self.user_registers[0][step + 1] = T::ZERO;
+        self.user_registers[1][step + 1] = T::ZERO;
     }
 
     fn drop(&mut self, step: usize) {
@@ -257,34 +286,6 @@ impl <T> StackTrace<T>
         self.shift_left(step, 6, 4);
     }
 
-    fn pad2(&mut self, step: usize) {
-        self.shift_right(step, 0, 2);
-        self.user_registers[0][step + 1] = T::ZERO;
-        self.user_registers[1][step + 1] = T::ZERO;
-    }
-
-    fn dup(&mut self, step: usize) {
-        assert!(self.depth >= 1, "stack underflow at step {}", step);
-        self.shift_right(step, 0, 1);
-        self.user_registers[0][step + 1] = self.user_registers[0][step];
-    }
-
-    fn dup2(&mut self, step: usize) {
-        assert!(self.depth >= 2, "stack underflow at step {}", step);
-        self.shift_right(step, 0, 2);
-        self.user_registers[0][step + 1] = self.user_registers[0][step];
-        self.user_registers[1][step + 1] = self.user_registers[1][step];
-    }
-
-    fn dup4(&mut self, step: usize) {
-        assert!(self.depth >= 4, "stack underflow at step {}", step);
-        self.shift_right(step, 0, 4);
-        self.user_registers[0][step + 1] = self.user_registers[0][step];
-        self.user_registers[1][step + 1] = self.user_registers[1][step];
-        self.user_registers[2][step + 1] = self.user_registers[2][step];
-        self.user_registers[3][step + 1] = self.user_registers[3][step];
-    }
-
     fn add(&mut self, step: usize) {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
         let x = self.user_registers[0][step];
@@ -313,6 +314,14 @@ impl <T> StackTrace<T>
         assert!(self.depth >= 1, "stack underflow at step {}", step);
         let x = self.user_registers[0][step];
         self.user_registers[0][step + 1] = T::neg(x);
+        self.copy_state(step, 1);
+    }
+
+    fn not(&mut self, step: usize) {
+        assert!(self.depth >= 1, "stack underflow at step {}", step);
+        let x = self.user_registers[0][step];
+        assert!(x == T::ZERO || x == T::ONE, "cannot compute NOT of a non-binary value");
+        self.user_registers[0][step + 1] = T::sub(T::ONE, x);
         self.copy_state(step, 1);
     }
 
@@ -629,6 +638,30 @@ mod tests {
 
         assert_eq!(2, stack.depth);
         assert_eq!(2, stack.max_depth);
+    }
+
+    #[test]
+    fn not() {
+        let mut stack = init_stack(&[1, 2], &[], &[]);
+        stack.not(0);
+        assert_eq!(vec![0, 2, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+        assert_eq!(2, stack.depth);
+        assert_eq!(2, stack.max_depth);
+
+        stack.not(1);
+        assert_eq!(vec![1, 2, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 2));
+
+        assert_eq!(2, stack.depth);
+        assert_eq!(2, stack.max_depth);
+    }
+
+    #[test]
+    #[should_panic]
+    fn not_fail() {
+        let mut stack = init_stack(&[1, 2], &[], &[]);
+        stack.not(0);
+        assert_eq!(vec![2, 2, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
     }
 
     #[test]

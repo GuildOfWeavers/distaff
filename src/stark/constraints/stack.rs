@@ -275,6 +275,13 @@ impl <T> Stack<T>
         enforce_no_change(&mut evaluations[2..n], &current[6..], &next[2..n], op_flag);
         result[0] = agg_op_constraint(result[0], op_flag, is_binary(condition1));
 
+        // NOT
+        let op_flag = op_flags[opcodes::NOT as usize];
+        let op_result = T::sub(T::ONE, current[0]);
+        evaluations[0] = agg_op_constraint(evaluations[0], op_flag, T::sub(next[0], op_result));
+        enforce_no_change(&mut evaluations[1..n], &current[1..], &next[1..n], op_flag);
+        result[0] = agg_op_constraint(result[0], op_flag, is_binary(current[0]));
+
         let result = &mut result[AUX_WIDTH..];
         for i in 0..result.len() {
             result[i] = T::add(result[i], evaluations[i]);
