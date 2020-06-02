@@ -5,7 +5,7 @@ Distaff is a zero-knowledge virtual machine written in Rust. For any program exe
 **DO NOT USE IN PRODUCTION.** Distaff is in a very early alpha. This means that current functionality is limited, and there are known and unknown bugs and security flaws.
 
 ## Usage
-Distaff exposes `processor` module which can be used to execute programs and verify their execution. Both are explained below, but you can also take a look at a working example of a program which calculates n-th term of a Fibonacci sequence [here](https://github.com/GuildOfWeavers/distaff/blob/master/src/main.rs).
+Distaff exposes `processor` module which can be used to execute programs and verify their execution. Both are explained below, but you can also take a look at a working example of a program which calculates n-th term of a Fibonacci sequence [here](https://github.com/GuildOfWeavers/distaff/blob/master/src/examples/fibonacci.rs).
 
 ### Executing a program 
 To execute a program on Distaff VM, you can use `processor::execute()` function. The function takes the following parameters:
@@ -253,7 +253,7 @@ DUP2        // stack state: 1 2 1 2
 DROP        // stack state: 2 1 2
 ADD         // stack state: 3 2
 ```
-Notice that except for the first 2 operations which initialize the stack, the sequence of `SWAP DUP2 DROP ADD` operations repeats over and over. In fact, we can repeat these operations an arbitrary number of times to compute an arbitrary Fibonacci number. In Rust, it would like like this (this is actually a simplified version of the example in [main.rs](https://github.com/GuildOfWeavers/distaff/blob/master/src/main.rs)):
+Notice that except for the first 2 operations which initialize the stack, the sequence of `SWAP DUP2 DROP ADD` operations repeats over and over. In fact, we can repeat these operations an arbitrary number of times to compute an arbitrary Fibonacci number. In Rust, it would like like this (this is actually a simplified version of the example in [fibonacci.rs](https://github.com/GuildOfWeavers/distaff/blob/master/src/examples/fibonacci.rs)):
 ```Rust
 use distaff::{ ProofOptions, ProgramInputs, processor, processor::opcodes::f128 as opcodes };
 
