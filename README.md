@@ -143,7 +143,7 @@ Eventually, Distaff will have up to 40 (or more) instructions which will let you
 | ----------- | :------: | -------------------------------------- |
 | ADD         | 00011001 | Pops top two items from the stack, adds them, and pushes the result back onto the stack. |
 | MUL         | 00011010 | Pops top two items from the stack, multiplies them, and pushes the result back onto the stack. |
-| INV         | 00000011 | Pops the top item from the stack, computes its multiplicative inverse, and pushes the result back onto the stack. This can be used to emulate division with a sequence of two operations: `INV MUL`.
+| INV         | 00000011 | Pops the top item from the stack, computes its multiplicative inverse, and pushes the result back onto the stack. This can be used to emulate division with a sequence of two operations: `INV MUL`. If the value at the top of the stack is `0`, the operation will fail.
 | NEG         | 00000100 | Pops the top item from the stack, computes its additive inverse, and pushes the result back onto the stack. This can be used to emulate subtraction with a sequence of two operations: `NEG ADD` |
 | NOT         | 00000101 | Pops the top item from the stack, subtracts it from value `1` and pushes the result back onto the stack. In other words, `0` becomes `1`, and `1` becomes `0`. This is equivalent to `PUSH 1 SWAP NEG ADD` but also enforces that the top stack item contains a binary value. |
 

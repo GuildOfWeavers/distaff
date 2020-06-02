@@ -304,6 +304,7 @@ impl <T> StackTrace<T>
     fn inv(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
         let x = self.user_registers[0][step];
+        assert!(x != T::ZERO, "multiplicative inverse of {} is undefined", T::ZERO);
         self.user_registers[0][step + 1] = T::inv(x);
         self.copy_state(step, 1);
     }
@@ -611,6 +612,13 @@ mod tests {
 
         assert_eq!(2, stack.depth);
         assert_eq!(2, stack.max_depth);
+    }
+
+    #[test]
+    #[should_panic]
+    fn inv_zero() {
+        let mut stack = init_stack(&[0], &[], &[]);
+        stack.inv(0);
     }
 
     #[test]
