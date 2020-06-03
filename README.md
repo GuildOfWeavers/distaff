@@ -93,7 +93,7 @@ Currently, Distaff VM stack can be up to 32 items deep (this will be increased i
 
 Values on the stack must be elements of a [prime field](https://en.wikipedia.org/wiki/Finite_field) with modulus `340282366920938463463374557953744961537` (which can also be written as 2<sup>128</sup> - 45 * 2<sup>40</sup> + 1). This means that all valid values are in the range between `0` and `340282366920938463463374557953744961536` - this covers almost all 128-bit integers.   
 
-All arithmetic operations (addition, subtraction, multiplication) also happen in the same prime field. This means that overflow happens after a value exceeds field modulus. So, for example: `340282366920938463463374557953744961536 + 1 = 0`.
+All arithmetic operations (addition, multiplication) also happen in the same prime field. This means that overflow happens after a value exceeds field modulus. So, for example: `340282366920938463463374557953744961536 + 1 = 0`.
 
 Besides being field elements, values in Distaff VM are untyped. However, some operations expect binary values and will fail if you attempt to execute them using non-binary values. Binary values are values which are either `0` or `1`.
 
@@ -155,15 +155,15 @@ Distaff VM already has a rich set of instructions which make it possible to writ
 | MUL         | 00011010 | Pops top two items from the stack, multiplies them, and pushes the result back onto the stack. |
 | INV         | 00000011 | Pops the top item from the stack, computes its multiplicative inverse, and pushes the result back onto the stack. This can be used to emulate division with a sequence of two operations: `INV MUL`. If the value at the top of the stack is `0`, the operation will fail.
 | NEG         | 00000100 | Pops the top item from the stack, computes its additive inverse, and pushes the result back onto the stack. This can be used to emulate subtraction with a sequence of two operations: `NEG ADD` |
-| NOT         | 00000101 | Pops the top item from the stack, subtracts it from value `1` and pushes the result back onto the stack. In other words, `0` becomes `1`, and `1` becomes `0`. This is equivalent to `PUSH 1 SWAP NEG ADD` but also enforces that the top stack item contains a binary value. |
+| NOT         | 00000101 | Pops the top item from the stack, subtracts it from value `1` and pushes the result back onto the stack. In other words, `0` becomes `1`, and `1` becomes `0`. This is equivalent to `PUSH 1 SWAP NEG ADD` but also enforces that the top stack item is a binary value. |
 
 #### Cryptographic operations
 
 | Instruction | Opcode   | Description                            |
 | ----------- | :------: | -------------------------------------- |
-| HASHR       | 00011000 | Pops top 6 items from the stack, computes a single round of a modified [Rescue](https://eprint.iacr.org/2019/426) hash function over these values, and pushes the results back onto the stack. This operation can be used to hash up to two 256-bit values. However, to achieve 120 bits of security, the `HASH` operation must be applied at least 10 times in a row (see [here](#Hashing-in-Distaff-VM)).  |
+| HASHR       | 00011000 | Pops top 6 items from the stack, computes a single round of a modified [Rescue](https://eprint.iacr.org/2019/426) hash function over these values, and pushes the results back onto the stack. This operation can be used to hash up to two 256-bit values. However, to achieve 120 bits of security, the `HASHR` operation must be applied at least 10 times in a row (see [here](#Hashing-in-Distaff-VM)).  |
 
-#### Potential future instructions
+#### Potential future operations
 Distaff VM is still missing a few important instructions. Specifically, comparing values is not currently supported. This makes programs with sophisticated conditional logic unsuitable for Distaff VM. To remedy this, new instructions will be added to the VM in the near future.
 
 ### Hashing in Distaff VM
@@ -199,7 +199,7 @@ HASHR HASHR DROP4
 ```
 A quick explanation of what's happening here:
 1. First, we pad the beginning of the program with `NOOP`'s so that the first `HASHR` operation happens on the 16th step.
-2. Then, we ready 4 values from the input tape `A`. These 4 values represent our two 256-bit values. We also push two `0`'s onto the stack by executing `PAD2` operation.
+2. Then, we read 4 values from the input tape `A`. These 4 values represent our two 256-bit values. We also push two `0`'s onto the stack by executing `PAD2` operation.
 3. Then, we execute `HASHR` operation 10 times. Notice again that the first `HASHR` operation is executed on the 16th step.
 4. The result of hashing is now in the 5th and 6th positions of the stack. So, we remove top 4 times from the stack (using `DROP4` operation) to move the result to the top of the stack.
 
@@ -221,14 +221,32 @@ This modification should not impact security properties of the function, but it 
 Another thing to note: current implementation of the hash function uses S-Box of power 3, but this will likely be changes to S-Box of power 5 in the future.
 
 ### Program hash
-TODO
 
 As described [here](#Executing-a-program), one of the values produced by Distaff VM after executing a program is program hash. This hash is a reduction of all program instructions into a single 32-byte value. The hash is generated as follows:
 
 1. First, the program is padded with `NOOP` operations. The padding ensures that:
    1. The program consists of at least 16 operations.
    2. The number of operations is a power of 2 (16, 32, 64 etc.).
-2. Then, a modified version of [Rescue](https://eprint.iacr.org/2019/426) hash function is used to sequentially hash all instructions together (see [code](https://github.com/GuildOfWeavers/distaff/blob/master/src/stark/utils/hash_acc.rs)). Security implications of this modification have not been analyzed. It is likely that this modification greatly reduces security of Rescue, and the hashing scheme will need to be changed in the future.
+2. Then, a hash function is used to sequentially hash all instructions together. This hash function is based on Rescue hash function - however, it deviates significantly from the original construction. Security implications of this deviation have not been analyzed. It is possible that this hashing scheme is insecure, and will need to be changed in the future.
+
+The hash function works as follows:
+
+First, a state of 4 field elements is initialized to `0`. Then, the following procedure is applied for each operation of the program:
+```
+add round constants;
+apply s-box;
+apply MDS;
+state[0] = state[0] + state[2] * op_code;
+state[1] = state[1] * state[3] + op_code;
+add round constants;
+apply inverse s-box;
+apply MDS;
+```
+where `op_code` is the opcode of the operation being executed on the VM. As mentioned above, this is based on the Rescue hash function but with the following significant differences:
+1. The opcodes of the program are injected into the state in the middle of every round.
+2. The number of rounds is equal to the number of operations in the program.
+
+After the above procedure has been applied for all operations of the program, the first two elements of the state are returned as the hash of the program.
 
 ### Turing-completeness
 Distaff VM is unlikely to be [Turing-complete](https://en.wikipedia.org/wiki/Turing_completeness) in the foreseeable future. However, even now, you can use `CHOOSE` instructions to simulate conditional branches. In the future, more sophisticated ways to support conditional execution, and maybe even bounded loops, will be added.
