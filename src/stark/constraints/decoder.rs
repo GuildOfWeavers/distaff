@@ -8,11 +8,10 @@ use crate::stark::{ ACC_STATE_WIDTH, ACC_CYCLE_LENGTH };
 const OP_CODE_CONSTRAINTS: usize = 6;
 const NUM_CONSTRAINTS: usize = OP_CODE_CONSTRAINTS + ACC_STATE_WIDTH;
 
-// TODO: set correct degrees for decoder constraints
 const CONSTRAINT_DEGREES: [usize; NUM_CONSTRAINTS] = [
     2, 2, 2, 2, 2,  // op_bits are binary
     6,              // op_code decomposition constraint
-    6, 6, 6, 6      // op_code hash accumulator constraints
+    4, 6, 3, 3      // op_code hash accumulator constraints
 ];
 
 // TYPES AND INTERFACES

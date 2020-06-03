@@ -1,19 +1,22 @@
 use std::cmp;
 use crate::math::{ FiniteField, polynom };
 use crate::stark::{ TraceState, Accumulator, Hasher };
-use crate::stark::{ MAX_STACK_DEPTH, AUX_WIDTH, NUM_LD_OPS, HASH_STATE_WIDTH, HASH_CYCLE_LENGTH };
+use crate::stark::{ AUX_WIDTH, NUM_LD_OPS, HASH_STATE_WIDTH, HASH_CYCLE_LENGTH };
 use crate::processor::{ opcodes };
 
 // CONSTANTS
 // ================================================================================================
-// TODO: set correct degrees for stack constraints
-const CONSTRAINT_DEGREES: [usize; MAX_STACK_DEPTH] = [8; MAX_STACK_DEPTH];
+const STACK_HEAD_DEGREES: [usize; 8] = [
+    7, 0,               // aux constraints
+    8, 8, 8, 8, 8, 8,   // constraints for the first 6 registers of user stack
+];
+const STACK_REST_DEGREE: usize = 6; // degree for the rest of the stack registers
 
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct Stack<T: FiniteField> {
-    stack_depth     : usize,
-    hash_evaluator  : HashEvaluator<T>,
+    hash_evaluator      : HashEvaluator<T>,
+    constraint_degrees  : Vec<usize>
 }
 
 // STACK CONSTRAINT EVALUATOR IMPLEMENTATION
@@ -22,14 +25,18 @@ impl <T> Stack<T>
     where T: FiniteField + Accumulator + Hasher
 {
     pub fn new(trace_length: usize, extension_factor: usize, stack_depth: usize) -> Stack<T> {
+
+        let mut degrees = Vec::from(&STACK_HEAD_DEGREES[..]);
+        degrees.resize(stack_depth, STACK_REST_DEGREE);
+
         return Stack {
-            stack_depth     : stack_depth,
-            hash_evaluator  : HashEvaluator::new(trace_length, extension_factor)
+            hash_evaluator      : HashEvaluator::new(trace_length, extension_factor),
+            constraint_degrees  : degrees,
         };
     }
 
     pub fn constraint_degrees(&self) -> &[usize] {
-        return &CONSTRAINT_DEGREES[..self.stack_depth];
+        return &self.constraint_degrees;
     }
 
     // EVALUATOR FUNCTIONS
