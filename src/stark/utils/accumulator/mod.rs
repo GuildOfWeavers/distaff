@@ -41,17 +41,18 @@ pub trait Accumulator: FiniteField {
 
     fn apply_round(state: &mut [Self], value: Self, step: usize) {
         
-        // inject value into the state
-        state[0] = Self::add(state[0], value);
-        state[1] = Self::mul(state[1], value);
-
         let ark_idx = step % Self::NUM_ROUNDS;
 
-        // apply Rescue round
+        // apply first half of Rescue round
         Self::add_constants(state, ark_idx, 0);
         Self::apply_sbox(state);
         Self::apply_mds(state);
 
+        // inject value into the state
+        state[0] = Self::add(state[0], Self::mul(state[2], value));
+        state[1] = Self::mul(state[1], Self::add(state[3], value));
+
+        // apply second half of Rescue round
         Self::add_constants(state, ark_idx, Self::STATE_WIDTH);
         Self::apply_inv_sbox(state);
         Self::apply_mds(state);

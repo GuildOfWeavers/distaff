@@ -1,13 +1,14 @@
 use std::mem;
 use crate::math::{ FiniteField };
-use crate::stark::{ StarkProof, TraceTable, TraceState, ConstraintCoefficients, Accumulator };
+use crate::processor::{ opcodes };
+use crate::stark::{ StarkProof, TraceTable, TraceState, ConstraintCoefficients, Accumulator, Hasher };
 use crate::utils::{ uninit_vector };
 use super::{ decoder::Decoder, stack::Stack, MAX_CONSTRAINT_DEGREE };
 
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct Evaluator<T>
-    where T: FiniteField + Accumulator
+    where T: FiniteField + Accumulator + Hasher
 {
     decoder         : Decoder<T>,
     stack           : Stack<T>,
@@ -30,7 +31,7 @@ pub struct Evaluator<T>
 // EVALUATOR IMPLEMENTATION
 // ================================================================================================
 impl <T> Evaluator<T>
-    where T: FiniteField + Accumulator
+    where T: FiniteField + Accumulator + Hasher
 {
     pub fn from_trace(trace: &TraceTable<T>, trace_root: &[u8; 32], inputs: &[T], outputs: &[T]) -> Evaluator<T> {
 
@@ -41,7 +42,7 @@ impl <T> Evaluator<T>
 
         // instantiate decoder and stack constraint evaluators 
         let decoder = Decoder::new(trace_length, extension_factor);
-        let stack = Stack::new(stack_depth);
+        let stack = Stack::new(trace_length, extension_factor, stack_depth);
 
         // build a list of transition constraint degrees
         let t_constraint_degrees = [
@@ -83,7 +84,7 @@ impl <T> Evaluator<T>
         
         // instantiate decoder and stack constraint evaluators 
         let decoder = Decoder::new(trace_length, extension_factor);
-        let stack = Stack::new(stack_depth);
+        let stack = Stack::new(trace_length, extension_factor, stack_depth);
 
         // build a list of transition constraint degrees
         let t_constraint_degrees = [
@@ -143,7 +144,7 @@ impl <T> Evaluator<T>
         // evaluate transition constraints
         let mut evaluations = vec![T::ZERO; self.t_constraint_num];
         self.decoder.evaluate(&current, &next, step, &mut evaluations);
-        self.stack.evaluate(&current, &next, &mut evaluations[self.decoder.constraint_count()..]);
+        self.stack.evaluate(&current, &next, step, &mut evaluations[self.decoder.constraint_count()..]);
 
         // when in debug mode, save transition evaluations before they are combined
         #[cfg(debug_assertions)]
@@ -170,64 +171,99 @@ impl <T> Evaluator<T>
         // evaluate transition constraints
         let mut evaluations = vec![T::ZERO; self.t_constraint_num];
         self.decoder.evaluate_at(&current, &next, x, &mut evaluations);
-        self.stack.evaluate(&current, &next, &mut evaluations[self.decoder.constraint_count()..]);
+        self.stack.evaluate_at(&current, &next, x, &mut evaluations[self.decoder.constraint_count()..]);
 
         // compute a pseudo-random linear combination of all transition constraints
         return self.combine_transition_constraints(&evaluations, x);
     }
 
-    /// Computes pseudo-random linear combination of boundary constraints B_i at point x 
-    /// separately for input and output constraints; the constraints are computed as:
+    /// Computes pseudo-random linear combination of boundary constraints B_i at point x  separately
+    /// for the first and for the last steps of the program; the constraints are computed as:
     /// cc_{i * 2} * B_i + cc_{i * 2 + 1} * B_i * x^p for all i, where cc_j are the coefficients
     /// used in the linear combination and x^p is a degree adjustment factor.
     pub fn evaluate_boundaries(&self, current: &TraceState<T>, x: T) -> (T, T) {
         
-        let cc = self.coefficients.inputs;
-        let stack = current.get_stack();
-        
-        // compute adjustment factor
+        // compute degree adjustment factor
         let xp = T::exp(x, self.b_degree_adj);
 
-        // 1 ----- compute combination of input constraints ---------------------------------------
+        // 1 ----- compute combination of boundary constraints for the first step ------------------
         let mut i_result = T::ZERO;
         let mut result_adj = T::ZERO;
 
-        // separately compute P(x) - input for adjusted and un-adjusted terms
+        let cc = self.coefficients.i_boundary;
+        let mut cc_idx = 0;
+
+        // make sure op_code and ob_bits are set to BEGIN
+        let op_code = current.get_op_code();
+        let val = T::sub(op_code, T::from(opcodes::BEGIN));
+        i_result = T::add(i_result, T::mul(val, cc[cc_idx]));
+        result_adj = T::add(result_adj, T::mul(val, cc[cc_idx]));
+
+        let op_bits = current.get_op_bits();
+        for i in 0..op_bits.len() {
+            cc_idx += 2;
+            let val = T::sub(op_bits[i], T::ONE);
+            i_result = T::add(i_result, T::mul(val, cc[cc_idx]));
+            result_adj = T::add(result_adj, T::mul(val, cc[cc_idx + 1]));
+        }
+
+        // make sure operation accumulator registers are set to zeros 
+        let op_acc = current.get_op_acc();
+        for i in 0..op_acc.len() {
+            cc_idx += 2;
+            i_result = T::add(i_result, T::mul(op_acc[i], cc[cc_idx]));
+            result_adj = T::add(result_adj, T::mul(op_acc[i], cc[cc_idx + 1]));
+        }
+
+        // make sure stack registers are set to inputs
+        let user_stack = current.get_user_stack();
         for i in 0..self.inputs.len() {
-            let val = T::sub(stack[i], self.inputs[i]);
-            i_result = T::add(i_result, T::mul(val, cc[i * 2]));
-            result_adj = T::add(result_adj, T::mul(val, cc[i * 2 + 1]));
+            cc_idx += 2;
+            let val = T::sub(user_stack[i], self.inputs[i]);
+            i_result = T::add(i_result, T::mul(val, cc[cc_idx]));
+            result_adj = T::add(result_adj, T::mul(val, cc[cc_idx + 1]));
         }
 
         // raise the degree of adjusted terms and sum all the terms together
         i_result = T::add(i_result, T::mul(result_adj, xp));
 
-        // 2 ----- compute combination of output constraints ---------------------------------------
+        // 2 ----- compute combination of boundary constraints for the last step -------------------
         let mut f_result = T::ZERO;
         let mut result_adj = T::ZERO;
 
-        // separately compute P(x) - output for adjusted and un-adjusted terms
+        let cc = self.coefficients.f_boundary;
+        let mut cc_idx = 0;
+
+        // make sure op_code and op_bits are set to NOOP
+        let op_code = current.get_op_code();
+        f_result = T::add(f_result, T::mul(op_code, cc[cc_idx]));
+        result_adj = T::add(result_adj, T::mul(op_code, cc[cc_idx + 1]));
+
+        let op_bits = current.get_op_bits();
+        for i in 0..op_bits.len() {
+            cc_idx += 2;
+            f_result = T::add(f_result, T::mul(op_bits[i], cc[cc_idx]));
+            result_adj = T::add(result_adj, T::mul(op_bits[i], cc[cc_idx + 1]));
+        }
+
+        // make sure operation accumulator contains program hash
+        let program_hash = current.get_program_hash();
+        for i in 0..self.program_hash.len() {
+            cc_idx += 2;
+            let val = T::sub(program_hash[i], self.program_hash[i]);
+            f_result = T::add(f_result, T::mul(val, cc[cc_idx]));
+            result_adj = T::add(result_adj, T::mul(val, cc[cc_idx + 1]));
+        }
+
+        // make sure stack registers are set to outputs
         for i in 0..self.outputs.len() {
-            let val = T::sub(stack[i], self.outputs[i]);
-            f_result = T::add(f_result, T::mul(val, cc[i * 2]));
-            result_adj = T::add(result_adj, T::mul(val, cc[i * 2 + 1]));
+            cc_idx += 2;
+            let val = T::sub(user_stack[i], self.outputs[i]);
+            f_result = T::add(f_result, T::mul(val, cc[cc_idx]));
+            result_adj = T::add(result_adj, T::mul(val, cc[cc_idx + 1]));
         }
 
         // raise the degree of adjusted terms and sum all the terms together
-        f_result = T::add(f_result, T::mul(result_adj, xp));
-
-        // 3 ----- compute combination of program hash constraints --------------------------------
-        let mut result_adj = T::ZERO;
-
-        // because we check program hash at the last step, we add the constraints to the
-        // constraint evaluations to the output constraint combination
-        let program_hash = current.get_program_hash();
-        for i in 0..self.program_hash.len() {
-            let val = T::sub(program_hash[i], self.program_hash[i]);
-            f_result = T::add(f_result, T::mul(val, cc[i * 2]));
-            result_adj = T::add(result_adj, T::mul(val, cc[i * 2 + 1]));
-        }
-
         f_result = T::add(f_result, T::mul(result_adj, xp));
 
         return (i_result, f_result);
@@ -265,6 +301,7 @@ impl <T> Evaluator<T>
         return result;
     }
 
+    #[cfg(debug_assertions)]
     fn save_transition_evaluations(&self, evaluations: &[T], step: usize) {
         unsafe {
             let mutable_self = &mut *(self as *const _ as *mut Evaluator<T>);

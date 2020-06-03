@@ -87,7 +87,7 @@ impl Accumulator for F128 {
     }
 }
 
-// 64-BIT RESCUE CONSTANTS
+// 128-BIT RESCUE CONSTANTS
 // ================================================================================================
 
 const NUM_ROUNDS    : usize = 16;

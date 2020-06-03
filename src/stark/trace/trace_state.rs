@@ -1,8 +1,17 @@
 use std::fmt;
 use std::cmp;
 use crate::math::{ FiniteField };
-use crate::stark::{ Accumulator };
-use super::{ decoder, NUM_LD_OPS, MIN_STACK_DEPTH };
+use crate::stark::{ 
+    Accumulator,
+    MIN_STACK_DEPTH,
+    DECODER_WIDTH,
+    AUX_WIDTH,
+    OP_CODE_INDEX,
+    OP_BITS_RANGE,
+    OP_ACC_RANGE,
+    PROG_HASH_RANGE,
+    NUM_LD_OPS
+};
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -22,8 +31,8 @@ impl <T> TraceState<T>
     where T: FiniteField + Accumulator
 {
     pub fn new(stack_depth: usize) -> TraceState<T> {
-        let state_width = decoder::num_registers::<T>() + stack_depth;
-        let num_registers = decoder::num_registers::<T>() + cmp::max(stack_depth, MIN_STACK_DEPTH);
+        let state_width = DECODER_WIDTH + stack_depth;
+        let num_registers = DECODER_WIDTH + cmp::max(stack_depth, MIN_STACK_DEPTH);
         
         return TraceState {
             registers   : vec![T::ZERO; num_registers],
@@ -35,7 +44,7 @@ impl <T> TraceState<T>
 
     pub fn from_raw_state(mut state: Vec<T>) -> TraceState<T> {
         let state_width = state.len();
-        let stack_depth = state_width - decoder::num_registers::<T>();
+        let stack_depth = state_width - DECODER_WIDTH;
 
         if stack_depth < MIN_STACK_DEPTH {
             state.resize(state.len() + (MIN_STACK_DEPTH - stack_depth), T::ZERO);
@@ -52,33 +61,19 @@ impl <T> TraceState<T>
     // PUBLIC ACCESSORS
     // --------------------------------------------------------------------------------------------
     pub fn get_op_code(&self) -> T {
-        return self.registers[decoder::OP_CODE_IDX];
-    }
-
-    pub fn get_push_flag(&self) -> T {
-        return self.registers[decoder::PUSH_FLAG_IDX];
+        return self.registers[OP_CODE_INDEX];
     }
 
     pub fn get_op_acc(&self) -> &[T] {
-        return &self.registers[decoder::op_acc_range::<T>()];
+        return &self.registers[OP_ACC_RANGE];
     }
 
     pub fn get_program_hash(&self) -> &[T] {
-        return &self.registers[decoder::prog_hash_range::<T>()];
+        return &self.registers[PROG_HASH_RANGE];
     }
 
     pub fn get_op_bits(&self) -> &[T] {
-        return &self.registers[decoder::OP_BITS_RANGE];
-    }
-
-    pub fn get_op_bits_value(&self) -> T {
-        let op_bits = self.get_op_bits();
-        let mut value = op_bits[0];
-        value = T::add(value, T::mul(op_bits[1], T::from( 2)));
-        value = T::add(value, T::mul(op_bits[2], T::from( 4)));
-        value = T::add(value, T::mul(op_bits[3], T::from( 8)));
-        value = T::add(value, T::mul(op_bits[4], T::from(16)));
-        return value;
+        return &self.registers[OP_BITS_RANGE];
     }
 
     pub fn get_op_flags(&self) -> [T; NUM_LD_OPS] {
@@ -93,11 +88,15 @@ impl <T> TraceState<T>
     }
 
     pub fn get_stack(&self) -> &[T] {
-        return &self.registers[decoder::num_registers::<T>()..];
+        return &self.registers[DECODER_WIDTH..];
+    }
+
+    pub fn get_user_stack(&self) -> &[T] {
+        return &self.registers[(DECODER_WIDTH + AUX_WIDTH)..];
     }
 
     pub fn compute_stack_depth(trace_register_count: usize) -> usize {
-        return trace_register_count - decoder::num_registers::<T>();
+        return trace_register_count - DECODER_WIDTH;
     }
 
     // RAW STATE
@@ -147,10 +146,10 @@ impl <T> fmt::Display for TraceState<T>
     where T: FiniteField + Accumulator
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{}]\t[{}]\t{:?}\t{:?}",
+        write!(f, "[{}]\t{:?}\t{:?}\t{:?}",
             self.get_op_code(), 
-            self.get_push_flag(),
             self.get_op_bits(),
+            self.get_op_acc(),
             self.get_stack())
     }
 }

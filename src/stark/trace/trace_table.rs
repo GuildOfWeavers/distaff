@@ -2,8 +2,9 @@ use crate::math::{ FiniteField, fft, polynom, parallel };
 use crate::crypto::{ MerkleTree, HashFunction };
 use crate::processor::opcodes;
 use crate::utils::{ uninit_vector, filled_vector, as_bytes };
-use crate::stark::{ CompositionCoefficients, Accumulator, utils };
-use super::{ TraceState, decoder, stack, MAX_REGISTER_COUNT };
+use crate::stark::{ ProgramInputs, CompositionCoefficients, Accumulator, Hasher, utils };
+use crate::stark::{ MAX_REGISTER_COUNT, DECODER_WIDTH, PROG_HASH_RANGE };
+use super::{ TraceState, decoder, stack };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -16,15 +17,17 @@ pub struct TraceTable<T> {
 // TRACE TABLE IMPLEMENTATION
 // ================================================================================================
 impl <T> TraceTable<T>
-    where T: FiniteField + Accumulator
+    where T: FiniteField + Accumulator + Hasher
 {
     /// Returns a trace table resulting from the execution of the specified program. Space for the
     /// trace table is allocated in accordance with the specified `extension_factor`.
-    pub fn new(program: &[T], inputs: &[T], extension_factor: usize) -> TraceTable<T> {
+    pub fn new(program: &[T], inputs: &ProgramInputs<T>, extension_factor: usize) -> TraceTable<T> {
         
+        assert!(program.len() > 1, "program length must be greater than 1");
         assert!(program.len().is_power_of_two(), "program length must be a power of 2");
-        assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
+        assert!(program[0] == T::from(opcodes::BEGIN), "first operation of a program must be BEGIN");
         assert!(program[program.len() - 1] == T::from(opcodes::NOOP), "last operation of a program must be NOOP");
+        assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
 
         // create different segments of the trace
         let decoder_registers = decoder::process(program, extension_factor);
@@ -51,8 +54,8 @@ impl <T> TraceTable<T>
             self.unextended_length() - 1
         };
 
-        let mut result = vec![T::ZERO; <T as Accumulator>::DIGEST_SIZE];
-        for (i, j) in decoder::prog_hash_range::<T>().enumerate() {
+        let mut result = vec![T::ZERO; PROG_HASH_RANGE.end - PROG_HASH_RANGE.start];
+        for (i, j) in PROG_HASH_RANGE.enumerate() {
             result[i] = self.registers[j][last_step];
         }
         return result;
@@ -94,7 +97,7 @@ impl <T> TraceTable<T>
 
     /// Returns the number of registers used by the stack.
     pub fn max_stack_depth(&self) -> usize {
-        return self.registers.len() - decoder::num_registers::<T>();
+        return self.registers.len() - DECODER_WIDTH;
     }
 
     /// Returns trace of the register at the specified `index`.
@@ -111,7 +114,7 @@ impl <T> TraceTable<T>
 
     /// Returns trace of the stack register at the specified `index`.
     pub fn get_stack_register_trace(&self, index: usize) -> &[T] {
-        return &self.registers[index + decoder::num_registers::<T>()];
+        return &self.registers[index + DECODER_WIDTH];
     }
 
     /// Returns values of all registers at the specified `positions`.
@@ -253,25 +256,25 @@ impl <T> TraceTable<T>
 #[cfg(test)]
 mod tests {
 
-    use crate::{ crypto::hash::blake3, processor::opcodes };
-    use crate::stark::{ TraceTable, CompositionCoefficients, MAX_CONSTRAINT_DEGREE };
-    use crate::math::{ F64, FiniteField, polynom, parallel, fft };
+    use crate::{ crypto::hash::blake3, processor::opcodes::f128 as opcodes };
+    use crate::stark::{ TraceTable, ProgramInputs, CompositionCoefficients, MAX_CONSTRAINT_DEGREE };
+    use crate::math::{ F128, FiniteField, polynom, parallel, fft };
 
     const EXT_FACTOR: usize = 32;
 
     #[test]
     fn eval_polys_at() {
         let mut trace = build_trace_table();
-        let lde_root = F64::get_root_of_unity(trace.domain_size());
+        let lde_root = F128::get_root_of_unity(trace.domain_size());
         trace.extend(&fft::get_twiddles(lde_root, trace.domain_size()));
 
-        let g = F64::get_root_of_unity(trace.unextended_length());
+        let g = F128::get_root_of_unity(trace.unextended_length());
 
         let v1 = trace.eval_polys_at(g);
         let s1 = trace.get_state(1 * EXT_FACTOR);
         assert_eq!(v1, s1.registers());
 
-        let v2 = trace.eval_polys_at(F64::exp(g, 2));
+        let v2 = trace.eval_polys_at(F128::exp(g, 2));
         let s2 = trace.get_state(2 * EXT_FACTOR);
         assert_eq!(v2, s2.registers());
     }
@@ -280,17 +283,17 @@ mod tests {
     fn get_composition_poly() {
 
         let mut trace = build_trace_table();
-        let lde_root = F64::get_root_of_unity(trace.domain_size());
+        let lde_root = F128::get_root_of_unity(trace.domain_size());
         trace.extend(&fft::get_twiddles(lde_root, trace.domain_size()));
 
         // compute trace composition polynomial
         let t_tree = trace.build_merkle_tree(blake3);
-        let z = F64::prng(*t_tree.root());
+        let z = F128::prng(*t_tree.root());
         let cc = CompositionCoefficients::new(*t_tree.root());
         let target_degree = (trace.unextended_length() - 2) * MAX_CONSTRAINT_DEGREE - 1;
 
-        let g = F64::get_root_of_unity(trace.unextended_length());
-        let zg = F64::mul(z, g);
+        let g = F128::get_root_of_unity(trace.unextended_length());
+        let zg = F128::mul(z, g);
 
         let (composition_poly, ..) = trace.get_composition_poly(z, &cc);
         let mut actual_evaluations = composition_poly.clone();
@@ -299,8 +302,8 @@ mod tests {
 
         // compute expected evaluations
         let domain_size = target_degree.next_power_of_two();
-        let domain_root = F64::get_root_of_unity(domain_size);
-        let domain = F64::get_power_series(domain_root, domain_size);
+        let domain_root = F128::get_root_of_unity(domain_size);
+        let domain = F128::get_power_series(domain_root, domain_size);
 
         let mut expected_evaluations = vec![0; domain_size];
 
@@ -314,7 +317,7 @@ mod tests {
             polynom::eval_fft(&mut trace_poly, true);
             parallel::sub_const_in_place(&mut trace_poly, tz[i], 1);
             for j in 0..trace_poly.len() {
-                trace_poly[j] = F64::div(trace_poly[j], F64::sub(domain[j], z));
+                trace_poly[j] = F128::div(trace_poly[j], F128::sub(domain[j], z));
             }
             parallel::mul_acc(&mut expected_evaluations, &trace_poly, cc.trace1[i], 1);
 
@@ -324,7 +327,7 @@ mod tests {
             polynom::eval_fft(&mut trace_poly, true);
             parallel::sub_const_in_place(&mut trace_poly, tzg[i], 1);
             for j in 0..trace_poly.len() {
-                trace_poly[j] = F64::div(trace_poly[j], F64::sub(domain[j], zg));
+                trace_poly[j] = F128::div(trace_poly[j], F128::sub(domain[j], zg));
             }
             parallel::mul_acc(&mut expected_evaluations, &trace_poly, cc.trace2[i], 1);
         }
@@ -333,25 +336,24 @@ mod tests {
         let incremental_degree = target_degree - (trace.unextended_length() - 2);
         for i in 0..domain.len() {
             let y = expected_evaluations[i];
-            let y1 = F64::mul(y, cc.t1_degree);
+            let y1 = F128::mul(y, cc.t1_degree);
 
-            let xp = F64::exp(domain[i], incremental_degree as u64);
-            let y2 = F64::mul(F64::mul(y, xp), cc.t2_degree);
-            expected_evaluations[i] = F64::add(y1, y2);
+            let xp = F128::exp(domain[i], F128::from_usize(incremental_degree));
+            let y2 = F128::mul(F128::mul(y, xp), cc.t2_degree);
+            expected_evaluations[i] = F128::add(y1, y2);
         }
 
         assert_eq!(expected_evaluations, actual_evaluations);
     }
 
-    fn build_trace_table() -> TraceTable<F64> {
+    fn build_trace_table() -> TraceTable<F128> {
         let program = [
-            opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
-            opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
-            opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
-            opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
-            opcodes::DUP0, opcodes::PULL2, opcodes::ADD,
-            opcodes::NOOP
-        ].iter().map(|&op| op as u64).collect::<Vec<F64>>();
-        return TraceTable::new(&program, &[1, 0], EXT_FACTOR);
+            opcodes::BEGIN, opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
+            opcodes::ADD,   opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
+            opcodes::ADD,   opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
+            opcodes::ADD,   opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
+        ];
+        let inputs = ProgramInputs::from_public(&[1, 0]);
+        return TraceTable::new(&program, &inputs, EXT_FACTOR);
     }
 }

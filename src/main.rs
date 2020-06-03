@@ -1,7 +1,10 @@
 use std::env;
 use std::io::Write;
 use std::time::Instant;
-use distaff::{ ProofOptions, StarkProof, processor, processor::opcodes::f128 as opcodes, FiniteField, F128 };
+use distaff::{ StarkProof, processor, F128 };
+
+mod examples;
+use examples::{ Example };
 
 fn main() {
 
@@ -10,20 +13,27 @@ fn main() {
         .format(|buf, record| writeln!(buf, "{}", record.args()))
         .filter_level(log::LevelFilter::Debug).init();
 
-    // read the length of Fibonacci sequence and proof options from the command line
-    let (n, options) = read_args();
-    
-    // generate the program and expected results
-    let program = generate_fibonacci_program(n);
-    let expected_result = compute_fibonacci(n);
-    let expected_hash = processor::hash_program(&program);
-    println!("Generated a program to compute {}-th Fibonacci term; expected result: {}", 
-        n,
-        expected_result);
+    // determine the example to run based on command-line inputs
+    let ex: Example;
+    let args: Vec<String> = env::args().collect();
+    if args.len() < 2 {
+        ex = examples::fibonacci::get_example(&args);
+    }
+    else if args[1] == "fibonacci" {
+        ex = examples::fibonacci::get_example(&args[1..]);
+    }
+    else if args[1] == "merkle" {
+        ex = examples::merkle::get_example(&args[1..]);
+    }
+    else {
+        panic!("Could not find example program for '{}'", args[1]);
+    }
+    let Example { program, inputs, num_outputs, options, expected_result } = ex;
     println!("--------------------------------");
 
-    let inputs = [1, 0];    // initialize stack with 2 values; 1 will be at the top
-    let num_outputs = 1;    // a single element from the top of the stack will be the output
+    // compute expected hash for the program
+    let program = processor::pad_program(&program);
+    let expected_hash = processor::hash_program(&program);
 
     // execute the program and generate the proof of execution
     let now = Instant::now();
@@ -33,7 +43,7 @@ fn main() {
         hex::encode(program_hash),
         now.elapsed().as_millis());
     println!("Program output: {:?}", outputs);
-    assert_eq!(expected_result, outputs[0], "Program result was computed incorrectly");
+    assert_eq!(expected_result, outputs, "Program result was computed incorrectly");
     assert_eq!(expected_hash, program_hash, "Program hash was generated incorrectly");
 
     // serialize the proof to see how big it is
@@ -46,72 +56,8 @@ fn main() {
     // results in the expected output
     let proof = bincode::deserialize::<StarkProof<F128>>(&proof_bytes).unwrap();
     let now = Instant::now();
-    match processor::verify(&program_hash, &inputs, &outputs, &proof) {
+    match processor::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof) {
         Ok(_) => println!("Execution verified in {} ms", now.elapsed().as_millis()),
         Err(msg) => println!("Failed to verify execution: {}", msg)
     }
-}
-
-fn read_args() -> (usize, ProofOptions) {
-    let default_options = ProofOptions::default();
-
-    let args: Vec<String> = env::args().collect();
-    if args.len() == 1 { return (6, default_options); }
-
-    let n: usize = args[1].parse().unwrap();
-    if args.len() == 2 { return (n, default_options); }
-
-    let ext_factor: usize;
-    let num_queries: usize;
-    let grind_factor: u32;
-    
-    if args.len() == 3 {
-        ext_factor = args[2].parse().unwrap();
-        num_queries = default_options.num_queries();
-        grind_factor = default_options.grinding_factor();
-    }
-    else if args.len() == 4 {
-        ext_factor = args[2].parse().unwrap();
-        num_queries = args[3].parse().unwrap();
-        grind_factor = default_options.grinding_factor();
-    }
-    else {
-        ext_factor = args[2].parse().unwrap();
-        num_queries = args[3].parse().unwrap();
-        grind_factor = args[4].parse().unwrap();
-    }
-
-    return (n, ProofOptions::new(ext_factor, num_queries, grind_factor, default_options.hash_function()));
-}
-
-/// Generates a program to compute the `n`-th term of Fibonacci sequence
-fn generate_fibonacci_program(n: usize) -> Vec<F128> {
-    let mut program = Vec::new();
-
-    // the program is a simple repetition of 3 stack operations:
-    // the first operation duplicates the top stack item,
-    // the second operation moves the 3rd item to the top of the stack,
-    // the last operation pops top 2 stack items, adds them, and pushes
-    // the result back onto the stack
-    for _ in 0..(n - 1) {
-        program.push(opcodes::DUP0);
-        program.push(opcodes::PULL2);
-        program.push(opcodes::ADD);
-    }
-
-    return processor::pad_program(&program);
-}
-
-/// Computes the `n`-th term of Fibonacci sequence
-fn compute_fibonacci(n: usize) -> u128 {
-    let mut n1 = 0;
-    let mut n2 = 1;
-
-    for _ in 0..(n - 1) {
-        let n3 = F128::add(n1, n2);
-        n1 = n2;
-        n2 = n3;
-    }
-
-    return n2;
 }
