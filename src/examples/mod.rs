@@ -3,6 +3,7 @@ use distaff::{ math::F128, ProgramInputs, ProofOptions };
 mod utils;
 
 pub mod fibonacci;
+pub mod merkle;
 
 pub struct Example {
     pub program         : Vec<F128>,

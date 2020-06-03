@@ -1,7 +1,7 @@
 use crate::math::{ FiniteField };
 use crate::stark::{ MAX_PUBLIC_INPUTS };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ProgramInputs<T: FiniteField> {
     public: Vec<T>,
     secret: [Vec<T>; 2],
