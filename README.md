@@ -203,6 +203,8 @@ A quick explanation of what's happening here:
 3. Then, we execute `HASHR` operation 10 times. Notice again that the first `HASHR` operation is executed on the 16th step.
 4. The result of hashing is now in the 5th and 6th positions of the stack. So, we remove top 4 times from the stack (using `DROP4` operation) to move the result to the top of the stack.
 
+You can also check an example of a more sophisticated program which uses `HASHR` operation to verify a Merkle authentication path [here](https://github.com/GuildOfWeavers/distaff/blob/master/src/examples/merkle.rs).
+
 #### Hash function
 As mentioned previously, Distaff VM uses a modified version of [Rescue](https://eprint.iacr.org/2019/426) hash function. This modification adds half-rounds to the beginning and to the end of the standard Rescue hash function to make the arithmetization of the function fully foldable. High-level pseudo-code for the modified version looks like so:
 ```
@@ -292,16 +294,16 @@ Here are some very informal benchmarks of running the Fibonacci calculator on In
 | Operation Count | Execution time | Execution RAM  | Verification time | Proof size |
 | --------------- | :------------: | :------------: | :---------------: | :--------: |
 | 2<sup>8</sup>   | 180 ms         | negligible     | 2 ms              | 58 KB      |
-| 2<sup>10</sup>  | 260 ms         | negligible     | 2 ms              | 76 KB      |
-| 2<sup>12</sup>  | 920 ms         | < 100 MB       | 2 ms              | 99 KB      |
-| 2<sup>14</sup>  | 2.7 sec        | 300 MB         | 3 ms              | 127 KB     |
-| 2<sup>16</sup>  | 11.5 sec       | 1.2 GB         | 3 ms              | 155 KB     |
-| 2<sup>18</sup>  | 48 sec         | 4.4 GB         | 3 ms              | 189 KB     |
-| 2<sup>20</sup>  | 12 min         | > 5.6 GB       | 4 ms              | 224 KB     |
+| 2<sup>10</sup>  | 280 ms         | negligible     | 2 ms              | 79 KB      |
+| 2<sup>12</sup>  | 1 sec          | < 100 MB       | 2 ms              | 102 KB     |
+| 2<sup>14</sup>  | 3.4 sec        | ~ 350 MB       | 3 ms              | 128 KB     |
+| 2<sup>16</sup>  | 14 sec         | 1.4 GB         | 3 ms              | 158 KB     |
+| 2<sup>18</sup>  | 1 min          | 5.2 GB         | 3 ms              | 188 KB     |
+| 2<sup>20</sup>  | 15 min         | > 5.6 GB       | 4 ms              | 225 KB     |
 
 A few notes about the results:
 1. Execution time is dominated by the proof generation time. In fact, the time needed to run the program is only about 0.05% of the time needed to generate the proof.
-2. For 2<sup>20</sup> case, RAM on my machine maxed out at 5.6 GB, but for efficient execution ~16 GB would be needed. This probably explains why proving time is so poor in this case as compared to other cases. If there was sufficient RAM available, execution time would have likely been just over 3 mins.
+2. For 2<sup>20</sup> case, RAM on my machine maxed out at 5.6 GB, but for efficient execution ~16 GB would be needed. This probably explains why proving time is so poor in this case as compared to other cases. If there was sufficient RAM available, execution time would have likely been around 4 mins.
 3. The benchmarks use default proof options which target 120-bit security level. The security level can be increased by either increasing execution time or proof size. In general, there is a trade-off between proof time and proof size (i.e. for a given security level, you can reduce proof size by increasing execution time, up to a point).
 
 ## References
