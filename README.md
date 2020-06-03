@@ -231,16 +231,17 @@ As described [here](#Executing-a-program), one of the values produced by Distaff
 
 The hash function works as follows:
 
-First, a state of 4 field elements is initialized to `0`. Then, the following procedure is applied for each operation of the program:
+First, a state of 4 field elements is initialized to `0`. Then, the following procedure is applied:
 ```
-add round constants;
-apply s-box;
-apply MDS;
-state[0] = state[0] + state[2] * op_code;
-state[1] = state[1] * state[3] + op_code;
-add round constants;
-apply inverse s-box;
-apply MDS;
+for each op_code in the program do:
+    add round constants;
+    apply s-box;
+    apply MDS;
+    state[0] = state[0] + state[2] * op_code;
+    state[1] = state[1] * state[3] + op_code;
+    add round constants;
+    apply inverse s-box;
+    apply MDS;
 ```
 where `op_code` is the opcode of the operation being executed on the VM. As mentioned above, this is based on the Rescue hash function but with the following significant differences:
 1. The opcodes of the program are injected into the state in the middle of every round.
