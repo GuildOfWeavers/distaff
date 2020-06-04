@@ -270,9 +270,9 @@ fn comparison_operations() {
 }
 
 #[test]
-fn verify_operation() {
+fn assert_operation() {
     let program = [
-        opcodes::BEGIN, opcodes::VERIFY, opcodes::NOOP, opcodes::NOOP,
+        opcodes::BEGIN, opcodes::ASSERT, opcodes::NOOP, opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,

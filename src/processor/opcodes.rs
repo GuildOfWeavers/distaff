@@ -16,12 +16,12 @@ pub const DUP4: u8     = 0b000_01_101;
 pub const PAD2: u8     = 0b000_01_110;  // same as: PUSH 0 DUP
 //pub const ???: u8    = 0b000_01_111;
 
-pub const DROP: u8     = 0b000_10_000;
-pub const DROP4: u8    = 0b000_10_001;  // same as: DROP DROP DROP DROP
-pub const ADD: u8      = 0b000_10_010;
-pub const MUL: u8      = 0b000_10_011;
-pub const EQ: u8       = 0b000_10_100;
-pub const VERIFY: u8   = 0b000_10_101;
+pub const ASSERT: u8   = 0b000_10_000;
+pub const DROP: u8     = 0b000_10_001;
+pub const DROP4: u8    = 0b000_10_010;  // same as: DROP DROP DROP DROP
+pub const ADD: u8      = 0b000_10_011;
+pub const MUL: u8      = 0b000_10_100;
+pub const EQ: u8       = 0b000_10_101;
 pub const CHOOSE: u8   = 0b000_10_110;
 pub const CHOOSE2: u8  = 0b000_10_111;
 
@@ -38,7 +38,7 @@ pub const BEGIN: u8    = 0b000_11_111;
 pub mod f128 {
     pub const BEGIN   : u128 = super::BEGIN as u128;
     pub const NOOP    : u128 = super::NOOP as u128;
-    pub const VERIFY  : u128 = super::VERIFY as u128;
+    pub const ASSERT  : u128 = super::ASSERT as u128;
 
     // input ops
     pub const PUSH    : u128 = super::PUSH as u128;

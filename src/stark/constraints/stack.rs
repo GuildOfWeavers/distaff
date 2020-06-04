@@ -302,8 +302,8 @@ impl <T> Stack<T>
         enforce_no_change(&mut evaluations[1..n], &current[2..], &next[1..n], op_flag);
         result[0] = agg_op_constraint(result[0], op_flag, T::mul(next[0], diff));
 
-        // VERIFY
-        let op_flag = op_flags[opcodes::VERIFY as usize];
+        // ASSERT
+        let op_flag = op_flags[opcodes::ASSERT as usize];
         let n = next.len() - 1;
         enforce_no_change(&mut evaluations[0..n], &current[1..], &next[0..n], op_flag);
         result[0] = agg_op_constraint(result[0], op_flag, T::sub(T::ONE, current[0]));

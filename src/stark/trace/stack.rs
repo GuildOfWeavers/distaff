@@ -66,7 +66,7 @@ pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: us
 
             opcodes::BEGIN   => stack.noop(i),
             opcodes::NOOP    => stack.noop(i),
-            opcodes::VERIFY  => stack.verify(i),
+            opcodes::ASSERT  => stack.assert(i),
 
             opcodes::PUSH  => {
                 // push the value of the next instruction onto the stack and skip a step
@@ -146,10 +146,10 @@ impl <T> StackTrace<T>
         self.copy_state(step, 0);
     }
 
-    fn verify(&mut self, step: usize) {
+    fn assert(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
         let value = self.user_registers[0][step];
-        assert!(value == T::ONE, "VERIFY failed at step {}", step);
+        assert!(value == T::ONE, "ASSERT failed at step {}", step);
         self.shift_left(step, 1, 1);
     }
 
@@ -454,9 +454,9 @@ mod tests {
     }
 
     #[test]
-    fn verify() {
+    fn assert() {
         let mut stack = init_stack(&[1, 2, 3, 4], &[], &[]);
-        stack.verify(0);
+        stack.assert(0);
         assert_eq!(vec![2, 3, 4, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
         assert_eq!(3, stack.depth);
@@ -465,9 +465,9 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn verify_fail() {
+    fn assert_fail() {
         let mut stack = init_stack(&[2, 3, 4], &[], &[]);
-        stack.verify(0);
+        stack.assert(0);
     }
 
     #[test]
