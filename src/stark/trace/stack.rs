@@ -339,7 +339,14 @@ impl <T> StackTrace<T>
         assert!(self.depth >= 2, "stack underflow at step {}", step);
         let x = self.user_registers[0][step];
         let y = self.user_registers[1][step];
-        self.user_registers[0][step + 1] = if x == y { T::ONE } else { T::ZERO };
+        if x == y {
+            self.aux_registers[0][step] = T::ONE;
+            self.user_registers[0][step + 1] = T::ONE;
+        } else {
+            let diff = T::sub(x, y);
+            self.aux_registers[0][step] = T::inv(diff);
+            self.user_registers[0][step + 1] = T::ZERO;
+        }
         self.shift_left(step, 2, 1);
     }
 
@@ -703,12 +710,15 @@ mod tests {
     fn eq() {
         let mut stack = init_stack(&[3, 3, 4, 5], &[], &[]);
         stack.eq(0);
+        assert_eq!(vec![1, 0], get_aux_state(&stack, 0));
         assert_eq!(vec![1, 4, 5, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
         assert_eq!(3, stack.depth);
         assert_eq!(4, stack.max_depth);
 
         stack.eq(1);
+        let inv_diff = F128::inv(F128::sub(1, 4));
+        assert_eq!(vec![inv_diff, 0], get_aux_state(&stack, 1));
         assert_eq!(vec![0, 5, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 2));
 
         assert_eq!(2, stack.depth);
@@ -800,6 +810,14 @@ mod tests {
         let mut state = Vec::with_capacity(stack.user_registers.len());
         for i in 0..stack.user_registers.len() {
             state.push(stack.user_registers[i][step]);
+        }
+        return state;
+    }
+
+    fn get_aux_state(stack: &super::StackTrace<F128>, step: usize) -> Vec<F128> {
+        let mut state = Vec::with_capacity(stack.aux_registers.len());
+        for i in 0..stack.aux_registers.len() {
+            state.push(stack.aux_registers[i][step]);
         }
         return state;
     }

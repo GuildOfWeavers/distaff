@@ -254,6 +254,9 @@ impl <T> Stack<T>
     /// Evaluates transition constraints for operations where some operands must be binary values.
     fn enforce_logic_ops(&self, current: &[T], next: &[T], op_flags: [T; NUM_LD_OPS], result: &mut [T]) {
 
+        // TODO: transform into a generic way to handle aux constraints/registers
+        let aux = current[0];
+
         // logic operations work only with the user portion of the stack
         let current = &current[AUX_WIDTH..];
         let next = &next[AUX_WIDTH..];
@@ -288,6 +291,16 @@ impl <T> Stack<T>
         evaluations[0] = agg_op_constraint(evaluations[0], op_flag, T::sub(next[0], op_result));
         enforce_no_change(&mut evaluations[1..n], &current[1..], &next[1..n], op_flag);
         result[0] = agg_op_constraint(result[0], op_flag, is_binary(current[0]));
+
+        // EQ
+        let op_flag = op_flags[opcodes::EQ as usize];
+        let n = next.len() - 1;
+        let diff = T::sub(current[0], current[1]);
+        let inv_dif = aux;
+        let op_result = T::sub(T::ONE, T::mul(diff, inv_dif));
+        evaluations[0] = agg_op_constraint(evaluations[0], op_flag, T::sub(next[0], op_result));
+        enforce_no_change(&mut evaluations[1..n], &current[2..], &next[1..n], op_flag);
+        result[0] = agg_op_constraint(result[0], op_flag, T::mul(next[0], diff));
 
         // VERIFY
         let op_flag = op_flags[opcodes::VERIFY as usize];
