@@ -1,5 +1,5 @@
 pub const NOOP: u8     = 0b000_00_000;
-//pub const VERIFY: u8 = 0b000_00_001;
+//pub const ???: u8    = 0b000_00_001;
 //pub const ???: u8    = 0b000_00_010;
 pub const INV: u8      = 0b000_00_011;
 pub const NEG: u8      = 0b000_00_100;
@@ -20,8 +20,8 @@ pub const DROP: u8     = 0b000_10_000;
 pub const DROP4: u8    = 0b000_10_001;  // same as: DROP DROP DROP DROP
 pub const ADD: u8      = 0b000_10_010;
 pub const MUL: u8      = 0b000_10_011;
-//pub const EQ: u8     = 0b000_10_100;
-//pub const ???: u8    = 0b000_10_101;
+pub const EQ: u8       = 0b000_10_100;
+pub const VERIFY: u8   = 0b000_10_101;
 pub const CHOOSE: u8   = 0b000_10_110;
 pub const CHOOSE2: u8  = 0b000_10_111;
 
@@ -38,6 +38,7 @@ pub const BEGIN: u8    = 0b000_11_111;
 pub mod f128 {
     pub const BEGIN   : u128 = super::BEGIN as u128;
     pub const NOOP    : u128 = super::NOOP as u128;
+    pub const VERIFY  : u128 = super::VERIFY as u128;
 
     // input ops
     pub const PUSH    : u128 = super::PUSH as u128;
@@ -67,6 +68,7 @@ pub mod f128 {
     pub const INV     : u128 = super::INV as u128;
     pub const NEG     : u128 = super::NEG as u128;
     pub const NOT     : u128 = super::NOT as u128;
+    pub const EQ      : u128 = super::EQ as u128;
 
     // crypto ops
     pub const HASHR   : u128 = super::HASHR as u128;

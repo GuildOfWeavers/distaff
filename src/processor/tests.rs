@@ -245,4 +245,28 @@ fn read_operations() {
     assert_eq!(Ok(true), result);
 }
 
+#[test]
+fn verify_operation() {
+    let program = [
+        opcodes::BEGIN, opcodes::VERIFY, opcodes::NOOP, opcodes::NOOP,
+        opcodes::NOOP,  opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
+        opcodes::NOOP,  opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
+        opcodes::NOOP,  opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
+    ];
+    let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
+
+    let options = ProofOptions::default();
+    let inputs = ProgramInputs::from_public(&[1, 2, 3]);
+    let num_outputs = 2;
+
+    let expected_result = vec![2, 3];
+
+    let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
+    assert_eq!(expected_result, outputs);
+    assert_eq!(program_hash, expected_hash);
+
+    let result = super::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
+    assert_eq!(Ok(true), result);
+}
+
 // TODO: add more tests

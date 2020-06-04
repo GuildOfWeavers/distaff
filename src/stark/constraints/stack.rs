@@ -289,6 +289,12 @@ impl <T> Stack<T>
         enforce_no_change(&mut evaluations[1..n], &current[1..], &next[1..n], op_flag);
         result[0] = agg_op_constraint(result[0], op_flag, is_binary(current[0]));
 
+        // VERIFY
+        let op_flag = op_flags[opcodes::VERIFY as usize];
+        let n = next.len() - 1;
+        enforce_no_change(&mut evaluations[0..n], &current[1..], &next[0..n], op_flag);
+        result[0] = agg_op_constraint(result[0], op_flag, T::sub(T::ONE, current[0]));
+
         let result = &mut result[AUX_WIDTH..];
         for i in 0..result.len() {
             result[i] = T::add(result[i], evaluations[i]);

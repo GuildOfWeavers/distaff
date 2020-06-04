@@ -63,8 +63,10 @@ pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: us
         // update stack state based on the current operation
         // TODO: make sure operation can be safely cast to u8
         match program[i].as_u8() {
-            opcodes::BEGIN => stack.noop(i),
-            opcodes::NOOP  => stack.noop(i),
+
+            opcodes::BEGIN   => stack.noop(i),
+            opcodes::NOOP    => stack.noop(i),
+            opcodes::VERIFY  => stack.verify(i),
 
             opcodes::PUSH  => {
                 // push the value of the next instruction onto the stack and skip a step
@@ -100,6 +102,7 @@ pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: us
             opcodes::INV     => stack.inv(i),
             opcodes::NEG     => stack.neg(i),
             opcodes::NOT     => stack.not(i),
+            opcodes::EQ      => stack.eq(i),
 
             opcodes::HASHR   => stack.hashr(i),
 
@@ -141,6 +144,13 @@ impl <T> StackTrace<T>
     // --------------------------------------------------------------------------------------------
     fn noop(&mut self, step: usize) {
         self.copy_state(step, 0);
+    }
+
+    fn verify(&mut self, step: usize) {
+        assert!(self.depth >= 1, "stack underflow at step {}", step);
+        let value = self.user_registers[0][step];
+        assert!(value == T::ONE, "VERIFY failed at step {}", step);
+        self.shift_left(step, 1, 1);
     }
 
     fn push(&mut self, step: usize, value: T) {
@@ -325,6 +335,14 @@ impl <T> StackTrace<T>
         self.copy_state(step, 1);
     }
 
+    fn eq(&mut self, step: usize) {
+        assert!(self.depth >= 2, "stack underflow at step {}", step);
+        let x = self.user_registers[0][step];
+        let y = self.user_registers[1][step];
+        self.user_registers[0][step + 1] = if x == y { T::ONE } else { T::ZERO };
+        self.shift_left(step, 2, 1);
+    }
+
     fn hashr(&mut self, step: usize) {
         assert!(self.depth >= HASH_STATE_WIDTH, "stack underflow at step {}", step);
         let mut state = [
@@ -426,6 +444,23 @@ mod tests {
 
         assert_eq!(4, stack.depth);
         assert_eq!(4, stack.max_depth);
+    }
+
+    #[test]
+    fn verify() {
+        let mut stack = init_stack(&[1, 2, 3, 4], &[], &[]);
+        stack.verify(0);
+        assert_eq!(vec![2, 3, 4, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+        assert_eq!(3, stack.depth);
+        assert_eq!(4, stack.max_depth);
+    }
+
+    #[test]
+    #[should_panic]
+    fn verify_fail() {
+        let mut stack = init_stack(&[2, 3, 4], &[], &[]);
+        stack.verify(0);
     }
 
     #[test]
@@ -662,6 +697,22 @@ mod tests {
         let mut stack = init_stack(&[1, 2], &[], &[]);
         stack.not(0);
         assert_eq!(vec![2, 2, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+    }
+
+    #[test]
+    fn eq() {
+        let mut stack = init_stack(&[3, 3, 4, 5], &[], &[]);
+        stack.eq(0);
+        assert_eq!(vec![1, 4, 5, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+        assert_eq!(3, stack.depth);
+        assert_eq!(4, stack.max_depth);
+
+        stack.eq(1);
+        assert_eq!(vec![0, 5, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 2));
+
+        assert_eq!(2, stack.depth);
+        assert_eq!(4, stack.max_depth);
     }
 
     #[test]
