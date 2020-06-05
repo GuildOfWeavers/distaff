@@ -1,6 +1,6 @@
 pub const NOOP: u8     = 0b000_00_000;
 //pub const ???: u8    = 0b000_00_001;
-//pub const ???: u8    = 0b000_00_010;
+pub const CMP: u8      = 0b000_00_010;
 pub const INV: u8      = 0b000_00_011;
 pub const NEG: u8      = 0b000_00_100;
 pub const NOT: u8      = 0b000_00_101;  // same as: PUSH 1 SWAP NEG ADD
@@ -68,7 +68,10 @@ pub mod f128 {
     pub const INV     : u128 = super::INV as u128;
     pub const NEG     : u128 = super::NEG as u128;
     pub const NOT     : u128 = super::NOT as u128;
+
+    // comparison ops
     pub const EQ      : u128 = super::EQ as u128;
+    pub const CMP     : u128 = super::CMP as u128;
 
     // crypto ops
     pub const HASHR   : u128 = super::HASHR as u128;

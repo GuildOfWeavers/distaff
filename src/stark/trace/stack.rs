@@ -102,7 +102,9 @@ pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: us
             opcodes::INV     => stack.inv(i),
             opcodes::NEG     => stack.neg(i),
             opcodes::NOT     => stack.not(i),
+
             opcodes::EQ      => stack.eq(i),
+            opcodes::CMP     => stack.cmp(i),
 
             opcodes::HASHR   => stack.hashr(i),
 
@@ -340,14 +342,43 @@ impl <T> StackTrace<T>
         let x = self.user_registers[0][step];
         let y = self.user_registers[1][step];
         if x == y {
-            self.aux_registers[0][step] = T::ONE;
+            self.aux_registers[0][step] = T::ONE;           // TODO: should be at step + 1?
             self.user_registers[0][step + 1] = T::ONE;
         } else {
             let diff = T::sub(x, y);
-            self.aux_registers[0][step] = T::inv(diff);
+            self.aux_registers[0][step] = T::inv(diff);     // TODO: should be at step + 1?
             self.user_registers[0][step + 1] = T::ZERO;
         }
         self.shift_left(step, 2, 1);
+    }
+
+    fn cmp(&mut self, step: usize) {
+        assert!(self.depth >= 8, "stack underflow at step {}", step);
+        assert!(self.secret_inputs_a.len() > 0, "ran out of secret inputs at step {}", step);
+        assert!(self.secret_inputs_b.len() > 0, "ran out of secret inputs at step {}", step);
+        let a_bit = self.secret_inputs_a.pop().unwrap();
+        assert!(a_bit == T::ZERO || a_bit == T::ONE,
+            "expected binary input at step {} but received: {}", step, a_bit);
+        let b_bit = self.secret_inputs_b.pop().unwrap();
+        assert!(b_bit == T::ZERO || b_bit == T::ONE,
+            "expected binary input at step {} but received: {}", step, b_bit);
+
+        let bit_gt = T::mul(a_bit, T::sub(T::ONE, b_bit));
+        let bit_lt = T::mul(b_bit, T::sub(T::ONE, a_bit));
+
+        let gt = self.user_registers[2][step];
+        let lt = self.user_registers[3][step];
+        let not_set = T::mul(T::sub(T::ONE, gt), T::sub(T::ONE, lt));
+        let power_of_two = T::exp(T::from_usize(2), T::from_usize(127 - (step % 128)));
+
+        self.user_registers[0][step + 1] = a_bit;
+        self.user_registers[1][step + 1] = b_bit;
+        self.user_registers[2][step + 1] = T::add(gt, T::mul(bit_gt, not_set));
+        self.user_registers[3][step + 1] = T::add(lt, T::mul(bit_lt, not_set));
+        self.user_registers[4][step + 1] = T::add(self.user_registers[4][step], T::mul(a_bit, power_of_two));
+        self.user_registers[5][step + 1] = T::add(self.user_registers[5][step], T::mul(b_bit, power_of_two));
+
+        self.copy_state(step, 6);
     }
 
     fn hashr(&mut self, step: usize) {
@@ -445,7 +476,7 @@ mod tests {
 
     #[test]
     fn noop() {
-        let mut stack = init_stack(&[1, 2, 3, 4], &[], &[]);
+        let mut stack = init_stack(&[1, 2, 3, 4], &[], &[], TRACE_LENGTH);
         stack.noop(0);
         assert_eq!(vec![1, 2, 3, 4, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -455,7 +486,7 @@ mod tests {
 
     #[test]
     fn assert() {
-        let mut stack = init_stack(&[1, 2, 3, 4], &[], &[]);
+        let mut stack = init_stack(&[1, 2, 3, 4], &[], &[], TRACE_LENGTH);
         stack.assert(0);
         assert_eq!(vec![2, 3, 4, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -466,13 +497,13 @@ mod tests {
     #[test]
     #[should_panic]
     fn assert_fail() {
-        let mut stack = init_stack(&[2, 3, 4], &[], &[]);
+        let mut stack = init_stack(&[2, 3, 4], &[], &[], TRACE_LENGTH);
         stack.assert(0);
     }
 
     #[test]
     fn swap() {
-        let mut stack = init_stack(&[1, 2, 3, 4], &[], &[]);
+        let mut stack = init_stack(&[1, 2, 3, 4], &[], &[], TRACE_LENGTH);
         stack.swap(0);
         assert_eq!(vec![2, 1, 3, 4, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -482,7 +513,7 @@ mod tests {
 
     #[test]
     fn swap2() {
-        let mut stack = init_stack(&[1, 2, 3, 4], &[], &[]);
+        let mut stack = init_stack(&[1, 2, 3, 4], &[], &[], TRACE_LENGTH);
         stack.swap2(0);
         assert_eq!(vec![3, 4, 1, 2, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -492,7 +523,7 @@ mod tests {
 
     #[test]
     fn swap4() {
-        let mut stack = init_stack(&[1, 2, 3, 4, 5, 6, 7, 8], &[], &[]);
+        let mut stack = init_stack(&[1, 2, 3, 4, 5, 6, 7, 8], &[], &[], TRACE_LENGTH);
         stack.swap4(0);
         assert_eq!(vec![5, 6, 7, 8, 1, 2, 3, 4], get_stack_state(&stack, 1));
 
@@ -502,7 +533,7 @@ mod tests {
 
     #[test]
     fn roll4() {
-        let mut stack = init_stack(&[1, 2, 3, 4], &[], &[]);
+        let mut stack = init_stack(&[1, 2, 3, 4], &[], &[], TRACE_LENGTH);
         stack.roll4(0);
         assert_eq!(vec![4, 1, 2, 3, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -512,7 +543,7 @@ mod tests {
 
     #[test]
     fn roll8() {
-        let mut stack = init_stack(&[1, 2, 3, 4, 5, 6, 7, 8], &[], &[]);
+        let mut stack = init_stack(&[1, 2, 3, 4, 5, 6, 7, 8], &[], &[], TRACE_LENGTH);
         stack.roll8(0);
         assert_eq!(vec![8, 1, 2, 3, 4, 5, 6, 7], get_stack_state(&stack, 1));
 
@@ -523,14 +554,14 @@ mod tests {
     #[test]
     fn choose() {
         // choose on true
-        let mut stack = init_stack(&[2, 3, 0], &[], &[]);
+        let mut stack = init_stack(&[2, 3, 0], &[], &[], TRACE_LENGTH);
         stack.choose(0);
         assert_eq!(vec![3, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
         assert_eq!(1, stack.depth);
         assert_eq!(3, stack.max_depth);
 
-        let mut stack = init_stack(&[2, 3, 0, 4], &[], &[]);
+        let mut stack = init_stack(&[2, 3, 0, 4], &[], &[], TRACE_LENGTH);
         stack.choose(0);
         assert_eq!(vec![3, 4, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -538,7 +569,7 @@ mod tests {
         assert_eq!(4, stack.max_depth);
 
         // choose on false
-        let mut stack = init_stack(&[2, 3, 1, 4], &[], &[]);
+        let mut stack = init_stack(&[2, 3, 1, 4], &[], &[], TRACE_LENGTH);
         stack.choose(0);
         assert_eq!(vec![2, 4, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -549,7 +580,7 @@ mod tests {
     #[test]
     fn choose2() {
         // choose on true
-        let mut stack = init_stack(&[2, 3, 4, 5, 0, 6, 7], &[], &[]);
+        let mut stack = init_stack(&[2, 3, 4, 5, 0, 6, 7], &[], &[], TRACE_LENGTH);
         stack.choose2(0);
         assert_eq!(vec![4, 5, 7, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -557,7 +588,7 @@ mod tests {
         assert_eq!(7, stack.max_depth);
 
         // choose on false
-        let mut stack = init_stack(&[2, 3, 4, 5, 1, 6, 7], &[], &[]);
+        let mut stack = init_stack(&[2, 3, 4, 5, 1, 6, 7], &[], &[], TRACE_LENGTH);
         stack.choose2(0);
         assert_eq!(vec![2, 3, 7, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -567,7 +598,7 @@ mod tests {
 
     #[test]
     fn push() {
-        let mut stack = init_stack(&[], &[], &[]);
+        let mut stack = init_stack(&[], &[], &[], TRACE_LENGTH);
         stack.push(0, 3);
         assert_eq!(vec![3, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -577,7 +608,7 @@ mod tests {
     
     #[test]
     fn pad2() {
-        let mut stack = init_stack(&[1, 2], &[], &[]);
+        let mut stack = init_stack(&[1, 2], &[], &[], TRACE_LENGTH);
         stack.pad2(0);
         assert_eq!(vec![0, 0, 1, 2, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -587,7 +618,7 @@ mod tests {
 
     #[test]
     fn dup() {
-        let mut stack = init_stack(&[1, 2], &[], &[]);
+        let mut stack = init_stack(&[1, 2], &[], &[], TRACE_LENGTH);
         stack.dup(0);
         assert_eq!(vec![1, 1, 2, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -597,7 +628,7 @@ mod tests {
 
     #[test]
     fn dup2() {
-        let mut stack = init_stack(&[1, 2, 3, 4], &[], &[]);
+        let mut stack = init_stack(&[1, 2, 3, 4], &[], &[], TRACE_LENGTH);
         stack.dup2(0);
         assert_eq!(vec![1, 2, 1, 2, 3, 4, 0, 0], get_stack_state(&stack, 1));
 
@@ -607,7 +638,7 @@ mod tests {
 
     #[test]
     fn dup4() {
-        let mut stack = init_stack(&[1, 2, 3, 4], &[], &[]);
+        let mut stack = init_stack(&[1, 2, 3, 4], &[], &[], TRACE_LENGTH);
         stack.dup4(0);
         assert_eq!(vec![1, 2, 3, 4, 1, 2, 3, 4], get_stack_state(&stack, 1));
 
@@ -617,7 +648,7 @@ mod tests {
 
     #[test]
     fn drop() {
-        let mut stack = init_stack(&[1, 2], &[], &[]);
+        let mut stack = init_stack(&[1, 2], &[], &[], TRACE_LENGTH);
         stack.drop(0);
         assert_eq!(vec![2, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -627,7 +658,7 @@ mod tests {
 
     #[test]
     fn drop4() {
-        let mut stack = init_stack(&[1, 2, 3, 4, 5], &[], &[]);
+        let mut stack = init_stack(&[1, 2, 3, 4, 5], &[], &[], TRACE_LENGTH);
         stack.drop4(0);
         assert_eq!(vec![5, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -637,7 +668,7 @@ mod tests {
 
     #[test]
     fn add() {
-        let mut stack = init_stack(&[1, 2], &[], &[]);
+        let mut stack = init_stack(&[1, 2], &[], &[], TRACE_LENGTH);
         stack.add(0);
         assert_eq!(vec![3, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -647,7 +678,7 @@ mod tests {
 
     #[test]
     fn mul() {
-        let mut stack = init_stack(&[2, 3], &[], &[]);
+        let mut stack = init_stack(&[2, 3], &[], &[], TRACE_LENGTH);
         stack.mul(0);
         assert_eq!(vec![6, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -657,7 +688,7 @@ mod tests {
 
     #[test]
     fn inv() {
-        let mut stack = init_stack(&[2, 3], &[], &[]);
+        let mut stack = init_stack(&[2, 3], &[], &[], TRACE_LENGTH);
         stack.inv(0);
         assert_eq!(vec![F128::inv(2), 3, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -668,13 +699,13 @@ mod tests {
     #[test]
     #[should_panic]
     fn inv_zero() {
-        let mut stack = init_stack(&[0], &[], &[]);
+        let mut stack = init_stack(&[0], &[], &[], TRACE_LENGTH);
         stack.inv(0);
     }
 
     #[test]
     fn neg() {
-        let mut stack = init_stack(&[2, 3], &[], &[]);
+        let mut stack = init_stack(&[2, 3], &[], &[], TRACE_LENGTH);
         stack.neg(0);
         assert_eq!(vec![F128::neg(2), 3, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -684,7 +715,7 @@ mod tests {
 
     #[test]
     fn not() {
-        let mut stack = init_stack(&[1, 2], &[], &[]);
+        let mut stack = init_stack(&[1, 2], &[], &[], TRACE_LENGTH);
         stack.not(0);
         assert_eq!(vec![0, 2, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
@@ -701,14 +732,14 @@ mod tests {
     #[test]
     #[should_panic]
     fn not_fail() {
-        let mut stack = init_stack(&[1, 2], &[], &[]);
+        let mut stack = init_stack(&[1, 2], &[], &[], TRACE_LENGTH);
         stack.not(0);
         assert_eq!(vec![2, 2, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
     }
 
     #[test]
     fn eq() {
-        let mut stack = init_stack(&[3, 3, 4, 5], &[], &[]);
+        let mut stack = init_stack(&[3, 3, 4, 5], &[], &[], TRACE_LENGTH);
         stack.eq(0);
         assert_eq!(vec![1, 0], get_aux_state(&stack, 0));
         assert_eq!(vec![1, 4, 5, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
@@ -726,8 +757,36 @@ mod tests {
     }
 
     #[test]
+    fn cmp() {
+        // TODO: improve
+        let a: u128 = F128::rand();
+        let b: u128 = F128::rand();
+
+        let mut inputs_a = Vec::new();
+        let mut inputs_b = Vec::new();
+        for i in 0..128 {
+            inputs_a.push((a >> i) & 1);
+            inputs_b.push((b >> i) & 1);
+        }
+        inputs_a.reverse();
+        inputs_b.reverse();
+
+        let mut stack = init_stack(&[0, 0, 0, 0, 0, 0, a, b], &inputs_a, &inputs_b, 256);
+        for i in 0..128 {
+            stack.cmp(i);
+        }
+
+        let state = get_stack_state(&stack, 128);
+
+        let lt = if a < b { F128::ONE }  else { F128::ZERO };
+        let gt = if a < b { F128::ZERO } else { F128::ONE  };
+        assert_eq!([gt, lt], state[2..4]);
+        assert_eq!([a, b, a, b], state[4..]);
+    }
+
+    #[test]
     fn hashr() {
-        let mut stack = init_stack(&[0, 0, 1, 2, 3, 4], &[], &[]);
+        let mut stack = init_stack(&[0, 0, 1, 2, 3, 4], &[], &[], TRACE_LENGTH);
         let mut expected = vec![0, 0, 1, 2, 3, 4, 0, 0];
 
         stack.hashr(0);
@@ -744,7 +803,7 @@ mod tests {
 
     #[test]
     fn read() {
-        let mut stack = init_stack(&[1], &[2, 3], &[]);
+        let mut stack = init_stack(&[1], &[2, 3], &[], TRACE_LENGTH);
 
         stack.read(0);
         assert_eq!(vec![2, 1, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
@@ -761,7 +820,7 @@ mod tests {
 
     #[test]
     fn read2() {
-        let mut stack = init_stack(&[1], &[2, 4], &[3, 5]);
+        let mut stack = init_stack(&[1], &[2, 4], &[3, 5], TRACE_LENGTH);
 
         stack.read2(0);
         assert_eq!(vec![3, 2, 1, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
@@ -776,10 +835,13 @@ mod tests {
         assert_eq!(5, stack.max_depth);
     }
 
-    fn init_stack(public_inputs: &[F128], secret_inputs_a: &[F128], secret_inputs_b: &[F128]) -> super::StackTrace<F128> {
+    // HELPER FUNCTIONS
+    // --------------------------------------------------------------------------------------------
+
+    fn init_stack(public_inputs: &[F128], secret_inputs_a: &[F128], secret_inputs_b: &[F128], trace_length: usize) -> super::StackTrace<F128> {
         let mut user_registers: Vec<Vec<F128>> = Vec::with_capacity(super::MIN_USER_STACK_DEPTH);
         for i in 0..super::MIN_USER_STACK_DEPTH {
-            let mut register = filled_vector(TRACE_LENGTH, TRACE_LENGTH * EXTENSION_FACTOR, F128::ZERO);
+            let mut register = filled_vector(trace_length, trace_length * EXTENSION_FACTOR, F128::ZERO);
             if i < public_inputs.len() { 
                 register[0] = public_inputs[i];
             }
@@ -788,7 +850,7 @@ mod tests {
     
         let mut aux_registers = Vec::with_capacity(AUX_WIDTH);
         for _ in 0..AUX_WIDTH {
-            aux_registers.push(filled_vector(TRACE_LENGTH, TRACE_LENGTH * EXTENSION_FACTOR, F128::ZERO));
+            aux_registers.push(filled_vector(trace_length, trace_length * EXTENSION_FACTOR, F128::ZERO));
         }
 
         let mut secret_inputs_a = secret_inputs_a.to_vec();
