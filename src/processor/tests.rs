@@ -270,6 +270,44 @@ fn comparison_operations() {
 }
 
 #[test]
+fn cmp_operation() {
+    // TODO: improve
+    let a: u128 = F128::rand();
+    let b: u128 = F128::rand();
+
+    let mut inputs_a = Vec::new();
+    let mut inputs_b = Vec::new();
+    for i in 0..128 {
+        inputs_a.push((a >> i) & 1);
+        inputs_b.push((b >> i) & 1);
+    }
+    inputs_a.reverse();
+    inputs_b.reverse();
+
+    let mut program = vec![opcodes::BEGIN];
+    for _ in 1..128 { program.push(opcodes::NOOP); }
+    for _ in 0..128 { program.push(opcodes::CMP);  }
+    for _ in 0..256 { program.push(opcodes::NOOP); }
+
+    let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
+
+    let options = ProofOptions::default();
+    let inputs = ProgramInputs::new(&[0, 0, 0, 0, 0, 0, a, b], &inputs_a, &inputs_b);
+    let num_outputs = 8;
+
+    let lt = if a < b { F128::ONE }  else { F128::ZERO };
+    let gt = if a < b { F128::ZERO } else { F128::ONE  };
+    let expected_result = vec![gt, lt, a, b, a, b];
+
+    let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
+    assert_eq!(expected_result, outputs[2..].to_vec());
+    assert_eq!(program_hash, expected_hash);
+
+    let result = super::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
+    assert_eq!(Ok(true), result);
+}
+
+#[test]
 fn assert_operation() {
     let program = [
         opcodes::BEGIN, opcodes::ASSERT, opcodes::NOOP, opcodes::NOOP,

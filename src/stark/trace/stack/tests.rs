@@ -6,7 +6,7 @@ use super::{ AUX_WIDTH };
 const TRACE_LENGTH: usize = 16;
 const EXTENSION_FACTOR: usize = 16;
 
-// TESTS
+// FLOW CONTROL OPERATIONS
 // ================================================================================================
 
 #[test]
@@ -30,10 +30,120 @@ fn assert() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "ASSERT failed at step 0")]
 fn assert_fail() {
     let mut stack = init_stack(&[2, 3, 4], &[], &[], TRACE_LENGTH);
     stack.assert(0);
+}
+
+// INPUT OPERATIONS
+// ================================================================================================
+
+#[test]
+fn push() {
+    let mut stack = init_stack(&[], &[], &[], TRACE_LENGTH);
+    stack.push(0, 3);
+    assert_eq!(vec![3, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+    assert_eq!(1, stack.depth);
+    assert_eq!(1, stack.max_depth);
+}
+
+#[test]
+fn read() {
+    let mut stack = init_stack(&[1], &[2, 3], &[], TRACE_LENGTH);
+
+    stack.read(0);
+    assert_eq!(vec![2, 1, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+    assert_eq!(2, stack.depth);
+    assert_eq!(2, stack.max_depth);
+
+    stack.read(1);
+    assert_eq!(vec![3, 2, 1, 0, 0, 0, 0, 0], get_stack_state(&stack, 2));
+
+    assert_eq!(3, stack.depth);
+    assert_eq!(3, stack.max_depth);
+}
+
+#[test]
+fn read2() {
+    let mut stack = init_stack(&[1], &[2, 4], &[3, 5], TRACE_LENGTH);
+
+    stack.read2(0);
+    assert_eq!(vec![3, 2, 1, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+    assert_eq!(3, stack.depth);
+    assert_eq!(3, stack.max_depth);
+
+    stack.read2(1);
+    assert_eq!(vec![5, 4, 3, 2, 1, 0, 0, 0], get_stack_state(&stack, 2));
+
+    assert_eq!(5, stack.depth);
+    assert_eq!(5, stack.max_depth);
+}
+
+// STACK MANIPULATION OPERATIONS
+// ================================================================================================
+
+#[test]
+fn dup() {
+    let mut stack = init_stack(&[1, 2], &[], &[], TRACE_LENGTH);
+    stack.dup(0);
+    assert_eq!(vec![1, 1, 2, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+    assert_eq!(3, stack.depth);
+    assert_eq!(3, stack.max_depth);
+}
+
+#[test]
+fn dup2() {
+    let mut stack = init_stack(&[1, 2, 3, 4], &[], &[], TRACE_LENGTH);
+    stack.dup2(0);
+    assert_eq!(vec![1, 2, 1, 2, 3, 4, 0, 0], get_stack_state(&stack, 1));
+
+    assert_eq!(6, stack.depth);
+    assert_eq!(6, stack.max_depth);
+}
+
+#[test]
+fn dup4() {
+    let mut stack = init_stack(&[1, 2, 3, 4], &[], &[], TRACE_LENGTH);
+    stack.dup4(0);
+    assert_eq!(vec![1, 2, 3, 4, 1, 2, 3, 4], get_stack_state(&stack, 1));
+
+    assert_eq!(8, stack.depth);
+    assert_eq!(8, stack.max_depth);
+}
+
+#[test]
+fn pad2() {
+    let mut stack = init_stack(&[1, 2], &[], &[], TRACE_LENGTH);
+    stack.pad2(0);
+    assert_eq!(vec![0, 0, 1, 2, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+    assert_eq!(4, stack.depth);
+    assert_eq!(4, stack.max_depth);
+}
+
+#[test]
+fn drop() {
+    let mut stack = init_stack(&[1, 2], &[], &[], TRACE_LENGTH);
+    stack.drop(0);
+    assert_eq!(vec![2, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+    assert_eq!(1, stack.depth);
+    assert_eq!(2, stack.max_depth);
+}
+
+#[test]
+fn drop4() {
+    let mut stack = init_stack(&[1, 2, 3, 4, 5], &[], &[], TRACE_LENGTH);
+    stack.drop4(0);
+    assert_eq!(vec![5, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+    assert_eq!(1, stack.depth);
+    assert_eq!(5, stack.max_depth);
 }
 
 #[test]
@@ -86,6 +196,9 @@ fn roll8() {
     assert_eq!(8, stack.max_depth);
 }
 
+// CONDITIONAL OPERATIONS
+// ================================================================================================
+
 #[test]
 fn choose() {
     // choose on true
@@ -113,6 +226,13 @@ fn choose() {
 }
 
 #[test]
+#[should_panic(expected = "CHOOSE on a non-binary condition at step 0")]
+fn choose_fail() {
+    let mut stack = init_stack(&[2, 3, 4], &[], &[], TRACE_LENGTH);
+    stack.choose(0);
+}
+
+#[test]
 fn choose2() {
     // choose on true
     let mut stack = init_stack(&[2, 3, 4, 5, 0, 6, 7], &[], &[], TRACE_LENGTH);
@@ -132,74 +252,14 @@ fn choose2() {
 }
 
 #[test]
-fn push() {
-    let mut stack = init_stack(&[], &[], &[], TRACE_LENGTH);
-    stack.push(0, 3);
-    assert_eq!(vec![3, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
-
-    assert_eq!(1, stack.depth);
-    assert_eq!(1, stack.max_depth);
+#[should_panic(expected = "CHOOSE2 on a non-binary condition at step 0")]
+fn choose2_fail() {
+    let mut stack = init_stack(&[2, 3, 4, 5, 6, 8, 8], &[], &[], TRACE_LENGTH);
+    stack.choose2(0);
 }
 
-#[test]
-fn pad2() {
-    let mut stack = init_stack(&[1, 2], &[], &[], TRACE_LENGTH);
-    stack.pad2(0);
-    assert_eq!(vec![0, 0, 1, 2, 0, 0, 0, 0], get_stack_state(&stack, 1));
-
-    assert_eq!(4, stack.depth);
-    assert_eq!(4, stack.max_depth);
-}
-
-#[test]
-fn dup() {
-    let mut stack = init_stack(&[1, 2], &[], &[], TRACE_LENGTH);
-    stack.dup(0);
-    assert_eq!(vec![1, 1, 2, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
-
-    assert_eq!(3, stack.depth);
-    assert_eq!(3, stack.max_depth);
-}
-
-#[test]
-fn dup2() {
-    let mut stack = init_stack(&[1, 2, 3, 4], &[], &[], TRACE_LENGTH);
-    stack.dup2(0);
-    assert_eq!(vec![1, 2, 1, 2, 3, 4, 0, 0], get_stack_state(&stack, 1));
-
-    assert_eq!(6, stack.depth);
-    assert_eq!(6, stack.max_depth);
-}
-
-#[test]
-fn dup4() {
-    let mut stack = init_stack(&[1, 2, 3, 4], &[], &[], TRACE_LENGTH);
-    stack.dup4(0);
-    assert_eq!(vec![1, 2, 3, 4, 1, 2, 3, 4], get_stack_state(&stack, 1));
-
-    assert_eq!(8, stack.depth);
-    assert_eq!(8, stack.max_depth);
-}
-
-#[test]
-fn drop() {
-    let mut stack = init_stack(&[1, 2], &[], &[], TRACE_LENGTH);
-    stack.drop(0);
-    assert_eq!(vec![2, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
-
-    assert_eq!(1, stack.depth);
-    assert_eq!(2, stack.max_depth);
-}
-
-#[test]
-fn drop4() {
-    let mut stack = init_stack(&[1, 2, 3, 4, 5], &[], &[], TRACE_LENGTH);
-    stack.drop4(0);
-    assert_eq!(vec![5, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
-
-    assert_eq!(1, stack.depth);
-    assert_eq!(5, stack.max_depth);
-}
+// ARITHMETIC AND BOOLEAN OPERATIONS
+// ================================================================================================
 
 #[test]
 fn add() {
@@ -232,7 +292,7 @@ fn inv() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "cannot compute INV of 0 at step 0")]
 fn inv_zero() {
     let mut stack = init_stack(&[0], &[], &[], TRACE_LENGTH);
     stack.inv(0);
@@ -265,12 +325,14 @@ fn not() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic(expected = "cannot compute NOT of a non-binary value at step 0")]
 fn not_fail() {
-    let mut stack = init_stack(&[1, 2], &[], &[], TRACE_LENGTH);
+    let mut stack = init_stack(&[2, 3], &[], &[], TRACE_LENGTH);
     stack.not(0);
-    assert_eq!(vec![2, 2, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 }
+
+// COMPARISON OPERATIONS
+// ================================================================================================
 
 #[test]
 fn eq() {
@@ -309,15 +371,23 @@ fn cmp() {
     let mut stack = init_stack(&[0, 0, 0, 0, 0, 0, a, b], &inputs_a, &inputs_b, 256);
     for i in 0..128 {
         stack.cmp(i);
+
+        let state = get_stack_state(&stack, i);
+        let gt = state[2];
+        let lt = state[3];
+        let not_set = F128::mul(F128::sub(F128::ONE, gt), F128::sub(F128::ONE, lt));
+        assert_eq!(vec![not_set, F128::ZERO], get_aux_state(&stack, i));
     }
 
     let state = get_stack_state(&stack, 128);
 
     let lt = if a < b { F128::ONE }  else { F128::ZERO };
     let gt = if a < b { F128::ZERO } else { F128::ONE  };
-    assert_eq!([gt, lt], state[2..4]);
-    assert_eq!([a, b, a, b], state[4..]);
+    assert_eq!([gt, lt, a, b, a, b], state[2..]);
 }
+
+// CRYPTOGRAPHIC OPERATIONS
+// ================================================================================================
 
 #[test]
 fn hashr() {
@@ -334,40 +404,6 @@ fn hashr() {
 
     assert_eq!(6, stack.depth);
     assert_eq!(6, stack.max_depth);
-}
-
-#[test]
-fn read() {
-    let mut stack = init_stack(&[1], &[2, 3], &[], TRACE_LENGTH);
-
-    stack.read(0);
-    assert_eq!(vec![2, 1, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
-
-    assert_eq!(2, stack.depth);
-    assert_eq!(2, stack.max_depth);
-
-    stack.read(1);
-    assert_eq!(vec![3, 2, 1, 0, 0, 0, 0, 0], get_stack_state(&stack, 2));
-
-    assert_eq!(3, stack.depth);
-    assert_eq!(3, stack.max_depth);
-}
-
-#[test]
-fn read2() {
-    let mut stack = init_stack(&[1], &[2, 4], &[3, 5], TRACE_LENGTH);
-
-    stack.read2(0);
-    assert_eq!(vec![3, 2, 1, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
-
-    assert_eq!(3, stack.depth);
-    assert_eq!(3, stack.max_depth);
-
-    stack.read2(1);
-    assert_eq!(vec![5, 4, 3, 2, 1, 0, 0, 0], get_stack_state(&stack, 2));
-
-    assert_eq!(5, stack.depth);
-    assert_eq!(5, stack.max_depth);
 }
 
 // HELPER FUNCTIONS

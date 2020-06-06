@@ -8,7 +8,7 @@ pub const NOT: u8      = 0b000_00_101;  // same as: PUSH 1 SWAP NEG ADD
 //pub const ???: u8    = 0b000_00_111;
 
 pub const PUSH: u8     = 0b000_01_000;
-pub const READ: u8     = 0b000_01_001;
+pub const READ: u8     = 0b000_01_001;  // same as: READ2 DROP
 pub const READ2: u8    = 0b000_01_010;
 pub const DUP: u8      = 0b000_01_011;  // same as: DUP2 SWAP DROP
 pub const DUP2: u8     = 0b000_01_100;

@@ -302,6 +302,42 @@ impl <T> Stack<T>
         enforce_no_change(&mut evaluations[1..n], &current[2..], &next[1..n], op_flag);
         result[0] = agg_op_constraint(result[0], op_flag, T::mul(next[0], diff));
 
+        // CMP
+        let op_flag = op_flags[opcodes::CMP as usize];
+        if op_flag == T::ONE {
+            println!("c: {:?}", current);
+            println!("n: {:?}", next);
+            println!("e1: {:?}", evaluations);
+        }
+
+        let a_bit = next[0];
+        let b_bit = next[1];
+        evaluations[0] = agg_op_constraint(evaluations[0], op_flag, is_binary(a_bit));
+        evaluations[1] = agg_op_constraint(evaluations[1], op_flag, is_binary(b_bit));
+
+        let bit_gt = T::mul(a_bit, T::sub(T::ONE, b_bit));
+        let bit_lt = T::mul(b_bit, T::sub(T::ONE, a_bit));
+        let not_set = aux;
+
+        if op_flag == T::ONE {
+            println!("bit_gt: {}, bit_lt: {}, not_set: {}", bit_gt, bit_lt, not_set);
+        }
+
+        let gt = T::add(current[2], T::mul(bit_gt, not_set));
+        let lt = T::add(current[3], T::mul(bit_lt, not_set));
+        evaluations[2] = agg_op_constraint(evaluations[2], op_flag, T::sub(next[2], gt));
+        evaluations[3] = agg_op_constraint(evaluations[3], op_flag, T::sub(next[3], lt));
+
+        let not_set_check = T::mul(T::sub(T::ONE, current[2]), T::sub(T::ONE, current[3]));
+        result[0] = agg_op_constraint(result[0], op_flag, T::sub(not_set, not_set_check));
+
+        // TODO: add constraints for binary decomposition accumulator
+        enforce_no_change(&mut evaluations[6..n], &current[6..], &next[6..n], op_flag);
+
+        if op_flag == T::ONE {
+            println!("r2: {:?}, {}", evaluations, result[0]);
+        }
+
         // ASSERT
         let op_flag = op_flags[opcodes::ASSERT as usize];
         let n = next.len() - 1;

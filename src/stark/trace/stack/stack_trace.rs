@@ -153,7 +153,7 @@ impl <T> StackTrace<T>
             self.user_registers[0][step + 1] = self.user_registers[1][step];
         }
         else {
-            assert!(false, "cannot CHOOSE on a non-binary condition");
+            assert!(false, "CHOOSE on a non-binary condition at step {}", step);
         }
         self.shift_left(step, 3, 2);
     }
@@ -170,7 +170,7 @@ impl <T> StackTrace<T>
             self.user_registers[1][step + 1] = self.user_registers[3][step];
         }
         else {
-            assert!(false, "cannot CHOOSE on a non-binary condition");
+            assert!(false, "CHOOSE2 on a non-binary condition at step {}", step);
         }
         self.shift_left(step, 6, 4);
     }
@@ -194,7 +194,7 @@ impl <T> StackTrace<T>
     pub fn inv(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
         let x = self.user_registers[0][step];
-        assert!(x != T::ZERO, "multiplicative inverse of {} is undefined", T::ZERO);
+        assert!(x != T::ZERO, "cannot compute INV of {} at step {}", T::ZERO, step);
         self.user_registers[0][step + 1] = T::inv(x);
         self.copy_state(step, 1);
     }
@@ -209,7 +209,7 @@ impl <T> StackTrace<T>
     pub fn not(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
         let x = self.user_registers[0][step];
-        assert!(x == T::ZERO || x == T::ONE, "cannot compute NOT of a non-binary value");
+        assert!(x == T::ZERO || x == T::ONE, "cannot compute NOT of a non-binary value at step {}", step);
         self.user_registers[0][step + 1] = T::sub(T::ONE, x);
         self.copy_state(step, 1);
     }
@@ -248,6 +248,7 @@ impl <T> StackTrace<T>
         let not_set = T::mul(T::sub(T::ONE, gt), T::sub(T::ONE, lt));
         let power_of_two = T::exp(T::from_usize(2), T::from_usize(127 - (step % 128)));
 
+        self.aux_registers[0][step] = not_set;
         self.user_registers[0][step + 1] = a_bit;
         self.user_registers[1][step + 1] = b_bit;
         self.user_registers[2][step + 1] = T::add(gt, T::mul(bit_gt, not_set));
