@@ -230,7 +230,7 @@ impl <T> StackTrace<T>
     }
 
     pub fn cmp(&mut self, step: usize) {
-        assert!(self.depth >= 8, "stack underflow at step {}", step);
+        assert!(self.depth >= 7, "stack underflow at step {}", step);
         assert!(self.secret_inputs_a.len() > 0, "ran out of secret inputs at step {}", step);
         assert!(self.secret_inputs_b.len() > 0, "ran out of secret inputs at step {}", step);
         let a_bit = self.secret_inputs_a.pop().unwrap();
@@ -246,7 +246,7 @@ impl <T> StackTrace<T>
         let gt = self.user_registers[2][step];
         let lt = self.user_registers[3][step];
         let not_set = T::mul(T::sub(T::ONE, gt), T::sub(T::ONE, lt));
-        let power_of_two = T::exp(T::from_usize(2), T::from_usize(127 - (step % 128)));
+        let power_of_two = self.user_registers[6][step];    // TODO: make sure it is power of 2
 
         self.aux_registers[0][step] = not_set;
         self.user_registers[0][step + 1] = a_bit;
@@ -255,8 +255,9 @@ impl <T> StackTrace<T>
         self.user_registers[3][step + 1] = T::add(lt, T::mul(bit_lt, not_set));
         self.user_registers[4][step + 1] = T::add(self.user_registers[4][step], T::mul(a_bit, power_of_two));
         self.user_registers[5][step + 1] = T::add(self.user_registers[5][step], T::mul(b_bit, power_of_two));
+        self.user_registers[6][step + 1] = T::div(power_of_two, T::from_usize(2)); // TODO: replace with shift
 
-        self.copy_state(step, 6);
+        self.copy_state(step, 7);
     }
 
     pub fn hashr(&mut self, step: usize) {

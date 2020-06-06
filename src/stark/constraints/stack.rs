@@ -304,11 +304,6 @@ impl <T> Stack<T>
 
         // CMP
         let op_flag = op_flags[opcodes::CMP as usize];
-        if op_flag == T::ONE {
-            println!("c: {:?}", current);
-            println!("n: {:?}", next);
-            println!("e1: {:?}", evaluations);
-        }
 
         let a_bit = next[0];
         let b_bit = next[1];
@@ -319,24 +314,23 @@ impl <T> Stack<T>
         let bit_lt = T::mul(b_bit, T::sub(T::ONE, a_bit));
         let not_set = aux;
 
-        if op_flag == T::ONE {
-            println!("bit_gt: {}, bit_lt: {}, not_set: {}", bit_gt, bit_lt, not_set);
-        }
-
         let gt = T::add(current[2], T::mul(bit_gt, not_set));
         let lt = T::add(current[3], T::mul(bit_lt, not_set));
         evaluations[2] = agg_op_constraint(evaluations[2], op_flag, T::sub(next[2], gt));
         evaluations[3] = agg_op_constraint(evaluations[3], op_flag, T::sub(next[3], lt));
 
+        let power_of_two = current[6];
+        let a_acc = T::add(current[4], T::mul(a_bit, power_of_two));
+        let b_acc = T::add(current[5], T::mul(b_bit, power_of_two));
+        evaluations[4] = agg_op_constraint(evaluations[4], op_flag, T::sub(next[4], a_acc));
+        evaluations[5] = agg_op_constraint(evaluations[5], op_flag, T::sub(next[5], b_acc));
+
+        let power_of_two_check = T::mul(next[6], T::from_usize(2));
+        evaluations[6] = agg_op_constraint(evaluations[6], op_flag, T::sub(power_of_two, power_of_two_check));
+
         let not_set_check = T::mul(T::sub(T::ONE, current[2]), T::sub(T::ONE, current[3]));
         result[0] = agg_op_constraint(result[0], op_flag, T::sub(not_set, not_set_check));
-
-        // TODO: add constraints for binary decomposition accumulator
-        enforce_no_change(&mut evaluations[6..n], &current[6..], &next[6..n], op_flag);
-
-        if op_flag == T::ONE {
-            println!("r2: {:?}, {}", evaluations, result[0]);
-        }
+        enforce_no_change(&mut evaluations[7..n], &current[7..], &next[7..n], op_flag);
 
         // ASSERT
         let op_flag = op_flags[opcodes::ASSERT as usize];

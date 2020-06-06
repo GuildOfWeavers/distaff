@@ -358,7 +358,8 @@ fn cmp() {
     // TODO: improve
     let a: u128 = F128::rand();
     let b: u128 = F128::rand();
-
+    let p127: u128 = F128::exp(2, 127);
+    
     let mut inputs_a = Vec::new();
     let mut inputs_b = Vec::new();
     for i in 0..128 {
@@ -368,8 +369,9 @@ fn cmp() {
     inputs_a.reverse();
     inputs_b.reverse();
 
-    let mut stack = init_stack(&[0, 0, 0, 0, 0, 0, a, b], &inputs_a, &inputs_b, 256);
-    for i in 0..128 {
+    let mut stack = init_stack(&[0, 0, 0, 0, p127, a, b], &inputs_a, &inputs_b, 256);
+    stack.pad2(0);
+    for i in 1..129 {
         stack.cmp(i);
 
         let state = get_stack_state(&stack, i);
@@ -379,11 +381,11 @@ fn cmp() {
         assert_eq!(vec![not_set, F128::ZERO], get_aux_state(&stack, i));
     }
 
-    let state = get_stack_state(&stack, 128);
+    let state = get_stack_state(&stack, 129);
 
     let lt = if a < b { F128::ONE }  else { F128::ZERO };
     let gt = if a < b { F128::ZERO } else { F128::ONE  };
-    assert_eq!([gt, lt, a, b, a, b], state[2..]);
+    assert_eq!([gt, lt, a, b], state[2..6]);
 }
 
 // CRYPTOGRAPHIC OPERATIONS
