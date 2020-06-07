@@ -1,8 +1,15 @@
-use std::cmp;
-use crate::math::{ FiniteField, polynom };
-use crate::stark::{ TraceState, Accumulator, Hasher };
-use crate::stark::{ AUX_WIDTH, NUM_LD_OPS, HASH_STATE_WIDTH, HASH_CYCLE_LENGTH };
+use crate::math::{ FiniteField };
+use crate::stark::{ TraceState, Accumulator, Hasher, AUX_WIDTH, NUM_LD_OPS };
 use crate::processor::{ opcodes };
+
+mod hashing;
+use hashing::HashEvaluator;
+
+mod comparisons;
+use comparisons::{ enforce_eq, enforce_cmp };
+
+mod utils;
+use utils::{ agg_op_constraint, is_binary, enforce_no_change };
 
 // CONSTANTS
 // ================================================================================================
@@ -293,172 +300,17 @@ impl <T> Stack<T>
         result[0] = agg_op_constraint(result[0], op_flag, is_binary(current[0]));
 
         // EQ
-        let op_flag = op_flags[opcodes::EQ as usize];
-        let n = next.len() - 1;
-        let diff = T::sub(current[0], current[1]);
-        let inv_dif = aux;
-        let op_result = T::sub(T::ONE, T::mul(diff, inv_dif));
-        evaluations[0] = agg_op_constraint(evaluations[0], op_flag, T::sub(next[0], op_result));
-        enforce_no_change(&mut evaluations[1..n], &current[2..], &next[1..n], op_flag);
-        result[0] = agg_op_constraint(result[0], op_flag, T::mul(next[0], diff));
-
+        let aux_constraint = enforce_eq(&mut evaluations, current, next, aux, op_flags[opcodes::EQ as usize]);
+        result[0] = T::add(result[0], aux_constraint);
+        
         // CMP
-        let op_flag = op_flags[opcodes::CMP as usize];
-
-        let a_bit = next[0];
-        let b_bit = next[1];
-        evaluations[0] = agg_op_constraint(evaluations[0], op_flag, is_binary(a_bit));
-        evaluations[1] = agg_op_constraint(evaluations[1], op_flag, is_binary(b_bit));
-
-        let bit_gt = T::mul(a_bit, T::sub(T::ONE, b_bit));
-        let bit_lt = T::mul(b_bit, T::sub(T::ONE, a_bit));
-        let not_set = aux;
-
-        let gt = T::add(current[2], T::mul(bit_gt, not_set));
-        let lt = T::add(current[3], T::mul(bit_lt, not_set));
-        evaluations[2] = agg_op_constraint(evaluations[2], op_flag, T::sub(next[2], gt));
-        evaluations[3] = agg_op_constraint(evaluations[3], op_flag, T::sub(next[3], lt));
-
-        let power_of_two = current[6];
-        let a_acc = T::add(current[4], T::mul(a_bit, power_of_two));
-        let b_acc = T::add(current[5], T::mul(b_bit, power_of_two));
-        evaluations[4] = agg_op_constraint(evaluations[4], op_flag, T::sub(next[4], a_acc));
-        evaluations[5] = agg_op_constraint(evaluations[5], op_flag, T::sub(next[5], b_acc));
-
-        let power_of_two_check = T::mul(next[6], T::from_usize(2));
-        evaluations[6] = agg_op_constraint(evaluations[6], op_flag, T::sub(power_of_two, power_of_two_check));
-
-        let not_set_check = T::mul(T::sub(T::ONE, current[2]), T::sub(T::ONE, current[3]));
-        result[0] = agg_op_constraint(result[0], op_flag, T::sub(not_set, not_set_check));
-        enforce_no_change(&mut evaluations[7..n], &current[7..], &next[7..n], op_flag);
-
-        // ASSERT
-        let op_flag = op_flags[opcodes::ASSERT as usize];
-        let n = next.len() - 1;
-        enforce_no_change(&mut evaluations[0..n], &current[1..], &next[0..n], op_flag);
-        result[0] = agg_op_constraint(result[0], op_flag, T::sub(T::ONE, current[0]));
+        let aux_constraint = enforce_cmp(&mut evaluations, current, next, aux, op_flags[opcodes::CMP as usize]);
+        result[0] = T::add(result[0], aux_constraint);
+        
 
         let result = &mut result[AUX_WIDTH..];
         for i in 0..result.len() {
             result[i] = T::add(result[i], evaluations[i]);
-        }
-    }
-}
-
-// HELPER FUNCTIONS
-// ================================================================================================
-#[inline(always)]
-fn enforce_no_change<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-    for i in 0..result.len() {
-        result[i] = agg_op_constraint(result[i], op_flag, T::sub(next[i], current[i]));
-    }
-}
-
-#[inline(always)]
-fn agg_op_constraint<T: FiniteField>(result: T, op_flag: T, op_constraint: T) -> T {
-    return T::add(result, T::mul(op_constraint, op_flag));
-}
-
-#[inline(always)]
-fn is_binary<T: FiniteField>(v: T) -> T {
-    return T::sub(T::mul(v, v), v);
-}
-
-// HASH EVALUATOR
-// ================================================================================================
-
-struct HashEvaluator<T: FiniteField> {
-    trace_length    : usize,
-    cycle_length    : usize,
-    ark_values      : Vec<[T; 2 * HASH_STATE_WIDTH]>,
-    ark_polys       : Vec<Vec<T>>,
-}
-
-impl<T> HashEvaluator <T>
-    where T: FiniteField + Hasher
-{
-    /// Creates a new HashEvaluator based on the provided `trace_length` and `extension_factor`.
-    pub fn new(trace_length: usize, extension_factor: usize) -> HashEvaluator<T> {
-        // extend rounds constants by the specified extension factor
-        let (ark_polys, ark_evaluations) = T::get_extended_constants(extension_factor);
-
-        // transpose round constant evaluations so that constants for each round
-        // are stored in a single row
-        let cycle_length = HASH_CYCLE_LENGTH * extension_factor;
-        let mut ark_values = Vec::with_capacity(cycle_length);
-        for i in 0..cycle_length {
-            ark_values.push([T::ZERO; 2 * HASH_STATE_WIDTH]);
-            for j in 0..(2 * HASH_STATE_WIDTH) {
-                ark_values[i][j] = ark_evaluations[j][i];
-            }
-        }
-
-        return HashEvaluator { trace_length, cycle_length, ark_values, ark_polys };
-    }
-
-    /// Evaluates constraints at the specified step and adds the resulting values to `result`.
-    pub fn evaluate(&self, current: &[T], next: &[T], step: usize, op_flag: T, result: &mut [T]) {
-        let step = step % self.cycle_length;
-
-        // determine round constants for the current step
-        let ark = &self.ark_values[step];
-
-        // evaluate constraints for the hash function and for the rest of the stack
-        self.eval_hash(current, next, ark, op_flag, result);
-        self.eval_rest(current, next, op_flag, result);
-    }
-
-    /// Evaluates constraints at the specified x coordinate and adds the resulting values to `result`.
-    /// Unlike the function above, this function can evaluate constraints for any out-of-domain 
-    /// coordinate, but is significantly slower.
-    pub fn evaluate_at(&self, current: &[T], next: &[T], x: T, op_flag: T, result: &mut [T]) {
-
-        // determine mask and round constants at the specified x coordinate
-        let num_cycles = T::from_usize(self.trace_length / HASH_CYCLE_LENGTH);
-        let x = T::exp(x, num_cycles);
-        let mut ark = [T::ZERO; 2 * HASH_STATE_WIDTH];
-        for i in 0..ark.len() {
-            ark[i] = polynom::eval(&self.ark_polys[i], x);
-        }
-
-        // evaluate constraints for the hash function and for the rest of the stack
-        self.eval_hash(current, next, &ark, op_flag, result);
-        self.eval_rest(current, next, op_flag, result);
-    }
-
-    /// Evaluates constraints for a single round of a modified Rescue hash function. Hash state is
-    /// assumed to be in the first 6 registers of user stack (aux registers are not affected).
-    fn eval_hash(&self, current: &[T], next: &[T], ark: &[T], op_flag: T, result: &mut [T]) {
-
-        let mut state_part1 = [T::ZERO; HASH_STATE_WIDTH];
-        state_part1.copy_from_slice(&current[AUX_WIDTH..(AUX_WIDTH + HASH_STATE_WIDTH)]);
-        let mut state_part2 = [T::ZERO; HASH_STATE_WIDTH];
-        state_part2.copy_from_slice(&next[AUX_WIDTH..(AUX_WIDTH + HASH_STATE_WIDTH)]);
-
-        for i in 0..HASH_STATE_WIDTH {
-            state_part1[i] = T::add(state_part1[i], ark[i]);
-        }
-        T::apply_sbox(&mut state_part1);
-        T::apply_mds(&mut state_part1);
-    
-        T::apply_inv_mds(&mut state_part2);
-        T::apply_sbox(&mut state_part2);
-        for i in 0..HASH_STATE_WIDTH {
-            state_part2[i] = T::sub(state_part2[i], ark[HASH_STATE_WIDTH + i]);
-        }
-
-        let result = &mut result[AUX_WIDTH..];
-        for i in 0..cmp::min(result.len(), HASH_STATE_WIDTH) {
-            let evaluation = T::sub(state_part2[i], state_part1[i]);
-            result[i] = T::add(result[i], T::mul(evaluation, op_flag));
-        }
-    }
-
-    /// Evaluates constraints for stack registers un-affected by hash transition.
-    fn eval_rest(&self, current: &[T], next: &[T], op_flag: T, result: &mut [T]) {
-        for i in (AUX_WIDTH + HASH_STATE_WIDTH)..result.len() {
-            let evaluation = T::sub(next[i], current[i]);
-            result[i] = T::add(result[i], T::mul(evaluation, op_flag));
         }
     }
 }
