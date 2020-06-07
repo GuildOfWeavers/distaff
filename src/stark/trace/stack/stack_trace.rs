@@ -260,6 +260,34 @@ impl <T> StackTrace<T>
         self.copy_state(step, 7);
     }
 
+    pub fn lt(&mut self, step: usize) {
+        assert!(self.depth >= 9, "stack underflow at step {}", step);
+        let a_acc = self.user_registers[4][step];
+        let a_val = self.user_registers[7][step];
+        assert!(a_val == a_acc, "invalid binary expansion for value {} at step {}", a_val, step);
+
+        let b_acc = self.user_registers[5][step];
+        let b_val = self.user_registers[8][step];
+        assert!(b_val == b_acc, "invalid binary expansion for value {} at step {}", b_val, step);
+
+        self.user_registers[0][step + 1] = self.user_registers[3][step];
+        self.shift_left(step, 9, 8);
+    }
+
+    pub fn gt(&mut self, step: usize) {
+        assert!(self.depth >= 9, "stack underflow at step {}", step);
+        let a_acc = self.user_registers[4][step];
+        let a_val = self.user_registers[7][step];
+        assert!(a_val == a_acc, "invalid binary expansion for value {} at step {}", a_val, step);
+
+        let b_acc = self.user_registers[5][step];
+        let b_val = self.user_registers[8][step];
+        assert!(b_val == b_acc, "invalid binary expansion for value {} at step {}", b_val, step);
+
+        self.user_registers[0][step + 1] = self.user_registers[2][step];
+        self.shift_left(step, 9, 8);
+    }
+
     pub fn hashr(&mut self, step: usize) {
         assert!(self.depth >= HASH_STATE_WIDTH, "stack underflow at step {}", step);
         let mut state = [

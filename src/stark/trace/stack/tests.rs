@@ -388,6 +388,68 @@ fn cmp() {
     assert_eq!([gt, lt, a, b], state[2..6]);
 }
 
+#[test]
+fn lt() {
+    // TODO: improve
+    let a: u128 = F128::rand();
+    let b: u128 = F128::rand();
+    let p127: u128 = F128::exp(2, 127);
+    
+    let mut inputs_a = Vec::new();
+    let mut inputs_b = Vec::new();
+    for i in 0..128 {
+        inputs_a.push((a >> i) & 1);
+        inputs_b.push((b >> i) & 1);
+    }
+    inputs_a.reverse();
+    inputs_b.reverse();
+
+    let mut stack = init_stack(&[p127, a, b, 7, 11], &inputs_a, &inputs_b, 256);
+    stack.pad2(0);
+    stack.pad2(1);
+    stack.pad2(2);
+    for i in 3..131 {
+        stack.cmp(i);
+    }
+    stack.lt(131);
+
+    let state = get_stack_state(&stack, 132);
+
+    let expected = if a < b { F128::ONE }  else { F128::ZERO };
+    assert_eq!(vec![expected, 7, 11, 0, 0, 0, 0, 0, 0, 0, 0], state);
+}
+
+#[test]
+fn gt() {
+    // TODO: improve
+    let a: u128 = F128::rand();
+    let b: u128 = F128::rand();
+    let p127: u128 = F128::exp(2, 127);
+    
+    let mut inputs_a = Vec::new();
+    let mut inputs_b = Vec::new();
+    for i in 0..128 {
+        inputs_a.push((a >> i) & 1);
+        inputs_b.push((b >> i) & 1);
+    }
+    inputs_a.reverse();
+    inputs_b.reverse();
+
+    let mut stack = init_stack(&[p127, a, b, 7, 11], &inputs_a, &inputs_b, 256);
+    stack.pad2(0);
+    stack.pad2(1);
+    stack.pad2(2);
+    for i in 3..131 {
+        stack.cmp(i);
+    }
+    stack.gt(131);
+
+    let state = get_stack_state(&stack, 132);
+
+    let expected = if a > b { F128::ONE }  else { F128::ZERO };
+    assert_eq!(vec![expected, 7, 11, 0, 0, 0, 0, 0, 0, 0, 0], state);
+}
+
 // CRYPTOGRAPHIC OPERATIONS
 // ================================================================================================
 
