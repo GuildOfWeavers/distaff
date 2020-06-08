@@ -60,10 +60,7 @@ impl <T> Stack<T>
 
         // evaluate constraints for simple operations
         let next_op = next.get_op_code();
-        self.enforce_simple_ops(current_stack, next_stack, op_flags, next_op, result);
-
-        // evaluate constraints for logic operations
-        self.enforce_logic_ops(current_stack, next_stack, op_flags, result);
+        self.enforce_acyclic_ops(current_stack, next_stack, op_flags, next_op, result);
 
         // evaluate constraints for hash operation
         let hash_flag = op_flags[opcodes::HASHR as usize];
@@ -80,38 +77,47 @@ impl <T> Stack<T>
 
         // evaluate constraints for simple operations
         let next_op = next.get_op_code();
-        self.enforce_simple_ops(current_stack, next_stack, op_flags, next_op, result);
-
-        // evaluate constraints for logic operations
-        self.enforce_logic_ops(current_stack, next_stack, op_flags, result);
+        self.enforce_acyclic_ops(current_stack, next_stack, op_flags, next_op, result);
 
         // evaluate constraints for hash operation
         let hash_flag = op_flags[opcodes::HASHR as usize];
         self.hash_evaluator.evaluate_at(current_stack, next_stack, x, hash_flag, result);
     }
 
-    // SIMPLE OPERATIONS
-    // --------------------------------------------------------------------------------------------
-
-    /// Evaluates transition constraints for all operations where constraints can be described as:
-    /// evaluation = s_next - f(s_current), where f is the transition function.
-    fn enforce_simple_ops(&self, current: &[T], next: &[T], op_flags: [T; NUM_LD_OPS], next_op: T, result: &mut [T]) {
+    /// Evaluates transition constraints for all operations where the operation result does not
+    /// depend on the where in the execution trace it is executed. In other words, these operations
+    /// are not tied to any repeating cycles in the execution trace.
+    fn enforce_acyclic_ops(&self, current: &[T], next: &[T], op_flags: [T; NUM_LD_OPS], next_op: T, result: &mut [T]) {
         
         debug_assert!(AUX_WIDTH == 2, "expected 2 aux registers but found {}", AUX_WIDTH);
 
-        // simple operations work only with the user portion of the stack
+        // save the aux register of the stack
+        let aux = current[0];
+
+        // trim stack states only to the user portion of the stack (excluding aux register)
         let current = &current[AUX_WIDTH..];
         let next = &next[AUX_WIDTH..];
 
+        // initialize a vector to hold constraint evaluations; this is needed because constraint
+        // evaluator functions assume that the stack is at least 8 items deep; while it may
+        // actually be smaller than that
         let mut evaluations = vec![T::ZERO; current.len()];
 
+        // control flow operations
         enforce_no_change(&mut evaluations, current, next, op_flags[opcodes::BEGIN as usize]);
         enforce_no_change(&mut evaluations, current, next, op_flags[opcodes::NOOP as usize]);
 
+        // input operations
         enforce_push(&mut evaluations,      current, next, next_op, op_flags[opcodes::PUSH as usize]);
         enforce_read(&mut evaluations,      current, next, op_flags[opcodes::READ as usize]);
         enforce_read2(&mut evaluations,     current, next, op_flags[opcodes::READ2 as usize]);
     
+        // stack manipulation operations
+        enforce_dup(&mut evaluations,       current, next, op_flags[opcodes::DUP as usize]);
+        enforce_dup2(&mut evaluations,      current, next, op_flags[opcodes::DUP2 as usize]);
+        enforce_dup4(&mut evaluations,      current, next, op_flags[opcodes::DUP4 as usize]);
+        enforce_pad2(&mut evaluations,      current, next, op_flags[opcodes::PAD2 as usize]);
+
         enforce_drop(&mut evaluations,      current, next, op_flags[opcodes::DROP as usize]);
         enforce_drop4(&mut evaluations,     current, next, op_flags[opcodes::DROP4 as usize]);
         
@@ -121,64 +127,34 @@ impl <T> Stack<T>
     
         enforce_roll4(&mut evaluations,     current, next, op_flags[opcodes::ROLL4 as usize]);
         enforce_roll8(&mut evaluations,     current, next, op_flags[opcodes::ROLL8 as usize]);
-
-        enforce_pad2(&mut evaluations,      current, next, op_flags[opcodes::PAD2 as usize]);
-        enforce_dup(&mut evaluations,       current, next, op_flags[opcodes::DUP as usize]);
-        enforce_dup2(&mut evaluations,      current, next, op_flags[opcodes::DUP2 as usize]);
-        enforce_dup4(&mut evaluations,      current, next, op_flags[opcodes::DUP4 as usize]);
     
+        // arithmetic and boolean operations
         enforce_add(&mut evaluations,       current, next, op_flags[opcodes::ADD as usize]);
         enforce_mul(&mut evaluations,       current, next, op_flags[opcodes::MUL as usize]);
         enforce_inv(&mut evaluations,       current, next, op_flags[opcodes::INV as usize]);
         enforce_neg(&mut evaluations,       current, next, op_flags[opcodes::NEG as usize]);
-
-        let result = &mut result[1..];  // TODO: use constant
-        for i in 0..result.len() {
-            result[i] = T::add(result[i], evaluations[i]);
-        }
-    }
-    
-    // LOGIC OPS
-    // --------------------------------------------------------------------------------------------
-
-    /// Evaluates transition constraints for operations where some operands must be binary values.
-    fn enforce_logic_ops(&self, current: &[T], next: &[T], op_flags: [T; NUM_LD_OPS], result: &mut [T]) {
-
-        // TODO: transform into a generic way to handle aux constraints/registers
-        let aux = current[0];
-
-        // logic operations work only with the user portion of the stack
-        let current = &current[AUX_WIDTH..];
-        let next = &next[AUX_WIDTH..];
-
-        let mut evaluations = vec![T::ZERO; current.len()];
-
-        // CHOOSE
-        let aux_constraint = enforce_choose(&mut evaluations, current, next, op_flags[opcodes::CHOOSE as usize]);
-        result[0] = T::add(result[0], aux_constraint);
-
-        // CHOOSE2
-        let aux_constraint = enforce_choose2(&mut evaluations, current, next, op_flags[opcodes::CHOOSE2 as usize]);
-        result[0] = T::add(result[0], aux_constraint);
-
-        // NOT
-        let aux_constraint = enforce_not(&mut evaluations, current, next, op_flags[opcodes::NOT as usize]);
-        result[0] = T::add(result[0], aux_constraint);
-
-        // EQ
-        let aux_constraint = enforce_eq(&mut evaluations, current, next, aux, op_flags[opcodes::EQ as usize]);
-        result[0] = T::add(result[0], aux_constraint);
+        result[0] = T::add(result[0],
+            enforce_not(&mut evaluations,   current, next, op_flags[opcodes::NOT as usize]));
         
-        // CMP
-        let aux_constraint = enforce_cmp(&mut evaluations, current, next, aux, op_flags[opcodes::CMP as usize]);
-        result[0] = T::add(result[0], aux_constraint);
+        // comparison operations
+        result[0] = T::add(result[0],
+            enforce_eq(&mut evaluations,    current, next, aux, op_flags[opcodes::EQ as usize]));
+        result[0] = T::add(result[0],
+            enforce_cmp(&mut evaluations,   current, next, aux, op_flags[opcodes::CMP as usize]));
 
+        // conditional selection operations
+        result[0] = T::add(result[0],
+            enforce_choose(&mut evaluations,  current, next, op_flags[opcodes::CHOOSE as usize]));
+        result[0] = T::add(result[0],
+            enforce_choose2(&mut evaluations, current, next, op_flags[opcodes::CHOOSE2 as usize]));
+
+        // copy evaluations into the result while skipping the aux constraint because it
+        // is already updated in the result vector
         let result = &mut result[1..];  // TODO: use constant
         for i in 0..result.len() {
             result[i] = T::add(result[i], evaluations[i]);
         }
     }
-
 }
 
 // INPUT OPERATIONS
@@ -209,6 +185,39 @@ fn enforce_read2<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op
 
 // STACK MANIPULATION OPERATIONS
 // ================================================================================================
+
+/// Enforces constraints for DUP operation. The constraints are based on the first element
+/// of the stack; the old stack is shifted right by 1 element.
+fn enforce_dup<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[0]));
+    enforce_no_change(&mut result[1..], &current[0..], &next[1..], op_flag);
+}
+
+/// Enforces constraints for DUP2 operation. The constraints are based on the first 2 element
+/// of the stack; the old stack is shifted right by 2 element.
+fn enforce_dup2<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[0]));
+    result[1] = agg_op_constraint(result[1], op_flag, are_equal(next[1], current[1]));
+    enforce_no_change(&mut result[2..], &current[0..], &next[2..], op_flag);
+}
+
+/// Enforces constraints for DUP4 operation. The constraints are based on the first 4 element
+/// of the stack; the old stack is shifted right by 4 element.
+fn enforce_dup4<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[0]));
+    result[1] = agg_op_constraint(result[1], op_flag, are_equal(next[1], current[1]));
+    result[2] = agg_op_constraint(result[2], op_flag, are_equal(next[2], current[2]));
+    result[3] = agg_op_constraint(result[3], op_flag, are_equal(next[3], current[3]));
+    enforce_no_change(&mut result[4..], &current[0..], &next[4..], op_flag);
+}
+
+/// Enforces constraints for PAD2 operation. The constraints are based on the first 2 element
+/// of the stack; the old stack is shifted right by 2 element.
+fn enforce_pad2<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+    result[0] = agg_op_constraint(result[0], op_flag, next[0]);
+    result[1] = agg_op_constraint(result[1], op_flag, next[1]);
+    enforce_no_change(&mut result[2..], &current[0..], &next[2..], op_flag);
+}
 
 // Enforces constraints for DROP operation. The stack is simply shifted left by 1 element.
 fn enforce_drop<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
@@ -276,39 +285,6 @@ fn enforce_roll8<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op
     result[6] = agg_op_constraint(result[6], op_flag, are_equal(next[6], current[5]));
     result[7] = agg_op_constraint(result[7], op_flag, are_equal(next[7], current[6]));
     enforce_no_change(&mut result[8..], &current[8..], &next[8..], op_flag);
-}
-
-/// Enforces constraints for PAD2 operation. The constraints are based on the first 2 element
-/// of the stack; the old stack is shifted right by 2 element.
-fn enforce_pad2<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-    result[0] = agg_op_constraint(result[0], op_flag, next[0]);
-    result[1] = agg_op_constraint(result[1], op_flag, next[1]);
-    enforce_no_change(&mut result[2..], &current[0..], &next[2..], op_flag);
-}
-
-/// Enforces constraints for DUP operation. The constraints are based on the first element
-/// of the stack; the old stack is shifted right by 1 element.
-fn enforce_dup<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[0]));
-    enforce_no_change(&mut result[1..], &current[0..], &next[1..], op_flag);
-}
-
-/// Enforces constraints for DUP2 operation. The constraints are based on the first 2 element
-/// of the stack; the old stack is shifted right by 2 element.
-fn enforce_dup2<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[0]));
-    result[1] = agg_op_constraint(result[1], op_flag, are_equal(next[1], current[1]));
-    enforce_no_change(&mut result[2..], &current[0..], &next[2..], op_flag);
-}
-
-/// Enforces constraints for DUP4 operation. The constraints are based on the first 4 element
-/// of the stack; the old stack is shifted right by 4 element.
-fn enforce_dup4<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[0]));
-    result[1] = agg_op_constraint(result[1], op_flag, are_equal(next[1], current[1]));
-    result[2] = agg_op_constraint(result[2], op_flag, are_equal(next[2], current[2]));
-    result[3] = agg_op_constraint(result[3], op_flag, are_equal(next[3], current[3]));
-    enforce_no_change(&mut result[4..], &current[0..], &next[4..], op_flag);
 }
 
 // ARITHMETIC and BOOLEAN OPERATION
