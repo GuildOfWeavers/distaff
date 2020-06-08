@@ -6,6 +6,8 @@ use super::{ AUX_WIDTH };
 const TRACE_LENGTH: usize = 16;
 const EXTENSION_FACTOR: usize = 16;
 
+mod comparisons;
+
 // FLOW CONTROL OPERATIONS
 // ================================================================================================
 
@@ -329,144 +331,6 @@ fn not() {
 fn not_fail() {
     let mut stack = init_stack(&[2, 3], &[], &[], TRACE_LENGTH);
     stack.not(0);
-}
-
-// COMPARISON OPERATIONS
-// ================================================================================================
-
-#[test]
-fn eq() {
-    let mut stack = init_stack(&[3, 3, 4, 5], &[], &[], TRACE_LENGTH);
-    stack.eq(0);
-    assert_eq!(vec![1, 0], get_aux_state(&stack, 0));
-    assert_eq!(vec![1, 4, 5, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
-
-    assert_eq!(3, stack.depth);
-    assert_eq!(4, stack.max_depth);
-
-    stack.eq(1);
-    let inv_diff = F128::inv(F128::sub(1, 4));
-    assert_eq!(vec![inv_diff, 0], get_aux_state(&stack, 1));
-    assert_eq!(vec![0, 5, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 2));
-
-    assert_eq!(2, stack.depth);
-    assert_eq!(4, stack.max_depth);
-}
-
-#[test]
-fn cmp() {
-    // TODO: improve
-    let a: u128 = F128::rand();
-    let b: u128 = F128::rand();
-    let p127: u128 = F128::exp(2, 127);
-    
-    let mut inputs_a = Vec::new();
-    let mut inputs_b = Vec::new();
-    for i in 0..128 {
-        inputs_a.push((a >> i) & 1);
-        inputs_b.push((b >> i) & 1);
-    }
-    inputs_a.reverse();
-    inputs_b.reverse();
-
-    let mut stack = init_stack(&[0, 0, 0, 0, 0, 0, a, b], &inputs_a, &inputs_b, 256);
-    stack.push(0, p127);
-    println!("{:?}", get_stack_state(&stack, 1));
-    for i in 1..129 {
-        stack.cmp(i);
-
-        let state = get_stack_state(&stack, i);
-        println!("{:?}", state);
-        let gt = state[3];
-        let lt = state[4];
-        let not_set = F128::mul(F128::sub(F128::ONE, gt), F128::sub(F128::ONE, lt));
-        assert_eq!(vec![not_set, F128::ZERO], get_aux_state(&stack, i));
-    }
-
-    let state = get_stack_state(&stack, 129);
-
-    let lt = if a < b { F128::ONE }  else { F128::ZERO };
-    let gt = if a < b { F128::ZERO } else { F128::ONE  };
-    assert_eq!([gt, lt, b, a], state[3..7]);
-}
-
-#[test]
-fn lt() {
-    // TODO: improve
-    let a: u128 = F128::rand();
-    let b: u128 = F128::rand();
-    let p127: u128 = F128::exp(2, 127);
-    
-    let mut inputs_a = Vec::new();
-    let mut inputs_b = Vec::new();
-    for i in 0..128 {
-        inputs_a.push((a >> i) & 1);
-        inputs_b.push((b >> i) & 1);
-    }
-    inputs_a.reverse();
-    inputs_b.reverse();
-
-    let mut stack = init_stack(&[0, 0, 0, 0, a, b, 7, 11], &inputs_a, &inputs_b, 256);
-    stack.pad2(0);
-    stack.push(1, p127);
-    for i in 2..130 {
-        stack.cmp(i);
-    }
-    stack.drop(130);
-    stack.swap4(131);
-    stack.roll4(132);
-    stack.eq(133);
-    stack.assert(134);
-    stack.eq(135);
-    stack.assert(136);
-    stack.drop(137);
-    stack.drop(138);
-    stack.drop(139);
-
-    let state = get_stack_state(&stack, 140);
-
-    let expected = if a < b { F128::ONE }  else { F128::ZERO };
-    assert_eq!(vec![expected, 7, 11, 0, 0, 0, 0, 0, 0, 0, 0], state);
-}
-
-#[test]
-fn gt() {
-    // TODO: improve
-    let a: u128 = F128::rand();
-    let b: u128 = F128::rand();
-    let p127: u128 = F128::exp(2, 127);
-    
-    let mut inputs_a = Vec::new();
-    let mut inputs_b = Vec::new();
-    for i in 0..128 {
-        inputs_a.push((a >> i) & 1);
-        inputs_b.push((b >> i) & 1);
-    }
-    inputs_a.reverse();
-    inputs_b.reverse();
-
-    let mut stack = init_stack(&[0, 0, 0, 0, a, b, 7, 11], &inputs_a, &inputs_b, 256);
-    stack.pad2(0);
-    stack.push(1, p127);
-    for i in 2..130 {
-        stack.cmp(i);
-    }
-    stack.drop(130);
-    stack.swap4(131);
-    stack.roll4(132);
-    stack.eq(133);
-    stack.assert(134);
-    stack.eq(135);
-    stack.assert(136);
-    stack.drop(137);
-    stack.drop(138);
-    stack.swap(139);
-    stack.drop(140);
-
-    let state = get_stack_state(&stack, 141);
-
-    let expected = if a > b { F128::ONE }  else { F128::ZERO };
-    assert_eq!(vec![expected, 7, 11, 0, 0, 0, 0, 0, 0, 0, 0], state);
 }
 
 // CRYPTOGRAPHIC OPERATIONS
