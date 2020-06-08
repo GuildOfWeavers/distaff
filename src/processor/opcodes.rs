@@ -72,6 +72,7 @@ pub mod f128 {
     // comparison ops
     pub const EQ      : u128 = super::EQ as u128;
     pub const CMP     : u128 = super::CMP as u128;
+    pub const BINACC  : u128 = super::BINACC as u128;
 
     // crypto ops
     pub const HASHR   : u128 = super::HASHR as u128;

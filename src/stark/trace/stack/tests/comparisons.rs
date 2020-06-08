@@ -145,6 +145,53 @@ fn gt() {
     assert_eq!(vec![expected, 7, 11, 0, 0, 0, 0, 0, 0, 0, 0], state);
 }
 
+// BINARY DECOMPOSITION
+// ================================================================================================
+
+#[test]
+fn binacc_128() {
+
+    let x: u128 = F128::rand();
+    let p127: u128 = F128::exp(2, 127);
+    
+    // initialize the stack
+    let mut inputs_a = Vec::new();
+    for i in 0..128 { inputs_a.push((x >> i) & 1); }
+    inputs_a.reverse();
+
+    let mut stack = init_stack(&[p127, 0, x, 7, 11], &inputs_a, &[], 256);
+
+    // execute binary aggregation operations
+    for i in 0..128 { stack.binacc(i); }
+
+    // check the result
+    stack.drop(128);
+    let state = get_stack_state(&stack, 129);
+    assert_eq!(vec![x, x, 7, 11, 0, 0, 0, 0], state);
+}
+
+#[test]
+fn binacc_64() {
+
+    let x: u128 = (F128::rand() as u64) as u128;
+    let p127: u128 = F128::exp(2, 63);
+    
+    // initialize the stack
+    let mut inputs_a = Vec::new();
+    for i in 0..64 { inputs_a.push((x >> i) & 1); }
+    inputs_a.reverse();
+
+    let mut stack = init_stack(&[p127, 0, x, 7, 11], &inputs_a, &[], 256);
+
+    // execute binary aggregation operations
+    for i in 0..64 { stack.binacc(i); }
+
+    // check the result
+    stack.drop(64);
+    let state = get_stack_state(&stack, 65);
+    assert_eq!(vec![x, x, 7, 11, 0, 0, 0, 0], state);
+}
+
 // HELPER FUNCTIONS
 // ================================================================================================
 fn build_inputs_for_cmp(a: u128, b: u128, size: usize) -> (Vec<u128>, Vec<u128>) {

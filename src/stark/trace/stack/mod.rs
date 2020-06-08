@@ -111,6 +111,7 @@ pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: us
 
             opcodes::EQ      => stack.eq(i),
             opcodes::CMP     => stack.cmp(i),
+            opcodes::BINACC  => stack.binacc(i),
 
             opcodes::HASHR   => stack.hashr(i),
 

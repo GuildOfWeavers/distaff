@@ -260,6 +260,21 @@ impl <T> StackTrace<T>
         self.copy_state(step, 7);
     }
 
+    pub fn binacc(&mut self, step: usize) {
+        assert!(self.depth >= 2, "stack underflow at step {}", step);
+        assert!(self.secret_inputs_a.len() > 0, "ran out of secret inputs at step {}", step);
+
+        let bit = self.secret_inputs_a.pop().unwrap();
+        let power_of_two = self.user_registers[0][step];    // TODO: make sure it is power of 2
+        let acc = self.user_registers[1][step];
+
+        self.aux_registers[0][step] = bit;
+        self.user_registers[0][step + 1] = T::div(power_of_two, T::from_usize(2)); // TODO: replace with shift
+        self.user_registers[1][step + 1] = T::add(acc, T::mul(bit, power_of_two));
+
+        self.copy_state(step, 2);
+    }
+
     pub fn hashr(&mut self, step: usize) {
         assert!(self.depth >= HASH_STATE_WIDTH, "stack underflow at step {}", step);
         let mut state = [
