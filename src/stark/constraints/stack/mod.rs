@@ -2,13 +2,14 @@ use crate::math::{ FiniteField };
 use crate::stark::{ TraceState, Accumulator, Hasher, AUX_WIDTH, NUM_LD_OPS };
 use crate::processor::{ opcodes };
 
-mod hashing;
-use hashing::HashEvaluator;
-
 mod comparisons;
-use comparisons::{ enforce_eq, enforce_cmp };
-
+mod hashing;
+mod selections;
 mod utils;
+
+use hashing::HashEvaluator;
+use comparisons::{ enforce_eq, enforce_cmp };
+use selections::{ enforce_choose, enforce_choose2 };
 use utils::{ agg_op_constraint, is_binary, enforce_no_change };
 
 // CONSTANTS
@@ -271,32 +272,18 @@ impl <T> Stack<T>
         let mut evaluations = vec![T::ZERO; current.len()];
 
         // CHOOSE
-        let op_flag = op_flags[opcodes::CHOOSE as usize];
-        let n = next.len() - 2;
-        let condition1 = current[2];
-        let condition2 = T::sub(T::ONE, condition1);
-        let op_result = T::add(T::mul(condition1, current[0]), T::mul(condition2, current[1]));
-        evaluations[0] = agg_op_constraint(evaluations[0], op_flag, T::sub(next[0], op_result));
-        enforce_no_change(&mut evaluations[1..n], &current[3..], &next[1..n], op_flag);
-        result[0] = agg_op_constraint(result[0], op_flag, is_binary(condition1));
+        let aux_constraint = enforce_choose(&mut evaluations, current, next, op_flags[opcodes::CHOOSE as usize]);
+        result[0] = T::add(result[0], aux_constraint);
 
         // CHOOSE2
-        let op_flag = op_flags[opcodes::CHOOSE2 as usize];
-        let n = next.len() - 4;
-        let condition1 = current[4];
-        let condition2 = T::sub(T::ONE, condition1);
-        let op_result1 = T::add(T::mul(condition1, current[0]), T::mul(condition2, current[2]));
-        let op_result2 = T::add(T::mul(condition1, current[1]), T::mul(condition2, current[3]));
-        evaluations[0] = agg_op_constraint(evaluations[0], op_flag, T::sub(next[0], op_result1));
-        evaluations[1] = agg_op_constraint(evaluations[1], op_flag, T::sub(next[1], op_result2));
-        enforce_no_change(&mut evaluations[2..n], &current[6..], &next[2..n], op_flag);
-        result[0] = agg_op_constraint(result[0], op_flag, is_binary(condition1));
+        let aux_constraint = enforce_choose2(&mut evaluations, current, next, op_flags[opcodes::CHOOSE2 as usize]);
+        result[0] = T::add(result[0], aux_constraint);
 
         // NOT
         let op_flag = op_flags[opcodes::NOT as usize];
         let op_result = T::sub(T::ONE, current[0]);
         evaluations[0] = agg_op_constraint(evaluations[0], op_flag, T::sub(next[0], op_result));
-        enforce_no_change(&mut evaluations[1..n], &current[1..], &next[1..n], op_flag);
+        enforce_no_change(&mut evaluations[1..], &current[1..], &next[1..], op_flag);
         result[0] = agg_op_constraint(result[0], op_flag, is_binary(current[0]));
 
         // EQ
