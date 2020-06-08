@@ -10,7 +10,7 @@ mod utils;
 use hashing::HashEvaluator;
 use comparisons::{ enforce_eq, enforce_cmp };
 use selections::{ enforce_choose, enforce_choose2 };
-use utils::{ agg_op_constraint, is_binary, enforce_no_change };
+use utils::{ agg_op_constraint, enforce_no_change, are_equal, is_binary };
 
 // CONSTANTS
 // ================================================================================================
@@ -105,157 +105,39 @@ impl <T> Stack<T>
 
         let mut evaluations = vec![T::ZERO; current.len()];
 
-        enforce_no_change(&mut evaluations,     current, next, op_flags[opcodes::BEGIN as usize]);
-        enforce_no_change(&mut evaluations,     current, next, op_flags[opcodes::NOOP as usize]);
+        enforce_no_change(&mut evaluations, current, next, op_flags[opcodes::BEGIN as usize]);
+        enforce_no_change(&mut evaluations, current, next, op_flags[opcodes::NOOP as usize]);
 
-        Self::enforce_push(&mut evaluations,    current, next, next_op, op_flags[opcodes::PUSH as usize]);
-        Self::enforce_read(&mut evaluations,    current, next, op_flags[opcodes::READ as usize]);
-        Self::enforce_read2(&mut evaluations,   current, next, op_flags[opcodes::READ2 as usize]);
+        enforce_push(&mut evaluations,      current, next, next_op, op_flags[opcodes::PUSH as usize]);
+        enforce_read(&mut evaluations,      current, next, op_flags[opcodes::READ as usize]);
+        enforce_read2(&mut evaluations,     current, next, op_flags[opcodes::READ2 as usize]);
     
-        Self::enforce_drop(&mut evaluations,    current, next, op_flags[opcodes::DROP as usize]);
-        Self::enforce_drop4(&mut evaluations,   current, next, op_flags[opcodes::DROP4 as usize]);
+        enforce_drop(&mut evaluations,      current, next, op_flags[opcodes::DROP as usize]);
+        enforce_drop4(&mut evaluations,     current, next, op_flags[opcodes::DROP4 as usize]);
         
-        Self::enforce_swap(&mut evaluations,    current, next, op_flags[opcodes::SWAP as usize]);
-        Self::enforce_swap2(&mut evaluations,   current, next, op_flags[opcodes::SWAP2 as usize]);
-        Self::enforce_swap4(&mut evaluations,   current, next, op_flags[opcodes::SWAP4 as usize]);
+        enforce_swap(&mut evaluations,      current, next, op_flags[opcodes::SWAP as usize]);
+        enforce_swap2(&mut evaluations,     current, next, op_flags[opcodes::SWAP2 as usize]);
+        enforce_swap4(&mut evaluations,     current, next, op_flags[opcodes::SWAP4 as usize]);
     
-        Self::enforce_roll4(&mut evaluations,   current, next, op_flags[opcodes::ROLL4 as usize]);
-        Self::enforce_roll8(&mut evaluations,   current, next, op_flags[opcodes::ROLL8 as usize]);
+        enforce_roll4(&mut evaluations,     current, next, op_flags[opcodes::ROLL4 as usize]);
+        enforce_roll8(&mut evaluations,     current, next, op_flags[opcodes::ROLL8 as usize]);
 
-        Self::enforce_pad2(&mut evaluations,    current, next, op_flags[opcodes::PAD2 as usize]);
-        Self::enforce_dup(&mut evaluations,     current, next, op_flags[opcodes::DUP as usize]);
-        Self::enforce_dup2(&mut evaluations,    current, next, op_flags[opcodes::DUP2 as usize]);
-        Self::enforce_dup4(&mut evaluations,    current, next, op_flags[opcodes::DUP4 as usize]);
+        enforce_pad2(&mut evaluations,      current, next, op_flags[opcodes::PAD2 as usize]);
+        enforce_dup(&mut evaluations,       current, next, op_flags[opcodes::DUP as usize]);
+        enforce_dup2(&mut evaluations,      current, next, op_flags[opcodes::DUP2 as usize]);
+        enforce_dup4(&mut evaluations,      current, next, op_flags[opcodes::DUP4 as usize]);
     
-        Self::enforce_add(&mut evaluations,     current, next, op_flags[opcodes::ADD as usize]);
-        Self::enforce_mul(&mut evaluations,     current, next, op_flags[opcodes::MUL as usize]);
-        Self::enforce_inv(&mut evaluations,     current, next, op_flags[opcodes::INV as usize]);
-        Self::enforce_neg(&mut evaluations,     current, next, op_flags[opcodes::NEG as usize]);
+        enforce_add(&mut evaluations,       current, next, op_flags[opcodes::ADD as usize]);
+        enforce_mul(&mut evaluations,       current, next, op_flags[opcodes::MUL as usize]);
+        enforce_inv(&mut evaluations,       current, next, op_flags[opcodes::INV as usize]);
+        enforce_neg(&mut evaluations,       current, next, op_flags[opcodes::NEG as usize]);
 
         let result = &mut result[1..];  // TODO: use constant
         for i in 0..result.len() {
             result[i] = T::add(result[i], evaluations[i]);
         }
     }
-
-    fn enforce_push(result: &mut [T], current: &[T], next: &[T], op_code: T, op_flag: T) {
-        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], op_code));
-        enforce_no_change(&mut result[1..], &current[0..], &next[1..], op_flag);
-    }
-
-    fn enforce_read(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-        enforce_no_change(&mut result[1..], &current[0..], &next[1..], op_flag);
-    }
-
-    fn enforce_read2(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-        enforce_no_change(&mut result[2..], &current[0..], &next[2..], op_flag);
-    }
-
-    fn enforce_drop(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-        let n = next.len() - 1;
-        enforce_no_change(&mut result[0..n], &current[1..], &next[0..n], op_flag);
-    }
-
-    fn enforce_drop4(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-        let n = next.len() - 4;
-        enforce_no_change(&mut result[0..n], &current[4..], &next[0..n], op_flag);
-    }
-
-    fn enforce_swap(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], current[1]));
-        result[1] = agg_op_constraint(result[0], op_flag, T::sub(next[1], current[0]));
-        enforce_no_change(&mut result[2..], &current[2..], &next[2..], op_flag);
-    }
     
-    fn enforce_swap2(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], current[2]));
-        result[1] = agg_op_constraint(result[1], op_flag, T::sub(next[1], current[3]));
-        result[2] = agg_op_constraint(result[2], op_flag, T::sub(next[2], current[0]));
-        result[3] = agg_op_constraint(result[3], op_flag, T::sub(next[3], current[1]));
-        enforce_no_change(&mut result[4..], &current[4..], &next[4..], op_flag);
-    }
-    
-    fn enforce_swap4(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], current[4]));
-        result[1] = agg_op_constraint(result[1], op_flag, T::sub(next[1], current[5]));
-        result[2] = agg_op_constraint(result[2], op_flag, T::sub(next[2], current[6]));
-        result[3] = agg_op_constraint(result[3], op_flag, T::sub(next[3], current[7]));
-        result[4] = agg_op_constraint(result[4], op_flag, T::sub(next[4], current[0]));
-        result[5] = agg_op_constraint(result[5], op_flag, T::sub(next[5], current[1]));
-        result[6] = agg_op_constraint(result[6], op_flag, T::sub(next[6], current[2]));
-        result[7] = agg_op_constraint(result[7], op_flag, T::sub(next[7], current[3]));
-        enforce_no_change(&mut result[8..], &current[8..], &next[8..], op_flag);
-    }
-
-    fn enforce_roll4(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], current[3]));
-        result[1] = agg_op_constraint(result[1], op_flag, T::sub(next[1], current[0]));
-        result[2] = agg_op_constraint(result[2], op_flag, T::sub(next[2], current[1]));
-        result[3] = agg_op_constraint(result[3], op_flag, T::sub(next[3], current[2]));
-        enforce_no_change(&mut result[4..], &current[4..], &next[4..], op_flag);
-    }
-    
-    fn enforce_roll8(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], current[7]));
-        result[1] = agg_op_constraint(result[1], op_flag, T::sub(next[1], current[0]));
-        result[2] = agg_op_constraint(result[2], op_flag, T::sub(next[2], current[1]));
-        result[3] = agg_op_constraint(result[3], op_flag, T::sub(next[3], current[2]));
-        result[4] = agg_op_constraint(result[4], op_flag, T::sub(next[4], current[3]));
-        result[5] = agg_op_constraint(result[5], op_flag, T::sub(next[5], current[4]));
-        result[6] = agg_op_constraint(result[6], op_flag, T::sub(next[6], current[5]));
-        result[7] = agg_op_constraint(result[7], op_flag, T::sub(next[7], current[6]));
-        enforce_no_change(&mut result[8..], &current[8..], &next[8..], op_flag);
-    }
-
-    fn enforce_pad2(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-        result[0] = agg_op_constraint(result[0], op_flag, next[0]);
-        result[1] = agg_op_constraint(result[1], op_flag, next[1]);
-        enforce_no_change(&mut result[2..], &current[0..], &next[2..], op_flag);
-    }
-    
-    fn enforce_dup(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], current[0]));
-        enforce_no_change(&mut result[1..], &current[0..], &next[1..], op_flag);
-    }
-    
-    fn enforce_dup2(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], current[0]));
-        result[1] = agg_op_constraint(result[1], op_flag, T::sub(next[1], current[1]));
-        enforce_no_change(&mut result[2..], &current[0..], &next[2..], op_flag);
-    }
-    
-    fn enforce_dup4(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], current[0]));
-        result[1] = agg_op_constraint(result[1], op_flag, T::sub(next[1], current[1]));
-        result[2] = agg_op_constraint(result[2], op_flag, T::sub(next[2], current[2]));
-        result[3] = agg_op_constraint(result[3], op_flag, T::sub(next[3], current[3]));
-        enforce_no_change(&mut result[4..], &current[0..], &next[4..], op_flag);
-    }
-    
-    fn enforce_add(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-        let n = next.len() - 1;
-        let op_result = T::add(current[0], current[1]);
-        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], op_result));
-        enforce_no_change(&mut result[1..n], &current[2..], &next[1..n], op_flag);
-    }
-    
-    fn enforce_mul(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-        let n = next.len() - 1;
-        let op_result = T::mul(current[1], current[0]);
-        result[0] = agg_op_constraint(result[0], op_flag, T::sub(next[0], op_result));
-        enforce_no_change(&mut result[1..n], &current[2..], &next[1..n], op_flag);
-    }
-
-    fn enforce_inv(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-        result[0] = agg_op_constraint(result[0], op_flag, T::sub(T::ONE, T::mul(next[0], current[0])));
-        enforce_no_change(&mut result[1..], &current[1..], &next[1..], op_flag);
-    }
-
-    fn enforce_neg(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
-        result[0] = agg_op_constraint(result[0], op_flag, T::add(next[0], current[0]));
-        enforce_no_change(&mut result[1..], &current[1..], &next[1..], op_flag);
-    }
-
     // LOGIC OPS
     // --------------------------------------------------------------------------------------------
 
@@ -280,11 +162,8 @@ impl <T> Stack<T>
         result[0] = T::add(result[0], aux_constraint);
 
         // NOT
-        let op_flag = op_flags[opcodes::NOT as usize];
-        let op_result = T::sub(T::ONE, current[0]);
-        evaluations[0] = agg_op_constraint(evaluations[0], op_flag, T::sub(next[0], op_result));
-        enforce_no_change(&mut evaluations[1..], &current[1..], &next[1..], op_flag);
-        result[0] = agg_op_constraint(result[0], op_flag, is_binary(current[0]));
+        let aux_constraint = enforce_not(&mut evaluations, current, next, op_flags[opcodes::NOT as usize]);
+        result[0] = T::add(result[0], aux_constraint);
 
         // EQ
         let aux_constraint = enforce_eq(&mut evaluations, current, next, aux, op_flags[opcodes::EQ as usize]);
@@ -293,11 +172,216 @@ impl <T> Stack<T>
         // CMP
         let aux_constraint = enforce_cmp(&mut evaluations, current, next, aux, op_flags[opcodes::CMP as usize]);
         result[0] = T::add(result[0], aux_constraint);
-        
 
         let result = &mut result[1..];  // TODO: use constant
         for i in 0..result.len() {
             result[i] = T::add(result[i], evaluations[i]);
         }
     }
+
+}
+
+// INPUT OPERATIONS
+// ================================================================================================
+
+/// Enforces constraints for PUSH operation. The constraints are based on the first element of the 
+/// stack; the old stack is shifted right by 1 element.
+fn enforce_push<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_code: T, op_flag: T) {
+
+    // op_code becomes the first element on the stack
+    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], op_code));
+
+    // ensure that the rest of the stack is shifted right by 1 element
+    enforce_no_change(&mut result[1..], &current[0..], &next[1..], op_flag);
+}
+
+/// Enforces constraints for READ operation. No constraints are placed on the first element of
+/// the stack; the old stack is shifted right by 1 element.
+fn enforce_read<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+    enforce_no_change(&mut result[1..], &current[0..], &next[1..], op_flag);
+}
+
+/// Enforces constraints for READ2 operation. No constraints are placed on the first two elements
+/// of the stack; the old stack is shifted right by 2 element.
+fn enforce_read2<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+    enforce_no_change(&mut result[2..], &current[0..], &next[2..], op_flag);
+}
+
+// STACK MANIPULATION OPERATIONS
+// ================================================================================================
+
+// Enforces constraints for DROP operation. The stack is simply shifted left by 1 element.
+fn enforce_drop<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+    let n = next.len() - 1;
+    enforce_no_change(&mut result[0..n], &current[1..], &next[0..n], op_flag);
+}
+
+// Enforces constraints for DROP4 operation. The stack is simply shifted left by 4 element.
+fn enforce_drop4<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+    let n = next.len() - 4;
+    enforce_no_change(&mut result[0..n], &current[4..], &next[0..n], op_flag);
+}
+
+/// Enforces constraints for SWAP operation. The constraints are based on the first 2 element
+/// of the stack; the rest of the stack is unaffected.
+fn enforce_swap<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[1]));
+    result[1] = agg_op_constraint(result[0], op_flag, are_equal(next[1], current[0]));
+    enforce_no_change(&mut result[2..], &current[2..], &next[2..], op_flag);
+}
+
+/// Enforces constraints for SWAP2 operation. The constraints are based on the first 4 element
+/// of the stack; the rest of the stack is unaffected.
+fn enforce_swap2<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[2]));
+    result[1] = agg_op_constraint(result[1], op_flag, are_equal(next[1], current[3]));
+    result[2] = agg_op_constraint(result[2], op_flag, are_equal(next[2], current[0]));
+    result[3] = agg_op_constraint(result[3], op_flag, are_equal(next[3], current[1]));
+    enforce_no_change(&mut result[4..], &current[4..], &next[4..], op_flag);
+}
+
+/// Enforces constraints for SWAP4 operation. The constraints are based on the first 8 element
+/// of the stack; the rest of the stack is unaffected.
+fn enforce_swap4<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[4]));
+    result[1] = agg_op_constraint(result[1], op_flag, are_equal(next[1], current[5]));
+    result[2] = agg_op_constraint(result[2], op_flag, are_equal(next[2], current[6]));
+    result[3] = agg_op_constraint(result[3], op_flag, are_equal(next[3], current[7]));
+    result[4] = agg_op_constraint(result[4], op_flag, are_equal(next[4], current[0]));
+    result[5] = agg_op_constraint(result[5], op_flag, are_equal(next[5], current[1]));
+    result[6] = agg_op_constraint(result[6], op_flag, are_equal(next[6], current[2]));
+    result[7] = agg_op_constraint(result[7], op_flag, are_equal(next[7], current[3]));
+    enforce_no_change(&mut result[8..], &current[8..], &next[8..], op_flag);
+}
+
+/// Enforces constraints for ROLL4 operation. The constraints are based on the first 4 element
+/// of the stack; the rest of the stack is unaffected.
+fn enforce_roll4<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[3]));
+    result[1] = agg_op_constraint(result[1], op_flag, are_equal(next[1], current[0]));
+    result[2] = agg_op_constraint(result[2], op_flag, are_equal(next[2], current[1]));
+    result[3] = agg_op_constraint(result[3], op_flag, are_equal(next[3], current[2]));
+    enforce_no_change(&mut result[4..], &current[4..], &next[4..], op_flag);
+}
+
+/// Enforces constraints for ROLL8 operation. The constraints are based on the first 8 element
+/// of the stack; the rest of the stack is unaffected.
+fn enforce_roll8<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[7]));
+    result[1] = agg_op_constraint(result[1], op_flag, are_equal(next[1], current[0]));
+    result[2] = agg_op_constraint(result[2], op_flag, are_equal(next[2], current[1]));
+    result[3] = agg_op_constraint(result[3], op_flag, are_equal(next[3], current[2]));
+    result[4] = agg_op_constraint(result[4], op_flag, are_equal(next[4], current[3]));
+    result[5] = agg_op_constraint(result[5], op_flag, are_equal(next[5], current[4]));
+    result[6] = agg_op_constraint(result[6], op_flag, are_equal(next[6], current[5]));
+    result[7] = agg_op_constraint(result[7], op_flag, are_equal(next[7], current[6]));
+    enforce_no_change(&mut result[8..], &current[8..], &next[8..], op_flag);
+}
+
+/// Enforces constraints for PAD2 operation. The constraints are based on the first 2 element
+/// of the stack; the old stack is shifted right by 2 element.
+fn enforce_pad2<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+    result[0] = agg_op_constraint(result[0], op_flag, next[0]);
+    result[1] = agg_op_constraint(result[1], op_flag, next[1]);
+    enforce_no_change(&mut result[2..], &current[0..], &next[2..], op_flag);
+}
+
+/// Enforces constraints for DUP operation. The constraints are based on the first element
+/// of the stack; the old stack is shifted right by 1 element.
+fn enforce_dup<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[0]));
+    enforce_no_change(&mut result[1..], &current[0..], &next[1..], op_flag);
+}
+
+/// Enforces constraints for DUP2 operation. The constraints are based on the first 2 element
+/// of the stack; the old stack is shifted right by 2 element.
+fn enforce_dup2<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[0]));
+    result[1] = agg_op_constraint(result[1], op_flag, are_equal(next[1], current[1]));
+    enforce_no_change(&mut result[2..], &current[0..], &next[2..], op_flag);
+}
+
+/// Enforces constraints for DUP4 operation. The constraints are based on the first 4 element
+/// of the stack; the old stack is shifted right by 4 element.
+fn enforce_dup4<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[0]));
+    result[1] = agg_op_constraint(result[1], op_flag, are_equal(next[1], current[1]));
+    result[2] = agg_op_constraint(result[2], op_flag, are_equal(next[2], current[2]));
+    result[3] = agg_op_constraint(result[3], op_flag, are_equal(next[3], current[3]));
+    enforce_no_change(&mut result[4..], &current[0..], &next[4..], op_flag);
+}
+
+// ARITHMETIC and BOOLEAN OPERATION
+// ================================================================================================
+
+/// Enforces constraints for ADD operation. The constraints are based on the first 2 elements of
+/// the stack; the rest of the stack is shifted left by 1 element.
+fn enforce_add<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+
+    let x = current[0];
+    let y = current[1];
+    let op_result = T::add(x, y);
+    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], op_result));
+
+    // ensure that the rest of the stack is shifted left by 1 element
+    let n = next.len() - 1;
+    enforce_no_change(&mut result[1..n], &current[2..], &next[1..n], op_flag);
+}
+
+/// Enforces constraints for MUL operation. The constraints are based on the first 2 elements of
+/// the stack; the rest of the stack is shifted left by 1 element.
+fn enforce_mul<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+
+    let x = current[0];
+    let y = current[1];
+    let op_result = T::mul(x, y);
+    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], op_result));
+
+    // ensure that the rest of the stack is shifted left by 1 element
+    let n = next.len() - 1;
+    enforce_no_change(&mut result[1..n], &current[2..], &next[1..n], op_flag);
+}
+
+/// Enforces constraints for INV operation. The constraints are based on the first element of
+/// the stack; the rest of the stack is unaffected.
+fn enforce_inv<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+
+    // Constraints for INV operation is defined as: x * inv(x) = 1; this also means
+    // that if x = 0, the constraint will not be satisfied
+    let x = current[0];
+    let inv_x = next[0];
+    result[0] = agg_op_constraint(result[0], op_flag, are_equal(T::ONE, T::mul(inv_x, x)));
+
+    // ensure nothing changed beyond the first item of the stack 
+    enforce_no_change(&mut result[1..], &current[1..], &next[1..], op_flag);
+}
+
+/// Enforces constraints for NEG operation. The constraints are based on the first element of
+/// the stack; the rest of the stack is unaffected.
+fn enforce_neg<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) {
+
+    // Constraint for NEG operation is defined as: x + neg(x) = 0
+    let x = current[0];
+    let neg_x = next[0];
+    result[0] = agg_op_constraint(result[0], op_flag, T::add(neg_x, x));
+
+    // ensure nothing changed beyond the first item of the stack 
+    enforce_no_change(&mut result[1..], &current[1..], &next[1..], op_flag);
+}
+
+/// Enforces constraints for NOT operation. The constraints are based on the first element of
+/// the stack, but also evaluates an auxiliary constraint which guarantees that the first
+/// element of the stack is binary.
+fn enforce_not<T: FiniteField>(evaluations: &mut [T], current: &[T], next: &[T], op_flag: T) -> T {
+
+    // NOT operation is defined simply as: 1 - x; this means 0 becomes 1, and 1 becomes 0
+    let x = current[0];
+    let op_result = T::sub(T::ONE, x);
+    evaluations[0] = agg_op_constraint(evaluations[0], op_flag, are_equal(next[0], op_result));
+
+    // ensure nothing changed beyond the first item of the stack 
+    enforce_no_change(&mut evaluations[1..], &current[1..], &next[1..], op_flag);
+
+    // we also need to make sure that the operand is binary (i.e. 0 or 1)
+    return T::mul(op_flag, is_binary(x));
 }

@@ -15,8 +15,8 @@ const X_ACC_IDX : usize = 6;
 // CONSTRAINT EVALUATORS
 // ================================================================================================
 
-/// Evaluates constraints for EQ operation. This enforces that when x == y, top of the stack
-/// is set to 1, otherwise top of the stack is set to 0.
+/// Evaluates constraints for EQ operation. These enforce that when x == y, top of the stack at
+/// the next step is set to 1, otherwise top of the stack at the next step is set to 0.
 pub fn enforce_eq<T: FiniteField>(evaluations: &mut [T], current: &[T], next: &[T], aux: T, op_flag: T) -> T {
 
     // compute difference between top two values of the stack
@@ -28,16 +28,21 @@ pub fn enforce_eq<T: FiniteField>(evaluations: &mut [T], current: &[T], next: &[
     // the values are equal, it will contain value 1
     let inv_diff = aux;
 
+    // the operation is defined as 1 - diff * inv(diff)
     let op_result = T::sub(T::ONE, T::mul(diff, inv_diff));
-    evaluations[0] = agg_op_constraint(evaluations[0], op_flag, T::sub(next[0], op_result));
+    evaluations[0] = agg_op_constraint(evaluations[0], op_flag, are_equal(next[0], op_result));
 
+    // stack items beyond 2nd item are shifted the the left by 1
     let n = next.len() - 1;
     enforce_no_change(&mut evaluations[1..n], &current[2..], &next[1..n], op_flag);
 
-    let aux_constraint = T::mul(T::mul(next[0], diff), op_flag);
+    // we also need to make sure that result * diff = 0; this ensures that when diff != 0
+    // the result must be set to 0
+    let aux_constraint = T::mul(op_flag, T::mul(next[0], diff));
     return aux_constraint;
 }
 
+/// Evaluates constraints for CMP operation.
 pub fn enforce_cmp<T: FiniteField>(evaluations: &mut [T], current: &[T], next: &[T], aux: T, op_flag: T) -> T {
 
     // x and y bits are binary
