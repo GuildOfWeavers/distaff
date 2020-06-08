@@ -87,7 +87,7 @@ impl<T> HashEvaluator <T>
             state_part2[i] = T::sub(state_part2[i], ark[HASH_STATE_WIDTH + i]);
         }
 
-        let result = &mut result[AUX_WIDTH..];
+        let result = &mut result[1..]; // TODO: use constant
         for i in 0..cmp::min(result.len(), HASH_STATE_WIDTH) {
             let evaluation = T::sub(state_part2[i], state_part1[i]);
             result[i] = T::add(result[i], T::mul(evaluation, op_flag));

@@ -14,8 +14,8 @@ use utils::{ agg_op_constraint, is_binary, enforce_no_change };
 
 // CONSTANTS
 // ================================================================================================
-const STACK_HEAD_DEGREES: [usize; 8] = [
-    7, 0,               // aux constraints
+const STACK_HEAD_DEGREES: [usize; 7] = [
+    7,                  // aux constraints
     8, 8, 8, 8, 8, 8,   // constraints for the first 6 registers of user stack
 ];
 const STACK_REST_DEGREE: usize = 6; // degree for the rest of the stack registers
@@ -35,7 +35,7 @@ impl <T> Stack<T>
     pub fn new(trace_length: usize, extension_factor: usize, stack_depth: usize) -> Stack<T> {
 
         let mut degrees = Vec::from(&STACK_HEAD_DEGREES[..]);
-        degrees.resize(stack_depth, STACK_REST_DEGREE);
+        degrees.resize(stack_depth - 1, STACK_REST_DEGREE);
 
         return Stack {
             hash_evaluator      : HashEvaluator::new(trace_length, extension_factor),
@@ -132,7 +132,7 @@ impl <T> Stack<T>
         Self::enforce_inv(&mut evaluations,     current, next, op_flags[opcodes::INV as usize]);
         Self::enforce_neg(&mut evaluations,     current, next, op_flags[opcodes::NEG as usize]);
 
-        let result = &mut result[AUX_WIDTH..];
+        let result = &mut result[1..];  // TODO: use constant
         for i in 0..result.len() {
             result[i] = T::add(result[i], evaluations[i]);
         }
@@ -295,7 +295,7 @@ impl <T> Stack<T>
         result[0] = T::add(result[0], aux_constraint);
         
 
-        let result = &mut result[AUX_WIDTH..];
+        let result = &mut result[1..];  // TODO: use constant
         for i in 0..result.len() {
             result[i] = T::add(result[i], evaluations[i]);
         }

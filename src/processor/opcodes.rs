@@ -1,6 +1,6 @@
 pub const NOOP: u8     = 0b000_00_000;
 pub const CMP: u8      = 0b000_00_001;
-//pub const ??: u8     = 0b000_00_010;
+pub const BINACC: u8   = 0b000_00_010;
 //pub const ??: u8     = 0b000_00_011;
 pub const INV: u8      = 0b000_00_100;
 pub const NEG: u8      = 0b000_00_101;
