@@ -16,3 +16,8 @@ pub fn agg_op_constraint<T: FiniteField>(result: T, op_flag: T, op_constraint: T
 pub fn is_binary<T: FiniteField>(v: T) -> T {
     return T::sub(T::mul(v, v), v);
 }
+
+#[inline(always)]
+pub fn are_equal<T: FiniteField>(v1: T, v2: T) -> T {
+    return T::sub(v1, v2);
+}

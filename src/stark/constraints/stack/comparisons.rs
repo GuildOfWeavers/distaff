@@ -1,5 +1,19 @@
 use crate::math::{ FiniteField };
-use super::utils::{ agg_op_constraint, is_binary, enforce_no_change };
+use super::utils::{ agg_op_constraint, is_binary, are_equal, enforce_no_change };
+
+// CONSTANTS
+// ================================================================================================
+
+const POW2_IDX  : usize = 0;
+const X_BIT_IDX : usize = 1;
+const Y_BIT_IDX : usize = 2;
+const GT_IDX    : usize = 3;
+const LT_IDX    : usize = 4;
+const Y_ACC_IDX : usize = 5;
+const X_ACC_IDX : usize = 6;
+
+// CONSTRAINT EVALUATORS
+// ================================================================================================
 
 /// Evaluates constraints for EQ operation. This enforces that when x == y, top of the stack
 /// is set to 1, otherwise top of the stack is set to 0.
@@ -26,32 +40,38 @@ pub fn enforce_eq<T: FiniteField>(evaluations: &mut [T], current: &[T], next: &[
 
 pub fn enforce_cmp<T: FiniteField>(evaluations: &mut [T], current: &[T], next: &[T], aux: T, op_flag: T) -> T {
 
-    let a_bit = next[0];
-    let b_bit = next[1];
-    evaluations[0] = agg_op_constraint(evaluations[0], op_flag, is_binary(a_bit));
-    evaluations[1] = agg_op_constraint(evaluations[1], op_flag, is_binary(b_bit));
+    // x and y bits are binary
+    let x_bit = next[X_BIT_IDX];
+    let y_bit = next[Y_BIT_IDX];
+    evaluations[0] = agg_op_constraint(evaluations[0], op_flag, is_binary(x_bit));
+    evaluations[1] = agg_op_constraint(evaluations[1], op_flag, is_binary(y_bit));
 
-    let bit_gt = T::mul(a_bit, T::sub(T::ONE, b_bit));
-    let bit_lt = T::mul(b_bit, T::sub(T::ONE, a_bit));
+    // comparison trackers were updated correctly
     let not_set = aux;
+    let bit_gt = T::mul(x_bit, T::sub(T::ONE, y_bit));
+    let bit_lt = T::mul(y_bit, T::sub(T::ONE, x_bit));
 
-    let gt = T::add(current[2], T::mul(bit_gt, not_set));
-    let lt = T::add(current[3], T::mul(bit_lt, not_set));
-    evaluations[2] = agg_op_constraint(evaluations[2], op_flag, T::sub(next[2], gt));
-    evaluations[3] = agg_op_constraint(evaluations[3], op_flag, T::sub(next[3], lt));
+    let gt = T::add(current[GT_IDX], T::mul(bit_gt, not_set));
+    let lt = T::add(current[LT_IDX], T::mul(bit_lt, not_set));
+    evaluations[2] = agg_op_constraint(evaluations[2], op_flag, are_equal(next[GT_IDX], gt));
+    evaluations[3] = agg_op_constraint(evaluations[3], op_flag, are_equal(next[LT_IDX], lt));
 
-    let power_of_two = current[6];
-    let a_acc = T::add(current[4], T::mul(a_bit, power_of_two));
-    let b_acc = T::add(current[5], T::mul(b_bit, power_of_two));
-    evaluations[4] = agg_op_constraint(evaluations[4], op_flag, T::sub(next[4], a_acc));
-    evaluations[5] = agg_op_constraint(evaluations[5], op_flag, T::sub(next[5], b_acc));
+    // binary representation accumulators were updated correctly
+    let power_of_two = current[POW2_IDX];
+    let x_acc = T::add(current[X_ACC_IDX], T::mul(x_bit, power_of_two));
+    let y_acc = T::add(current[Y_ACC_IDX], T::mul(y_bit, power_of_two));
+    evaluations[4] = agg_op_constraint(evaluations[4], op_flag, are_equal(next[Y_ACC_IDX], y_acc));
+    evaluations[5] = agg_op_constraint(evaluations[5], op_flag, are_equal(next[X_ACC_IDX], x_acc));
 
-    let power_of_two_check = T::mul(next[6], T::from_usize(2));
-    evaluations[6] = agg_op_constraint(evaluations[6], op_flag, T::sub(power_of_two, power_of_two_check));
+    // power of 2 register was updated correctly
+    let power_of_two_constraint = are_equal(T::mul(next[POW2_IDX], T::from_usize(2)), power_of_two);
+    evaluations[6] = agg_op_constraint(evaluations[6], op_flag, power_of_two_constraint);
 
+    // registers beyond the 7th register were not affected
     enforce_no_change(&mut evaluations[7..], &current[7..], &next[7..], op_flag);
 
-    let not_set_check = T::mul(T::sub(T::ONE, current[2]), T::sub(T::ONE, current[3]));
+    // when GT or LT register is set to 1, not_set flag is cleared
+    let not_set_check = T::mul(T::sub(T::ONE, current[LT_IDX]), T::sub(T::ONE, current[GT_IDX]));
     let aux_constraint = T::mul(op_flag, T::sub(not_set, not_set_check));
     return aux_constraint;
 }

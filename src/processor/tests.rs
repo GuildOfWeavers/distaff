@@ -285,22 +285,22 @@ fn cmp_operation() {
     inputs_a.reverse();
     inputs_b.reverse();
 
-    let mut program = vec![opcodes::BEGIN, opcodes::PAD2];
+    let mut program = vec![opcodes::BEGIN, opcodes::PUSH, p127];
     for _ in 0..128 { program.push(opcodes::CMP);  }
     while program.len() < 256 { program.push(opcodes::NOOP); }
 
     let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
 
     let options = ProofOptions::default();
-    let inputs = ProgramInputs::new(&[0, 0, 0, 0, p127, a, b], &inputs_a, &inputs_b);
+    let inputs = ProgramInputs::new(&[0, 0, 0, 0, 0, 0, a, b], &inputs_a, &inputs_b);
     let num_outputs = 8;
 
     let lt = if a < b { F128::ONE }  else { F128::ZERO };
     let gt = if a < b { F128::ZERO } else { F128::ONE  };
-    let expected_result = vec![gt, lt, a, b];
+    let expected_result = vec![gt, lt, b, a];
 
     let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
-    assert_eq!(expected_result, outputs[2..6].to_vec());
+    assert_eq!(expected_result, outputs[3..7].to_vec());
     assert_eq!(program_hash, expected_hash);
 
     let result = super::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);

@@ -243,49 +243,21 @@ impl <T> StackTrace<T>
         let bit_gt = T::mul(a_bit, T::sub(T::ONE, b_bit));
         let bit_lt = T::mul(b_bit, T::sub(T::ONE, a_bit));
 
-        let gt = self.user_registers[2][step];
-        let lt = self.user_registers[3][step];
+        let power_of_two = self.user_registers[0][step];    // TODO: make sure it is power of 2
+        let gt = self.user_registers[3][step];
+        let lt = self.user_registers[4][step];
         let not_set = T::mul(T::sub(T::ONE, gt), T::sub(T::ONE, lt));
-        let power_of_two = self.user_registers[6][step];    // TODO: make sure it is power of 2
 
         self.aux_registers[0][step] = not_set;
-        self.user_registers[0][step + 1] = a_bit;
-        self.user_registers[1][step + 1] = b_bit;
-        self.user_registers[2][step + 1] = T::add(gt, T::mul(bit_gt, not_set));
-        self.user_registers[3][step + 1] = T::add(lt, T::mul(bit_lt, not_set));
-        self.user_registers[4][step + 1] = T::add(self.user_registers[4][step], T::mul(a_bit, power_of_two));
+        self.user_registers[0][step + 1] = T::div(power_of_two, T::from_usize(2)); // TODO: replace with shift
+        self.user_registers[1][step + 1] = a_bit;
+        self.user_registers[2][step + 1] = b_bit;
+        self.user_registers[3][step + 1] = T::add(gt, T::mul(bit_gt, not_set));
+        self.user_registers[4][step + 1] = T::add(lt, T::mul(bit_lt, not_set));
         self.user_registers[5][step + 1] = T::add(self.user_registers[5][step], T::mul(b_bit, power_of_two));
-        self.user_registers[6][step + 1] = T::div(power_of_two, T::from_usize(2)); // TODO: replace with shift
+        self.user_registers[6][step + 1] = T::add(self.user_registers[6][step], T::mul(a_bit, power_of_two));
 
         self.copy_state(step, 7);
-    }
-
-    pub fn lt(&mut self, step: usize) {
-        assert!(self.depth >= 9, "stack underflow at step {}", step);
-        let a_acc = self.user_registers[4][step];
-        let a_val = self.user_registers[7][step];
-        assert!(a_val == a_acc, "invalid binary expansion for value {} at step {}", a_val, step);
-
-        let b_acc = self.user_registers[5][step];
-        let b_val = self.user_registers[8][step];
-        assert!(b_val == b_acc, "invalid binary expansion for value {} at step {}", b_val, step);
-
-        self.user_registers[0][step + 1] = self.user_registers[3][step];
-        self.shift_left(step, 9, 8);
-    }
-
-    pub fn gt(&mut self, step: usize) {
-        assert!(self.depth >= 9, "stack underflow at step {}", step);
-        let a_acc = self.user_registers[4][step];
-        let a_val = self.user_registers[7][step];
-        assert!(a_val == a_acc, "invalid binary expansion for value {} at step {}", a_val, step);
-
-        let b_acc = self.user_registers[5][step];
-        let b_val = self.user_registers[8][step];
-        assert!(b_val == b_acc, "invalid binary expansion for value {} at step {}", b_val, step);
-
-        self.user_registers[0][step + 1] = self.user_registers[2][step];
-        self.shift_left(step, 9, 8);
     }
 
     pub fn hashr(&mut self, step: usize) {

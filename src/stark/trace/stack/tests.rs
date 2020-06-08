@@ -369,14 +369,16 @@ fn cmp() {
     inputs_a.reverse();
     inputs_b.reverse();
 
-    let mut stack = init_stack(&[0, 0, 0, 0, p127, a, b], &inputs_a, &inputs_b, 256);
-    stack.pad2(0);
+    let mut stack = init_stack(&[0, 0, 0, 0, 0, 0, a, b], &inputs_a, &inputs_b, 256);
+    stack.push(0, p127);
+    println!("{:?}", get_stack_state(&stack, 1));
     for i in 1..129 {
         stack.cmp(i);
 
         let state = get_stack_state(&stack, i);
-        let gt = state[2];
-        let lt = state[3];
+        println!("{:?}", state);
+        let gt = state[3];
+        let lt = state[4];
         let not_set = F128::mul(F128::sub(F128::ONE, gt), F128::sub(F128::ONE, lt));
         assert_eq!(vec![not_set, F128::ZERO], get_aux_state(&stack, i));
     }
@@ -385,7 +387,7 @@ fn cmp() {
 
     let lt = if a < b { F128::ONE }  else { F128::ZERO };
     let gt = if a < b { F128::ZERO } else { F128::ONE  };
-    assert_eq!([gt, lt, a, b], state[2..6]);
+    assert_eq!([gt, lt, b, a], state[3..7]);
 }
 
 #[test]
@@ -404,16 +406,24 @@ fn lt() {
     inputs_a.reverse();
     inputs_b.reverse();
 
-    let mut stack = init_stack(&[p127, a, b, 7, 11], &inputs_a, &inputs_b, 256);
+    let mut stack = init_stack(&[0, 0, 0, 0, a, b, 7, 11], &inputs_a, &inputs_b, 256);
     stack.pad2(0);
-    stack.pad2(1);
-    stack.pad2(2);
-    for i in 3..131 {
+    stack.push(1, p127);
+    for i in 2..130 {
         stack.cmp(i);
     }
-    stack.lt(131);
+    stack.drop(130);
+    stack.swap4(131);
+    stack.roll4(132);
+    stack.eq(133);
+    stack.assert(134);
+    stack.eq(135);
+    stack.assert(136);
+    stack.drop(137);
+    stack.drop(138);
+    stack.drop(139);
 
-    let state = get_stack_state(&stack, 132);
+    let state = get_stack_state(&stack, 140);
 
     let expected = if a < b { F128::ONE }  else { F128::ZERO };
     assert_eq!(vec![expected, 7, 11, 0, 0, 0, 0, 0, 0, 0, 0], state);
@@ -435,16 +445,25 @@ fn gt() {
     inputs_a.reverse();
     inputs_b.reverse();
 
-    let mut stack = init_stack(&[p127, a, b, 7, 11], &inputs_a, &inputs_b, 256);
+    let mut stack = init_stack(&[0, 0, 0, 0, a, b, 7, 11], &inputs_a, &inputs_b, 256);
     stack.pad2(0);
-    stack.pad2(1);
-    stack.pad2(2);
-    for i in 3..131 {
+    stack.push(1, p127);
+    for i in 2..130 {
         stack.cmp(i);
     }
-    stack.gt(131);
+    stack.drop(130);
+    stack.swap4(131);
+    stack.roll4(132);
+    stack.eq(133);
+    stack.assert(134);
+    stack.eq(135);
+    stack.assert(136);
+    stack.drop(137);
+    stack.drop(138);
+    stack.swap(139);
+    stack.drop(140);
 
-    let state = get_stack_state(&stack, 132);
+    let state = get_stack_state(&stack, 141);
 
     let expected = if a > b { F128::ONE }  else { F128::ZERO };
     assert_eq!(vec![expected, 7, 11, 0, 0, 0, 0, 0, 0, 0, 0], state);
