@@ -25,6 +25,9 @@ fn main() {
     else if args[1] == "merkle" {
         ex = examples::merkle::get_example(&args[1..]);
     }
+    else if args[1] == "rangecheck" {
+        ex = examples::range::get_example(&args[1..]);
+    }
     else {
         panic!("Could not find example program for '{}'", args[1]);
     }

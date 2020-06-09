@@ -4,6 +4,7 @@ mod utils;
 
 pub mod fibonacci;
 pub mod merkle;
+pub mod range;
 
 pub struct Example {
     pub program         : Vec<F128>,
