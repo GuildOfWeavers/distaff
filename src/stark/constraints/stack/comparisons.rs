@@ -80,3 +80,24 @@ pub fn enforce_cmp<T: FiniteField>(evaluations: &mut [T], current: &[T], next: &
     let aux_constraint = T::mul(op_flag, T::sub(not_set, not_set_check));
     return aux_constraint;
 }
+
+pub fn enforce_binacc<T: FiniteField>(evaluations: &mut [T], current: &[T], next: &[T], aux: T, op_flag: T) -> T {
+
+    let bit = aux;
+
+    // power of 2 register was updated correctly
+    let power_of_two = current[0];
+    let power_of_two_constraint = are_equal(T::mul(next[0], T::from_usize(2)), power_of_two);
+    evaluations[0] = agg_op_constraint(evaluations[0], op_flag, power_of_two_constraint);
+
+    // binary representation accumulator was updated correctly
+    let acc = T::add(current[1], T::mul(bit, power_of_two));
+    evaluations[1] = agg_op_constraint(evaluations[4], op_flag, are_equal(next[1], acc));
+
+    // registers beyond 2nd register remained the same
+    enforce_no_change(&mut evaluations[2..], &current[2..], &next[2..], op_flag);
+
+    // the bit was a binary value
+    let aux_constraint = T::mul(op_flag, is_binary(bit));
+    return aux_constraint;
+}

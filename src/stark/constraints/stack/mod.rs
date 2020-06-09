@@ -8,7 +8,7 @@ mod selections;
 mod utils;
 
 use hashing::HashEvaluator;
-use comparisons::{ enforce_eq, enforce_cmp };
+use comparisons::{ enforce_eq, enforce_cmp, enforce_binacc };
 use selections::{ enforce_choose, enforce_choose2 };
 use utils::{ agg_op_constraint, enforce_no_change, are_equal, is_binary };
 
@@ -35,7 +35,7 @@ impl <T> Stack<T>
     pub fn new(trace_length: usize, extension_factor: usize, stack_depth: usize) -> Stack<T> {
 
         let mut degrees = Vec::from(&STACK_HEAD_DEGREES[..]);
-        degrees.resize(stack_depth - 1, STACK_REST_DEGREE);
+        degrees.resize(stack_depth - 1, STACK_REST_DEGREE); // TODO: don't hard-code
 
         return Stack {
             hash_evaluator      : HashEvaluator::new(trace_length, extension_factor),
@@ -106,6 +106,8 @@ impl <T> Stack<T>
         // control flow operations
         enforce_no_change(&mut evaluations, current, next, op_flags[opcodes::BEGIN as usize]);
         enforce_no_change(&mut evaluations, current, next, op_flags[opcodes::NOOP as usize]);
+        result[0] = T::add(result[0],
+            enforce_assert(&mut evaluations, current, next, op_flags[opcodes::ASSERT as usize]));
 
         // input operations
         enforce_push(&mut evaluations,      current, next, next_op, op_flags[opcodes::PUSH as usize]);
@@ -138,9 +140,11 @@ impl <T> Stack<T>
         
         // comparison operations
         result[0] = T::add(result[0],
-            enforce_eq(&mut evaluations,    current, next, aux, op_flags[opcodes::EQ as usize]));
+            enforce_eq(&mut evaluations,      current, next, aux, op_flags[opcodes::EQ as usize]));
         result[0] = T::add(result[0],
-            enforce_cmp(&mut evaluations,   current, next, aux, op_flags[opcodes::CMP as usize]));
+            enforce_cmp(&mut evaluations,     current, next, aux, op_flags[opcodes::CMP as usize]));
+        result[0] = T::add(result[0],
+            enforce_binacc(&mut evaluations,  current, next, aux, op_flags[opcodes::BINACC as usize]));
 
         // conditional selection operations
         result[0] = T::add(result[0],
@@ -155,6 +159,17 @@ impl <T> Stack<T>
             result[i] = T::add(result[i], evaluations[i]);
         }
     }
+}
+
+// CONTROL FLOW OPERATIONS
+// ================================================================================================
+
+/// Enforces constraints for ASSERT operation. The constraints are similar to DROP operation, but
+/// have an auxiliary constraint which enforces that 1 - x = 0, where x is the top of the stack.
+fn enforce_assert<T: FiniteField>(result: &mut [T], current: &[T], next: &[T], op_flag: T) -> T {
+    let n = next.len() - 1;
+    enforce_no_change(&mut result[0..n], &current[1..], &next[0..n], op_flag);
+    return T::mul(op_flag, T::sub(T::ONE, current[0]));
 }
 
 // INPUT OPERATIONS
