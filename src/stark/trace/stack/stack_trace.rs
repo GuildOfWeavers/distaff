@@ -219,11 +219,11 @@ impl <T> StackTrace<T>
         let x = self.user_registers[0][step];
         let y = self.user_registers[1][step];
         if x == y {
-            self.aux_registers[0][step] = T::ONE;           // TODO: should be at step + 1?
+            self.aux_registers[0][step] = T::ONE;
             self.user_registers[0][step + 1] = T::ONE;
         } else {
             let diff = T::sub(x, y);
-            self.aux_registers[0][step] = T::inv(diff);     // TODO: should be at step + 1?
+            self.aux_registers[0][step] = T::inv(diff);
             self.user_registers[0][step + 1] = T::ZERO;
         }
         self.shift_left(step, 2, 1);

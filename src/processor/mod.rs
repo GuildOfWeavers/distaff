@@ -4,8 +4,10 @@ use crate::math::{ F128, FiniteField };
 use crate::stark::{ self, ProofOptions, StarkProof, ProgramInputs, MAX_OUTPUTS, MIN_TRACE_LENGTH };
 use crate::utils::{ as_bytes };
 
-mod tests;
 pub mod opcodes;
+
+#[cfg(test)]
+mod tests;
 
 // TODO: transforming execute() into a fully generic version results in about 10% - 15% runtime
 // penalty (mostly in running FFT). So, keeping it non-generic for now.
