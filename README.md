@@ -156,8 +156,8 @@ Distaff VM already has a rich set of instructions which make it possible to writ
 | Instruction | Opcode   | Description                            |
 | ----------- | :------: | -------------------------------------- |
 | EQ          | 00010101 | Pops top two items from the stack, compares them, and if their values are equal, pushes `1` back onto the stack; otherwise pushes `0` back onto the stack. |
-| CMP         | 00000001 | Pops top 7 items from the top of the stack, performs a single round of binary comparison, and pushes the result back onto the stack. This operation can be used as a building block for *less then* and *greater than* operations (see [here](#Value-comparison-in-Distaff-VM)). |
-| BINACC      | 00000010 | Pops top 2 items from the top of the stack, performs a single round of binary aggregation, and pushes the result back onto the stack. This operation can be used as a building block for range check operations (see [here](#Value-comparison-in-Distaff-VM)). |
+| CMP         | 00000001 | Pops top 7 items from the top of the stack, performs a single round of binary comparison, and pushes the result back onto the stack. This operation can be used as a building block for *less then* and *greater than* operations (see [here](#Checking-inequality)). |
+| BINACC      | 00000010 | Pops top 2 items from the top of the stack, performs a single round of binary aggregation, and pushes the result back onto the stack. This operation can be used as a building block for range check operations (see [here](#Checking-binary-decomposition)). |
 
 #### Selection operations
 
@@ -175,7 +175,7 @@ Distaff VM already has a rich set of instructions which make it possible to writ
 ### Value comparison in Distaff VM
 There are 3 operations in Distaff VM which can be used to compare values: `EQ`, `CMP`, and `BINACC`. Using these operations you can check whether 2 values a equal, whether one value is greater or less than the other, and whether a value can be represented with a given number of bits.
 
-`EQ` operation is by far the simplest of the three. If the two values on the top of the stack are equal, it pushes `1` onto the stack. If they are not equal, it pushes `0` onto the stack. Both values are removed in the process.
+`EQ` operation is by far the simplest one out of the three. If the two values on the top of the stack are equal, it pushes `1` onto the stack. If they are not equal, it pushes `0` onto the stack. Both values are removed in the process.
 
 The other two operations are more complex and are described in detail below.
 
@@ -187,11 +187,11 @@ Supposed we wanted to compare 2 values: `a` and `b` (both are 128-bit field elem
 ```
 [p, 0, 0, 0, 0, 0, 0, a, b]
 ```
-where `p` = 2<sup>n</sup> for some `n` < 128 such that 2<sup>n + 1</sup> > `a`, `b`. For example, if `a` and `b` are unconstrained field elements, `p` should be set to 2<sup>127</sup>. Or, if `a` and `b` are know to be 64-bit numbers, `p` should be set to 2<sup>63</sup>.
+where `p` = 2<sup>n - 1</sup> for some `n` <= 128 such that 2<sup>n</sup> > `a`, `b`. For example, if `a` and `b` are unconstrained field elements, `p` should be set to 2<sup>127</sup>. Or, if `a` and `b` are know to be 64-bit numbers, `p` should be set to 2<sup>63</sup>.
 
-Once the stack has been arranged in this way, we'll need to execute `CMP` operation `n` times in a row. As mentioned above, each execution of the operation consumes inputs from input tapes `A` and `B`. The input tapes must be populated with reverse binary representations of values `a` and `b` respectively. For example, if `a = 5` and `b = 8`, input tape `A` should be `[0, 1, 0, 1]`, and input tape `B` should be `[1, 0, 0, 0]`.
+Once the stack has been arranged in this way, we'll need to execute `CMP` operation `n` times in a row. As mentioned above, each execution of the operation consumes inputs from tapes `A` and `B`. The tapes must be populated with binary representations of values `a` and `b` respectively (in [big-endian](https://en.wikipedia.org/wiki/Endianness) order). For example, if `a = 5` and `b = 8`, input tape `A` should be `[0, 1, 0, 1]`, and input tape `B` should be `[1, 0, 0, 0]`.
 
-After operations have been executed, the stack will have the following form:
+After we execute `CMP` operation `n` number of times, the stack will have the following form:
 ```
 [x, x, x, gt, lt, b_acc, a_acc, a, b]
 ```
@@ -199,10 +199,10 @@ where:
 * `x` values are intermediate results of executing `CMP` operations and should be discarded.
 * `gt` value will be `1` if `a` > `b`, and `0` otherwise.
 * `lt` value will be `1` if `a` < `b`, and `0` otherwise.
-* `a_acc` will be equal the result of aggregating value `a` from its binary representation.
-* `b_acc` will be equal the result of aggregating value `b` from its binary representation.
+* `a_acc` will be equal to the result of aggregating value `a` from its binary representation.
+* `b_acc` will be equal to the result of aggregating value `b` from its binary representation.
 
-To make sure that the comparison is valid, we need to check that `a` == `a_acc` and `b` == `b_acc`. If these checks pass, then both numbers can be represented by `n + 1` bit values. This, in turn, means that the comparison is valid. The instruction sequences below can be executed after the last `CMP` operation in the sequence to perform these comparisons and remove un-needed values from the stack:
+To make sure that the comparison is valid, we need to check that `a` == `a_acc` and `b` == `b_acc`. If these checks pass, then both numbers can be represented by `n`-bit values. This, in turn, means that the comparison is valid. The instruction sequences below can be executed after the last `CMP` operation in the sequence to perform these comparisons and remove un-needed values from the stack:
 
 ```
 // performs the comparisons and leaves only the lt value on the stack
@@ -212,8 +212,46 @@ DROP SWAP4 ROLL4 EQ ASSERT EQ ASSERT DROP DROP DROP
 DROP SWAP4 ROLL4 EQ ASSERT EQ ASSERT DROP DROP SWAP DROP
 ```
 
+Overall, the number of operations needed to compare 2 values is proportional to the size of the values. Specifically:
+
+* Comparing two unconstrained field elements requires ~ 140 operations,
+* Comparing two 64-bit values requires ~ 75 operations,
+* Comparing two 32-bit values requires ~ 45 operations.
+
 #### Checking binary decomposition
-TODO
+Sometimes it may be useful to check whether a value fits into a certain number of bits. This can be accomplished with `CMP` operations, but `BINACC` operation provides a simpler way to do this.
+
+Similar to `CMP` operation, `BINACC` operation needs to be executed `n` times in a row if we want to make sure that a value can be represented with `n` bits.
+
+Each execution of the operation consumes a single input from tape `A`. The tape must be populated with binary representation of value `a` in [big-endian](https://en.wikipedia.org/wiki/Endianness) order. For example, if `a = 5`, input tape `A` should be `[0, 1, 0, 1]`.
+
+Also similar to `CMP` operation, `BINACC` operation expect items on the stack to be arranged in a certain order. If the items are not arranged as shown below, the result of the operation is undefined:
+
+```
+[p, 0, a]
+```
+where:
+  * `a` is the value we want to range-check,
+  * `p` is equal to 2<sup>n - 1</sup>.
+
+Once items on the stack have been arranged as described above, we execute `BINACC` instruction `n` times. This will leave the stack in the following form:
+```
+[x, a_acc, a]
+```
+where:
+* `x` value is an intermediate results of executing `BINACC` operations and should be discarded.
+* `a_acc` will be equal the result of aggregating value `a` from its binary representation.
+
+To make sure that `a` can fit into `n` bits we need to check that `a_acc = a`. This can be done using the following sequence of operations:
+```
+DROP EQ ASSERT
+```
+The above sequence discards the first item, then checks the equality of the remaining two items (`1` is placed on the stack if their values are equal), and then asserts that the top of the stack is `1`.
+
+Overall, the number of operations needed to determine whether a value can be represented by `n` bits is `n + 3`. Specifically:
+
+* Checking if a value can be represented with 64 bits requires 67 operations,
+* Checking if a value can be represented with 32 bits requires 35 operations.
 
 ### Hashing in Distaff VM
 To compute hashes in Distaff VM you can use `HASHR` operation. This operation works with the top 6 items of the stack, and depending on what you want to do, you should position the values on the stack in specific orders.
