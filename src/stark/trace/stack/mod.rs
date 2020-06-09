@@ -2,7 +2,7 @@ use std::cmp;
 use crate::math::{ FiniteField };
 use crate::processor::opcodes;
 use crate::stark::{ ProgramInputs, utils::Hasher };
-use crate::stark::{ MIN_STACK_DEPTH, MAX_STACK_DEPTH, AUX_WIDTH };
+use crate::stark::{ MIN_STACK_DEPTH, MAX_STACK_DEPTH };
 use crate::utils::{ filled_vector };
 
 mod stack_trace;
@@ -13,8 +13,8 @@ mod tests;
 
 // CONSTANTS
 // ================================================================================================
-const MIN_USER_STACK_DEPTH: usize = MIN_STACK_DEPTH - AUX_WIDTH;
-const MAX_USER_STACK_DEPTH: usize = MAX_STACK_DEPTH - AUX_WIDTH;
+const MIN_USER_STACK_DEPTH: usize = MIN_STACK_DEPTH - 1;
+const MAX_USER_STACK_DEPTH: usize = MAX_STACK_DEPTH - 1;
 
 // TRACE BUILDER
 // ================================================================================================
@@ -42,10 +42,7 @@ pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: us
         user_registers.push(register);
     }
 
-    let mut aux_registers = Vec::with_capacity(AUX_WIDTH);
-    for _ in 0..AUX_WIDTH {
-        aux_registers.push(filled_vector(trace_length, domain_size, T::ZERO));
-    }
+    let aux_register = filled_vector(trace_length, domain_size, T::ZERO);
 
     // reverse secret inputs so that they are consumed in FIFO order
     let [secret_inputs_a, secret_inputs_b] = inputs.get_secret_inputs();
@@ -55,7 +52,7 @@ pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: us
     secret_inputs_b.reverse();
 
     let mut stack = StackTrace {
-        aux_registers,
+        aux_register,
         user_registers,
         secret_inputs_a,
         secret_inputs_b,
@@ -126,8 +123,8 @@ pub fn execute<T>(program: &[T], inputs: &ProgramInputs<T>, extension_factor: us
 
     // keep only the registers used during program execution
     stack.user_registers.truncate(stack.max_depth);
-    let mut registers = Vec::with_capacity(AUX_WIDTH + stack.user_registers.len());
-    registers.append(&mut stack.aux_registers);
+    let mut registers = Vec::with_capacity(stack.user_registers.len() + 1);
+    registers.push(stack.aux_register);
     registers.append(&mut stack.user_registers);
 
     return registers;

@@ -1,5 +1,5 @@
 use crate::math::{ FiniteField };
-use crate::stark::{ TraceState, Accumulator, Hasher, AUX_WIDTH, NUM_LD_OPS };
+use crate::stark::{ TraceState, Accumulator, Hasher, NUM_LD_OPS };
 use crate::processor::{ opcodes };
 
 mod comparisons;
@@ -35,7 +35,7 @@ impl <T> Stack<T>
     pub fn new(trace_length: usize, extension_factor: usize, stack_depth: usize) -> Stack<T> {
 
         let mut degrees = Vec::from(&STACK_HEAD_DEGREES[..]);
-        degrees.resize(stack_depth - 1, STACK_REST_DEGREE); // TODO: don't hard-code
+        degrees.resize(stack_depth, STACK_REST_DEGREE);
 
         return Stack {
             hash_evaluator      : HashEvaluator::new(trace_length, extension_factor),
@@ -89,14 +89,13 @@ impl <T> Stack<T>
     /// are not tied to any repeating cycles in the execution trace.
     fn enforce_acyclic_ops(&self, current: &[T], next: &[T], op_flags: [T; NUM_LD_OPS], next_op: T, result: &mut [T]) {
         
-        debug_assert!(AUX_WIDTH == 2, "expected 2 aux registers but found {}", AUX_WIDTH);
-
         // save the aux register of the stack
         let aux = current[0];
 
         // trim stack states only to the user portion of the stack (excluding aux register)
-        let current = &current[AUX_WIDTH..];
-        let next = &next[AUX_WIDTH..];
+        // TODO: use a separate constant for user stack offset
+        let current = &current[1..];
+        let next = &next[1..];
 
         // initialize a vector to hold constraint evaluations; this is needed because constraint
         // evaluator functions assume that the stack is at least 8 items deep; while it may

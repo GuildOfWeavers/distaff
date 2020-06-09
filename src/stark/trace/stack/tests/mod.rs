@@ -1,7 +1,6 @@
 use crate::math::{ F128, FiniteField };
 use crate::stark::{ Hasher };
 use crate::utils::{ filled_vector };
-use super::{ AUX_WIDTH };
 
 const TRACE_LENGTH: usize = 16;
 const EXTENSION_FACTOR: usize = 16;
@@ -366,10 +365,7 @@ fn init_stack(public_inputs: &[F128], secret_inputs_a: &[F128], secret_inputs_b:
         user_registers.push(register);
     }
 
-    let mut aux_registers = Vec::with_capacity(AUX_WIDTH);
-    for _ in 0..AUX_WIDTH {
-        aux_registers.push(filled_vector(trace_length, trace_length * EXTENSION_FACTOR, F128::ZERO));
-    }
+    let aux_register = filled_vector(trace_length, trace_length * EXTENSION_FACTOR, F128::ZERO);
 
     let mut secret_inputs_a = secret_inputs_a.to_vec();
     secret_inputs_a.reverse();
@@ -377,7 +373,7 @@ fn init_stack(public_inputs: &[F128], secret_inputs_a: &[F128], secret_inputs_b:
     secret_inputs_b.reverse();
 
     return super::StackTrace {
-        aux_registers,
+        aux_register,
         user_registers,
         secret_inputs_a,
         secret_inputs_b,
@@ -395,9 +391,5 @@ fn get_stack_state(stack: &super::StackTrace<F128>, step: usize) -> Vec<F128> {
 }
 
 fn get_aux_state(stack: &super::StackTrace<F128>, step: usize) -> Vec<F128> {
-    let mut state = Vec::with_capacity(stack.aux_registers.len());
-    for i in 0..stack.aux_registers.len() {
-        state.push(stack.aux_registers[i][step]);
-    }
-    return state;
+    return vec![stack.aux_register[step]];
 }

@@ -10,7 +10,7 @@ fn eq() {
     let mut stack = init_stack(&[3, 3, 4, 5], &[], &[], TRACE_LENGTH);
 
     stack.eq(0);
-    assert_eq!(vec![1, 0], get_aux_state(&stack, 0));
+    assert_eq!(vec![1], get_aux_state(&stack, 0));
     assert_eq!(vec![1, 4, 5, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
     assert_eq!(3, stack.depth);
@@ -18,7 +18,7 @@ fn eq() {
 
     stack.eq(1);
     let inv_diff = F128::inv(F128::sub(1, 4));
-    assert_eq!(vec![inv_diff, 0], get_aux_state(&stack, 1));
+    assert_eq!(vec![inv_diff], get_aux_state(&stack, 1));
     assert_eq!(vec![0, 5, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 2));
 
     assert_eq!(2, stack.depth);
@@ -49,7 +49,7 @@ fn cmp_128() {
         let gt = state[3];
         let lt = state[4];
         let not_set = F128::mul(F128::sub(F128::ONE, gt), F128::sub(F128::ONE, lt));
-        assert_eq!(vec![not_set, F128::ZERO], get_aux_state(&stack, i));
+        assert_eq!(vec![not_set], get_aux_state(&stack, i));
     }
 
     // check the result
@@ -81,7 +81,7 @@ fn cmp_64() {
         let gt = state[3];
         let lt = state[4];
         let not_set = F128::mul(F128::sub(F128::ONE, gt), F128::sub(F128::ONE, lt));
-        assert_eq!(vec![not_set, F128::ZERO], get_aux_state(&stack, i));
+        assert_eq!(vec![not_set], get_aux_state(&stack, i));
     }
 
     // check the result

@@ -6,7 +6,7 @@ use super::{ MAX_USER_STACK_DEPTH };
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct StackTrace<T: FiniteField + Hasher> {
-    pub aux_registers   : Vec<Vec<T>>,
+    pub aux_register    : Vec<T>,
     pub user_registers  : Vec<Vec<T>>,
     pub secret_inputs_a : Vec<T>,
     pub secret_inputs_b : Vec<T>,
@@ -219,11 +219,11 @@ impl <T> StackTrace<T>
         let x = self.user_registers[0][step];
         let y = self.user_registers[1][step];
         if x == y {
-            self.aux_registers[0][step] = T::ONE;
+            self.aux_register[step] = T::ONE;
             self.user_registers[0][step + 1] = T::ONE;
         } else {
             let diff = T::sub(x, y);
-            self.aux_registers[0][step] = T::inv(diff);
+            self.aux_register[step] = T::inv(diff);
             self.user_registers[0][step + 1] = T::ZERO;
         }
         self.shift_left(step, 2, 1);
@@ -248,7 +248,7 @@ impl <T> StackTrace<T>
         let lt = self.user_registers[4][step];
         let not_set = T::mul(T::sub(T::ONE, gt), T::sub(T::ONE, lt));
 
-        self.aux_registers[0][step] = not_set;
+        self.aux_register[step] = not_set;
         self.user_registers[0][step + 1] = T::div(power_of_two, T::from_usize(2)); // TODO: replace with shift
         self.user_registers[1][step + 1] = a_bit;
         self.user_registers[2][step + 1] = b_bit;
@@ -268,7 +268,7 @@ impl <T> StackTrace<T>
         let power_of_two = self.user_registers[0][step];    // TODO: make sure it is power of 2
         let acc = self.user_registers[1][step];
 
-        self.aux_registers[0][step] = bit;
+        self.aux_register[step] = bit;
         self.user_registers[0][step + 1] = T::div(power_of_two, T::from_usize(2)); // TODO: replace with shift
         self.user_registers[1][step + 1] = T::add(acc, T::mul(bit, power_of_two));
 

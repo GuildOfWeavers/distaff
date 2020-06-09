@@ -399,11 +399,11 @@ Here are some very informal benchmarks of running the Fibonacci calculator on In
 
 | Operation Count | Execution time | Execution RAM  | Verification time | Proof size |
 | --------------- | :------------: | :------------: | :---------------: | :--------: |
-| 2<sup>8</sup>   | 180 ms         | negligible     | 2 ms              | 58 KB      |
-| 2<sup>10</sup>  | 280 ms         | negligible     | 2 ms              | 79 KB      |
-| 2<sup>12</sup>  | 1 sec          | < 100 MB       | 2 ms              | 102 KB     |
-| 2<sup>14</sup>  | 3.4 sec        | ~ 350 MB       | 3 ms              | 128 KB     |
-| 2<sup>16</sup>  | 14 sec         | 1.4 GB         | 3 ms              | 158 KB     |
+| 2<sup>8</sup>   | 180 ms         | negligible     | 2 ms              | 57 KB      |
+| 2<sup>10</sup>  | 300 ms         | negligible     | 2 ms              | 78 KB      |
+| 2<sup>12</sup>  | 900 ms         | < 100 MB       | 2 ms              | 101 KB     |
+| 2<sup>14</sup>  | 3.5 sec        | ~ 350 MB       | 3 ms              | 124 KB     |
+| 2<sup>16</sup>  | 14.4 sec       | 1.4 GB         | 3 ms              | 156 KB     |
 | 2<sup>18</sup>  | 1 min          | 5.2 GB         | 3 ms              | 188 KB     |
 | 2<sup>20</sup>  | 15 min         | > 5.6 GB       | 4 ms              | 225 KB     |
 

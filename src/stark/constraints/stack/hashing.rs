@@ -1,7 +1,7 @@
 use std::cmp;
 use crate::math::{ FiniteField, polynom };
 use crate::stark::{ Hasher };
-use crate::stark::{ AUX_WIDTH, HASH_STATE_WIDTH, HASH_CYCLE_LENGTH };
+use crate::stark::{ HASH_STATE_WIDTH, HASH_CYCLE_LENGTH };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -70,10 +70,11 @@ impl<T> HashEvaluator <T>
     /// assumed to be in the first 6 registers of user stack (aux registers are not affected).
     fn eval_hash(&self, current: &[T], next: &[T], ark: &[T], op_flag: T, result: &mut [T]) {
 
+        // TODO: use a constant for user stack offset
         let mut state_part1 = [T::ZERO; HASH_STATE_WIDTH];
-        state_part1.copy_from_slice(&current[AUX_WIDTH..(AUX_WIDTH + HASH_STATE_WIDTH)]);
+        state_part1.copy_from_slice(&current[1..(1 + HASH_STATE_WIDTH)]);
         let mut state_part2 = [T::ZERO; HASH_STATE_WIDTH];
-        state_part2.copy_from_slice(&next[AUX_WIDTH..(AUX_WIDTH + HASH_STATE_WIDTH)]);
+        state_part2.copy_from_slice(&next[1..(1 + HASH_STATE_WIDTH)]);
 
         for i in 0..HASH_STATE_WIDTH {
             state_part1[i] = T::add(state_part1[i], ark[i]);
@@ -96,7 +97,7 @@ impl<T> HashEvaluator <T>
 
     /// Evaluates constraints for stack registers un-affected by hash transition.
     fn eval_rest(&self, current: &[T], next: &[T], op_flag: T, result: &mut [T]) {
-        for i in (AUX_WIDTH + HASH_STATE_WIDTH)..result.len() {
+        for i in (1 + HASH_STATE_WIDTH)..result.len() { // TODO: use constant
             let evaluation = T::sub(next[i], current[i]);
             result[i] = T::add(result[i], T::mul(evaluation, op_flag));
         }
