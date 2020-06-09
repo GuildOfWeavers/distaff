@@ -2,7 +2,7 @@
 Distaff is a zero-knowledge virtual machine written in Rust. For any program executed on Distaff VM, a STARK-based proof of execution is automatically generated. This proof can then be used by anyone to verify that a program was executed correctly without the need for re-executing the program or even knowing what the program was.
 
 ### Status
-**DO NOT USE IN PRODUCTION.** Distaff is in a very early alpha. This means that current functionality is limited, and there are known and unknown bugs and security flaws.
+**DO NOT USE IN PRODUCTION.** Distaff is in an early alpha. This means that current functionality is incomplete, and there are known and unknown bugs and security flaws.
 
 ## Usage
 Distaff exposes `processor` module which can be used to execute programs and verify their execution. Both are explained below, but you can also take a look at a working example of a program which calculates n-th term of a Fibonacci sequence [here](https://github.com/GuildOfWeavers/distaff/blob/master/src/examples/fibonacci.rs).
@@ -115,6 +115,7 @@ Distaff VM already has a rich set of instructions which make it possible to writ
 | ----------- | :------: | --------------------------------------- |
 | NOOP        | 00000000 | Does nothing. |
 | BEGIN       | 11111111 | Marks the beginning of a program. Every program must start with the `BEGIN` operation. |
+| ASSERT      | 00010000 | Pops the top item from the stack and checks if it is equal to `1`. If it is not equal to `1` the program fails. |
 
 #### Input operations
 
@@ -140,13 +141,6 @@ Distaff VM already has a rich set of instructions which make it possible to writ
 | ROLL4       | 00011101 | Moves 4th stack item to the top of the stack. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3` becomes `S3 S0 S1 S2`.  |
 | ROLL8       | 00011110 | Moves 8th stack item to the top of the stack. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3 S4 S5 S6 S7` becomes `S7 S0 S1 S2 S3 S4 S5 S6`. |
 
-#### Conditional operations
-
-| Instruction | Opcode   | Description                            |
-| ----------- | :------: | -------------------------------------- |
-| CHOOSE      | 00010110 | Pops 3 values from the top of the stack, and pushes either the 1st or the 2nd value back onto the stack depending on whether the 3rd value is `1` or `0`. For example, assuming `S0` is the top of the stack, `S0 S1 1` becomes `S0`, while `S0 S1 0` becomes `S1`. This operation will fail if the 3rd stack item is not a binary value. |
-| CHOOSE2     | 00010111 | Pops 6 values from the top of the stack, and pushes either the 1st or the 2nd pair of values back onto the stack depending on whether the 5th value is `1` or `0`. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3 1 S5` becomes `S0 S1`, while `S0 S1 S2 S3 0 S5` becomes `S2 S3` (notice that `S5` is discarded in both cases). This operation will fail if the 5th stack item is not a binary value. |
-
 #### Arithmetic and boolean operations
 
 | Instruction | Opcode   | Description                            |
@@ -157,14 +151,69 @@ Distaff VM already has a rich set of instructions which make it possible to writ
 | NEG         | 00000100 | Pops the top item from the stack, computes its additive inverse, and pushes the result back onto the stack. This can be used to emulate subtraction with a sequence of two operations: `NEG ADD` |
 | NOT         | 00000101 | Pops the top item from the stack, subtracts it from value `1` and pushes the result back onto the stack. In other words, `0` becomes `1`, and `1` becomes `0`. This is equivalent to `PUSH 1 SWAP NEG ADD` but also enforces that the top stack item is a binary value. |
 
+#### Comparison operations
+
+| Instruction | Opcode   | Description                            |
+| ----------- | :------: | -------------------------------------- |
+| EQ          | 00010101 | Pops top two items from the stack, compares them, and if their values are equal, pushes `1` back onto the stack; otherwise pushes `0` back onto the stack. |
+| CMP         | 00000001 | Pops top 7 items from the top of the stack, performs a single round of binary comparison, and pushes the result back onto the stack. This operation can be used as a building block for *less then* and *greater than* operations (see [here](#Value-comparison-in-Distaff-VM)). |
+| BINACC      | 00000010 | Pops top 2 items from the top of the stack, performs a single round of binary aggregation, and pushes the result back onto the stack. This operation can be used as a building block for range check operations (see [here](#Value-comparison-in-Distaff-VM)). |
+
+#### Selection operations
+
+| Instruction | Opcode   | Description                            |
+| ----------- | :------: | -------------------------------------- |
+| CHOOSE      | 00010110 | Pops 3 items from the top of the stack, and pushes either the 1st or the 2nd value back onto the stack depending on whether the 3rd value is `1` or `0`. For example, assuming `S0` is the top of the stack, `S0 S1 1` becomes `S0`, while `S0 S1 0` becomes `S1`. This operation will fail if the 3rd stack item is not a binary value. |
+| CHOOSE2     | 00010111 | Pops 6 items from the top of the stack, and pushes either the 1st or the 2nd pair of values back onto the stack depending on whether the 5th value is `1` or `0`. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3 1 S5` becomes `S0 S1`, while `S0 S1 S2 S3 0 S5` becomes `S2 S3` (notice that `S5` is discarded in both cases). This operation will fail if the 5th stack item is not a binary value. |
+
 #### Cryptographic operations
 
 | Instruction | Opcode   | Description                            |
 | ----------- | :------: | -------------------------------------- |
 | HASHR       | 00011000 | Pops top 6 items from the stack, computes a single round of a modified [Rescue](https://eprint.iacr.org/2019/426) hash function over these values, and pushes the results back onto the stack. This operation can be used to hash up to two 256-bit values. However, to achieve 120 bits of security, the `HASHR` operation must be applied at least 10 times in a row (see [here](#Hashing-in-Distaff-VM)).  |
 
-#### Potential future operations
-Distaff VM is still missing a few important instructions. Specifically, comparing values is not currently supported. This makes programs with sophisticated conditional logic unsuitable for Distaff VM. To remedy this, new instructions will be added to the VM in the near future.
+### Value comparison in Distaff VM
+There are 3 operations in Distaff VM which can be used to compare values: `EQ`, `CMP`, and `BINACC`. Using these operations you can check whether 2 values a equal, whether one value is greater or less than the other, and whether a value can be represented with a given number of bits.
+
+`EQ` operation is by far the simplest of the three. If the two values on the top of the stack are equal, it pushes `1` onto the stack. If they are not equal, it pushes `0` onto the stack. Both values are removed in the process.
+
+The other two operations are more complex and are described in detail below.
+
+#### Checking inequality
+Using repeated execution of `CMP` operation you can determine if one value is greater or less than another value. Executing this operation consumes a single input from each of the input tapes. It also assumes that you've positioned items on the stack in an appropriate order. If items on the stack are not positioned correctly, the result of the operation will be undefined.
+
+Supposed we wanted to compare 2 values: `a` and `b` (both are 128-bit field elements). To accomplish this, we'd need to position elements on the stack like so:
+
+```
+[p, 0, 0, 0, 0, 0, 0, a, b]
+```
+where `p` = 2<sup>n</sup> for some `n` < 128 such that 2<sup>n + 1</sup> > `a`, `b`. For example, if `a` and `b` are unconstrained field elements, `p` should be set to 2<sup>127</sup>. Or, if `a` and `b` are know to be 64-bit numbers, `p` should be set to 2<sup>63</sup>.
+
+Once the stack has been arranged in this way, we'll need to execute `CMP` operation `n` times in a row. As mentioned above, each execution of the operation consumes inputs from input tapes `A` and `B`. The input tapes must be populated with reverse binary representations of values `a` and `b` respectively. For example, if `a = 5` and `b = 8`, input tape `A` should be `[0, 1, 0, 1]`, and input tape `B` should be `[1, 0, 0, 0]`.
+
+After operations have been executed, the stack will have the following form:
+```
+[x, x, x, gt, lt, b_acc, a_acc, a, b]
+```
+where:
+* `x` values are intermediate results of executing `CMP` operations and should be discarded.
+* `gt` value will be `1` if `a` > `b`, and `0` otherwise.
+* `lt` value will be `1` if `a` < `b`, and `0` otherwise.
+* `a_acc` will be equal the result of aggregating value `a` from its binary representation.
+* `b_acc` will be equal the result of aggregating value `b` from its binary representation.
+
+To make sure that the comparison is valid, we need to check that `a` == `a_acc` and `b` == `b_acc`. If these checks pass, then both numbers can be represented by `n + 1` bit values. This, in turn, means that the comparison is valid. The instruction sequences below can be executed after the last `CMP` operation in the sequence to perform these comparisons and remove un-needed values from the stack:
+
+```
+// performs the comparisons and leaves only the lt value on the stack
+DROP SWAP4 ROLL4 EQ ASSERT EQ ASSERT DROP DROP DROP
+
+// performs the comparisons and leaves only the gt value on the stack
+DROP SWAP4 ROLL4 EQ ASSERT EQ ASSERT DROP DROP SWAP DROP
+```
+
+#### Checking binary decomposition
+TODO
 
 ### Hashing in Distaff VM
 To compute hashes in Distaff VM you can use `HASHR` operation. This operation works with the top 6 items of the stack, and depending on what you want to do, you should position the values on the stack in specific orders.
