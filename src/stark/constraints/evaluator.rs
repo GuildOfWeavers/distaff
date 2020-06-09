@@ -155,7 +155,7 @@ impl <T> Evaluator<T>
         if self.should_evaluate_to_zero_at(step) {
             let step = step / self.extension_factor;
             for i in 0..evaluations.len() {
-                assert!(evaluations[i] == T::ZERO, "transition constraint at step {} didn't evaluate to 0", step);
+                assert!(evaluations[i] == T::ZERO, "transition constraint at step {} were not satisfied", step);
             }
             return T::ZERO;
         }

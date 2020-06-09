@@ -70,12 +70,11 @@ const PROG_HASH_RANGE       : Range<usize> = Range { start: 6, end: 6 + ACC_STAT
 // STACK TRACE
 // ------------------------------------------------------------------------------------------------
 //
-// ╒═══ aux ═══╕╒═════════════ user registers ═════════════════╕
+//   aux ╒════════════════ user registers ═════════════════════╕
 //    0      1    2    .................................    31
 // ├─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┤
 
 pub const MAX_PUBLIC_INPUTS : usize = 8;
 pub const MAX_OUTPUTS       : usize = 8;
-const MIN_STACK_DEPTH       : usize = 10;
+const MIN_STACK_DEPTH       : usize = 9;
 const MAX_STACK_DEPTH       : usize = 32;
-const AUX_WIDTH             : usize = 2;

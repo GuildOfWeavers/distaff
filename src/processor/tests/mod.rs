@@ -1,5 +1,6 @@
-#[cfg(test)]
 use crate::{ ProofOptions, ProgramInputs, opcodes::f128 as opcodes, F128, FiniteField, Accumulator, Hasher };
+
+mod comparisons;
 
 #[test]
 fn execute_verify() {
@@ -240,6 +241,31 @@ fn read_operations() {
 
     let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
     assert_eq!(vec![5, 4, 3, 2, 1], outputs);
+
+    let result = super::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
+    assert_eq!(Ok(true), result);
+}
+
+
+#[test]
+fn assert_operation() {
+    let program = [
+        opcodes::BEGIN, opcodes::ASSERT, opcodes::NOOP, opcodes::NOOP,
+        opcodes::NOOP,  opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
+        opcodes::NOOP,  opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
+        opcodes::NOOP,  opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
+    ];
+    let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
+
+    let options = ProofOptions::default();
+    let inputs = ProgramInputs::from_public(&[1, 2, 3]);
+    let num_outputs = 2;
+
+    let expected_result = vec![2, 3];
+
+    let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
+    assert_eq!(expected_result, outputs);
+    assert_eq!(program_hash, expected_hash);
 
     let result = super::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
     assert_eq!(Ok(true), result);

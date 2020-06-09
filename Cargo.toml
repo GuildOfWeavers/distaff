@@ -1,6 +1,6 @@
 [package]
 name = "distaff"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Bobbin Threadbare <bobbinth@protonmail.com>"]
 edition = "2018"
 description="Zero-knowledge virtual machine written in Rust"
