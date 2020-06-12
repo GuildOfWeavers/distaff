@@ -84,6 +84,23 @@ pub fn parse_pad(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<bo
     return Ok(true);
 }
 
+
+/// Appends a sequence of operations to the program to copy n-th item to the top of the stack.
+pub fn parse_pick(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+    let n = read_param(op, step)?;
+    match n {
+        1 => program.extend_from_slice(&[opcodes::DUP2, opcodes::DROP]),
+        2 => program.extend_from_slice(&[
+            opcodes::DUP4, opcodes::ROLL4, opcodes::DROP, opcodes::DROP, opcodes::DROP
+        ]),
+        3 => program.extend_from_slice(&[opcodes::DUP4, opcodes::DROP, opcodes::DROP, opcodes::DROP]),
+        _ => return Err(AssemblyError::invalid_param_reason(op, step,
+            format!("parameter {} is invalid; allowed values are: [1, 2, 3]", n)))
+    };
+
+    return Ok(true);
+}
+
 /// Appends a sequence of operations to the program to remove top n values from the stack.
 pub fn parse_drop(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     let n = read_param(op, step)?;
@@ -310,7 +327,8 @@ pub fn parse_choose(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result
 // CRYPTO OPERATIONS
 // ================================================================================================
 
-/// TODO
+/// When parameter is `r`, appends HASHR operation to the program. Otherwise, appends a sequence
+/// of operations to hash top n values of the stack.
 pub fn parse_hash(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     // make sure exactly 1 parameter was provided
     if op.len() == 1 {
@@ -352,7 +370,8 @@ pub fn parse_hash(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<b
     return Ok(true);
 }
 
-/// TODO
+/// Appends a sequence of operations to the program to compute the root of Merkle
+/// authentication path for a tree of depth n.
 pub fn parse_mpath(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     let n = read_param(op, step)?;
     if n < 2 || n > 256 {

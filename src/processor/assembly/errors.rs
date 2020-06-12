@@ -1,18 +1,25 @@
+// TYPES AND INTERFACES
+// ================================================================================================
 pub struct AssemblyError {
     message : String,
     step    : usize,
     op      : String
 }
 
+// ASSEMBLY ERROR IMPLEMENTATION
+// ================================================================================================
 impl AssemblyError {
 
-    /*
-    pub fn invalid_op(op: &[&str]) -> AssemblyError {
+    // CONSTRUCTORS
+    // --------------------------------------------------------------------------------------------
+
+    pub fn invalid_op(op: &[&str], step: usize) -> AssemblyError {
         return AssemblyError {
-            message: format!("")
+            message : format!("operation {} is invalid", op.join(".")),
+            step    : step,
+            op      : op.join("."),
         };
     }
-    */
 
     pub fn missing_param(op: &[&str], step: usize) -> AssemblyError {
         return AssemblyError {
@@ -46,6 +53,8 @@ impl AssemblyError {
         };
     }
 
+    // PUBLIC ACCESSORS
+    // --------------------------------------------------------------------------------------------
     pub fn message(&self) -> &String {
         return &self.message;
     }
@@ -58,6 +67,10 @@ impl AssemblyError {
         return self.step;
     }
 }
+
+
+// COMMON TRAIT IMPLEMENTATIONS
+// ================================================================================================
 
 impl std::fmt::Debug for AssemblyError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

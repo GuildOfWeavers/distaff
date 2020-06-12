@@ -5,6 +5,7 @@ use crate::stark::{ self, ProofOptions, StarkProof, ProgramInputs, MAX_OUTPUTS, 
 use crate::utils::{ as_bytes };
 
 pub mod opcodes;
+pub mod assembly;
 
 #[cfg(test)]
 mod tests;
@@ -27,7 +28,8 @@ pub fn execute(program: &[F128], inputs: &ProgramInputs<F128>, num_outputs: usiz
         "cannot produce more than {} outputs, but requested {}", MAX_OUTPUTS, num_outputs);
 
     // pad the program with the appropriate number of NOOPs
-    let program = pad_program(program);
+    let mut program = program.to_vec();
+    pad_program(&mut program);
 
     // execute the program to create an execution trace
     let now = Instant::now();
@@ -61,8 +63,8 @@ pub fn verify(program_hash: &[u8; 32], public_inputs: &[F128], outputs: &[F128],
 /// 1. The length of the program is at least 16;
 /// 2. The length of the program is a power of 2;
 /// 3. The program terminates with a NOOP.
-pub fn pad_program<T: FiniteField>(program: &[T]) -> Vec<T> {
-    let mut program = program.to_vec();
+pub fn pad_program<T: FiniteField>(program: &mut Vec<T>) {
+    
     let trace_length = if program.len() == program.len().next_power_of_two() {
         if program[program.len() - 1] == T::from(opcodes::NOOP) {
             program.len()
@@ -75,7 +77,6 @@ pub fn pad_program<T: FiniteField>(program: &[T]) -> Vec<T> {
         program.len().next_power_of_two()
     };
     program.resize(cmp::max(trace_length, MIN_TRACE_LENGTH), T::from(opcodes::NOOP));
-    return program;
 }
 
 /// Returns a hash value of the program.
