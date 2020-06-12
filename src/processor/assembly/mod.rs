@@ -41,6 +41,8 @@ pub fn translate(assembly: &str) -> Vec<u128> {
             "gt"     => parse_gt(&mut program, &parts, step),
             "lt"     => parse_lt(&mut program, &parts, step),
             "rc"     => parse_rc(&mut program, &parts, step),
+            "cmp"    => parse_cmp(&mut program, &parts, step),
+            "binacc" => parse_binacc(&mut program, &parts, step),
 
             "choose" => parse_choose(&mut program, &parts, step),
 

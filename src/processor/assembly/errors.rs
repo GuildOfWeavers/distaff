@@ -38,7 +38,7 @@ impl AssemblyError {
         };
     }
 
-    pub fn invalid_param_reason(op: &[&str], reason: String, step: usize) -> AssemblyError {
+    pub fn invalid_param_reason(op: &[&str], step: usize, reason: String) -> AssemblyError {
         return AssemblyError {
             message : format!("malformed operation {}: {}", op[0], reason),
             step    : step,
