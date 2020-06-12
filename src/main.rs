@@ -31,11 +31,11 @@ fn main() {
     else {
         panic!("Could not find example program for '{}'", args[1]);
     }
-    let Example { program, inputs, num_outputs, options, expected_result } = ex;
+    let Example { mut program, inputs, num_outputs, options, expected_result } = ex;
     println!("--------------------------------");
 
     // compute expected hash for the program
-    let program = processor::pad_program(&program);
+    processor::pad_program(&mut program);
     let expected_hash = processor::hash_program(&program);
 
     // execute the program and generate the proof of execution
