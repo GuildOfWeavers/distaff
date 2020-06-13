@@ -5,6 +5,7 @@ use crate::stark::{ self, ProofOptions, StarkProof, ProgramInputs, MAX_OUTPUTS, 
 use crate::utils::{ as_bytes };
 
 pub mod opcodes;
+pub mod program;
 pub mod assembly;
 
 #[cfg(test)]
