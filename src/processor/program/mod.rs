@@ -5,20 +5,19 @@ use super::{ opcodes::f128 as opcodes};
 mod execution_graph;
 use execution_graph::ExecutionGraph;
 
+// CONSTANTS
+// ================================================================================================
+const STATE_ELEMENTS: usize = 4;
+const STATE_WIDTH: usize = STATE_ELEMENTS * 128;
+
 // TYPES AND INTERFACES
 // ================================================================================================
+type HashState = [u128; STATE_ELEMENTS];
+
 pub struct Program {
     op_graph    : ExecutionGraph,
     tree_nodes  : Vec<[u8; 32]>,
     path_hashes : Vec<[u8; 32]>,
-    path_lengths: Vec<u32>,
-    path_noops  : Vec<u32>,
-}
-
-struct ProgramInfo {
-    path_hashes : Vec<[u8; 32]>,
-    path_lengths: Vec<u32>,
-    path_noops  : Vec<u32>,
 }
 
 // PROGRAM IMPLEMENTATION
@@ -27,19 +26,13 @@ impl Program {
 
     pub fn new(graph: ExecutionGraph, hash_fn: HashFunction) -> Program {
 
-        let mut info = ProgramInfo {
-            path_hashes : Vec::new(),
-            path_lengths: Vec::new(),
-            path_noops  : Vec::new()
-        };
-        digest_graph(&graph, &mut info, [0; 4], 0, 0);
+        let mut path_hashes = Vec::new();
+        digest_graph(&graph, &mut path_hashes, [0; STATE_ELEMENTS], 0);
         
         let mut program = Program {
             op_graph    : graph,
             tree_nodes  : Vec::new(),
-            path_hashes : info.path_hashes,
-            path_lengths: info.path_lengths,
-            path_noops  : info.path_noops
+            path_hashes : path_hashes,
         };
 
         // if there is more than 1 path, build a Merkle tree out of path hashes
@@ -57,19 +50,13 @@ impl Program {
 
     pub fn from_path(execution_path: Vec<u128>) -> Program {
         let graph = ExecutionGraph::new(execution_path);
-        let mut info = ProgramInfo {
-            path_hashes : Vec::new(),
-            path_lengths: Vec::new(),
-            path_noops  : Vec::new()
-        };
-        digest_graph(&graph, &mut info, [0; 4], 0, 0);
+        let mut path_hashes = Vec::new();
+        digest_graph(&graph, &mut path_hashes, [0; STATE_ELEMENTS], 0);
         
         return Program {
             op_graph    : graph,
             tree_nodes  : Vec::new(),
-            path_hashes : info.path_hashes,
-            path_lengths: info.path_lengths,
-            path_noops  : info.path_noops
+            path_hashes : path_hashes,
         };
     }
 
@@ -80,16 +67,6 @@ impl Program {
         return &self.tree_nodes[1];
     }
 
-    pub fn density(&self) -> f64 {
-        let mut length = 0;
-        let mut noops = 0;
-        for i in 0..self.path_lengths.len() {
-            length += self.path_lengths[i];
-            noops += self.path_noops[i];
-        }
-        return (noops as f64) / (length as f64);
-    }
-
     pub fn execution_graph(&self) -> &ExecutionGraph {
         return &self.op_graph;
     }
@@ -97,41 +74,23 @@ impl Program {
     pub fn get_path_hash(&self, index: usize) -> &[u8; 32] {
         return &self.path_hashes[index];
     }
-
-    pub fn get_path_length(&self, index: usize) -> u32 {
-        return self.path_lengths[index];
-    }
-
-    pub fn get_path_density(&self, index: usize) -> f64 {
-        return (self.path_noops[index] as f64) / (self.path_lengths[index] as f64);
-    }
 }
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn digest_graph(graph: &ExecutionGraph, info: &mut ProgramInfo, mut state: [u128; 4], mut step: usize, mut noops: u32) {
+fn digest_graph(graph: &ExecutionGraph, hashes: &mut Vec<[u8; 32]>, mut state: HashState, mut step: usize) {
 
     let operations = graph.operations();
     if graph.has_next() {
         // this is not the last segment of the program - so, update the state with all opcodes
         for i in 0..operations.len() {
             u128::apply_round(&mut state, operations[i], step);
-            if operations[i] == opcodes::NOOP {
-                noops += 1;
-            }
             step += 1;
         }
 
-        // follow the true branch, but first pre-pend ASSERT to the execution path
-        let mut t_state = state;
-        u128::apply_round(&mut t_state, opcodes::ASSERT, step);
-        digest_graph(graph.true_path(), info, t_state, step + 1, noops);
-
-        // follow the false branch, but first pre-pend NOT ASSERT ot the execution path
-        u128::apply_round(&mut state, opcodes::NOT, step);
-        step += 1;
-        u128::apply_round(&mut state, opcodes::ASSERT, step);
-        digest_graph(graph.false_path(), info, state, step + 1, noops);
+        // the follow true and false branches of the consequent segments
+        digest_graph(graph.true_path(), hashes, state, step);
+        digest_graph(graph.false_path(), hashes, state, step);
     }
     else {
         // this is the last segment of the program - so, determine how much padding this path
@@ -144,19 +103,14 @@ fn digest_graph(graph: &ExecutionGraph, info: &mut ProgramInfo, mut state: [u128
         // update the state with all opcodes but the last one
         for i in 0..(operations.len() - 1) {
             u128::apply_round(&mut state, operations[i], step);
-            if operations[i] == opcodes::NOOP {
-                noops += 1;
-            }
             step += 1;
         }
 
-        // record the final hash and path stats into the info object
-        let state_bytes: &[u8; 512] = unsafe { &*(&state as *const _ as *const [u8; 512]) };
+        // record the final hash
+        let state_bytes: &[u8; STATE_WIDTH] = unsafe { &*(&state as *const _ as *const [u8; STATE_WIDTH]) };
         let mut path_hash = [0u8; 32];
         path_hash.copy_from_slice(&state_bytes[..32]);
-        info.path_hashes.push(path_hash);
-        info.path_lengths.push(step as u32);
-        info.path_noops.push(noops);
+        hashes.push(path_hash);
     }
 }
 
@@ -202,8 +156,8 @@ mod tests {
     fn new_program_two_paths() {
         let mut graph = ExecutionGraph::new(vec![opcodes::BEGIN, opcodes::ADD, opcodes::MUL]);
         graph.set_next(
-            ExecutionGraph::new(vec![opcodes::DROP]),
-            ExecutionGraph::new(vec![opcodes::DUP]));
+            ExecutionGraph::new(vec![opcodes::ASSERT, opcodes::DROP]),
+            ExecutionGraph::new(vec![opcodes::NOT, opcodes::ASSERT, opcodes::DUP]));
 
         let program = Program::new(graph, blake3);
 

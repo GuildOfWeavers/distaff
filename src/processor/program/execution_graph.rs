@@ -1,3 +1,5 @@
+use super::{ opcodes};
+
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct ExecutionGraph {
@@ -19,6 +21,15 @@ impl ExecutionGraph {
     }
 
     pub fn set_next(&mut self, true_path: ExecutionGraph, false_path: ExecutionGraph) {
+        // make sure true path starts with ASSERT operation
+        assert!(true_path.operations[0] == opcodes::ASSERT,
+            "true branch of the execution graph must start with ASSERT operation");        
+
+        // make sure false path starts with NOT ASSERT operation
+        assert!(false_path.operations[0] == opcodes::NOT 
+            && false_path.operations[1] == opcodes::ASSERT,
+            "false branch of the execution graph must start with NOT ASSERT operations");
+
         self.true_path = Some(Box::new(true_path));
         self.false_path = Some(Box::new(false_path));
     }
