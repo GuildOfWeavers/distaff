@@ -266,7 +266,7 @@ impl MerkleTree {
 // HELPER FUNCTIONS
 // ================================================================================================
 
-fn build_merkle_nodes(leaves: &[[u8; 32]], hash: HashFunction) -> Vec<[u8; 32]> {
+pub fn build_merkle_nodes(leaves: &[[u8; 32]], hash: HashFunction) -> Vec<[u8; 32]> {
     let n = leaves.len() / 2;
 
     // create un-initialized array to hold all intermediate nodes

@@ -1,4 +1,4 @@
-use crate::crypto::{ MerkleTree, hash::blake3 };
+use crate::crypto::{ HashFunction, build_merkle_nodes };
 use crate::stark::{ Accumulator, MIN_TRACE_LENGTH };
 use super::{ opcodes::f128 as opcodes};
 
@@ -9,7 +9,8 @@ use execution_graph::ExecutionGraph;
 // ================================================================================================
 pub struct Program {
     op_graph    : ExecutionGraph,
-    path_tree   : MerkleTree,
+    tree_nodes  : Vec<[u8; 32]>,
+    path_hashes : Vec<[u8; 32]>,
     path_lengths: Vec<u32>,
     path_noops  : Vec<u32>,
 }
@@ -24,8 +25,38 @@ struct ProgramInfo {
 // ================================================================================================
 impl Program {
 
-    pub fn new(graph: ExecutionGraph) -> Program {
+    pub fn new(graph: ExecutionGraph, hash_fn: HashFunction) -> Program {
 
+        let mut info = ProgramInfo {
+            path_hashes : Vec::new(),
+            path_lengths: Vec::new(),
+            path_noops  : Vec::new()
+        };
+        digest_graph(&graph, &mut info, [0; 4], 0, 0);
+        
+        let mut program = Program {
+            op_graph    : graph,
+            tree_nodes  : Vec::new(),
+            path_hashes : info.path_hashes,
+            path_lengths: info.path_lengths,
+            path_noops  : info.path_noops
+        };
+
+        // if there is more than 1 path, build a Merkle tree out of path hashes
+        if program.path_hashes.len() > 1 {
+            // make sure number of hashes is a power of 2
+            if !program.path_hashes.len().is_power_of_two() {
+                program.path_hashes.resize(program.path_hashes.len().next_power_of_two(), [0; 32]);
+            }
+
+            program.tree_nodes = build_merkle_nodes(&program.path_hashes, hash_fn);
+        }
+
+        return program;
+    }
+
+    pub fn from_path(execution_path: Vec<u128>) -> Program {
+        let graph = ExecutionGraph::new(execution_path);
         let mut info = ProgramInfo {
             path_hashes : Vec::new(),
             path_lengths: Vec::new(),
@@ -35,14 +66,18 @@ impl Program {
         
         return Program {
             op_graph    : graph,
-            path_tree   : MerkleTree::new(info.path_hashes, blake3),  // TODO: get hash function from options
+            tree_nodes  : Vec::new(),
+            path_hashes : info.path_hashes,
             path_lengths: info.path_lengths,
             path_noops  : info.path_noops
         };
     }
 
-    pub fn root(&self) -> &[u8; 32] {
-        return self.path_tree.root();
+    pub fn hash(&self) -> &[u8; 32] {
+        if self.path_hashes.len() == 1 {
+            return &self.path_hashes[0];
+        }
+        return &self.tree_nodes[1];
     }
 
     pub fn density(&self) -> f64 {
@@ -60,7 +95,7 @@ impl Program {
     }
 
     pub fn get_path_hash(&self, index: usize) -> &[u8; 32] {
-        return &self.path_tree.leaves()[index];
+        return &self.path_hashes[index];
     }
 
     pub fn get_path_length(&self, index: usize) -> u32 {
@@ -145,24 +180,46 @@ fn get_padded_length(length: usize, last_op: u128) -> usize {
 #[cfg(test)]
 mod tests {
 
-    use crate::{ Accumulator };
+    use crate::{ Accumulator, crypto::hash::blake3 };
     use super::{ opcodes, ExecutionGraph, Program, super::pad_program };
-    
+
     #[test]
-    fn new_program() {
+    fn new_program_single_path() {
+        let mut path = vec![opcodes::BEGIN, opcodes::ADD, opcodes::MUL];
+        let graph = ExecutionGraph::new(path.clone());
+        let program1 = Program::new(graph, blake3);
+        let program2 = Program::from_path(path.clone());
+
+        pad_program(&mut path);
+        let path_hash = u128::digest(&path);
+        assert_eq!(path_hash, *program1.get_path_hash(0));
+        assert_eq!(path_hash, *program1.hash());
+        assert_eq!(path_hash, *program2.get_path_hash(0));
+        assert_eq!(path_hash, *program2.hash());
+    }
+
+    #[test]
+    fn new_program_two_paths() {
         let mut graph = ExecutionGraph::new(vec![opcodes::BEGIN, opcodes::ADD, opcodes::MUL]);
         graph.set_next(
             ExecutionGraph::new(vec![opcodes::DROP]),
             ExecutionGraph::new(vec![opcodes::DUP]));
 
-        let program = Program::new(graph);
+        let program = Program::new(graph, blake3);
 
         let mut path1 = vec![opcodes::BEGIN, opcodes::ADD, opcodes::MUL, opcodes::ASSERT, opcodes::DROP];
         pad_program(&mut path1);
+        let path1_hash = u128::digest(&path1);
         let mut path2 = vec![opcodes::BEGIN, opcodes::ADD, opcodes::MUL, opcodes::NOT, opcodes::ASSERT, opcodes::DUP];
         pad_program(&mut path2);
+        let path2_hash = u128::digest(&path2);
 
-        assert_eq!(u128::digest(&path1), *program.get_path_hash(0));
-        assert_eq!(u128::digest(&path2), *program.get_path_hash(1));
+        let buf = [path1_hash, path2_hash].concat();
+        let mut program_hash = [0u8; 32];
+        blake3(&buf, &mut program_hash);
+
+        assert_eq!(path1_hash, *program.get_path_hash(0));
+        assert_eq!(path2_hash, *program.get_path_hash(1));
+        assert_eq!(program_hash, *program.hash());
     }
 }
