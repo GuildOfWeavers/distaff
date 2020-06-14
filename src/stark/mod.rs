@@ -1,6 +1,5 @@
 use std::ops::Range;
 
-mod inputs;
 mod trace;
 mod constraints;
 mod options;
@@ -10,7 +9,6 @@ mod proof;
 mod fri;
 mod utils;
 
-pub use inputs::{ ProgramInputs };
 pub use trace::{ TraceTable, TraceState };
 
 pub use constraints::{

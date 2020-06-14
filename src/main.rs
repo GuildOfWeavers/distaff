@@ -31,12 +31,8 @@ fn main() {
     else {
         panic!("Could not find example program for '{}'", args[1]);
     }
-    let Example { mut program, inputs, num_outputs, options, expected_result } = ex;
+    let Example { program, inputs, num_outputs, options, expected_result } = ex;
     println!("--------------------------------");
-
-    // compute expected hash for the program
-    processor::pad_program(&mut program);
-    let expected_hash = processor::hash_program(&program);
 
     // execute the program and generate the proof of execution
     let now = Instant::now();
@@ -47,7 +43,7 @@ fn main() {
         now.elapsed().as_millis());
     println!("Program output: {:?}", outputs);
     assert_eq!(expected_result, outputs, "Program result was computed incorrectly");
-    assert_eq!(expected_hash, program_hash, "Program hash was generated incorrectly");
+    assert_eq!(*program.hash(), program_hash, "Program hash was generated incorrectly");
 
     // serialize the proof to see how big it is
     let proof_bytes = bincode::serialize(&proof).unwrap();

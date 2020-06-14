@@ -5,6 +5,9 @@ use super::{ opcodes::f128 as opcodes};
 mod execution_graph;
 use execution_graph::ExecutionGraph;
 
+mod inputs;
+pub use inputs::{ ProgramInputs };
+
 // CONSTANTS
 // ================================================================================================
 const STATE_ELEMENTS: usize = 4;
@@ -26,6 +29,10 @@ impl Program {
 
     pub fn new(graph: ExecutionGraph, hash_fn: HashFunction) -> Program {
 
+        let first_op = graph.operations()[0];
+        assert!(first_op == opcodes::BEGIN, "a program must start with BEGIN operation");
+
+        // hash all possible execution paths into individual hashes hashes
         let mut path_hashes = Vec::new();
         digest_graph(&graph, &mut path_hashes, [0; STATE_ELEMENTS], 0);
         
@@ -49,6 +56,10 @@ impl Program {
     }
 
     pub fn from_path(execution_path: Vec<u128>) -> Program {
+
+        let first_op = execution_path[0];
+        assert!(first_op == opcodes::BEGIN, "a program must start with BEGIN operation");
+
         let graph = ExecutionGraph::new(execution_path);
         let mut path_hashes = Vec::new();
         digest_graph(&graph, &mut path_hashes, [0; STATE_ELEMENTS], 0);
@@ -98,7 +109,7 @@ fn digest_graph(graph: &ExecutionGraph, hashes: &mut Vec<[u8; 32]>, mut state: H
         let sprint_length = operations.len();
         let path_length = get_padded_length(step + sprint_length, operations[sprint_length - 1]);
         let mut operations = operations.to_vec();
-        operations.resize(path_length - step + 1, opcodes::NOOP);
+        operations.resize(path_length - step, opcodes::NOOP);
 
         // update the state with all opcodes but the last one
         for i in 0..(operations.len() - 1) {
@@ -145,7 +156,7 @@ mod tests {
         let program2 = Program::from_path(path.clone());
 
         pad_program(&mut path);
-        let path_hash = u128::digest(&path);
+        let path_hash = u128::digest(&path[..(path.len() - 1)]);
         assert_eq!(path_hash, *program1.get_path_hash(0));
         assert_eq!(path_hash, *program1.hash());
         assert_eq!(path_hash, *program2.get_path_hash(0));
@@ -163,10 +174,10 @@ mod tests {
 
         let mut path1 = vec![opcodes::BEGIN, opcodes::ADD, opcodes::MUL, opcodes::ASSERT, opcodes::DROP];
         pad_program(&mut path1);
-        let path1_hash = u128::digest(&path1);
+        let path1_hash = u128::digest(&path1[..(path1.len() - 1)]);
         let mut path2 = vec![opcodes::BEGIN, opcodes::ADD, opcodes::MUL, opcodes::NOT, opcodes::ASSERT, opcodes::DUP];
         pad_program(&mut path2);
-        let path2_hash = u128::digest(&path2);
+        let path2_hash = u128::digest(&path2[..(path2.len() - 1)]);
 
         let buf = [path1_hash, path2_hash].concat();
         let mut program_hash = [0u8; 32];

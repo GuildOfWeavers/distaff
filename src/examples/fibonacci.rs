@@ -1,4 +1,4 @@
-use distaff::{ ProgramInputs, assembly, FiniteField, F128 };
+use distaff::{ Program, ProgramInputs, assembly, FiniteField, F128 };
 use super::{ Example, utils::parse_args };
 
 pub fn get_example(args: &[String]) -> Example  {
@@ -29,7 +29,7 @@ pub fn get_example(args: &[String]) -> Example  {
 }
 
 /// Generates a program to compute the `n`-th term of Fibonacci sequence
-fn generate_fibonacci_program(n: usize) -> Vec<F128> {
+fn generate_fibonacci_program(n: usize) -> Program {
 
     let mut program = String::with_capacity(n * 20);
 
@@ -43,7 +43,7 @@ fn generate_fibonacci_program(n: usize) -> Vec<F128> {
         program.push_str("swap dup.2 drop add ");
     }
 
-    return assembly::translate(&program).unwrap();
+    return Program::from_path(assembly::translate(&program).unwrap());
 }
 
 /// Computes the `n`-th term of Fibonacci sequence

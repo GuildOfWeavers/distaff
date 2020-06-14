@@ -1,11 +1,13 @@
 use log::debug;
 use std::{ cmp, time::Instant };
 use crate::math::{ F128, FiniteField };
-use crate::stark::{ self, ProofOptions, StarkProof, ProgramInputs, MAX_OUTPUTS, MIN_TRACE_LENGTH };
+use crate::stark::{ self, ProofOptions, StarkProof, MAX_OUTPUTS, MIN_TRACE_LENGTH };
 use crate::utils::{ as_bytes };
 
+mod program;
+pub use program::{ Program, ProgramInputs };
+
 pub mod opcodes;
-pub mod program;
 pub mod assembly;
 
 #[cfg(test)]
@@ -19,17 +21,13 @@ mod tests;
 /// 
 /// * `inputs` specify the initial stack state the with inputs[0] being the top of the stack;
 /// * `num_outputs` specifies the number of elements from the top of the stack to be returned;
-pub fn execute(program: &[F128], inputs: &ProgramInputs<F128>, num_outputs: usize, options: &ProofOptions) -> (Vec<F128>, [u8; 32], StarkProof<F128>)
+pub fn execute(program: &Program, inputs: &ProgramInputs<F128>, num_outputs: usize, options: &ProofOptions) -> (Vec<F128>, [u8; 32], StarkProof<F128>)
 {
-    assert!(program.len() > 1,
-        "expected a program with at last two operations, but received {}", program.len());
-    assert!(program[0] == F128::from(opcodes::BEGIN),
-        "a program must start with BEGIN operation");
     assert!(num_outputs <= MAX_OUTPUTS, 
         "cannot produce more than {} outputs, but requested {}", MAX_OUTPUTS, num_outputs);
 
-    // pad the program with the appropriate number of NOOPs
-    let mut program = program.to_vec();
+    // TODO: use the entire program to build the trace table
+    let mut program = program.execution_graph().operations().to_vec();
     pad_program(&mut program);
 
     // execute the program to create an execution trace

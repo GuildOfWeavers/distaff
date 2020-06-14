@@ -1,16 +1,16 @@
-use crate::{ ProofOptions, ProgramInputs, opcodes::f128 as opcodes, F128, FiniteField, Accumulator, Hasher };
+use crate::{ ProofOptions, opcodes::f128 as opcodes, F128, FiniteField, Hasher };
+use super::{ Program, ProgramInputs, };
 
 mod comparisons;
 
 #[test]
 fn execute_verify() {
-    let program = [
+    let program = Program::from_path(vec![
         opcodes::BEGIN, opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
         opcodes::ADD,   opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
         opcodes::ADD,   opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
         opcodes::ADD,   opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-    ];
-    let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
+    ]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::from_public(&[1, 0]);
@@ -18,7 +18,7 @@ fn execute_verify() {
 
     let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
     assert_eq!(outputs, [3]);
-    assert_eq!(program_hash, expected_hash);
+    assert_eq!(*program.hash(), program_hash);
 
     let result = super::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
     assert_eq!(Ok(true), result);
@@ -26,13 +26,12 @@ fn execute_verify() {
 
 #[test]
 fn execute_verify_fail() {
-    let program = [
+    let program = Program::from_path(vec![
         opcodes::BEGIN, opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
         opcodes::ADD,   opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
         opcodes::ADD,   opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
         opcodes::ADD,   opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-    ];
-    let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
+    ]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::from_public(&[1, 0]);
@@ -40,7 +39,7 @@ fn execute_verify_fail() {
 
     let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
     assert_eq!(outputs, [3]);
-    assert_eq!(program_hash, expected_hash);
+    assert_eq!(*program.hash(), program_hash);
 
     // wrong inputs
     let result = super::verify(&program_hash, &[1, 1], &outputs, &proof);
@@ -62,13 +61,12 @@ fn execute_verify_fail() {
 
 #[test]
 fn stack_operations() {
-    let program = [
+    let program = Program::from_path(vec![
         opcodes::BEGIN,  opcodes::SWAP,    opcodes::SWAP2, opcodes::SWAP4,
         opcodes::CHOOSE, opcodes::PUSH,    11,             opcodes::ROLL4, 
         opcodes::DUP,    opcodes::CHOOSE2, opcodes::DUP4,  opcodes::ROLL8,
         opcodes::DROP,   opcodes::DROP,    opcodes::DUP2,  opcodes::NOOP
-    ];
-    let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
+    ]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::from_public(&[7, 6, 5, 4, 3, 2, 1, 0]);
@@ -76,7 +74,7 @@ fn stack_operations() {
 
     let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
     assert_eq!(outputs, [3, 6, 3, 6, 7, 11, 3, 6]);
-    assert_eq!(program_hash, expected_hash);
+    assert_eq!(*program.hash(), program_hash);
 
     let result = super::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
     assert_eq!(Ok(true), result);
@@ -85,13 +83,12 @@ fn stack_operations() {
 #[test]
 fn logic_operations() {
     // CHOOSE
-    let program = [
+    let program = Program::from_path(vec![
         opcodes::BEGIN,  opcodes::CHOOSE,  opcodes::CHOOSE, opcodes::NOOP,
         opcodes::NOOP,   opcodes::NOOP,    opcodes::NOOP,   opcodes::NOOP,
         opcodes::NOOP,   opcodes::NOOP,    opcodes::NOOP,   opcodes::NOOP,
         opcodes::NOOP,   opcodes::NOOP,    opcodes::NOOP,   opcodes::NOOP,
-    ];
-    let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
+    ]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::from_public(&[3, 4, 1, 5, 0, 6, 7, 8]);
@@ -99,19 +96,18 @@ fn logic_operations() {
 
     let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
     assert_eq!(outputs, [5, 6, 7, 8, 0, 0, 0, 0]);
-    assert_eq!(program_hash, expected_hash);
+    assert_eq!(*program.hash(), program_hash);
 
     let result = super::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
     assert_eq!(Ok(true), result);
 
     // CHOOSE2
-    let program = [
+    let program = Program::from_path(vec![
         opcodes::BEGIN, opcodes::PUSH,    3,                opcodes::PUSH,
         4,              opcodes::CHOOSE2, opcodes::CHOOSE2, opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,    opcodes::NOOP,    opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,    opcodes::NOOP,    opcodes::NOOP,
-    ];
-    let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
+    ]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::from_public(&[5, 6, 1, 0, 7, 8, 0, 0]);
@@ -119,7 +115,7 @@ fn logic_operations() {
 
     let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
     assert_eq!(outputs, [7, 8, 0, 0, 0, 0, 0, 0]);
-    assert_eq!(program_hash, expected_hash);
+    assert_eq!(*program.hash(), program_hash);
 
     let result = super::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
     assert_eq!(Ok(true), result);
@@ -128,12 +124,12 @@ fn logic_operations() {
 #[test]
 #[should_panic]
 fn logic_operations_panic() {
-    let program = [
+    let program = Program::from_path(vec![
         opcodes::BEGIN,  opcodes::CHOOSE,  opcodes::CHOOSE, opcodes::NOOP,
         opcodes::NOOP,   opcodes::NOOP,    opcodes::NOOP,   opcodes::NOOP,
         opcodes::NOOP,   opcodes::NOOP,    opcodes::NOOP,   opcodes::NOOP,
         opcodes::NOOP,   opcodes::NOOP,    opcodes::NOOP,   opcodes::NOOP,
-    ];
+    ]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::from_public(&[3, 4, 2, 5, 0, 6, 7, 8]);
@@ -144,13 +140,12 @@ fn logic_operations_panic() {
 
 #[test]
 fn math_operations() {
-    let program = [
+    let program = Program::from_path(vec![
         opcodes::BEGIN, opcodes::ADD,  opcodes::MUL,  opcodes::INV,
         opcodes::NEG,   opcodes::SWAP, opcodes::NOT,  opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-    ];
-    let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
+    ]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::from_public(&[7, 6, 5, 0, 2, 3]);
@@ -160,7 +155,7 @@ fn math_operations() {
 
     let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
     assert_eq!(expected_result, outputs);
-    assert_eq!(program_hash, expected_hash);
+    assert_eq!(*program.hash(), program_hash);
 
     let result = super::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
     assert_eq!(Ok(true), result);
@@ -169,7 +164,7 @@ fn math_operations() {
 #[test]
 fn hash_operations() {
     // single hash
-    let program = [
+    let program = Program::from_path(vec![
         opcodes::BEGIN, opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
@@ -178,7 +173,7 @@ fn hash_operations() {
         opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR,
         opcodes::HASHR, opcodes::HASHR, opcodes::DROP,  opcodes::DROP,
         opcodes::DROP,  opcodes::DROP,  opcodes::NOOP,  opcodes::NOOP,
-    ];
+    ]);
 
     let value = [1, 2, 3, 4];
     let mut expected_hash = <F128 as Hasher>::digest(&value);
@@ -195,7 +190,7 @@ fn hash_operations() {
     assert_eq!(Ok(true), result);
 
     // double hash
-    let program = [
+    let program = Program::from_path(vec![
         opcodes::BEGIN, opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
@@ -208,7 +203,7 @@ fn hash_operations() {
         opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR,
         opcodes::HASHR, opcodes::HASHR, opcodes::DROP4, opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
-    ];
+    ]);
 
     let value = [1, 2, 3, 4];
     let mut expected_hash = <F128 as Hasher>::digest(&value);
@@ -228,12 +223,12 @@ fn hash_operations() {
 
 #[test]
 fn read_operations() {
-    let program = [
+    let program = Program::from_path(vec![
         opcodes::BEGIN, opcodes::READ,  opcodes::READ2, opcodes::NOOP,
         opcodes::PUSH,      5,          opcodes::NOOP,  opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
-    ];
+    ]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::new(&[1], &[2, 3], &[4]);
@@ -249,13 +244,12 @@ fn read_operations() {
 
 #[test]
 fn assert_operation() {
-    let program = [
+    let program = Program::from_path(vec![
         opcodes::BEGIN, opcodes::ASSERT, opcodes::NOOP, opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
-    ];
-    let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
+    ]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::from_public(&[1, 2, 3]);
@@ -265,7 +259,7 @@ fn assert_operation() {
 
     let (outputs, program_hash, proof) = super::execute(&program, &inputs, num_outputs, &options);
     assert_eq!(expected_result, outputs);
-    assert_eq!(program_hash, expected_hash);
+    assert_eq!(*program.hash(), program_hash);
 
     let result = super::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
     assert_eq!(Ok(true), result);

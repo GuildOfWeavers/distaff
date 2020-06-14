@@ -1,8 +1,8 @@
 use crate::math::{ FiniteField, fft, polynom, parallel };
 use crate::crypto::{ MerkleTree, HashFunction };
-use crate::processor::opcodes;
+use crate::processor::{ ProgramInputs, opcodes};
 use crate::utils::{ uninit_vector, filled_vector, as_bytes };
-use crate::stark::{ ProgramInputs, CompositionCoefficients, Accumulator, Hasher, utils };
+use crate::stark::{ CompositionCoefficients, Accumulator, Hasher, utils };
 use crate::stark::{ MAX_REGISTER_COUNT, DECODER_WIDTH, PROG_HASH_RANGE };
 use super::{ TraceState, decoder, stack };
 
@@ -257,7 +257,8 @@ impl <T> TraceTable<T>
 mod tests {
 
     use crate::{ crypto::hash::blake3, processor::opcodes::f128 as opcodes };
-    use crate::stark::{ TraceTable, ProgramInputs, CompositionCoefficients, MAX_CONSTRAINT_DEGREE };
+    use crate::processor::{ ProgramInputs };
+    use crate::stark::{ TraceTable, CompositionCoefficients, MAX_CONSTRAINT_DEGREE };
     use crate::math::{ F128, FiniteField, polynom, parallel, fft };
 
     const EXT_FACTOR: usize = 32;

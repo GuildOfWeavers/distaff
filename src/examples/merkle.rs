@@ -1,4 +1,4 @@
-use distaff::{ ProgramInputs, processor::opcodes::f128 as opcodes, FiniteField, F128, stark::Hasher };
+use distaff::{ Program, ProgramInputs, processor::opcodes::f128 as opcodes, FiniteField, F128, stark::Hasher };
 use super::{ Example, utils::parse_args };
 
 pub fn get_example(args: &[String]) -> Example  {
@@ -37,7 +37,7 @@ pub fn get_example(args: &[String]) -> Example  {
 }
 
 /// Returns a program to verify Merkle authentication path for a tree of depth `n`
-fn generate_merkle_program(n: usize) -> Vec<F128> {
+fn generate_merkle_program(n: usize) -> Program {
 
     // the program starts by reading the first two nodes in the Merkle
     // path and pushing them onto the stack (each node is represented
@@ -76,7 +76,7 @@ fn generate_merkle_program(n: usize) -> Vec<F128> {
     // any more nodes - so, we omit the last 4 operations.
     program.extend_from_slice(&level_sub[..28]);
 
-    return program;
+    return Program::from_path(program);
 }
 
 /// Converts Merkle authentication path for a node at the specified `index` into 

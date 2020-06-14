@@ -1,7 +1,7 @@
 use std::cmp;
 use crate::math::{ FiniteField };
-use crate::processor::opcodes;
-use crate::stark::{ ProgramInputs, utils::Hasher };
+use crate::processor::{ ProgramInputs, opcodes};
+use crate::stark::{ utils::Hasher };
 use crate::stark::{ MIN_STACK_DEPTH, MAX_STACK_DEPTH };
 use crate::utils::{ filled_vector };
 
