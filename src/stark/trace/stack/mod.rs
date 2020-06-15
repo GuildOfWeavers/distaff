@@ -8,9 +8,6 @@ use crate::utils::{ filled_vector };
 mod stack_trace;
 use stack_trace::StackTrace;
 
-#[cfg(test)]
-mod tests;
-
 // CONSTANTS
 // ================================================================================================
 const MIN_USER_STACK_DEPTH: usize = MIN_STACK_DEPTH - 1;

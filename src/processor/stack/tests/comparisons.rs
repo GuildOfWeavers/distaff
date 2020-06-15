@@ -1,6 +1,6 @@
 use crate::math::{ F128, FiniteField };
 use super::{ init_stack, get_stack_state, get_aux_state, TRACE_LENGTH };
-use super::super::StackTrace;
+use super::super::Stack;
 
 // EQUALITY OPERATION
 // ================================================================================================
@@ -208,7 +208,7 @@ fn build_inputs_for_cmp(a: u128, b: u128, size: usize) -> (Vec<u128>, Vec<u128>)
     return (inputs_a, inputs_b);
 }
 
-fn lt_finale(stack: &mut StackTrace<u128>, step: usize) -> usize {
+fn lt_finale(stack: &mut Stack, step: usize) -> usize {
     stack.drop(step + 0);
     stack.swap4(step + 1);
     stack.roll4(step + 2);
@@ -222,7 +222,7 @@ fn lt_finale(stack: &mut StackTrace<u128>, step: usize) -> usize {
     return step + 10;
 }
 
-fn gt_finale(stack: &mut StackTrace<u128>, step: usize) -> usize {
+fn gt_finale(stack: &mut Stack, step: usize) -> usize {
     stack.drop(step + 0);
     stack.swap4(step + 1);
     stack.roll4(step + 2);

@@ -1,11 +1,10 @@
 use crate::math::{ F128, FiniteField };
 use crate::stark::{ Hasher };
-use crate::utils::{ filled_vector };
-
-const TRACE_LENGTH: usize = 16;
-const EXTENSION_FACTOR: usize = 16;
+use super::{ Stack, super::ProgramInputs };
 
 mod comparisons;
+
+const TRACE_LENGTH: usize = 16;
 
 // FLOW CONTROL OPERATIONS
 // ================================================================================================
@@ -355,34 +354,12 @@ fn hashr() {
 // HELPER FUNCTIONS
 // ================================================================================================
 
-fn init_stack(public_inputs: &[F128], secret_inputs_a: &[F128], secret_inputs_b: &[F128], trace_length: usize) -> super::StackTrace<F128> {
-    let mut user_registers: Vec<Vec<F128>> = Vec::with_capacity(super::MIN_USER_STACK_DEPTH);
-    for i in 0..super::MIN_USER_STACK_DEPTH {
-        let mut register = filled_vector(trace_length, trace_length * EXTENSION_FACTOR, F128::ZERO);
-        if i < public_inputs.len() { 
-            register[0] = public_inputs[i];
-        }
-        user_registers.push(register);
-    }
-
-    let aux_register = filled_vector(trace_length, trace_length * EXTENSION_FACTOR, F128::ZERO);
-
-    let mut secret_inputs_a = secret_inputs_a.to_vec();
-    secret_inputs_a.reverse();
-    let mut secret_inputs_b = secret_inputs_b.to_vec();
-    secret_inputs_b.reverse();
-
-    return super::StackTrace {
-        aux_register,
-        user_registers,
-        secret_inputs_a,
-        secret_inputs_b,
-        max_depth: public_inputs.len(),
-        depth    : public_inputs.len()
-    };
+fn init_stack(public_inputs: &[F128], secret_inputs_a: &[F128], secret_inputs_b: &[F128], trace_length: usize) -> Stack {
+    let inputs = ProgramInputs::new(public_inputs, secret_inputs_a, secret_inputs_b);
+    return Stack::new(&inputs, trace_length);
 }
 
-fn get_stack_state(stack: &super::StackTrace<F128>, step: usize) -> Vec<F128> {
+fn get_stack_state(stack: &Stack, step: usize) -> Vec<F128> {
     let mut state = Vec::with_capacity(stack.user_registers.len());
     for i in 0..stack.user_registers.len() {
         state.push(stack.user_registers[i][step]);
@@ -390,6 +367,6 @@ fn get_stack_state(stack: &super::StackTrace<F128>, step: usize) -> Vec<F128> {
     return state;
 }
 
-fn get_aux_state(stack: &super::StackTrace<F128>, step: usize) -> Vec<F128> {
+fn get_aux_state(stack: &Stack, step: usize) -> Vec<F128> {
     return vec![stack.aux_register[step]];
 }

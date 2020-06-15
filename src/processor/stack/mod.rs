@@ -3,6 +3,9 @@ use crate::processor::{ ProgramInputs, opcodes };
 use crate::stark::{ Hasher };
 use crate::utils::{ filled_vector };
 
+#[cfg(test)]
+mod tests;
+
 // TODO: get these constants global declarations
 const HASH_STATE_WIDTH: usize = 6;
 const MAX_USER_STACK_DEPTH: usize = 31;
@@ -11,12 +14,12 @@ const MIN_USER_STACK_DEPTH: usize = 8;
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct Stack {
-    pub aux_register    : Vec<u128>,
-    pub user_registers  : Vec<Vec<u128>>,
-    pub secret_inputs_a : Vec<u128>,
-    pub secret_inputs_b : Vec<u128>,
-    pub max_depth       : usize,
-    pub depth           : usize,
+    aux_register    : Vec<u128>,
+    user_registers  : Vec<Vec<u128>>,
+    secret_inputs_a : Vec<u128>,
+    secret_inputs_b : Vec<u128>,
+    max_depth       : usize,
+    depth           : usize,
 }
 
 // STACK IMPLEMENTATION
