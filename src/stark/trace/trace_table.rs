@@ -45,6 +45,18 @@ impl <T> TraceTable<T>
         return TraceTable { registers, polys, ext_factor: extension_factor };
     }
 
+    pub fn new2(mut registers: Vec<Vec<T>>, extension_factor: usize) -> TraceTable<T> {
+        // TODO: clean up
+        let trace_length = registers[0].len();
+        for register in registers.iter_mut() {
+            register.resize(trace_length * extension_factor, T::ZERO);
+            register.resize(trace_length, T::ZERO);
+        }
+
+        let polys = Vec::with_capacity(registers.len());
+        return TraceTable { registers, polys, ext_factor: extension_factor };
+    }
+
     /// Returns hash value of the executed program.
     pub fn get_program_hash(&self) -> Vec<T> {
         let last_step = if self.is_extended() {

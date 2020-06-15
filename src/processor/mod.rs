@@ -4,6 +4,12 @@ use crate::math::{ F128, FiniteField };
 use crate::stark::{ self, ProofOptions, StarkProof, MAX_OUTPUTS, MIN_TRACE_LENGTH };
 use crate::utils::{ as_bytes };
 
+mod decoder;
+use decoder::Decoder;
+
+mod stack;
+use stack::Stack;
+
 mod program;
 pub use program::{ Program, ProgramInputs };
 
@@ -30,9 +36,35 @@ pub fn execute(program: &Program, inputs: &ProgramInputs<F128>, num_outputs: usi
     let mut program = program.execution_graph().operations().to_vec();
     pad_program(&mut program);
 
-    // execute the program to create an execution trace
     let now = Instant::now();
-    let mut trace = stark::TraceTable::new(&program, inputs, options.extension_factor());
+
+    // TODO: clean up
+    // execute the program
+    let mut decoder = Decoder::new(program.len());
+    let mut stack = Stack::new(inputs, program.len());
+
+    let mut step = 0;
+    while step < program.len() - 1 {
+        
+        decoder.decode(program[step], false, step);
+        stack.execute(program[step], program[step + 1], step);
+
+        if program[step] == opcodes::f128::PUSH {
+            step += 1;
+            decoder.decode(program[step], true, step);
+            stack.execute(opcodes::f128::NOOP, 0, step);
+        }
+
+        step += 1;
+    }
+
+    let mut register_traces = decoder.into_register_trace();
+    register_traces.append(&mut stack.into_register_traces());
+
+    // execute the program to create an execution trace
+    
+    //let mut trace = stark::TraceTable::new(&program, inputs, options.extension_factor());
+    let mut trace = stark::TraceTable::new2(register_traces, options.extension_factor());
     debug!("Generated execution trace of {} registers and {} steps in {} ms",
         trace.register_count(),
         trace.unextended_length(),
