@@ -1,8 +1,8 @@
 use serde::{ Serialize, Deserialize };
 use crate::math::{ FiniteField };
 use crate::crypto::{ BatchMerkleProof };
-use crate::stark::{ Accumulator, fri::FriProof, TraceState, ProofOptions };
-use crate::utils::{ uninit_vector, as_bytes };
+use crate::stark::{ fri::FriProof, TraceState, ProofOptions };
+use crate::utils::{ uninit_vector, as_bytes, Accumulator };
 
 // TYPES AND INTERFACES
 // ================================================================================================

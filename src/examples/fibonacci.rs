@@ -1,4 +1,4 @@
-use distaff::{ Program, ProgramInputs, assembly, FiniteField, F128 };
+use distaff::{ Program, ProgramInputs, assembly, math::{ FiniteField, F128 } };
 use super::{ Example, utils::parse_args };
 
 pub fn get_example(args: &[String]) -> Example  {

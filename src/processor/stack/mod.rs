@@ -1,7 +1,6 @@
 use crate::math::{ FiniteField, F128 };
 use crate::processor::{ ProgramInputs, opcodes };
-use crate::stark::{ Hasher };
-use crate::utils::{ filled_vector };
+use crate::utils::{ filled_vector, Hasher };
 
 #[cfg(test)]
 mod tests;

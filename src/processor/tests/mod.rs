@@ -1,4 +1,4 @@
-use crate::{ ProofOptions, opcodes::f128 as opcodes, F128, FiniteField, Hasher };
+use crate::{ ProofOptions, opcodes::f128 as opcodes, math::{ FiniteField, F128 }, utils::Hasher };
 use super::{ Program, ProgramInputs, };
 
 mod comparisons;

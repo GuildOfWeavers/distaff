@@ -1,9 +1,8 @@
 use std::cmp;
 use crate::math::{ FiniteField };
 use crate::processor::{ ProgramInputs, opcodes};
-use crate::stark::{ utils::Hasher };
 use crate::stark::{ MIN_STACK_DEPTH, MAX_STACK_DEPTH };
-use crate::utils::{ filled_vector };
+use crate::utils::{ filled_vector, Hasher };
 
 mod stack_trace;
 use stack_trace::StackTrace;

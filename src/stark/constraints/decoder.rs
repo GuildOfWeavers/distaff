@@ -1,6 +1,7 @@
 use crate::math::{ FiniteField, polynom };
 use crate::processor::{ opcodes };
-use crate::stark::{ TraceState, utils::Accumulator };
+use crate::utils::{ Accumulator };
+use crate::stark::{ TraceState };
 use crate::stark::{ ACC_STATE_WIDTH, ACC_CYCLE_LENGTH };
 
 // CONSTANTS

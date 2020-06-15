@@ -2,7 +2,7 @@ use log::debug;
 use std::{ cmp, time::Instant };
 use crate::math::{ F128, FiniteField };
 use crate::stark::{ self, ProofOptions, StarkProof, MAX_OUTPUTS, MIN_TRACE_LENGTH };
-use crate::utils::{ as_bytes };
+use crate::utils::{ as_bytes, Accumulator };
 
 mod decoder;
 use decoder::Decoder;
@@ -111,7 +111,7 @@ pub fn pad_program<T: FiniteField>(program: &mut Vec<T>) {
 }
 
 /// Returns a hash value of the program.
-pub fn hash_program<T: stark::Accumulator>(program: &[T]) -> [u8; 32] {
+pub fn hash_program<T: Accumulator>(program: &[T]) -> [u8; 32] {
     assert!(program.len().is_power_of_two(), "program length must be a power of 2");
     assert!(program.len() >= MIN_TRACE_LENGTH, "program must consist of at least {} operations", MIN_TRACE_LENGTH);
     assert!(program[0] == T::from(opcodes::BEGIN), "program must start with BEGIN operation");

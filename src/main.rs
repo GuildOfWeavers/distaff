@@ -1,7 +1,7 @@
 use std::env;
 use std::io::Write;
 use std::time::Instant;
-use distaff::{ StarkProof, processor, F128 };
+use distaff::{ self, StarkProof, math::F128 };
 
 mod examples;
 use examples::{ Example };
@@ -36,7 +36,7 @@ fn main() {
 
     // execute the program and generate the proof of execution
     let now = Instant::now();
-    let (outputs, program_hash, proof) = processor::execute(&program, &inputs, num_outputs, &options);
+    let (outputs, program_hash, proof) = distaff::execute(&program, &inputs, num_outputs, &options);
     println!("--------------------------------");
     println!("Executed program with hash {} in {} ms", 
         hex::encode(program_hash),
@@ -55,7 +55,7 @@ fn main() {
     // results in the expected output
     let proof = bincode::deserialize::<StarkProof<F128>>(&proof_bytes).unwrap();
     let now = Instant::now();
-    match processor::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof) {
+    match distaff::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof) {
         Ok(_) => println!("Execution verified in {} ms", now.elapsed().as_millis()),
         Err(msg) => println!("Failed to verify execution: {}", msg)
     }

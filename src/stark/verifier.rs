@@ -1,6 +1,6 @@
 use std::mem;
-use crate::{ math::{ FiniteField }, crypto::{ MerkleTree } };
-use super::{ StarkProof, TraceState, ConstraintEvaluator, CompositionCoefficients, Accumulator, Hasher, fri, utils };
+use crate::{ math::{ FiniteField }, crypto::{ MerkleTree }, utils::{ Hasher, Accumulator} };
+use super::{ StarkProof, TraceState, ConstraintEvaluator, CompositionCoefficients, fri, utils };
 
 // VERIFIER FUNCTION
 // ================================================================================================

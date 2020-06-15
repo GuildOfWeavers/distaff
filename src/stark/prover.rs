@@ -2,10 +2,10 @@ use std::{ mem, time::Instant };
 use log::debug;
 use crate::math::{ FiniteField, polynom, fft };
 use crate::crypto::{ MerkleTree };
-
+use crate::utils::{ Hasher, Accumulator };
 use super::trace::{ TraceTable, TraceState };
 use super::constraints::{ ConstraintTable, ConstraintPoly, MAX_CONSTRAINT_DEGREE };
-use super::{ ProofOptions, StarkProof, Accumulator, Hasher, CompositionCoefficients, DeepValues, fri, utils };
+use super::{ ProofOptions, StarkProof, CompositionCoefficients, DeepValues, fri, utils };
 
 // PROVER FUNCTION
 // ================================================================================================

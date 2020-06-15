@@ -1,5 +1,6 @@
 use crate::crypto::{ HashFunction, build_merkle_nodes };
-use crate::stark::{ Accumulator, MIN_TRACE_LENGTH };
+use crate::stark::{ MIN_TRACE_LENGTH };
+use crate::utils::{ Accumulator };
 use super::{ opcodes::f128 as opcodes};
 
 mod execution_graph;
@@ -145,7 +146,7 @@ fn get_padded_length(length: usize, last_op: u128) -> usize {
 #[cfg(test)]
 mod tests {
 
-    use crate::{ Accumulator, crypto::hash::blake3 };
+    use crate::{ utils::Accumulator, crypto::hash::blake3 };
     use super::{ opcodes, ExecutionGraph, Program, super::pad_program };
 
     #[test]

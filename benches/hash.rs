@@ -1,5 +1,5 @@
 use criterion::{ black_box, criterion_group, Criterion };
-use distaff::hash;
+use distaff::crypto::hash;
 
 pub fn poseidon(c: &mut Criterion) {
     let v: [u8; 64] = [

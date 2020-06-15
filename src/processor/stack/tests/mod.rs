@@ -1,5 +1,5 @@
 use crate::math::{ F128, FiniteField };
-use crate::stark::{ Hasher };
+use crate::utils::{ Hasher };
 use super::{ Stack, super::ProgramInputs };
 
 mod comparisons;

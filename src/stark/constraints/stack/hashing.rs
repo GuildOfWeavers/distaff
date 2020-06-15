@@ -1,6 +1,6 @@
 use std::cmp;
 use crate::math::{ FiniteField, polynom };
-use crate::stark::{ Hasher };
+use crate::utils::{ Hasher };
 use crate::stark::{ HASH_STATE_WIDTH, HASH_CYCLE_LENGTH };
 
 // TYPES AND INTERFACES

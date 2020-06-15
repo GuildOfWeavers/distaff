@@ -157,7 +157,7 @@ fn build_layer_merkle_proof<T>(layer: &FriLayer<T>, options: &ProofOptions) -> B
 #[cfg(test)]
 mod tests {
     
-    use crate::{ F64, FiniteField, polynom };
+    use crate::math::{ F64, FiniteField, polynom };
 
     #[test]
     fn verify_remainder() {

@@ -1,6 +1,6 @@
 use crate::math::{ FiniteField };
-use crate::stark::{ utils::Hasher, HASH_STATE_WIDTH };
-use crate::utils::{ filled_vector };
+use crate::stark::{ HASH_STATE_WIDTH };
+use crate::utils::{ filled_vector, Hasher };
 use super::{ MAX_USER_STACK_DEPTH };
 
 // TYPES AND INTERFACES

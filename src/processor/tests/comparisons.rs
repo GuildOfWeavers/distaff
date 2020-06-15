@@ -1,4 +1,4 @@
-use crate::{ ProofOptions, opcodes::f128 as opcodes, F128, FiniteField };
+use crate::{ ProofOptions, opcodes::f128 as opcodes, math::{ FiniteField, F128 } };
 use super::super::{ execute, verify, Program, ProgramInputs };
 
 #[test]

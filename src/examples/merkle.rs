@@ -1,4 +1,4 @@
-use distaff::{ Program, ProgramInputs, processor::opcodes::f128 as opcodes, FiniteField, F128, stark::Hasher };
+use distaff::{ Program, ProgramInputs, opcodes::f128 as opcodes, math::{ FiniteField, F128 }, utils::Hasher };
 use super::{ Example, utils::parse_args };
 
 pub fn get_example(args: &[String]) -> Example  {

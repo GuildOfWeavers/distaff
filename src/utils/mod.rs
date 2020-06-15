@@ -1,5 +1,13 @@
 use std::{ mem, slice };
 
+// RE-EXPORTS
+// ================================================================================================
+mod hasher;
+pub use hasher::{ Hasher };
+
+mod accumulator;
+pub use accumulator::{ Accumulator };
+
 // VECTOR FUNCTIONS
 // ================================================================================================
 pub fn uninit_vector<T>(length: usize) -> Vec<T> {
@@ -14,6 +22,7 @@ pub fn filled_vector<T: Copy>(length: usize, capacity: usize, value: T) -> Vec<T
     return vector;
 }
 
+#[cfg(test)]
 pub fn remove_leading_zeros(values: &[u64]) -> Vec<u64> {
     for i in (0..values.len()).rev() {
         if values[i] != 0 {

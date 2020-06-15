@@ -1,8 +1,8 @@
 use std::mem;
 use crate::math::{ FiniteField };
 use crate::processor::{ opcodes };
-use crate::stark::{ StarkProof, TraceTable, TraceState, ConstraintCoefficients, Accumulator, Hasher };
-use crate::utils::{ uninit_vector };
+use crate::stark::{ StarkProof, TraceTable, TraceState, ConstraintCoefficients };
+use crate::utils::{ Hasher, Accumulator, uninit_vector };
 use super::{ decoder::Decoder, stack::Stack, MAX_CONSTRAINT_DEGREE };
 
 // TYPES AND INTERFACES

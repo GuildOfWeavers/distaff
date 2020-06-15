@@ -1,5 +1,5 @@
 //use crate::{ ACC_STATE_WIDTH, NUM_OP_BITS};
-use crate::{ Accumulator };
+use crate::utils::Accumulator;
 use super::{ opcodes::f128 as opcodes };
 
 // TODO: get these constants from global declarations

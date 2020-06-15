@@ -6,12 +6,6 @@ use super::{ ProofOptions, MAX_CONSTRAINT_DEGREE };
 
 // RE-EXPORTS
 // ================================================================================================
-mod accumulator;
-pub use accumulator::{ Accumulator };
-
-mod hasher;
-pub use hasher::{ Hasher };
-
 mod coefficients;
 pub use coefficients::{ ConstraintCoefficients, CompositionCoefficients };
 
