@@ -1,11 +1,9 @@
-//use crate::{ ACC_STATE_WIDTH, NUM_OP_BITS};
+use crate::{ ACC_STATE_WIDTH, NUM_OP_BITS};
 use crate::utils::Accumulator;
 use super::{ opcodes::f128 as opcodes };
 
-// TODO: get these constants from global declarations
-const ACC_STATE_WIDTH: usize = 4;
-const NUM_OP_BITS: usize = 5;
-
+// TYPES AND INTERFACES
+// ================================================================================================
 pub struct Decoder {
     op_code     : Vec<u128>,
     op_bits     : Vec<Vec<u128>>,
@@ -13,6 +11,8 @@ pub struct Decoder {
     acc_state   : [u128; ACC_STATE_WIDTH],
 }
 
+// DECODER IMPLEMENTATION
+// ================================================================================================
 impl Decoder {
 
     pub fn new(init_trace_length: usize) -> Decoder {

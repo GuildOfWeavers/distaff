@@ -1,14 +1,15 @@
 use crate::math::{ FiniteField, F128 };
 use crate::processor::{ ProgramInputs, opcodes };
 use crate::utils::{ filled_vector, Hasher };
+use crate::{ HASH_STATE_WIDTH, MIN_STACK_DEPTH, MAX_STACK_DEPTH };
 
 #[cfg(test)]
 mod tests;
 
-// TODO: get these constants global declarations
-const HASH_STATE_WIDTH: usize = 6;
-const MAX_USER_STACK_DEPTH: usize = 31;
-const MIN_USER_STACK_DEPTH: usize = 8;
+// CONSTANTS
+// ================================================================================================
+const MIN_USER_STACK_DEPTH: usize = MIN_STACK_DEPTH - 1;
+const MAX_USER_STACK_DEPTH: usize = MAX_STACK_DEPTH - 1;
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -27,6 +28,7 @@ impl Stack
 {
     pub fn new(inputs: &ProgramInputs<u128>, init_trace_length: usize) -> Stack {
 
+        // TODO: clean up
         let public_inputs = inputs.get_public_inputs();
         let init_stack_depth = std::cmp::max(public_inputs.len(), MIN_USER_STACK_DEPTH);
         let mut user_registers: Vec<Vec<u128>> = Vec::with_capacity(init_stack_depth);

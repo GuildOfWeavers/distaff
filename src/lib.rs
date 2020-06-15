@@ -1,4 +1,5 @@
 use log::debug;
+use std::ops::Range;
 use std::time::Instant;
 
 #[cfg(test)]
@@ -26,8 +27,8 @@ pub use processor::{ Program, ProgramInputs, opcodes, assembly };
 /// * `num_outputs` specifies the number of elements from the top of the stack to be returned;
 pub fn execute(program: &Program, inputs: &ProgramInputs<u128>, num_outputs: usize, options: &ProofOptions) -> (Vec<u128>, [u8; 32], StarkProof<u128>)
 {
-    assert!(num_outputs <= stark::MAX_OUTPUTS, 
-        "cannot produce more than {} outputs, but requested {}", stark::MAX_OUTPUTS, num_outputs);
+    assert!(num_outputs <= MAX_OUTPUTS, 
+        "cannot produce more than {} outputs, but requested {}", MAX_OUTPUTS, num_outputs);
 
     // execute the program to create an execution trace
     let now = Instant::now();
@@ -60,3 +61,52 @@ pub fn verify(program_hash: &[u8; 32], public_inputs: &[u128], outputs: &[u128],
 {
     return stark::verify(program_hash, public_inputs, outputs, proof);
 }
+
+// GLOBAL CONSTANTS
+// ================================================================================================
+
+const MIN_TRACE_LENGTH      : usize = 16;
+const MAX_REGISTER_COUNT    : usize = 128;
+
+// HASH OPERATION
+// ------------------------------------------------------------------------------------------------
+const HASH_STATE_RATE       : usize = 4;
+const HASH_STATE_CAPACITY   : usize = 2;
+const HASH_STATE_WIDTH      : usize = HASH_STATE_RATE + HASH_STATE_CAPACITY;
+const HASH_CYCLE_LENGTH     : usize = 16;
+
+// HASH ACCUMULATOR
+// ------------------------------------------------------------------------------------------------
+const ACC_STATE_RATE        : usize = 2;
+const ACC_STATE_CAPACITY    : usize = 2;
+const ACC_STATE_WIDTH       : usize = ACC_STATE_RATE + ACC_STATE_CAPACITY;
+const ACC_CYCLE_LENGTH      : usize = 16;
+
+// DECODER TRACE
+// ------------------------------------------------------------------------------------------------
+//
+//   op  ╒═════════ op_bits ═══════════╕╒══════ op_acc ════════╕
+//    0      1    2     3     4     5     6     7     8     9
+// ├─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┤
+
+const NUM_OP_BITS           : usize = 5;
+const NUM_LD_OPS            : usize = 32;
+
+const DECODER_WIDTH         : usize = 1 + NUM_OP_BITS + ACC_STATE_WIDTH;
+
+const OP_CODE_INDEX         : usize = 0;
+const OP_BITS_RANGE         : Range<usize> = Range { start: 1, end: 6 };
+const OP_ACC_RANGE          : Range<usize> = Range { start: 6, end: 6 + ACC_STATE_WIDTH };
+const PROG_HASH_RANGE       : Range<usize> = Range { start: 6, end: 6 + ACC_STATE_RATE  };
+
+// STACK TRACE
+// ------------------------------------------------------------------------------------------------
+//
+//   aux ╒════════════════ user registers ═════════════════════╕
+//    0      1    2    .................................    31
+// ├─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┤
+
+pub const MAX_PUBLIC_INPUTS : usize = 8;
+pub const MAX_OUTPUTS       : usize = 8;
+const MIN_STACK_DEPTH       : usize = 9;
+const MAX_STACK_DEPTH       : usize = 32;

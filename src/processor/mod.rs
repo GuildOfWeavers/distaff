@@ -1,6 +1,6 @@
 use std::cmp;
 use crate::math::{ F128, FiniteField };
-use crate::stark::{ MIN_TRACE_LENGTH };
+use crate::{ MIN_TRACE_LENGTH };
 
 mod decoder;
 use decoder::Decoder;

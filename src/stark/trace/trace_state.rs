@@ -2,7 +2,7 @@ use std::fmt;
 use std::cmp;
 use crate::math::{ FiniteField };
 use crate::utils::{ Accumulator };
-use crate::stark::{
+use crate::{
     MIN_STACK_DEPTH,
     DECODER_WIDTH,
     OP_CODE_INDEX,

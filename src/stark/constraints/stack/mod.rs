@@ -1,7 +1,8 @@
 use crate::math::{ FiniteField };
 use crate::processor::{ opcodes };
-use crate::stark::{ TraceState, NUM_LD_OPS };
+use crate::stark::{ TraceState };
 use crate::utils::{ Hasher, Accumulator };
+use crate::{ NUM_LD_OPS };
 
 mod comparisons;
 mod hashing;

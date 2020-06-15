@@ -1,5 +1,5 @@
 use crate::crypto::{ HashFunction, build_merkle_nodes };
-use crate::stark::{ MIN_TRACE_LENGTH };
+use crate::{ MIN_TRACE_LENGTH };
 use crate::utils::{ Accumulator };
 use super::{ opcodes::f128 as opcodes};
 

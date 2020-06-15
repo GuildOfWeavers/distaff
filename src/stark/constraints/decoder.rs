@@ -2,7 +2,7 @@ use crate::math::{ FiniteField, polynom };
 use crate::processor::{ opcodes };
 use crate::utils::{ Accumulator };
 use crate::stark::{ TraceState };
-use crate::stark::{ ACC_STATE_WIDTH, ACC_CYCLE_LENGTH };
+use crate::{ ACC_STATE_WIDTH, ACC_CYCLE_LENGTH };
 
 // CONSTANTS
 // ================================================================================================
