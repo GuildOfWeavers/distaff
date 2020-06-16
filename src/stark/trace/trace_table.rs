@@ -1,10 +1,9 @@
 use crate::math::{ FiniteField, fft, polynom, parallel };
 use crate::crypto::{ MerkleTree, HashFunction };
-use crate::processor::{ ProgramInputs, opcodes};
-use crate::utils::{ uninit_vector, filled_vector, as_bytes, Hasher, Accumulator };
 use crate::stark::{ CompositionCoefficients, utils };
+use crate::utils::{ uninit_vector, filled_vector, as_bytes, Hasher, Accumulator };
 use crate::{ MAX_REGISTER_COUNT, DECODER_WIDTH, PROG_HASH_RANGE };
-use super::{ TraceState, decoder, stack };
+use super::{ TraceState };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -19,36 +18,20 @@ pub struct TraceTable<T> {
 impl <T> TraceTable<T>
     where T: FiniteField + Accumulator + Hasher
 {
-    /// Returns a trace table resulting from the execution of the specified program. Space for the
-    /// trace table is allocated in accordance with the specified `extension_factor`.
-    pub fn new(program: &[T], inputs: &ProgramInputs<T>, extension_factor: usize) -> TraceTable<T> {
-        
-        assert!(program.len() > 1, "program length must be greater than 1");
-        assert!(program.len().is_power_of_two(), "program length must be a power of 2");
-        assert!(program[0] == T::from(opcodes::BEGIN), "first operation of a program must be BEGIN");
-        assert!(program[program.len() - 1] == T::from(opcodes::NOOP), "last operation of a program must be NOOP");
-        assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
-
-        // create different segments of the trace
-        let decoder_registers = decoder::process(program, extension_factor);
-        let stack_registers = stack::execute(program, inputs, extension_factor);
-
-        // move all trace registers into a single vector
-        let mut registers = Vec::new();
-        for register in decoder_registers.into_iter() { registers.push(register); }
-        for register in stack_registers.into_iter() { registers.push(register); }
+    /// Returns a trace table constructed from the specified register traces.
+    pub fn new(mut registers: Vec<Vec<T>>, extension_factor: usize) -> TraceTable<T> {
 
         assert!(registers.len() < MAX_REGISTER_COUNT,
             "execution trace cannot have more than {} registers", MAX_REGISTER_COUNT);
+        assert!(extension_factor.is_power_of_two(),
+            "trace extension factor must be a power of 2");
 
-        let polys = Vec::with_capacity(registers.len());
-        return TraceTable { registers, polys, ext_factor: extension_factor };
-    }
-
-    pub fn new2(mut registers: Vec<Vec<T>>, extension_factor: usize) -> TraceTable<T> {
-        // TODO: clean up
         let trace_length = registers[0].len();
+        assert!(trace_length.is_power_of_two(), "execution trace length must be a power of 2");
+
+        // TODO: clean up
         for register in registers.iter_mut() {
+            assert!(register.len() == trace_length, "all register traces must have the same length");
             register.resize(trace_length * extension_factor, T::ZERO);
             register.resize(trace_length, T::ZERO);
         }
@@ -112,21 +95,12 @@ impl <T> TraceTable<T>
         return self.registers.len() - DECODER_WIDTH;
     }
 
-    /// Returns trace of the register at the specified `index`.
-    pub fn get_register_trace(&self, index: usize) -> &[T] {
-        return &self.registers[index];
-    }
-
     /// Returns polynomial of the register at the specified `index`; can be called only
     /// after the trace table has been extended.
+    #[cfg(test)]
     pub fn get_register_poly(&self, index: usize) -> &[T] {
         assert!(self.is_extended(), "trace table has not been extended yet");
         return &self.polys[index];
-    }
-
-    /// Returns trace of the stack register at the specified `index`.
-    pub fn get_stack_register_trace(&self, index: usize) -> &[T] {
-        return &self.registers[index + DECODER_WIDTH];
     }
 
     /// Returns values of all registers at the specified `positions`.
@@ -268,11 +242,11 @@ impl <T> TraceTable<T>
 #[cfg(test)]
 mod tests {
 
-    use crate::{ crypto::hash::blake3, processor::opcodes::f128 as opcodes };
-    use crate::processor::{ ProgramInputs };
-    use crate::stark::{ TraceTable, CompositionCoefficients, MAX_CONSTRAINT_DEGREE };
     use crate::math::{ F128, FiniteField, polynom, parallel, fft };
-
+    use crate::{ crypto::hash::blake3, processor::opcodes::f128 as opcodes };
+    use crate::processor::{ Program, ProgramInputs, execute };
+    use crate::stark::{ TraceTable, CompositionCoefficients, MAX_CONSTRAINT_DEGREE };
+    
     const EXT_FACTOR: usize = 32;
 
     #[test]
@@ -360,13 +334,14 @@ mod tests {
     }
 
     fn build_trace_table() -> TraceTable<F128> {
-        let program = [
+        let program = Program::from_path(vec![
             opcodes::BEGIN, opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
             opcodes::ADD,   opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
             opcodes::ADD,   opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
             opcodes::ADD,   opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-        ];
+        ]);
         let inputs = ProgramInputs::from_public(&[1, 0]);
-        return TraceTable::new(&program, &inputs, EXT_FACTOR);
+        let registers = execute(&program, &inputs);
+        return TraceTable::new(registers, EXT_FACTOR);
     }
 }

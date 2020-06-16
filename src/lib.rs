@@ -33,7 +33,7 @@ pub fn execute(program: &Program, inputs: &ProgramInputs<u128>, num_outputs: usi
     // execute the program to create an execution trace
     let now = Instant::now();
     let register_traces = processor::execute(program, inputs);
-    let mut trace = stark::TraceTable::new2(register_traces, options.extension_factor());
+    let mut trace = stark::TraceTable::new(register_traces, options.extension_factor());
     debug!("Generated execution trace of {} registers and {} steps in {} ms",
         trace.register_count(),
         trace.unextended_length(),
