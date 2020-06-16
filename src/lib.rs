@@ -41,14 +41,21 @@ pub fn execute(program: &Program, inputs: &ProgramInputs<u128>, num_outputs: usi
 
     // copy the user stack state the the last step to return as output
     let last_state = trace.get_state(trace.unextended_length() - 1);
-    let outputs = last_state.get_user_stack()[0..num_outputs].to_vec();
+    let outputs = last_state.get_user_stack()[..num_outputs].to_vec();
 
     // construct program hash
     let mut program_hash = [0u8; 32];
     program_hash.copy_from_slice(utils::as_bytes(&trace.get_program_hash()));
 
     // generate STARK proof
-    let proof = stark::prove(&mut trace, inputs.get_public_inputs(), &outputs, options);
+    let mut proof = stark::prove(&mut trace, inputs.get_public_inputs(), &outputs, options);
+
+    // build Merkle authentication path for the program execution path and attach it to the proof
+    let mut execution_path_hash = [0u128; ACC_STATE_RATE];
+    execution_path_hash.copy_from_slice(&trace.get_program_hash());
+    let (auth_path_index, auth_path) = program.get_auth_path(&execution_path_hash);
+    proof.set_auth_path(auth_path, auth_path_index);
+
     return (outputs, program_hash, proof);
 }
 

@@ -55,7 +55,7 @@ fn execute_verify_fail() {
     let mut program_hash2 = program_hash.clone();
     program_hash2[0] = 1;
     let result = super::verify(&program_hash2, inputs.get_public_inputs(), &outputs, &proof);
-    let err_msg = format!("verification of low-degree proof failed: evaluations did not match column value at depth 0");
+    let err_msg = format!("verification of program execution path failed");
     assert_eq!(Err(err_msg), result);
 }
 

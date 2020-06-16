@@ -1,22 +1,17 @@
 use crate::crypto::{ HashFunction, build_merkle_nodes };
-use crate::{ MIN_TRACE_LENGTH };
-use crate::utils::{ Accumulator };
+use crate::{ MIN_TRACE_LENGTH, ACC_STATE_WIDTH, ACC_STATE_RATE };
+use crate::utils::{ Accumulator, as_bytes };
 use super::{ opcodes::f128 as opcodes};
 
-mod execution_graph;
-pub use execution_graph::{ ExecutionGraph };
+mod graph;
+pub use graph::{ ExecutionGraph };
 
 mod inputs;
 pub use inputs::{ ProgramInputs };
 
-// CONSTANTS
-// ================================================================================================
-const STATE_ELEMENTS: usize = 4;
-const STATE_WIDTH: usize = STATE_ELEMENTS * 128;
-
 // TYPES AND INTERFACES
 // ================================================================================================
-type HashState = [u128; STATE_ELEMENTS];
+type HashState = [u128; ACC_STATE_WIDTH];
 
 pub struct Program {
     op_graph    : ExecutionGraph,
@@ -35,7 +30,7 @@ impl Program {
 
         // hash all possible execution paths into individual hashes hashes
         let mut path_hashes = Vec::new();
-        digest_graph(&graph, &mut path_hashes, [0; STATE_ELEMENTS], 0);
+        digest_graph(&graph, &mut path_hashes, [0; ACC_STATE_WIDTH], 0);
         
         let mut program = Program {
             op_graph    : graph,
@@ -63,7 +58,7 @@ impl Program {
 
         let graph = ExecutionGraph::new(execution_path);
         let mut path_hashes = Vec::new();
-        digest_graph(&graph, &mut path_hashes, [0; STATE_ELEMENTS], 0);
+        digest_graph(&graph, &mut path_hashes, [0; ACC_STATE_WIDTH], 0);
         
         return Program {
             op_graph    : graph,
@@ -85,6 +80,73 @@ impl Program {
 
     pub fn get_path_hash(&self, index: usize) -> &[u8; 32] {
         return &self.path_hashes[index];
+    }
+
+    /// TODO
+    pub fn get_auth_path(&self, path_hash: &[u128; ACC_STATE_RATE]) -> (usize, Vec<[u8; 32]>) {
+
+        // convert path hash into byte form
+        let mut ph = [0u8; 32];
+        ph.copy_from_slice(&as_bytes(path_hash));
+
+        // find path hash in the program
+        // TODO: switch to binary search
+        let index = match self.path_hashes.iter().position(|&x| x == ph) {
+            Some(i) => i,
+            None => panic!("execution path with hash {:?} could not be found in the program", ph)
+        };
+        
+        // make a copy of the index to save it for return value
+        let ph_index = index;
+
+        // if the program consists of a single execution path, return this hash
+        if self.path_hashes.len() == 1 { return (ph_index, vec![ph]); }
+
+        // otherwise, build a Merkle authentication path
+        let mut result = Vec::new();
+
+        result.push(self.path_hashes[index]);
+        result.push(self.path_hashes[index ^ 1]);
+
+        let mut index = (index + self.tree_nodes.len()) >> 1;
+        while index > 1 {
+            result.push(self.tree_nodes[index ^ 1]);
+            index = index >> 1;
+        }
+
+        return (ph_index, result);
+    }
+
+    /// TODO
+    pub fn verify_auth_path(program_hash: &[u8; 32], index: usize, auth_path: &[[u8; 32]], hash: HashFunction) -> bool {
+
+        if auth_path.len() == 1 {
+            return auth_path[0] == *program_hash;
+        }
+
+        let mut buf = [0u8; 64];
+        let mut v = [0u8; 32];
+
+        let r = index & 1;
+        &buf[0..32].copy_from_slice(&auth_path[r]);
+        &buf[32..64].copy_from_slice(&auth_path[1 - r]);
+        hash(&buf, &mut v);
+
+        let mut index = (index + usize::pow(2, (auth_path.len() - 1) as u32)) >> 1;
+        for i in 2..auth_path.len() {
+            if index & 1 == 0 {
+                &buf[0..32].copy_from_slice(&v);
+                &buf[32..64].copy_from_slice(&auth_path[i]);
+            }
+            else {
+                &buf[0..32].copy_from_slice(&auth_path[i]);
+                &buf[32..64].copy_from_slice(&v);
+            }
+            hash(&buf, &mut v);
+            index = index >> 1;
+        }
+
+        return v == *program_hash;
     }
 }
 
@@ -141,9 +203,8 @@ fn digest_graph(graph: &ExecutionGraph, hashes: &mut Vec<[u8; 32]>, mut state: H
         }
 
         // record the final hash
-        let state_bytes: &[u8; STATE_WIDTH] = unsafe { &*(&state as *const _ as *const [u8; STATE_WIDTH]) };
         let mut path_hash = [0u8; 32];
-        path_hash.copy_from_slice(&state_bytes[..32]);
+        path_hash.copy_from_slice(&as_bytes(&state)[..32]);
         hashes.push(path_hash);
     }
 }

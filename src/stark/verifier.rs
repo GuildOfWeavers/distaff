@@ -1,5 +1,5 @@
 use std::mem;
-use crate::{ math::{ FiniteField }, crypto::{ MerkleTree }, utils::{ Hasher, Accumulator} };
+use crate::{ math::{ FiniteField }, crypto::{ MerkleTree }, utils::{ Hasher, Accumulator}, Program };
 use super::{ StarkProof, TraceState, ConstraintEvaluator, CompositionCoefficients, fri, utils };
 
 // VERIFIER FUNCTION
@@ -29,7 +29,14 @@ pub fn verify<T>(program_hash: &[u8; 32], inputs: &[T], outputs: &[T], proof: &S
     let t_positions = utils::compute_query_positions(&seed, proof.domain_size(), options);
     let c_positions = utils::map_trace_to_constraint_positions::<T>(&t_positions);
 
-    // 2 ----- Verify trace and constraint Merkle proofs ------------------------------------------
+    // 2 ----- Verify program execution path ------------------------------------------------------
+    let auth_path = proof.auth_path();
+    if !Program::verify_auth_path(program_hash, proof.auth_path_index(), auth_path, hash_fn) {
+        return Err(String::from("verification of program execution path failed"));
+    }
+    let execution_path_hash = auth_path[0];
+
+    // 3 ----- Verify trace and constraint Merkle proofs ------------------------------------------
     if !MerkleTree::verify_batch(proof.trace_root(), &t_positions, &proof.trace_proof(), hash_fn) {
         return Err(String::from("verification of trace Merkle proof failed"));
     }
@@ -38,19 +45,19 @@ pub fn verify<T>(program_hash: &[u8; 32], inputs: &[T], outputs: &[T], proof: &S
         return Err(String::from("verification of constraint Merkle proof failed"));
     }
 
-    // 3 ----- Compute constraint evaluations at DEEP point z -------------------------------------
+    // 4 ----- Compute constraint evaluations at DEEP point z -------------------------------------
     // derive DEEP point z from the root of the constraint tree
     let z = T::prng(*proof.constraint_root());
 
     // evaluate constraints at z
     let constraint_evaluation_at_z = evaluate_constraints(
-        ConstraintEvaluator::from_proof(proof, program_hash, inputs, outputs),
+        ConstraintEvaluator::from_proof(proof, &execution_path_hash, inputs, outputs),
         proof.get_state_at_z1(),
         proof.get_state_at_z2(),
         z
     );
 
-    // 4 ----- Compute composition polynomial evaluations -----------------------------------------
+    // 5 ----- Compute composition polynomial evaluations -----------------------------------------
     // derive coefficient for linear combination from the root of constraint tree
     let coefficients = CompositionCoefficients::<T>::new(*proof.constraint_root());
 
@@ -59,7 +66,7 @@ pub fn verify<T>(program_hash: &[u8; 32], inputs: &[T], outputs: &[T], proof: &S
     let c_composition = compose_constraints(&proof, &t_positions, &c_positions, z, constraint_evaluation_at_z, &coefficients);
     let evaluations = t_composition.iter().zip(c_composition).map(|(&t, c)| T::add(t, c)).collect::<Vec<T>>();
     
-    // 5 ----- Verify low-degree proof -------------------------------------------------------------
+    // 6 ----- Verify low-degree proof -------------------------------------------------------------
     let max_degree = utils::get_composition_degree(proof.trace_length());
     return match fri::verify(&degree_proof, &evaluations, &t_positions, max_degree, options) {
         Ok(result) => Ok(result),
