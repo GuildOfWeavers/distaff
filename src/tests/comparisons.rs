@@ -16,11 +16,10 @@ fn eq_operations() {
 
     let expected_result = vec![1, 0, 3];
 
-    let (outputs, program_hash, proof) = execute(&program, &inputs, num_outputs, &options);
+    let (outputs, proof) = execute(&program, &inputs, num_outputs, &options);
     assert_eq!(expected_result, outputs);
-    assert_eq!(*program.hash(), program_hash);
 
-    let result = verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
+    let result = verify(program.hash(), inputs.get_public_inputs(), &outputs, &proof);
     assert_eq!(Ok(true), result);
 }
 
@@ -53,12 +52,11 @@ fn cmp_operation() {
     let expected_result = vec![gt, lt, b, a];
 
     // execute the program and make sure results are correct
-    let (outputs, program_hash, proof) = execute(&program, &inputs, num_outputs, &options);
+    let (outputs, proof) = execute(&program, &inputs, num_outputs, &options);
     assert_eq!(expected_result, outputs);
-    assert_eq!(*program.hash(), program_hash);
 
     // verify execution proof
-    let result = verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
+    let result = verify(program.hash(), inputs.get_public_inputs(), &outputs, &proof);
     assert_eq!(Ok(true), result);
 }
 
@@ -88,12 +86,11 @@ fn binacc_operation() {
     let expected_result = vec![a, a];
 
     // execute the program and make sure results are correct
-    let (outputs, program_hash, proof) = execute(&program, &inputs, num_outputs, &options);
+    let (outputs, proof) = execute(&program, &inputs, num_outputs, &options);
     assert_eq!(expected_result, outputs);
-    assert_eq!(*program.hash(), program_hash);
 
     // verify execution proof
-    let result = verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
+    let result = verify(program.hash(), inputs.get_public_inputs(), &outputs, &proof);
     assert_eq!(Ok(true), result);
 }
 

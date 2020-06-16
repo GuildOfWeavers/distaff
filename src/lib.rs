@@ -25,7 +25,7 @@ pub use processor::{ Program, ProgramInputs, opcodes, assembly };
 /// 
 /// * `inputs` specifies the initial stack state and provides secret input tapes;
 /// * `num_outputs` specifies the number of elements from the top of the stack to be returned;
-pub fn execute(program: &Program, inputs: &ProgramInputs<u128>, num_outputs: usize, options: &ProofOptions) -> (Vec<u128>, [u8; 32], StarkProof<u128>)
+pub fn execute(program: &Program, inputs: &ProgramInputs<u128>, num_outputs: usize, options: &ProofOptions) -> (Vec<u128>, StarkProof<u128>)
 {
     assert!(num_outputs <= MAX_OUTPUTS, 
         "cannot produce more than {} outputs, but requested {}", MAX_OUTPUTS, num_outputs);
@@ -43,10 +43,6 @@ pub fn execute(program: &Program, inputs: &ProgramInputs<u128>, num_outputs: usi
     let last_state = trace.get_state(trace.unextended_length() - 1);
     let outputs = last_state.get_user_stack()[..num_outputs].to_vec();
 
-    // construct program hash
-    let mut program_hash = [0u8; 32];
-    program_hash.copy_from_slice(utils::as_bytes(&trace.get_program_hash()));
-
     // generate STARK proof
     let mut proof = stark::prove(&mut trace, inputs.get_public_inputs(), &outputs, options);
 
@@ -56,7 +52,7 @@ pub fn execute(program: &Program, inputs: &ProgramInputs<u128>, num_outputs: usi
     let (auth_path_index, auth_path) = program.get_auth_path(&execution_path_hash);
     proof.set_auth_path(auth_path, auth_path_index);
 
-    return (outputs, program_hash, proof);
+    return (outputs, proof);
 }
 
 // VERIFIER

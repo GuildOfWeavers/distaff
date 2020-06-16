@@ -36,14 +36,13 @@ fn main() {
 
     // execute the program and generate the proof of execution
     let now = Instant::now();
-    let (outputs, program_hash, proof) = distaff::execute(&program, &inputs, num_outputs, &options);
+    let (outputs, proof) = distaff::execute(&program, &inputs, num_outputs, &options);
     println!("--------------------------------");
     println!("Executed program with hash {} in {} ms", 
-        hex::encode(program_hash),
+        hex::encode(program.hash()),
         now.elapsed().as_millis());
     println!("Program output: {:?}", outputs);
     assert_eq!(expected_result, outputs, "Program result was computed incorrectly");
-    assert_eq!(*program.hash(), program_hash, "Program hash was generated incorrectly");
 
     // serialize the proof to see how big it is
     let proof_bytes = bincode::serialize(&proof).unwrap();
@@ -55,7 +54,7 @@ fn main() {
     // results in the expected output
     let proof = bincode::deserialize::<StarkProof<F128>>(&proof_bytes).unwrap();
     let now = Instant::now();
-    match distaff::verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof) {
+    match distaff::verify(program.hash(), inputs.get_public_inputs(), &outputs, &proof) {
         Ok(_) => println!("Execution verified in {} ms", now.elapsed().as_millis()),
         Err(msg) => println!("Failed to verify execution: {}", msg)
     }
