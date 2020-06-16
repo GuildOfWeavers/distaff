@@ -1,4 +1,4 @@
-use program::{ ExecutionGraph, get_padded_length };
+use program::{ get_padded_length };
 
 // RE-EXPORTS
 // ================================================================================================
@@ -12,7 +12,7 @@ mod stack;
 use stack::Stack;
 
 mod program;
-pub use program::{ Program, ProgramInputs };
+pub use program::{ Program, ProgramInputs, ExecutionGraph };
 
 // PUBLIC FUNCTIONS
 // ================================================================================================
@@ -65,9 +65,10 @@ fn traverse(graph: &ExecutionGraph, decoder: &mut Decoder, stack: &mut Stack, mu
 
     // if the graph doesn't end here, traverse the following branches
     if graph.has_next() {
-        // first, execute the last operation in the current segment
+        // first, execute the last operation in the current segment; we don't pass next_op
+        // here because last operation of a segment cannot be a PUSH.
         decoder.decode(segment_ops[i], false, step);
-        stack.execute(segment_ops[i], segment_ops[i + 1], step);
+        stack.execute(segment_ops[i], 0, step);
         step += 1;
 
         // then, based on the current value at the top of the stack, select a branch to follow
@@ -79,13 +80,21 @@ fn traverse(graph: &ExecutionGraph, decoder: &mut Decoder, stack: &mut Stack, mu
         }
     }
     else {
-        // if there are no more branches left, make sure the execution trace
-        // is padded appropriately with NOOPs
+        // if there are no more branches left, figure out how long the padded execution
+        // path should be
         let path_length = get_padded_length(step, segment_ops[segment_ops.len() - 1]);
-        while step < path_length - 1 {
+        let last_step = path_length - 1;
+
+        if step < last_step {
+            decoder.decode(segment_ops[i], false, step);
+            stack.execute(segment_ops[i], 0, step);
+            step += 1;
+        }
+
+        while step < last_step {
             decoder.decode(opcodes::f128::NOOP, false, step);
             stack.execute(opcodes::f128::NOOP, 0, step);
             step += 1;
-        }        
+        }
     }
 }

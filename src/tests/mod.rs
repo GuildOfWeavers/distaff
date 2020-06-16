@@ -1,6 +1,7 @@
 use crate::{ ProofOptions, opcodes::f128 as opcodes, math::{ FiniteField, F128 }, utils::Hasher };
 use super::{ Program, ProgramInputs, };
 
+mod branches;
 mod comparisons;
 
 #[test]

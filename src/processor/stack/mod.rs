@@ -123,7 +123,7 @@ impl Stack {
 
     /// Returns the value at the top of the stack at specified `step`.
     pub fn get_stack_top(&self, step: usize) -> u128 {
-        return self.user_registers[step][0];
+        return self.user_registers[0][step];
     }
 
     /// Merges all register traces into a single vector of traces.
