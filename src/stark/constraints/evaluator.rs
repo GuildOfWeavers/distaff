@@ -120,14 +120,6 @@ impl <T> Evaluator<T>
         return self.domain_size / self.extension_factor;
     }
 
-    pub fn extension_factor(&self) -> usize {
-        return self.extension_factor;
-    }
-
-    pub fn transition_evaluations(&self) -> &Vec<Vec<T>> {
-        return &self.t_evaluations;
-    }
-
     pub fn get_x_at_last_step(&self) -> T {
         let trace_root = T::get_root_of_unity(self.trace_length());
         return T::exp(trace_root, T::from_usize(self.trace_length() - 1));

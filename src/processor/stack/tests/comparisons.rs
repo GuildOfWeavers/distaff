@@ -9,14 +9,14 @@ use super::super::Stack;
 fn eq() {
     let mut stack = init_stack(&[3, 3, 4, 5], &[], &[], TRACE_LENGTH);
 
-    stack.eq(0);
+    stack.op_eq(0);
     assert_eq!(vec![1], get_aux_state(&stack, 0));
     assert_eq!(vec![1, 4, 5, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
     assert_eq!(3, stack.depth);
     assert_eq!(4, stack.max_depth);
 
-    stack.eq(1);
+    stack.op_eq(1);
     let inv_diff = F128::inv(F128::sub(1, 4));
     assert_eq!(vec![inv_diff], get_aux_state(&stack, 1));
     assert_eq!(vec![0, 5, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 2));
@@ -38,11 +38,11 @@ fn cmp_128() {
     // initialize the stack
     let (inputs_a, inputs_b) = build_inputs_for_cmp(a, b, 128);
     let mut stack = init_stack(&[0, 0, 0, 0, 0, 0, a, b], &inputs_a, &inputs_b, 256);
-    stack.push(0, p127);
+    stack.op_push(0, p127);
 
     // execute CMP operations
     for i in 1..129 {
-        stack.cmp(i);
+        stack.op_cmp(i);
 
         let state = get_stack_state(&stack, i);
 
@@ -70,11 +70,11 @@ fn cmp_64() {
     // initialize the stack
     let (inputs_a, inputs_b) = build_inputs_for_cmp(a, b, 64);
     let mut stack = init_stack(&[0, 0, 0, 0, 0, 0, a, b], &inputs_a, &inputs_b, 256);
-    stack.push(0, p63);
+    stack.op_push(0, p63);
 
     // execute CMP operations
     for i in 1..65 {
-        stack.cmp(i);
+        stack.op_cmp(i);
 
         let state = get_stack_state(&stack, i);
 
@@ -105,11 +105,11 @@ fn lt() {
     // initialize the stack
     let (inputs_a, inputs_b) = build_inputs_for_cmp(a, b, 128);
     let mut stack = init_stack(&[0, 0, 0, 0, a, b, 7, 11], &inputs_a, &inputs_b, 256);
-    stack.pad2(0);
-    stack.push(1, p127);
+    stack.op_pad2(0);
+    stack.op_push(1, p127);
 
     // execute CMP operations
-    for i in 2..130 { stack.cmp(i); }
+    for i in 2..130 { stack.op_cmp(i); }
 
     // execute program finale
     let step = lt_finale(&mut stack, 130);
@@ -130,11 +130,11 @@ fn gt() {
     // initialize the stack
     let (inputs_a, inputs_b) = build_inputs_for_cmp(a, b, 128);
     let mut stack = init_stack(&[0, 0, 0, 0, a, b, 7, 11], &inputs_a, &inputs_b, 256);
-    stack.pad2(0);
-    stack.push(1, p127);
+    stack.op_pad2(0);
+    stack.op_push(1, p127);
 
     // execute CMP operations
-    for i in 2..130 { stack.cmp(i); }
+    for i in 2..130 { stack.op_cmp(i); }
 
     // execute program finale
     let step = gt_finale(&mut stack, 130);
@@ -162,10 +162,10 @@ fn binacc_128() {
     let mut stack = init_stack(&[p127, 0, x, 7, 11], &inputs_a, &[], 256);
 
     // execute binary aggregation operations
-    for i in 0..128 { stack.binacc(i); }
+    for i in 0..128 { stack.op_binacc(i); }
 
     // check the result
-    stack.drop(128);
+    stack.op_drop(128);
     let state = get_stack_state(&stack, 129);
     assert_eq!(vec![x, x, 7, 11, 0, 0, 0, 0], state);
 }
@@ -184,10 +184,10 @@ fn binacc_64() {
     let mut stack = init_stack(&[p127, 0, x, 7, 11], &inputs_a, &[], 256);
 
     // execute binary aggregation operations
-    for i in 0..64 { stack.binacc(i); }
+    for i in 0..64 { stack.op_binacc(i); }
 
     // check the result
-    stack.drop(64);
+    stack.op_drop(64);
     let state = get_stack_state(&stack, 65);
     assert_eq!(vec![x, x, 7, 11, 0, 0, 0, 0], state);
 }
@@ -209,30 +209,30 @@ fn build_inputs_for_cmp(a: u128, b: u128, size: usize) -> (Vec<u128>, Vec<u128>)
 }
 
 fn lt_finale(stack: &mut Stack, step: usize) -> usize {
-    stack.drop(step + 0);
-    stack.swap4(step + 1);
-    stack.roll4(step + 2);
-    stack.eq(step + 3);
-    stack.assert(step + 4);
-    stack.eq(step + 5);
-    stack.assert(step + 6);
-    stack.drop(step + 7);
-    stack.drop(step + 8);
-    stack.drop(step + 9);
+    stack.op_drop(step + 0);
+    stack.op_swap4(step + 1);
+    stack.op_roll4(step + 2);
+    stack.op_eq(step + 3);
+    stack.op_assert(step + 4);
+    stack.op_eq(step + 5);
+    stack.op_assert(step + 6);
+    stack.op_drop(step + 7);
+    stack.op_drop(step + 8);
+    stack.op_drop(step + 9);
     return step + 10;
 }
 
 fn gt_finale(stack: &mut Stack, step: usize) -> usize {
-    stack.drop(step + 0);
-    stack.swap4(step + 1);
-    stack.roll4(step + 2);
-    stack.eq(step + 3);
-    stack.assert(step + 4);
-    stack.eq(step + 5);
-    stack.assert(step + 6);
-    stack.drop(step + 7);
-    stack.drop(step + 8);
-    stack.swap(step + 9);
-    stack.drop(step + 10);
+    stack.op_drop(step + 0);
+    stack.op_swap4(step + 1);
+    stack.op_roll4(step + 2);
+    stack.op_eq(step + 3);
+    stack.op_assert(step + 4);
+    stack.op_eq(step + 5);
+    stack.op_assert(step + 6);
+    stack.op_drop(step + 7);
+    stack.op_drop(step + 8);
+    stack.op_swap(step + 9);
+    stack.op_drop(step + 10);
     return step + 11;
 }

@@ -24,11 +24,15 @@ pub struct Stack {
 
 // STACK IMPLEMENTATION
 // ================================================================================================
-impl Stack
-{
+impl Stack {
+
+    /// Returns a new Stack with enough memory allocated for each register to hold trace lengths
+    /// of `init_trace_length` steps. Register traces will be expanded dynamically if the number
+    /// of actual steps exceeds this initial setting.
     pub fn new(inputs: &ProgramInputs<u128>, init_trace_length: usize) -> Stack {
 
-        // TODO: clean up
+        // allocate space for user register traces and initialize the first state with
+        // public inputs
         let public_inputs = inputs.get_public_inputs();
         let init_stack_depth = std::cmp::max(public_inputs.len(), MIN_USER_STACK_DEPTH);
         let mut user_registers: Vec<Vec<u128>> = Vec::with_capacity(init_stack_depth);
@@ -40,6 +44,7 @@ impl Stack
             user_registers.push(register);
         }
 
+        // allocate space for aux stack register
         let aux_register = vec![F128::ZERO; init_trace_length];
 
         // reverse secret inputs so that they are consumed in FIFO order
@@ -59,52 +64,64 @@ impl Stack
         };
     }
 
-    pub fn execute(&mut self, current_op: F128, next_op: F128, step: usize) {
-        match current_op.as_u8() {
+    /// Executes `current_op` against the state of the stack specified by `step` parameter;
+    /// if `current_op` is a PUSH, `next_op` will be pushed onto the stack.
+    pub fn execute(&mut self, current_op: u128, next_op: u128, step: usize) {
 
-            opcodes::BEGIN   => self.noop(step),
-            opcodes::NOOP    => self.noop(step),
-            opcodes::ASSERT  => self.assert(step),
+        // make sure current_op contains a valid opcode
+        let op_code = current_op as u8;
+        assert!((op_code as u128) == current_op, "opcode {} is invalid", current_op);
 
-            opcodes::PUSH    => self.push(step, next_op),
+        // make sure there is enough space to update current step
+        self.ensure_trace_capacity(step);
 
-            opcodes::READ    => self.read(step),
-            opcodes::READ2   => self.read2(step),
+        // execute the appropriate action against the current state of the stack
+        match op_code {
 
-            opcodes::DUP     => self.dup(step),
-            opcodes::DUP2    => self.dup2(step),
-            opcodes::DUP4    => self.dup4(step),
-            opcodes::PAD2    => self.pad2(step),
+            opcodes::BEGIN   => self.op_noop(step),
+            opcodes::NOOP    => self.op_noop(step),
+            opcodes::ASSERT  => self.op_assert(step),
 
-            opcodes::DROP    => self.drop(step),
-            opcodes::DROP4   => self.drop4(step),
+            opcodes::PUSH    => self.op_push(step, next_op),
 
-            opcodes::SWAP    => self.swap(step),
-            opcodes::SWAP2   => self.swap2(step),
-            opcodes::SWAP4   => self.swap4(step),
+            opcodes::READ    => self.op_read(step),
+            opcodes::READ2   => self.op_read2(step),
 
-            opcodes::ROLL4   => self.roll4(step),
-            opcodes::ROLL8   => self.roll8(step),
+            opcodes::DUP     => self.op_dup(step),
+            opcodes::DUP2    => self.op_dup2(step),
+            opcodes::DUP4    => self.op_dup4(step),
+            opcodes::PAD2    => self.op_pad2(step),
 
-            opcodes::CHOOSE  => self.choose(step),
-            opcodes::CHOOSE2 => self.choose2(step),
+            opcodes::DROP    => self.op_drop(step),
+            opcodes::DROP4   => self.op_drop4(step),
 
-            opcodes::ADD     => self.add(step),
-            opcodes::MUL     => self.mul(step),
-            opcodes::INV     => self.inv(step),
-            opcodes::NEG     => self.neg(step),
-            opcodes::NOT     => self.not(step),
+            opcodes::SWAP    => self.op_swap(step),
+            opcodes::SWAP2   => self.op_swap2(step),
+            opcodes::SWAP4   => self.op_swap4(step),
 
-            opcodes::EQ      => self.eq(step),
-            opcodes::CMP     => self.cmp(step),
-            opcodes::BINACC  => self.binacc(step),
+            opcodes::ROLL4   => self.op_roll4(step),
+            opcodes::ROLL8   => self.op_roll8(step),
 
-            opcodes::HASHR   => self.hashr(step),
+            opcodes::CHOOSE  => self.op_choose(step),
+            opcodes::CHOOSE2 => self.op_choose2(step),
+
+            opcodes::ADD     => self.op_add(step),
+            opcodes::MUL     => self.op_mul(step),
+            opcodes::INV     => self.op_inv(step),
+            opcodes::NEG     => self.op_neg(step),
+            opcodes::NOT     => self.op_not(step),
+
+            opcodes::EQ      => self.op_eq(step),
+            opcodes::CMP     => self.op_cmp(step),
+            opcodes::BINACC  => self.op_binacc(step),
+
+            opcodes::HASHR   => self.op_hashr(step),
 
             _ => panic!("operation {} is not supported", current_op)
         }
     }
 
+    /// Merges all register traces into a single vector of traces.
     pub fn into_register_traces(mut self) -> Vec<Vec<u128>> {
         self.user_registers.truncate(self.max_depth);
         let mut registers = Vec::with_capacity(1 + self.user_registers.len());
@@ -115,30 +132,30 @@ impl Stack
 
     // OPERATIONS
     // --------------------------------------------------------------------------------------------
-    pub fn noop(&mut self, step: usize) {
+    fn op_noop(&mut self, step: usize) {
         self.copy_state(step, 0);
     }
 
-    pub fn assert(&mut self, step: usize) {
+    fn op_assert(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
         let value = self.user_registers[0][step];
         assert!(value == F128::ONE, "ASSERT failed at step {}", step);
         self.shift_left(step, 1, 1);
     }
 
-    pub fn push(&mut self, step: usize, value: F128) {
+    fn op_push(&mut self, step: usize, value: F128) {
         self.shift_right(step, 0, 1);
         self.user_registers[0][step + 1] = value;
     }
 
-    pub fn read(&mut self, step: usize) {
+    fn op_read(&mut self, step: usize) {
         assert!(self.secret_inputs_a.len() > 0, "ran out of secret inputs at step {}", step);
         self.shift_right(step, 0, 1);
         let value = self.secret_inputs_a.pop().unwrap();
         self.user_registers[0][step + 1] = value;
     }
 
-    pub fn read2(&mut self, step: usize) {
+    fn op_read2(&mut self, step: usize) {
         assert!(self.secret_inputs_a.len() > 0, "ran out of secret inputs at step {}", step);
         assert!(self.secret_inputs_b.len() > 0, "ran out of secret inputs at step {}", step);
         self.shift_right(step, 0, 2);
@@ -148,20 +165,20 @@ impl Stack
         self.user_registers[1][step + 1] = value_a;
     }
 
-    pub fn dup(&mut self, step: usize) {
+    fn op_dup(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
         self.shift_right(step, 0, 1);
         self.user_registers[0][step + 1] = self.user_registers[0][step];
     }
 
-    pub fn dup2(&mut self, step: usize) {
+    fn op_dup2(&mut self, step: usize) {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
         self.shift_right(step, 0, 2);
         self.user_registers[0][step + 1] = self.user_registers[0][step];
         self.user_registers[1][step + 1] = self.user_registers[1][step];
     }
 
-    pub fn dup4(&mut self, step: usize) {
+    fn op_dup4(&mut self, step: usize) {
         assert!(self.depth >= 4, "stack underflow at step {}", step);
         self.shift_right(step, 0, 4);
         self.user_registers[0][step + 1] = self.user_registers[0][step];
@@ -170,30 +187,30 @@ impl Stack
         self.user_registers[3][step + 1] = self.user_registers[3][step];
     }
 
-    pub fn pad2(&mut self, step: usize) {
+    fn op_pad2(&mut self, step: usize) {
         self.shift_right(step, 0, 2);
         self.user_registers[0][step + 1] = F128::ZERO;
         self.user_registers[1][step + 1] = F128::ZERO;
     }
 
-    pub fn drop(&mut self, step: usize) {
+    fn op_drop(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
         self.shift_left(step, 1, 1);
     }
 
-    pub fn drop4(&mut self, step: usize) {
+    fn op_drop4(&mut self, step: usize) {
         assert!(self.depth >= 4, "stack underflow at step {}", step);
         self.shift_left(step, 4, 4);
     }
 
-    pub fn swap(&mut self, step: usize) {
+    fn op_swap(&mut self, step: usize) {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
         self.user_registers[0][step + 1] = self.user_registers[1][step];
         self.user_registers[1][step + 1] = self.user_registers[0][step];
         self.copy_state(step, 2);
     }
 
-    pub fn swap2(&mut self, step: usize) {
+    fn op_swap2(&mut self, step: usize) {
         assert!(self.depth >= 4, "stack underflow at step {}", step);
         self.user_registers[0][step + 1] = self.user_registers[2][step];
         self.user_registers[1][step + 1] = self.user_registers[3][step];
@@ -202,7 +219,7 @@ impl Stack
         self.copy_state(step, 4);
     }
 
-    pub fn swap4(&mut self, step: usize) {
+    fn op_swap4(&mut self, step: usize) {
         assert!(self.depth >= 8, "stack underflow at step {}", step);
         self.user_registers[0][step + 1] = self.user_registers[4][step];
         self.user_registers[1][step + 1] = self.user_registers[5][step];
@@ -215,7 +232,7 @@ impl Stack
         self.copy_state(step, 8);
     }
 
-    pub fn roll4(&mut self, step: usize) {
+    fn op_roll4(&mut self, step: usize) {
         assert!(self.depth >= 4, "stack underflow at step {}", step);
         self.user_registers[0][step + 1] = self.user_registers[3][step];
         self.user_registers[1][step + 1] = self.user_registers[0][step];
@@ -224,7 +241,7 @@ impl Stack
         self.copy_state(step, 4);
     }
 
-    pub fn roll8(&mut self, step: usize) {
+    fn op_roll8(&mut self, step: usize) {
         assert!(self.depth >= 8, "stack underflow at step {}", step);
         self.user_registers[0][step + 1] = self.user_registers[7][step];
         self.user_registers[1][step + 1] = self.user_registers[0][step];
@@ -237,7 +254,7 @@ impl Stack
         self.copy_state(step, 8);
     }
 
-    pub fn choose(&mut self, step: usize) {
+    fn op_choose(&mut self, step: usize) {
         assert!(self.depth >= 3, "stack underflow at step {}", step);
         let condition = self.user_registers[2][step];
         if condition == F128::ONE {
@@ -252,7 +269,7 @@ impl Stack
         self.shift_left(step, 3, 2);
     }
 
-    pub fn choose2(&mut self, step: usize) {
+    fn op_choose2(&mut self, step: usize) {
         assert!(self.depth >= 6, "stack underflow at step {}", step);
         let condition = self.user_registers[4][step];
         if condition == F128::ONE {
@@ -269,7 +286,7 @@ impl Stack
         self.shift_left(step, 6, 4);
     }
 
-    pub fn add(&mut self, step: usize) {
+    fn op_add(&mut self, step: usize) {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
         let x = self.user_registers[0][step];
         let y = self.user_registers[1][step];
@@ -277,7 +294,7 @@ impl Stack
         self.shift_left(step, 2, 1);
     }
 
-    pub fn mul(&mut self, step: usize) {
+    fn op_mul(&mut self, step: usize) {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
         let x = self.user_registers[0][step];
         let y = self.user_registers[1][step];
@@ -285,7 +302,7 @@ impl Stack
         self.shift_left(step, 2, 1);
     }
 
-    pub fn inv(&mut self, step: usize) {
+    fn op_inv(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
         let x = self.user_registers[0][step];
         assert!(x != F128::ZERO, "cannot compute INV of {} at step {}", F128::ZERO, step);
@@ -293,14 +310,14 @@ impl Stack
         self.copy_state(step, 1);
     }
 
-    pub fn neg(&mut self, step: usize) {
+    fn op_neg(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
         let x = self.user_registers[0][step];
         self.user_registers[0][step + 1] = F128::neg(x);
         self.copy_state(step, 1);
     }
 
-    pub fn not(&mut self, step: usize) {
+    fn op_not(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
         let x = self.user_registers[0][step];
         assert!(x == F128::ZERO || x == F128::ONE, "cannot compute NOT of a non-binary value at step {}", step);
@@ -308,7 +325,7 @@ impl Stack
         self.copy_state(step, 1);
     }
 
-    pub fn eq(&mut self, step: usize) {
+    fn op_eq(&mut self, step: usize) {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
         let x = self.user_registers[0][step];
         let y = self.user_registers[1][step];
@@ -323,7 +340,7 @@ impl Stack
         self.shift_left(step, 2, 1);
     }
 
-    pub fn cmp(&mut self, step: usize) {
+    fn op_cmp(&mut self, step: usize) {
         assert!(self.depth >= 7, "stack underflow at step {}", step);
         assert!(self.secret_inputs_a.len() > 0, "ran out of secret inputs at step {}", step);
         assert!(self.secret_inputs_b.len() > 0, "ran out of secret inputs at step {}", step);
@@ -337,13 +354,22 @@ impl Stack
         let bit_gt = F128::mul(a_bit, F128::sub(F128::ONE, b_bit));
         let bit_lt = F128::mul(b_bit, F128::sub(F128::ONE, a_bit));
 
-        let power_of_two = self.user_registers[0][step];    // TODO: make sure it is power of 2
+        let power_of_two = self.user_registers[0][step];
+        assert!(power_of_two.is_power_of_two(),
+            "expected top of the stack at step {} to be a power of 2, but received {}", step, power_of_two);
+        let next_power_of_two = if power_of_two == 1 {
+            F128::div(power_of_two, F128::from_usize(2))
+        }
+        else {
+            power_of_two >> 1
+        };
+
         let gt = self.user_registers[3][step];
         let lt = self.user_registers[4][step];
         let not_set = F128::mul(F128::sub(F128::ONE, gt), F128::sub(F128::ONE, lt));
 
         self.aux_register[step] = not_set;
-        self.user_registers[0][step + 1] = F128::div(power_of_two, F128::from_usize(2)); // TODO: replace with shift
+        self.user_registers[0][step + 1] = next_power_of_two;
         self.user_registers[1][step + 1] = a_bit;
         self.user_registers[2][step + 1] = b_bit;
         self.user_registers[3][step + 1] = F128::add(gt, F128::mul(bit_gt, not_set));
@@ -354,22 +380,34 @@ impl Stack
         self.copy_state(step, 7);
     }
 
-    pub fn binacc(&mut self, step: usize) {
+    fn op_binacc(&mut self, step: usize) {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
         assert!(self.secret_inputs_a.len() > 0, "ran out of secret inputs at step {}", step);
 
         let bit = self.secret_inputs_a.pop().unwrap();
-        let power_of_two = self.user_registers[0][step];    // TODO: make sure it is power of 2
+        assert!(bit == F128::ZERO || bit == F128::ONE,
+            "expected binary input at step {} but received: {}", step, bit);
+
+        let power_of_two = self.user_registers[0][step];
+        assert!(power_of_two.is_power_of_two(),
+            "expected top of the stack at step {} to be a power of 2, but received {}", step, power_of_two);
+        let next_power_of_two = if power_of_two == 1 {
+                F128::div(power_of_two, F128::from_usize(2))
+            }
+            else {
+                power_of_two >> 1
+            };
+
         let acc = self.user_registers[1][step];
 
         self.aux_register[step] = bit;
-        self.user_registers[0][step + 1] = F128::div(power_of_two, F128::from_usize(2)); // TODO: replace with shift
+        self.user_registers[0][step + 1] = next_power_of_two;
         self.user_registers[1][step + 1] = F128::add(acc, F128::mul(bit, power_of_two));
 
         self.copy_state(step, 2);
     }
 
-    pub fn hashr(&mut self, step: usize) {
+    fn op_hashr(&mut self, step: usize) {
         assert!(self.depth >= HASH_STATE_WIDTH, "stack underflow at step {}", step);
         let mut state = [
             self.user_registers[0][step],
@@ -445,6 +483,16 @@ impl Stack
         for _ in 0..num_registers {
             let register = filled_vector(trace_length, trace_capacity, F128::ZERO);
             self.user_registers.push(register);
+        }
+    }
+
+    fn ensure_trace_capacity(&mut self, step: usize) {
+        if step >= self.aux_register.len() - 1 {
+            let new_length = self.aux_register.len() * 2;
+            self.aux_register.resize(new_length, 0);
+            for i in 0..self.user_registers.len() {
+                self.user_registers[i].resize(new_length, 0);
+            }
         }
     }
 }

@@ -14,11 +14,7 @@ pub use program::{ Program, ProgramInputs };
 pub mod opcodes;
 pub mod assembly;
 
-/// Executes the specified `program` and returns the result together with program hash
-/// and STARK-based proof of execution.
-/// 
-/// * `inputs` specify the initial stack state the with inputs[0] being the top of the stack;
-/// * `num_outputs` specifies the number of elements from the top of the stack to be returned;
+/// TODO
 pub fn execute(program: &Program, inputs: &ProgramInputs<F128>) -> Vec<Vec<u128>>
 {
     // TODO: use the entire program to build the trace table

@@ -38,10 +38,6 @@ impl <T> ConstraintPoly <T>
         return evaluations;
     }
 
-    pub fn eval_at(&self, z: T) -> T {
-        return polynom::eval(&self.poly, z);
-    }
-
     pub fn merge_into(mut self, result: &mut Vec<T>, z: T, cc: &CompositionCoefficients<T>) -> T {
 
         // evaluate the polynomial at point z
