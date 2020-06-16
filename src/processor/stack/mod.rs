@@ -121,6 +121,11 @@ impl Stack {
         }
     }
 
+    /// Returns the value at the top of the stack at specified `step`.
+    pub fn get_stack_top(&self, step: usize) -> u128 {
+        return self.user_registers[step][0];
+    }
+
     /// Merges all register traces into a single vector of traces.
     pub fn into_register_traces(mut self) -> Vec<Vec<u128>> {
         self.user_registers.truncate(self.max_depth);

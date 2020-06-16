@@ -4,7 +4,7 @@ use crate::utils::{ Accumulator };
 use super::{ opcodes::f128 as opcodes};
 
 mod execution_graph;
-use execution_graph::ExecutionGraph;
+pub use execution_graph::{ ExecutionGraph };
 
 mod inputs;
 pub use inputs::{ ProgramInputs };
@@ -88,45 +88,14 @@ impl Program {
     }
 }
 
-// HELPER FUNCTIONS
+// PUBLIC FUNCTIONS
 // ================================================================================================
-fn digest_graph(graph: &ExecutionGraph, hashes: &mut Vec<[u8; 32]>, mut state: HashState, mut step: usize) {
 
-    let operations = graph.operations();
-    if graph.has_next() {
-        // this is not the last segment of the program - so, update the state with all opcodes
-        for i in 0..operations.len() {
-            u128::apply_round(&mut state, operations[i], step);
-            step += 1;
-        }
-
-        // the follow true and false branches of the consequent segments
-        digest_graph(graph.true_path(), hashes, state, step);
-        digest_graph(graph.false_path(), hashes, state, step);
-    }
-    else {
-        // this is the last segment of the program - so, determine how much padding this path
-        // needs, and append the appropriate number of NOOP operations at the end
-        let sprint_length = operations.len();
-        let path_length = get_padded_length(step + sprint_length, operations[sprint_length - 1]);
-        let mut operations = operations.to_vec();
-        operations.resize(path_length - step, opcodes::NOOP);
-
-        // update the state with all opcodes but the last one
-        for i in 0..(operations.len() - 1) {
-            u128::apply_round(&mut state, operations[i], step);
-            step += 1;
-        }
-
-        // record the final hash
-        let state_bytes: &[u8; STATE_WIDTH] = unsafe { &*(&state as *const _ as *const [u8; STATE_WIDTH]) };
-        let mut path_hash = [0u8; 32];
-        path_hash.copy_from_slice(&state_bytes[..32]);
-        hashes.push(path_hash);
-    }
-}
-
-fn get_padded_length(length: usize, last_op: u128) -> usize {
+/// Computes the length of execution trace such that:
+/// 1. The length of the trace is at least 16;
+/// 2. The length of the trace is a power of 2;
+/// 3. Last operation in the trace is a NOOP.
+pub fn get_padded_length(length: usize, last_op: u128) -> usize {
     let new_length = if length.is_power_of_two() {
         if last_op == opcodes::NOOP {
             length
@@ -141,13 +110,51 @@ fn get_padded_length(length: usize, last_op: u128) -> usize {
     return std::cmp::max(new_length, MIN_TRACE_LENGTH);
 }
 
+// HELPER FUNCTIONS
+// ================================================================================================
+fn digest_graph(graph: &ExecutionGraph, hashes: &mut Vec<[u8; 32]>, mut state: HashState, mut step: usize) {
+
+    let segment_ops = graph.operations();
+    if graph.has_next() {
+        // this is not the last segment of the program - so, update the state with all opcodes
+        for i in 0..segment_ops.len() {
+            u128::apply_round(&mut state, segment_ops[i], step);
+            step += 1;
+        }
+
+        // the follow true and false branches of the consequent segments
+        digest_graph(graph.true_path(), hashes, state, step);
+        digest_graph(graph.false_path(), hashes, state, step);
+    }
+    else {
+        // this is the last segment of the program - so, determine how much padding this path
+        // needs, and append the appropriate number of NOOP operations at the end
+        let segment_length = segment_ops.len();
+        let path_length = get_padded_length(step + segment_length, segment_ops[segment_length - 1]);
+        let mut segment_ops = segment_ops.to_vec();
+        segment_ops.resize(path_length - step, opcodes::NOOP);
+
+        // update the state with all opcodes but the last one
+        for i in 0..(segment_ops.len() - 1) {
+            u128::apply_round(&mut state, segment_ops[i], step);
+            step += 1;
+        }
+
+        // record the final hash
+        let state_bytes: &[u8; STATE_WIDTH] = unsafe { &*(&state as *const _ as *const [u8; STATE_WIDTH]) };
+        let mut path_hash = [0u8; 32];
+        path_hash.copy_from_slice(&state_bytes[..32]);
+        hashes.push(path_hash);
+    }
+}
+
 // TESTS
 // ================================================================================================
 #[cfg(test)]
 mod tests {
 
     use crate::{ utils::Accumulator, crypto::hash::blake3 };
-    use super::{ opcodes, ExecutionGraph, Program, super::pad_program };
+    use super::{ opcodes, ExecutionGraph, Program };
 
     #[test]
     fn new_program_single_path() {
@@ -187,5 +194,10 @@ mod tests {
         assert_eq!(path1_hash, *program.get_path_hash(0));
         assert_eq!(path2_hash, *program.get_path_hash(1));
         assert_eq!(program_hash, *program.hash());
+    }
+
+    fn pad_program(program: &mut Vec<u128>) {
+        let padded_length = super::get_padded_length(program.len(), *program.last().unwrap());
+        program.resize(padded_length, opcodes::NOOP);
     }
 }

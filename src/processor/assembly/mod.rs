@@ -1,4 +1,4 @@
-use super::{ opcodes::f128 as opcodes, pad_program };
+use super::{ opcodes::f128 as opcodes, get_padded_length };
 
 mod parsers;
 use parsers::*;
@@ -60,7 +60,8 @@ pub fn translate(assembly: &str) -> Result<Vec<u128>, AssemblyError> {
     }
 
     // pad the program with the appropriate number of NOOPs
-    pad_program(&mut program);
+    let padded_length = get_padded_length(program.len(), *program.last().unwrap());
+    program.resize(padded_length, opcodes::NOOP);
 
     return Ok(program);
 }

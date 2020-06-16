@@ -13,6 +13,9 @@ pub struct ExecutionGraph {
 impl ExecutionGraph {
 
     pub fn new(operations: Vec<u128>) -> ExecutionGraph {
+        let last_op = operations[operations.len() - 1];
+        assert!(last_op != opcodes::PUSH, "execution path cannot end with a PUSH operation");
+
         return ExecutionGraph {
             operations  : operations,
             true_path   : None,

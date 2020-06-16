@@ -1,6 +1,9 @@
-use std::cmp;
-use crate::math::{ F128, FiniteField };
-use crate::{ MIN_TRACE_LENGTH };
+use program::{ ExecutionGraph, get_padded_length };
+
+// RE-EXPORTS
+// ================================================================================================
+pub mod opcodes;
+pub mod assembly;
 
 mod decoder;
 use decoder::Decoder;
@@ -11,58 +14,78 @@ use stack::Stack;
 mod program;
 pub use program::{ Program, ProgramInputs };
 
-pub mod opcodes;
-pub mod assembly;
+// PUBLIC FUNCTIONS
+// ================================================================================================
 
-/// TODO
-pub fn execute(program: &Program, inputs: &ProgramInputs<F128>) -> Vec<Vec<u128>>
+/// Returns register traces resulting from executing the specified program against the
+/// specified inputs.
+pub fn execute(program: &Program, inputs: &ProgramInputs<u128>) -> Vec<Vec<u128>>
 {
-    // TODO: use the entire program to build the trace table
-    let mut program = program.execution_graph().operations().to_vec();
-    pad_program(&mut program);
+    // initialize decoder and stack components
+    // TODO: don't hard-code init trace length
+    let mut decoder = Decoder::new(16);
+    let mut stack = Stack::new(inputs, 16);
 
-    // TODO: clean up
-    // execute the program
-    let mut decoder = Decoder::new(program.len());
-    let mut stack = Stack::new(inputs, program.len());
+    // execute the program by traversing the execution graph
+    traverse(program.execution_graph(), &mut decoder, &mut stack, 0);
 
-    let mut step = 0;
-    while step < program.len() - 1 {
-        
-        decoder.decode(program[step], false, step);
-        stack.execute(program[step], program[step + 1], step);
-
-        if program[step] == opcodes::f128::PUSH {
-            step += 1;
-            decoder.decode(program[step], true, step);
-            stack.execute(opcodes::f128::NOOP, 0, step);
-        }
-
-        step += 1;
-    }
-
+    // merge decoder and stack register traces into a single vector
     let mut register_traces = decoder.into_register_trace();
     register_traces.append(&mut stack.into_register_traces());
 
     return register_traces;
 }
 
-/// Pads the program with the appropriate number of NOOPs to ensure that:
-/// 1. The length of the program is at least 16;
-/// 2. The length of the program is a power of 2;
-/// 3. The program terminates with a NOOP.
-pub fn pad_program<T: FiniteField>(program: &mut Vec<T>) {
-    
-    let trace_length = if program.len() == program.len().next_power_of_two() {
-        if program[program.len() - 1] == T::from(opcodes::NOOP) {
-            program.len()
+// HELPER FUNCTIONS
+// ================================================================================================
+
+fn traverse(graph: &ExecutionGraph, decoder: &mut Decoder, stack: &mut Stack, mut step: usize) {
+
+    let segment_ops = graph.operations();
+
+    // execute all operations, except the last one, in the current segment of the graph
+    let mut i = 0;
+    while i < segment_ops.len() - 1 {
+        // apply current operation to the decoder and the stack
+        decoder.decode(segment_ops[i], false, step);
+        stack.execute(segment_ops[i], segment_ops[i + 1], step);
+
+        // if the current operation is a PUSH, update the decoder and the stack
+        // and skip over to the next operation
+        if segment_ops[i] == opcodes::f128::PUSH {
+            step += 1;
+            i += 1;
+            decoder.decode(segment_ops[i], true, step);
+            stack.execute(opcodes::f128::NOOP, 0, step);
         }
-        else {
-            program.len().next_power_of_two() * 2
+
+        step += 1;
+        i += 1;
+    }
+
+    // if the graph doesn't end here, traverse the following branches
+    if graph.has_next() {
+        // first, execute the last operation in the current segment
+        decoder.decode(segment_ops[i], false, step);
+        stack.execute(segment_ops[i], segment_ops[i + 1], step);
+        step += 1;
+
+        // then, based on the current value at the top of the stack, select a branch to follow
+        let selector = stack.get_stack_top(step);
+        match selector {
+            1 => traverse(graph.true_path(), decoder, stack, step),
+            0 => traverse(graph.false_path(), decoder, stack, step),
+            _ => panic!("cannot branch on a non-binary value {} at step {}", selector, step)
         }
     }
     else {
-        program.len().next_power_of_two()
-    };
-    program.resize(cmp::max(trace_length, MIN_TRACE_LENGTH), T::from(opcodes::NOOP));
+        // if there are no more branches left, make sure the execution trace
+        // is padded appropriately with NOOPs
+        let path_length = get_padded_length(step, segment_ops[segment_ops.len() - 1]);
+        while step < path_length - 1 {
+            decoder.decode(opcodes::f128::NOOP, false, step);
+            stack.execute(opcodes::f128::NOOP, 0, step);
+            step += 1;
+        }        
+    }
 }
