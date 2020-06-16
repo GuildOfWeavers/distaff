@@ -67,6 +67,7 @@ pub fn verify(program_hash: &[u8; 32], public_inputs: &[u128], outputs: &[u128],
 
 const MIN_TRACE_LENGTH      : usize = 16;
 const MAX_REGISTER_COUNT    : usize = 128;
+const MIN_EXTENSION_FACTOR  : usize = 16;
 
 // HASH OPERATION
 // ------------------------------------------------------------------------------------------------
@@ -82,7 +83,7 @@ const ACC_STATE_CAPACITY    : usize = 2;
 const ACC_STATE_WIDTH       : usize = ACC_STATE_RATE + ACC_STATE_CAPACITY;
 const ACC_CYCLE_LENGTH      : usize = 16;
 
-// DECODER TRACE
+// DECODER LAYOUT
 // ------------------------------------------------------------------------------------------------
 //
 //   op  ╒═════════ op_bits ═══════════╕╒══════ op_acc ════════╕
@@ -99,7 +100,7 @@ const OP_BITS_RANGE         : Range<usize> = Range { start: 1, end: 6 };
 const OP_ACC_RANGE          : Range<usize> = Range { start: 6, end: 6 + ACC_STATE_WIDTH };
 const PROG_HASH_RANGE       : Range<usize> = Range { start: 6, end: 6 + ACC_STATE_RATE  };
 
-// STACK TRACE
+// STACK LAYOUT
 // ------------------------------------------------------------------------------------------------
 //
 //   aux ╒════════════════ user registers ═════════════════════╕

@@ -2,15 +2,16 @@ use crate::math::{ FiniteField, fft, polynom, parallel };
 use crate::crypto::{ MerkleTree, HashFunction };
 use crate::stark::{ CompositionCoefficients, utils };
 use crate::utils::{ uninit_vector, filled_vector, as_bytes, Hasher, Accumulator };
-use crate::{ MAX_REGISTER_COUNT, DECODER_WIDTH, PROG_HASH_RANGE };
+use crate::{ MAX_REGISTER_COUNT, DECODER_WIDTH, PROG_HASH_RANGE, MIN_EXTENSION_FACTOR };
 use super::{ TraceState };
 
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct TraceTable<T> {
-    registers   : Vec<Vec<T>>,
-    polys       : Vec<Vec<T>>,
-    ext_factor  : usize,
+    registers       : Vec<Vec<T>>,
+    polys           : Vec<Vec<T>>,
+    trace_length    : usize,
+    extension_factor: usize,
 }
 
 // TRACE TABLE IMPLEMENTATION
@@ -19,25 +20,24 @@ impl <T> TraceTable<T>
     where T: FiniteField + Accumulator + Hasher
 {
     /// Returns a trace table constructed from the specified register traces.
-    pub fn new(mut registers: Vec<Vec<T>>, extension_factor: usize) -> TraceTable<T> {
+    pub fn new(registers: Vec<Vec<T>>, extension_factor: usize) -> TraceTable<T> {
 
+        // validate extension factor
+        assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
+        assert!(extension_factor >= MIN_EXTENSION_FACTOR,
+            "extension factor must be at least {}", MIN_EXTENSION_FACTOR);
+
+        // validate register traces
         assert!(registers.len() < MAX_REGISTER_COUNT,
             "execution trace cannot have more than {} registers", MAX_REGISTER_COUNT);
-        assert!(extension_factor.is_power_of_two(),
-            "trace extension factor must be a power of 2");
-
         let trace_length = registers[0].len();
         assert!(trace_length.is_power_of_two(), "execution trace length must be a power of 2");
-
-        // TODO: clean up
-        for register in registers.iter_mut() {
+        for register in registers.iter() {
             assert!(register.len() == trace_length, "all register traces must have the same length");
-            register.resize(trace_length * extension_factor, T::ZERO);
-            register.resize(trace_length, T::ZERO);
         }
 
         let polys = Vec::with_capacity(registers.len());
-        return TraceTable { registers, polys, ext_factor: extension_factor };
+        return TraceTable { registers, polys, trace_length, extension_factor };
     }
 
     /// Returns hash value of the executed program.
@@ -72,17 +72,17 @@ impl <T> TraceTable<T>
 
     /// Returns the number of states in the un-extended trace table.
     pub fn unextended_length(&self) -> usize {
-        return self.registers[0].capacity() / self.ext_factor;
+        return self.trace_length;
     }
 
     /// Returns the number of states in the extended trace table.
     pub fn domain_size(&self) -> usize {
-        return self.registers[0].capacity();
+        return self.trace_length * self.extension_factor;
     }
 
     /// Returns `extension_factor` for the trace table.
     pub fn extension_factor(&self) -> usize {
-        return self.ext_factor;
+        return self.extension_factor;
     }
 
     /// Returns the number of registers in the trace table.
@@ -115,7 +115,7 @@ impl <T> TraceTable<T>
 
     /// Returns `true` if the trace table has been extended.
     pub fn is_extended(&self) -> bool {
-        return self.registers[0].len() == self.registers[0].capacity();
+        return self.registers[0].len() > self.trace_length;
     }
 
     /// Extends all registers of the trace table by the `extension_factor` specified during
@@ -128,19 +128,23 @@ impl <T> TraceTable<T>
         let root = T::get_root_of_unity(self.unextended_length());
         let inv_twiddles = fft::get_inv_twiddles(root, self.unextended_length());
         
+        // move register traces into polys
+        std::mem::swap(&mut self.registers, &mut self.polys);
+
         // extend all registers
         let domain_size = self.domain_size();
-        for register in self.registers.iter_mut() {
-            debug_assert!(register.capacity() == domain_size, "invalid capacity for register");
+        for poly in self.polys.iter_mut() {
+
             // interpolate register trace into a polynomial
-            polynom::interpolate_fft_twiddles(register, &inv_twiddles, true);
-
-            // save the polynomial for later use
-            self.polys.push(register.clone());
-
+            polynom::interpolate_fft_twiddles(poly, &inv_twiddles, true);
+            
+            // allocate space to hold extended evaluations and copy the polynomial into it
+            let mut register = vec![T::ZERO; domain_size];
+            register[..poly.len()].copy_from_slice(&poly);
+            
             // evaluate the polynomial over extended domain
-            unsafe { register.set_len(register.capacity()); }
-            polynom::eval_fft_twiddles(register, &twiddles, true);
+            polynom::eval_fft_twiddles(&mut register, &twiddles, true);
+            self.registers.push(register);
         }
     }
 
