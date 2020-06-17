@@ -44,7 +44,7 @@ pub fn verify<T: FiniteField>(
 
         // verify Merkle proof for the layer
         let merkle_proof = build_layer_merkle_proof(&layer, options);
-        if !MerkleTree::verify_batch(&layer.root, &augmented_positions, &merkle_proof, options.hash_function()) {
+        if !MerkleTree::verify_batch(&layer.root, &augmented_positions, &merkle_proof, options.hash_fn()) {
             return Err(format!("verification of Merkle proof failed at layer {}", depth));
         }
 
@@ -146,7 +146,7 @@ fn build_layer_merkle_proof<T>(layer: &FriLayer<T>, options: &ProofOptions) -> B
     where T: FiniteField
 {
     return BatchMerkleProof {
-        values  : utils::hash_values(&layer.values, options.hash_function()),
+        values  : utils::hash_values(&layer.values, options.hash_fn()),
         nodes   : layer.nodes.clone(),
         depth   : layer.depth
     };

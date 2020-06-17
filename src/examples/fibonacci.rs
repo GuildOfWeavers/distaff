@@ -7,7 +7,7 @@ pub fn get_example(args: &[String]) -> Example  {
     let (n, options) = parse_args(args);
     
     // generate the program and expected results
-    let program = generate_fibonacci_program(n, options.hash_function());
+    let program = generate_fibonacci_program(n, options.hash_fn());
     let expected_result = vec![compute_fibonacci(n)];
     println!("Generated a program to compute {}-th Fibonacci term; expected result: {}", 
         n,

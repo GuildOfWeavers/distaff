@@ -30,7 +30,7 @@ pub fn prove<T>(trace: &mut TraceTable<T>, inputs: &[T], outputs: &[T], options:
 
     // 2 ----- build Merkle tree from the extended execution trace ------------------------------------
     let now = Instant::now();
-    let trace_tree = trace.build_merkle_tree(options.hash_function());
+    let trace_tree = trace.build_merkle_tree(options.hash_fn());
     debug!("Built trace Merkle tree in {} ms", 
         now.elapsed().as_millis());
 
@@ -81,7 +81,7 @@ pub fn prove<T>(trace: &mut TraceTable<T>, inputs: &[T], outputs: &[T], options:
 
     // put evaluations into a Merkle tree; 4 evaluations per leaf
     let constraint_evaluations = evaluations_to_leaves(constraint_evaluations);
-    let constraint_tree = MerkleTree::new(constraint_evaluations, options.hash_function());
+    let constraint_tree = MerkleTree::new(constraint_evaluations, options.hash_fn());
     debug!("Evaluated constraint polynomial and built constraint Merkle tree in {} ms",
         now.elapsed().as_millis());
 
@@ -122,7 +122,7 @@ pub fn prove<T>(trace: &mut TraceTable<T>, inputs: &[T], outputs: &[T], options:
 
     // derive a seed from the combined roots
     let mut seed = [0u8; 32];
-    options.hash_function()(&fri_roots, &mut seed);
+    options.hash_fn()(&fri_roots, &mut seed);
 
     // apply proof-of-work to get a new seed
     let (seed, pow_nonce) = utils::find_pow_nonce(seed, &options);

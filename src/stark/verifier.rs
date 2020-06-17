@@ -9,7 +9,7 @@ pub fn verify<T>(program_hash: &[u8; 32], inputs: &[T], outputs: &[T], proof: &S
     where T: FiniteField + Accumulator + Hasher
 {
     let options = proof.options();
-    let hash_fn = options.hash_function();
+    let hash_fn = options.hash_fn();
 
     // 1 ----- Verify proof of work and determine query positions ---------------------------------
     let degree_proof = proof.degree_proof();

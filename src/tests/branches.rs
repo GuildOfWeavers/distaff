@@ -17,7 +17,7 @@ fn simple_branching() {
     exe_graph.set_next(true_branch, false_branch);
 
     let options = ProofOptions::default();
-    let program = Program::new(exe_graph, options.hash_function());
+    let program = Program::new(exe_graph, options.hash_fn());
     let num_outputs = 1;
 
     // test true branch

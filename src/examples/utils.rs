@@ -28,5 +28,5 @@ pub fn parse_args(args: &[String]) -> (usize, ProofOptions) {
         grind_factor = args[4].parse().unwrap();
     }
 
-    return (n, ProofOptions::new(ext_factor, num_queries, grind_factor, default_options.hash_function()));
+    return (n, ProofOptions::new(ext_factor, num_queries, grind_factor, default_options.hash_fn()));
 }

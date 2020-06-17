@@ -3,7 +3,7 @@ use crate::stark::{ ProofOptions };
 
 pub fn find_pow_nonce(seed: [u8; 32], options: &ProofOptions) -> ([u8; 32], u64) {
 
-    let hash = options.hash_function();
+    let hash = options.hash_fn();
     let grinding_factor = options.grinding_factor();
 
     // copy seed into inputs and also get a reference to inputs as to an array of bytes
@@ -33,7 +33,7 @@ pub fn find_pow_nonce(seed: [u8; 32], options: &ProofOptions) -> ([u8; 32], u64)
 
 pub fn verify_pow_nonce(seed: [u8; 32], nonce: u64, options: &ProofOptions) -> Result<[u8; 32], String> {
 
-    let hash = options.hash_function();
+    let hash = options.hash_fn();
 
     // append nonce to seed for hashing
     let mut input_bytes = [0; 64];
