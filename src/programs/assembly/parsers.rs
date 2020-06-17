@@ -84,7 +84,6 @@ pub fn parse_pad(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<bo
     return Ok(true);
 }
 
-
 /// Appends a sequence of operations to the program to copy n-th item to the top of the stack.
 pub fn parse_pick(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     let n = read_param(op, step)?;
