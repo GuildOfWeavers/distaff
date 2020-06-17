@@ -55,7 +55,7 @@ impl AssemblyError {
 
     pub fn unmatched_else(step: usize) -> AssemblyError {
         return AssemblyError {
-            message : format!("found else without matching if"),
+            message : format!("else without matching if"),
             step    : step,
             op      : String::from("else"),
         };
@@ -63,7 +63,23 @@ impl AssemblyError {
 
     pub fn unmatched_endif(step: usize) -> AssemblyError {
         return AssemblyError {
-            message : format!("found endif without matching if"),
+            message : format!("endif without matching if/else"),
+            step    : step,
+            op      : String::from("endif"),
+        };
+    }
+
+    pub fn dangling_if(step: usize) -> AssemblyError {
+        return AssemblyError {
+            message : format!("if without matching else/endif"),
+            step    : step,
+            op      : String::from("endif"),
+        };
+    }
+
+    pub fn dangling_else(step: usize) -> AssemblyError {
+        return AssemblyError {
+            message : format!("else without matching endif"),
             step    : step,
             op      : String::from("endif"),
         };

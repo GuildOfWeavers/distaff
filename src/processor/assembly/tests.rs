@@ -4,7 +4,7 @@ use super::{ Program, ExecutionGraph, opcodes };
 #[test]
 fn linear_assembly() {
     let source = "push.1 push.2 add";
-    let program = super::compile(source).unwrap();
+    let program = super::compile(source, blake3).unwrap();
 
     let expected_program = Program::from_path(vec![
         opcodes::BEGIN, opcodes::PUSH, 1, opcodes::PUSH, 2, opcodes::ADD
@@ -24,7 +24,7 @@ fn branching_assembly() {
         else
             mul
         endif";
-    let program = super::compile(source).unwrap();
+    let program = super::compile(source, blake3).unwrap();
 
     let mut root = ExecutionGraph::new(vec![opcodes::BEGIN, opcodes::PUSH, 3, opcodes::PUSH, 5, opcodes::READ]);
     let tb = ExecutionGraph::new(vec![opcodes::ASSERT, opcodes::ADD]);
@@ -53,7 +53,7 @@ fn nested_branching_assembly() {
         else
             mul
         endif";
-    let program = super::compile(source).unwrap();
+    let program = super::compile(source, blake3).unwrap();
 
     let mut root = ExecutionGraph::new(vec![opcodes::BEGIN, opcodes::PUSH, 3, opcodes::PUSH, 5, opcodes::READ]);
     let mut t0 = ExecutionGraph::new(vec![opcodes::ASSERT, opcodes::ADD, opcodes::PUSH, 7, opcodes::READ]);
@@ -85,7 +85,7 @@ fn sequential_branching_assembly() {
         else
             add
         endif";
-    let program = super::compile(source).unwrap();
+    let program = super::compile(source, blake3).unwrap();
 
     let mut root = ExecutionGraph::new(vec![opcodes::BEGIN, opcodes::PUSH, 3, opcodes::PUSH, 5, opcodes::READ]);
 
@@ -130,7 +130,7 @@ fn sequential_nested_branching_assembly() {
         else
             add
         endif";
-    let program = super::compile(source).unwrap();
+    let program = super::compile(source, blake3).unwrap();
 
     let mut root = ExecutionGraph::new(vec![opcodes::BEGIN, opcodes::PUSH, 3, opcodes::PUSH, 5, opcodes::READ]);
 
