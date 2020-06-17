@@ -28,9 +28,9 @@ pub fn compile(assembly: &str, hash_fn: HashFunction) -> Result<Program, Assembl
             "if.true" => {
                 // when `if` token is encountered, recursively parse true and false branches,
                 // combine them into an execution graph, construct a program, and return
-                let true_branch = parse_branch(&tokens, i)?;
+                let true_branch = parse_branch(&tokens, i, 1)?;
                 let i = find_matching_else(&tokens, i)?;
-                let false_branch = parse_branch(&tokens, i)?;
+                let false_branch = parse_branch(&tokens, i, 1)?;
 
                 let mut exe_graph = ExecutionGraph::new(segment_ops);
                 exe_graph.set_next(true_branch, false_branch);
@@ -54,25 +54,24 @@ pub fn compile(assembly: &str, hash_fn: HashFunction) -> Result<Program, Assembl
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn parse_branch(tokens: &[&str], mut i: usize) -> Result<ExecutionGraph, AssemblyError> {
+fn parse_branch(tokens: &[&str], mut i: usize, mut depth: usize) -> Result<ExecutionGraph, AssemblyError> {
 
     // get the first instruction of the branch and advance instruction counter
     let first_op = tokens[i];
     i += 1;
 
     // true branch must start with ASSERT, which false branch must start with NOT ASSERT
-    let mut expect_endif = false;
     let branch_head_length: usize;
     let mut segment_ops = if first_op == "if.true" {
         branch_head_length = 1;
         vec![opcodes::ASSERT]
     }
     else {
-        expect_endif = true;
         branch_head_length = 2;
         vec![opcodes::NOT, opcodes::ASSERT]
     };
 
+    // iterate over tokens and parse them one by one until the next branch is encountered
     while i < tokens.len() {
         match tokens[i] {
             "if.true" => {
@@ -82,9 +81,9 @@ fn parse_branch(tokens: &[&str], mut i: usize) -> Result<ExecutionGraph, Assembl
                 }
 
                 // parse subsequent true and false branches
-                let true_branch = parse_branch(&tokens, i)?;
+                let true_branch = parse_branch(&tokens, i, depth + 1)?;
                 let i = find_matching_else(tokens, i)?;
-                let false_branch = parse_branch(&tokens, i)?;
+                let false_branch = parse_branch(&tokens, i, depth + 1)?;
 
                 // build the graph and return
                 let mut graph = ExecutionGraph::new(segment_ops);
@@ -95,13 +94,11 @@ fn parse_branch(tokens: &[&str], mut i: usize) -> Result<ExecutionGraph, Assembl
                 i = find_matching_endif(&tokens, i)?;
             },
             "endif" => {
-                // make sure endif appears only in the else branch
-                if expect_endif { 
-                    expect_endif = false;
+                // make sure branches are closed correctly
+                if depth == 0 {
+                    return Err(AssemblyError::unmatched_endif(i));
                 }
-                else {
-                    //return Err(AssemblyError::unmatched_endif(i));
-                }
+                depth -= 1;
             }
             token => {
                 parse_op_token(token, &mut segment_ops, i)?;
