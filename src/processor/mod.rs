@@ -1,18 +1,14 @@
-use program::{ get_padded_length };
+use crate::programs::{ Program, ProgramInputs, ExecutionGraph, get_padded_length };
 
 // RE-EXPORTS
 // ================================================================================================
 pub mod opcodes;
-pub mod assembly;
 
 mod decoder;
 use decoder::Decoder;
 
 mod stack;
 use stack::Stack;
-
-mod program;
-pub use program::{ Program, ProgramInputs, ExecutionGraph };
 
 // PUBLIC FUNCTIONS
 // ================================================================================================

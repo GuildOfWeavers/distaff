@@ -248,7 +248,8 @@ mod tests {
 
     use crate::math::{ F128, FiniteField, polynom, parallel, fft };
     use crate::{ crypto::hash::blake3, processor::opcodes::f128 as opcodes };
-    use crate::processor::{ Program, ProgramInputs, execute };
+    use crate::programs::{ Program, ProgramInputs };
+    use crate::processor::{ execute };
     use crate::stark::{ TraceTable, CompositionCoefficients, MAX_CONSTRAINT_DEGREE };
     
     const EXT_FACTOR: usize = 32;

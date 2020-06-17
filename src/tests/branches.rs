@@ -1,6 +1,5 @@
-use crate::{ ProofOptions, opcodes::f128 as opcodes };
-use super::{ Program, ProgramInputs, super::{ execute, verify, processor::ExecutionGraph } };
-
+use crate::{ ProofOptions, opcodes::f128 as opcodes, ExecutionGraph };
+use super::{ Program, ProgramInputs, super::{ execute, verify, } };
 
 #[test]
 fn simple_branching() {

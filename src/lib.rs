@@ -15,7 +15,10 @@ mod stark;
 pub use stark::{ StarkProof, ProofOptions };
 
 mod processor;
-pub use processor::{ Program, ProgramInputs, opcodes, assembly };
+pub use processor::{ opcodes };
+
+mod programs;
+pub use programs::{ Program, ProgramInputs, ExecutionGraph, assembly };
 
 // EXECUTOR
 // ================================================================================================

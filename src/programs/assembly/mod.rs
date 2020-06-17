@@ -1,5 +1,6 @@
 use crate::crypto::{ HashFunction };
-use super::{ opcodes::f128 as opcodes, Program, ExecutionGraph };
+use crate::processor::{ opcodes::f128 as opcodes };
+use super::{ Program, ExecutionGraph };
 
 mod parsers;
 use parsers::*;

@@ -9,6 +9,8 @@ pub use graph::{ ExecutionGraph };
 mod inputs;
 pub use inputs::{ ProgramInputs };
 
+pub mod assembly;
+
 // TYPES AND INTERFACES
 // ================================================================================================
 type HashState = [u128; ACC_STATE_WIDTH];

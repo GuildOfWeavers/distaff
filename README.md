@@ -22,12 +22,15 @@ If the program is executed successfully, the function returns a tuple with 3 ele
 * `proof: StarkProof` - proof of program execution. `StarkProof` implements `serde`'s `Serialize` and `Deserialize` traits - so, it can be easily serialized and de-serialized.
 
 #### Program inputs
-To provide inputs for a program, you must create a [ProgramInputs](https://github.com/GuildOfWeavers/distaff/blob/master/src/stark/inputs.rs.rs) object which can contain the following:
+To provide inputs for a program, you must create a [ProgramInputs](https://github.com/GuildOfWeavers/distaff/blob/master/src/programs/inputs.rs.rs) object which can contain the following:
 
 * A list of public inputs which will be used to initialize the stack. Currently, at most 8 public inputs can be provided.
 * Two lists of secret inputs. These lists can be thought of as tapes `A` and `B`. You can use `READ` operations to read values from these tapes and push them onto the stack (see [here](#Input-operations)).
 
 Besides the `ProgramInputs::new()` function, you can also use `ProgramInputs::from_public()` and `ProgramInputs:none()` convenience functions to construct the inputs object.
+
+#### Writing programs
+To execute a program you must create a 
 
 #### Program execution example
 Here is a simple example of executing a program which pushes two numbers onto the stack and computes their sum:
