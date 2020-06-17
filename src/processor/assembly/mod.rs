@@ -42,30 +42,51 @@ pub fn compile(assembly: &str, hash_fn: HashFunction) -> Result<Program, Assembl
         }?;
     }
 
-    // if there are no branches, build a program from linear execution path
-    return Ok(Program::from_path(segment_ops));
+    // if there are no branches, make sure there was at least one operation,
+    // build the program, and return
+    if segment_ops.len() <= 1 {
+        return Err(AssemblyError::empty_program());
+    }
+    else {
+        return Ok(Program::from_path(segment_ops));
+    }
 }
 
 // HELPER FUNCTIONS
 // ================================================================================================
 fn parse_branch(tokens: &[&str], mut i: usize) -> Result<ExecutionGraph, AssemblyError> {
 
+    // get the first instruction of the branch and advance instruction counter
+    let first_op = tokens[i];
+    i += 1;
+
     // true branch must start with ASSERT, which false branch must start with NOT ASSERT
-    let mut segment_ops = if tokens[i] == "if.true" {
+    let mut expect_endif = false;
+    let branch_head_length: usize;
+    let mut segment_ops = if first_op == "if.true" {
+        branch_head_length = 1;
         vec![opcodes::ASSERT]
     }
     else {
+        expect_endif = true;
+        branch_head_length = 2;
         vec![opcodes::NOT, opcodes::ASSERT]
     };
-    i += 1;
 
     while i < tokens.len() {
         match tokens[i] {
             "if.true" => {
+                // make sure the branch was not empty
+                if segment_ops.len() <= branch_head_length {
+                    return Err(AssemblyError::empty_branch(first_op, i));
+                }
+
+                // parse subsequent true and false branches
                 let true_branch = parse_branch(&tokens, i)?;
                 let i = find_matching_else(tokens, i)?;
                 let false_branch = parse_branch(&tokens, i)?;
 
+                // build the graph and return
                 let mut graph = ExecutionGraph::new(segment_ops);
                 graph.set_next(true_branch, false_branch);
                 return Ok(graph);
@@ -74,7 +95,13 @@ fn parse_branch(tokens: &[&str], mut i: usize) -> Result<ExecutionGraph, Assembl
                 i = find_matching_endif(&tokens, i)?;
             },
             "endif" => {
-                
+                // make sure endif appears only in the else branch
+                if expect_endif { 
+                    expect_endif = false;
+                }
+                else {
+                    //return Err(AssemblyError::unmatched_endif(i));
+                }
             }
             token => {
                 parse_op_token(token, &mut segment_ops, i)?;
@@ -84,8 +111,13 @@ fn parse_branch(tokens: &[&str], mut i: usize) -> Result<ExecutionGraph, Assembl
         i += 1;
     }
 
-    // if there were no further branches, return linear execution path
-    return Ok(ExecutionGraph::new(segment_ops));
+    // if there were no further branches, make sure the branch was not empty, and return
+    if segment_ops.len() <= branch_head_length {
+        return Err(AssemblyError::empty_branch(first_op, i));
+    }
+    else {
+        return Ok(ExecutionGraph::new(segment_ops));
+    }
 }
 
 fn parse_op_token(token: &str, program: &mut Vec<u128>, step: usize) -> Result<bool, AssemblyError> {
@@ -134,18 +166,34 @@ fn parse_op_token(token: &str, program: &mut Vec<u128>, step: usize) -> Result<b
 
 fn find_matching_else(tokens: &[&str], start: usize) -> Result<usize, AssemblyError> {
 
-    let mut depth = 0;
+    let mut if_ctr = 0;
+    let mut else_ctr = 0;
+    let mut end_ctr = 0;
 
     for i in start..tokens.len() {
         match tokens[i] {
             "if.true" => {
-                depth += 1;
+                if_ctr += 1;
             },
             "else" => {
-                depth -= 1;
-                if depth == 0 { return Ok(i); }
+                else_ctr += 1;
+                if else_ctr > if_ctr {
+                    return Err(AssemblyError::unmatched_else(i));
+                }
+                else if if_ctr == else_ctr {
+                    return Ok(i);
+                }
             },
-            _ => { }
+            "endif" => {
+                end_ctr += 1;
+                if end_ctr > if_ctr {
+                    return Err(AssemblyError::unmatched_endif(i));
+                }
+                else if end_ctr > else_ctr {
+                    return Err(AssemblyError::missing_else(i));
+                }
+            }
+            _ => ()
         }
     }
 
@@ -154,18 +202,34 @@ fn find_matching_else(tokens: &[&str], start: usize) -> Result<usize, AssemblyEr
 
 fn find_matching_endif(tokens: &[&str], start: usize) -> Result<usize, AssemblyError> {
 
-    let mut depth = 0;
+    let mut if_ctr = 1;
+    let mut else_ctr = 0;
+    let mut end_ctr = 0;
 
     for i in start..tokens.len() {
         match tokens[i] {
+            "if.true" => {
+                if_ctr += 1;
+            },
             "else" => {
-                depth += 1;
+                else_ctr += 1;
+                if else_ctr > if_ctr {
+                    return Err(AssemblyError::unmatched_else(i));
+                }
             },
             "endif" => {
-                depth -= 1;
-                if depth == 0 { return Ok(i); }
+                end_ctr += 1;
+                if end_ctr > if_ctr {
+                    return Err(AssemblyError::unmatched_endif(i));
+                }
+                else if end_ctr > else_ctr {
+                    return Err(AssemblyError::missing_else(i));
+                }
+                else if end_ctr == else_ctr {
+                    return Ok(i);
+                }
             },
-            _ => { }
+            _ => ()
         }
     }
 

@@ -13,6 +13,14 @@ impl AssemblyError {
     // CONSTRUCTORS
     // --------------------------------------------------------------------------------------------
 
+    pub fn empty_program() -> AssemblyError {
+        return AssemblyError {
+            message : String::from("a program must contain at least one operation"),
+            step    : 0,
+            op      : String::from("begin"),
+        };
+    }
+
     pub fn invalid_op(op: &[&str], step: usize) -> AssemblyError {
         return AssemblyError {
             message : format!("operation {} is invalid", op.join(".")),
@@ -73,7 +81,7 @@ impl AssemblyError {
         return AssemblyError {
             message : format!("if without matching else/endif"),
             step    : step,
-            op      : String::from("endif"),
+            op      : String::from("if.true"),
         };
     }
 
@@ -81,7 +89,23 @@ impl AssemblyError {
         return AssemblyError {
             message : format!("else without matching endif"),
             step    : step,
+            op      : String::from("else"),
+        };
+    }
+
+    pub fn missing_else(step: usize) -> AssemblyError {
+        return AssemblyError {
+            message : format!("if/endif without else"),
+            step    : step,
             op      : String::from("endif"),
+        };
+    }
+
+    pub fn empty_branch(op: &str, step: usize) -> AssemblyError {
+        return AssemblyError {
+            message : format!("a branch must contain at least one operation"),
+            step    : step,
+            op      : String::from(op),
         };
     }
 
