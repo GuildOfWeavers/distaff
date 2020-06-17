@@ -53,6 +53,22 @@ impl AssemblyError {
         };
     }
 
+    pub fn unmatched_else(step: usize) -> AssemblyError {
+        return AssemblyError {
+            message : format!("found else without matching if"),
+            step    : step,
+            op      : String::from("else"),
+        };
+    }
+
+    pub fn unmatched_endif(step: usize) -> AssemblyError {
+        return AssemblyError {
+            message : format!("found endif without matching if"),
+            step    : step,
+            op      : String::from("endif"),
+        };
+    }
+
     // PUBLIC ACCESSORS
     // --------------------------------------------------------------------------------------------
     pub fn message(&self) -> &String {
