@@ -15,13 +15,13 @@ mod tests;
 // ================================================================================================
 
 /// Compiles provided assembly code into a program.
-pub fn compile(assembly: &str, hash_fn: HashFunction) -> Result<Program, AssemblyError> {
+pub fn compile(source: &str, hash_fn: HashFunction) -> Result<Program, AssemblyError> {
     
     // all programs must start with BEGIN operation
     let mut segment_ops = vec![opcodes::BEGIN];
 
     // break assembly string into tokens
-    let tokens: Vec<&str> = assembly.split_whitespace().collect();
+    let tokens: Vec<&str> = source.split_whitespace().collect();
 
     // iterate over tokens and parse them one by one until the first branch is encountered
     for i in 0..tokens.len() {
