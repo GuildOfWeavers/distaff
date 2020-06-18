@@ -148,8 +148,6 @@ fn parse_op_token(token: &str, program: &mut Vec<u128>, step: usize) -> Result<b
         "gt"     => parse_gt(program, &op, step),
         "lt"     => parse_lt(program, &op, step),
         "rc"     => parse_rc(program, &op, step),
-        "cmp"    => parse_cmp(program, &op, step),
-        "binacc" => parse_binacc(program, &op, step),
 
         "choose" => parse_choose(program, &op, step),
 

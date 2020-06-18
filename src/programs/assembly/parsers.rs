@@ -4,17 +4,21 @@ use super::{ opcodes, AssemblyError };
 // CONTROL FLOW OPERATIONS
 // ================================================================================================
 
-/// Appends the specified number of NOOP operations to the program.
+/// Appends a NOOP operations to the program.
 pub fn parse_noop(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
-    let n = read_param(op, step)? as usize;
-    program.resize(program.len() + n, opcodes::NOOP);
+    if op.len() > 1 {
+        return Err(AssemblyError::extra_param(op, step));
+    }
+    program.push(opcodes::NOOP);
     return Ok(true);
 }
 
-/// Appends the specified number of ASSERT operations to the program.
+/// Appends an ASSERT operations to the program.
 pub fn parse_assert(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
-    let n = read_param(op, step)? as usize;
-    program.resize(program.len() + n, opcodes::ASSERT);
+    if op.len() > 1 {
+        return Err(AssemblyError::extra_param(op, step));
+    }
+    program.push(opcodes::ASSERT);
     return Ok(true);
 }
 
@@ -126,13 +130,9 @@ pub fn parse_swap(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<b
     match n {
         1 => program.push(opcodes::SWAP),
         2 => program.push(opcodes::SWAP2),
-        3 => program.extend_from_slice(&[
-            opcodes::DUP2,  opcodes::ROLL8, opcodes::ROLL8, opcodes::ROLL8,
-            opcodes::ROLL4, opcodes::DROP,  opcodes::ROLL4, opcodes::DROP
-        ]),
         4 => program.push(opcodes::SWAP4),
         _ => return Err(AssemblyError::invalid_param_reason(op, step,
-            format!("parameter {} is invalid; allowed values are: [1, 2, 3, 4]", n)))
+            format!("parameter {} is invalid; allowed values are: [1, 2, 4]", n)))
     }
 
     return Ok(true);
@@ -294,20 +294,6 @@ pub fn parse_rc(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<boo
     return Ok(true);
 }
 
-/// Appends CMP operation to the program.
-pub fn parse_cmp(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
-    if op.len() > 1 { return Err(AssemblyError::extra_param(op, step)); }
-    program.push(opcodes::CMP);
-    return Ok(true);
-}
-
-/// Appends BINACC operation to the program.
-pub fn parse_binacc(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
-    if op.len() > 1 { return Err(AssemblyError::extra_param(op, step)); }
-    program.push(opcodes::BINACC);
-    return Ok(true);
-}
-
 // SELECTOR OPERATIONS
 // ================================================================================================
 
@@ -326,28 +312,13 @@ pub fn parse_choose(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result
 // CRYPTO OPERATIONS
 // ================================================================================================
 
-/// When parameter is `r`, appends HASHR operation to the program. Otherwise, appends a sequence
-/// of operations to hash top n values of the stack.
+/// Appends a sequence of operations to the program to hash top n values of the stack.
 pub fn parse_hash(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
-    // make sure exactly 1 parameter was provided
-    if op.len() == 1 {
-        return Err(AssemblyError::missing_param(op, step));
-    }
-    else if op.len() > 2 {
-        return Err(AssemblyError::extra_param(op, step));
-    }
-
-    // r means execute a single round of hash function
-    if op[1] == "r" {
-        program.push(opcodes::HASHR);
-        return Ok(true);
-    }
-
     let n = read_param(op, step)?;
     match n {
-        1 => program.extend_from_slice(&[opcodes::PAD2, opcodes::PAD2, opcodes::PAD2, opcodes::DROP4]),
+        1 => program.extend_from_slice(&[opcodes::PAD2, opcodes::PAD2, opcodes::PAD2, opcodes::DROP]),
         2 => program.extend_from_slice(&[opcodes::PAD2, opcodes::PAD2]),
-        3 => program.extend_from_slice(&[opcodes::PAD2, opcodes::PAD2, opcodes::DROP4]),
+        3 => program.extend_from_slice(&[opcodes::PAD2, opcodes::PAD2, opcodes::DROP]),
         4 => program.push(opcodes::PAD2),
         _ => return Err(AssemblyError::invalid_param_reason(op, step,
             format!("parameter {} is invalid; allowed values are: [1, 2, 3, 4]", n)))
