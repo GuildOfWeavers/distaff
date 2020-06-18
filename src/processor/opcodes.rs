@@ -25,7 +25,7 @@ pub const EQ: u8       = 0b000_10_101;
 pub const CHOOSE: u8   = 0b000_10_110;
 pub const CHOOSE2: u8  = 0b000_10_111;
 
-pub const HASHR: u8    = 0b000_11_000;
+pub const RESCR: u8    = 0b000_11_000;
 //pub const ???: u8    = 0b000_11_001;
 pub const SWAP: u8     = 0b000_11_010;
 pub const SWAP2: u8    = 0b000_11_011;  // same as: ROLL4 ROLL4
@@ -75,5 +75,5 @@ pub mod f128 {
     pub const BINACC  : u128 = super::BINACC as u128;
 
     // crypto ops
-    pub const HASHR   : u128 = super::HASHR as u128;
+    pub const RESCR   : u128 = super::RESCR as u128;
 }

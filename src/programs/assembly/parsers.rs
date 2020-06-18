@@ -330,8 +330,8 @@ pub fn parse_hash(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<b
 
     // append operations to execute 10 rounds of Rescue
     program.extend_from_slice(&[
-        opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR,
-        opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR
+        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
+        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR
     ]);
 
     // truncate the state
@@ -364,13 +364,13 @@ pub fn parse_mpath(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<
     // 4. base on position index bit, choses either hash(p, v) or hash(v, p)
     // 5. reads the next nodes and pushes it onto the stack
     const SUB_CYCLE: [u128; 32] = [
-        opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR,
-        opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR,
-        opcodes::HASHR, opcodes::HASHR, opcodes::DROP4, opcodes::READ2,
+        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
+        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
+        opcodes::RESCR, opcodes::RESCR, opcodes::DROP4, opcodes::READ2,
         opcodes::SWAP2, opcodes::SWAP4, opcodes::SWAP2, opcodes::PAD2,
-        opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR,
-        opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR,
-        opcodes::HASHR, opcodes::HASHR, opcodes::DROP4, opcodes::CHOOSE2,
+        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
+        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
+        opcodes::RESCR, opcodes::RESCR, opcodes::DROP4, opcodes::CHOOSE2,
         opcodes::READ2, opcodes::DUP4,  opcodes::PAD2,  opcodes::NOOP
     ];
 

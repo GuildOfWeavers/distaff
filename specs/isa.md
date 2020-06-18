@@ -63,7 +63,7 @@
 
 | Instruction | Opcode   | Description                            |
 | ----------- | :------: | -------------------------------------- |
-| HASHR       | 00011000 | Pops top 6 items from the stack, computes a single round of a modified [Rescue](https://eprint.iacr.org/2019/426) hash function over these values, and pushes the results back onto the stack. This operation can be used to hash up to two 256-bit values. However, to achieve 120 bits of security, the `HASHR` operation must be applied at least 10 times in a row (see [here](#Hashing-in-Distaff-VM)).  |
+| RESCR       | 00011000 | Pops top 6 items from the stack, computes a single round of a modified [Rescue](https://eprint.iacr.org/2019/426) hash function over these values, and pushes the results back onto the stack. This operation can be used to hash up to two 256-bit values. However, to achieve 120 bits of security, the `HASHR` operation must be applied at least 10 times in a row (see [here](#Hashing-in-Distaff-VM)).  |
 
 ## Value comparison in Distaff VM
 There are 3 operations in Distaff VM which can be used to compare values: `EQ`, `CMP`, and `BINACC`. Using these operations you can check whether 2 values a equal, whether one value is greater or less than the other, and whether a value can be represented with a given number of bits.

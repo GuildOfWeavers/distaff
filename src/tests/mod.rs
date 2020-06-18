@@ -164,9 +164,9 @@ fn hash_operations() {
         opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
-        opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR,
-        opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR,
-        opcodes::HASHR, opcodes::HASHR, opcodes::DROP,  opcodes::DROP,
+        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
+        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
+        opcodes::RESCR, opcodes::RESCR, opcodes::DROP,  opcodes::DROP,
         opcodes::DROP,  opcodes::DROP,  opcodes::NOOP,  opcodes::NOOP,
     ]);
 
@@ -190,13 +190,13 @@ fn hash_operations() {
         opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
-        opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR,
-        opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR,
-        opcodes::HASHR, opcodes::HASHR, opcodes::DROP4, opcodes::NOOP,
+        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
+        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
+        opcodes::RESCR, opcodes::RESCR, opcodes::DROP4, opcodes::NOOP,
         opcodes::PAD2,  opcodes::DUP2,  opcodes::NOOP,  opcodes::NOOP,
-        opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR,
-        opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR,
-        opcodes::HASHR, opcodes::HASHR, opcodes::DROP4, opcodes::NOOP,
+        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
+        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
+        opcodes::RESCR, opcodes::RESCR, opcodes::DROP4, opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
     ]);
 

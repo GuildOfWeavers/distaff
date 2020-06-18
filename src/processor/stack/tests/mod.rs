@@ -335,15 +335,15 @@ fn not_fail() {
 // ================================================================================================
 
 #[test]
-fn hashr() {
+fn rescr() {
     let mut stack = init_stack(&[0, 0, 1, 2, 3, 4], &[], &[], TRACE_LENGTH);
     let mut expected = vec![0, 0, 1, 2, 3, 4, 0, 0];
 
-    stack.op_hashr(0);
+    stack.op_rescr(0);
     <F128 as Hasher>::apply_round(&mut expected[..F128::STATE_WIDTH], 0);
     assert_eq!(expected, get_stack_state(&stack, 1));
 
-    stack.op_hashr(1);
+    stack.op_rescr(1);
     <F128 as Hasher>::apply_round(&mut expected[..F128::STATE_WIDTH], 1);
     assert_eq!(expected, get_stack_state(&stack, 2));
 

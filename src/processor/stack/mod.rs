@@ -115,7 +115,7 @@ impl Stack {
             opcodes::CMP     => self.op_cmp(step),
             opcodes::BINACC  => self.op_binacc(step),
 
-            opcodes::HASHR   => self.op_hashr(step),
+            opcodes::RESCR   => self.op_rescr(step),
 
             _ => panic!("operation {} is not supported", current_op)
         }
@@ -412,7 +412,7 @@ impl Stack {
         self.copy_state(step, 2);
     }
 
-    fn op_hashr(&mut self, step: usize) {
+    fn op_rescr(&mut self, step: usize) {
         assert!(self.depth >= HASH_STATE_WIDTH, "stack underflow at step {}", step);
         let mut state = [
             self.user_registers[0][step],

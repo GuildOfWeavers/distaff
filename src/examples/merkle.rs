@@ -58,13 +58,13 @@ fn generate_merkle_program(n: usize) -> Program {
     // 4. based on position index bit, choses either hash(p, v) or hash(v, p)
     // 5. reads the next nodes and pushes it onto the stack
     let level_sub = vec![
-        opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR,
-        opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR,
-        opcodes::HASHR, opcodes::HASHR, opcodes::DROP4, opcodes::READ2,
+        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
+        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
+        opcodes::RESCR, opcodes::RESCR, opcodes::DROP4, opcodes::READ2,
         opcodes::SWAP2, opcodes::SWAP4, opcodes::SWAP2, opcodes::PAD2,
-        opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR,
-        opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR,
-        opcodes::HASHR, opcodes::HASHR, opcodes::DROP4, opcodes::CHOOSE2,
+        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
+        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
+        opcodes::RESCR, opcodes::RESCR, opcodes::DROP4, opcodes::CHOOSE2,
         opcodes::READ2, opcodes::DUP4,  opcodes::PAD2,  opcodes::NOOP
     ];
 
