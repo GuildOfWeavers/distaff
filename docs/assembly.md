@@ -8,10 +8,10 @@ Distaff assembly is a simple, low-level language for writing programs for Distaf
 ### Compiling assembly code
 To compile Distaff assembly source code into a program for Distaff VM, you can use the `compile()` function from the [assembly](https://github.com/GuildOfWeavers/distaff/blob/master/src/programs/assembly/mod.rs) module. This function takes the following parameters:
 
-* `source: &str` - a reference to the string containing Distaff assembly source code.
+* `source: &str` - a reference to a string containing Distaff assembly source code.
 * `hash_fn: HashFunction` - a hash function to be used for building a Merkle tree of program execution paths.
 
-The function returns `Result<Program, AssemblyError>` which will contain the compiled program if the compilation was successful, or if the source code contained errors, description of the first encountered error.
+The `compile()` function returns `Result<Program, AssemblyError>` which will contain the compiled program if the compilation was successful, or if the source code contained errors, description of the first encountered error.
 
 For example:
 ```Rust
@@ -35,7 +35,7 @@ A single instruction may take multiple VM cycles to execute. The number of cycle
 | Operation | Description                            | Cycles |
 | --------- | -------------------------------------- | :----: |
 | noop      | Does nothing.                          | 1      |
-| assert    | Pops the top item from the stack and checks if it is equal to `1`. If it is not equal to `1` the program fails. | 1 |
+| assert    | Pops the top item from the stack and checks if it is equal to `1`. If it is not equal to `1`, the program fails. | 1 |
 | if.true   | Marks the beginning of the *true* branch in the `if.true else endif` expression. If the value at the top of the stack is `1`, the *true* branch is executed. | 1 |
 | else      | Marks the beginning of the *false* branch in the `if.true else endif` expression. If the value at the top of the stack is `0`, the *false* branch is executed. | 2 |
 | endif     | Marks the end of the `if.true else endif` expression.  | 0 |
@@ -73,7 +73,7 @@ The more possible execution paths there are, the longer a program will take to c
 | read.ab   | Pushes the next values from input tapes `A` and `B` onto the stack. Value from input tape `A` is pushed first, followed by the value from input tape `B`. | 1 |
 
 #### Input tapes
-Distaff VM has two input tapes for supplying secret inputs to a program: tape `A` and tape `B`. You can use `read.a` and `read.ab` instructions to move value from these tapes onto the stack. When a value is read from a tape, tape pointer advances to the next value. This means, that a value can be read from a tape only once. If you try to read values from a tape that hash no more values, the operation will fail.
+Distaff VM has two input tapes for supplying secret inputs to a program: tape `A` and tape `B`. You can use `read.a` and `read.ab` instructions to move value from these tapes onto the stack. When a value is read from a tape, tape pointer advances to the next value. This means, that a value can be read from a tape only once. If you try to read values from a tape which has no more values, the operation will fail.
 
 ### Stack manipulation instructions
 
@@ -93,13 +93,13 @@ Distaff VM has two input tapes for supplying secret inputs to a program: tape `A
 
 | Operation | Description                            | Cycles |
 | --------- | -------------------------------------- | :----: |
-| add       | Pops top two items from the stack, adds them, and pushes the result back onto the stack. | 1 |
-| sub       | Pops top two items from the stack, subtracts the top item from the second to the top item, and pushes the result back onto the stack.  | 2 |
-| mul       | Pops top two items from the stack, multiplies them, and pushes the result back onto the stack. | 1 |
-| div       | Pops top two items from the stack, divides second to the top item by the top item, and pushes the result back onto the stack. If the item at the top of the stack is `0`, this operation will fail. | 2 |
-| neg       | Pops the top item from the stack, computes its additive inverse, and pushes the result back onto the stack. | 1      |
-| inv       | Pops the top item from the stack, computes its multiplicative inverse, and pushes the result back onto the stack. If the value at the top of the stack is `0`, this operation will fail. | 1 |
-| not       | Pops the top item from the stack, subtracts it from value `1` and pushes the result back onto the stack. In other words, `0` becomes `1`, and `1` becomes `0`. If the item at the top of the stack is not binary (i.e. not `0` or `1`), this operation will fail. | 1 |
+| add       | Pops top two items from the stack, adds them, and pushes the result onto the stack. | 1 |
+| sub       | Pops top two items from the stack, subtracts the 1st item from the 2nd item, and pushes the result onto the stack.  | 2 |
+| mul       | Pops top two items from the stack, multiplies them, and pushes the result onto the stack. | 1 |
+| div       | Pops top two items from the stack, divides the 2nd item by the 1st item, and pushes the result onto the stack. If the item at the top of the stack is `0`, this operation will fail. | 2 |
+| neg       | Pops the top item from the stack, computes its additive inverse, and pushes the result onto the stack. | 1      |
+| inv       | Pops the top item from the stack, computes its multiplicative inverse, and pushes the result onto the stack. If the value at the top of the stack is `0`, this operation will fail. | 1 |
+| not       | Pops the top item from the stack, subtracts it from value `1` and pushes the result onto the stack. In other words, `0` becomes `1`, and `1` becomes `0`. If the item at the top of the stack is not binary (i.e. not `0` or `1`), this operation will fail. | 1 |
 
 #### Finite field arithmetic
 All arithmetic operations in Distaff VM happen in a [prime field](https://en.wikipedia.org/wiki/Finite_field) with modulus `340282366920938463463374557953744961537` (which can also be written as 2<sup>128</sup> - 45 * 2<sup>40</sup> + 1). This means that overflow happens after a value exceeds field modulus. So, for example: `340282366920938463463374557953744961536 + 1 = 0`.
@@ -123,7 +123,7 @@ Divisions in prime fields are defined as inverse of multiplication. Specifically
 | choose.2  | Pops top 6 items from the stack, and pushes either the 1st or the 2nd pair of values back onto the stack depending on whether the 5th value is `1` or `0`. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3 1 S5` becomes `S0 S1`, while `S0 S1 S2 S3 0 S5` becomes `S2 S3` (notice that `S5` is discarded in both cases). This operation will fail if the 5th stack item is not a binary value. | 1 |
 
 #### Conditional execution
-Selection instructions can be used to simulate conditional execution. This, in turn, can be sued to eliminate simple `if.true else endif` expressions. For example, if we have a program with conditional branches which looks like so:
+Selection instructions can be used to simulate conditional execution. This, in turn, can be used to eliminate simple `if.true else endif` expressions. For example, if we have a program with conditional branches which looks like so:
 ```
 if.true
     <instructions>
@@ -144,7 +144,7 @@ For simple programs, such transformation would not be difficult, but for complex
 | Operation | Description                            | Cycles |
 | --------- | -------------------------------------- | :----: |
 | hash.*n*  | Pops top *n* items from the stack, computes their hash using [Rescue hash function](#Rescue-hash-function), and pushes the result onto the stack. The result is always represented by 2 stack items. *n* can be any integer between 1 and 4. | ~ 16 |
-| mpath.*n* | Pops top 2 items from the stack, uses them to compute a root of a [Merkle authentication path](#Merkle-authentication-path) for a tree of depth *n*, and pushes the result onto the stack. The result is always represented by 2 stack items. Input tapes `A` and `B` are expected to contain nodes of the Merkle authentication path.  | ~ *32n* |
+| mpath.*n* | Pops top 2 items from the stack, uses them to compute a root of a Merkle authentication path for a tree of depth *n*, and pushes the result onto the stack. The result is always represented by 2 stack items. Input tapes `A` and `B` are expected to contain nodes of the Merkle authentication path (see [here](#Merkle-authentication-path) for more info).  | ~ *32n* |
 
 #### Rescue hash function
 Distaff VM uses a modified version of [Rescue](https://eprint.iacr.org/2019/426) hash function. This modification adds half-rounds to the beginning and to the end of the standard Rescue hash function to make the arithmetization of the function fully foldable. High-level pseudo-code for the modified version looks like so:
@@ -180,7 +180,7 @@ where: `ab = hash(a, b)`, `cd = hash(c, d)`, and `abcd = hash(ab, cd)`. All of t
 If we consider leaf `c`, Merkle authentication path for this leaf would be: [`d`, `ab`], and the root of this path would be `abcd`. To compute this root in Distaff VM we can use `mpath` instruction like so:
 
 1. First, we need to put two elements representing leaf `c` onto the stack.
-2. Then, we need to execute `mpath.3` operation. We set the parameter to `3` because the depth of our Merkle tree is 3.
+2. Then, we need to execute `mpath.3` instruction. We set the parameter to `3` because the depth of our Merkle tree is 3.
 3. The result of the operation will be the value of `abcd` sitting in the top two registers of the stack.
 
 For the above to work, we also need to populate input tapes `A` and `B` with additional data. Specifically, these tapes should contain:
@@ -200,7 +200,9 @@ Applying the above to our example, we'd get inputs tapes looking like so:
 Here is a brief explanation:
 * First, we put the value `d` represented by d<sub>0</sub> and d<sub>1</sub> into tapes `A` and `B`.
 * Then we put the least significant bit of `c`'s index (which is `0`) into tape `A`, and also complement it with `0` in tape `B`.
-* Then, we put the value `ab` represented by ab<sub>0</sub> and ab<sub>1</sub> into tapes `A` and `B`.
+* Next, we put the value `ab` represented by ab<sub>0</sub> and ab<sub>1</sub> into tapes `A` and `B`.
 * Finally, we put the next bit of `c`'s index (which is `1`) into tape `A`, and complement it with `0` in tape `B`.
 
 Note that even though we use only tape `A` for bits of `c`'s index, we always complement these inputs with `0`'s in tape `B`.
+
+To summarize: if our input tapes are set up as shown above, and if our stack state is [c<sub>1</sub>, c<sub>0</sub>], where c<sub>1</sub> is at the top of the stack, executing `mpath.3` will transform the stack into [abcd<sub>1</sub>, abcd<sub>0</sub>].
