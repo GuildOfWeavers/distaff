@@ -10,8 +10,8 @@ Distaff crate exposes `execute()` and `verify()` functions which can be used to 
 ### Executing a program 
 To execute a program on Distaff VM, you can use `execute()` function. The function takes the following parameters:
 
-* `program: &Program` - the program to be executed. A program can be constructed manually by building a program execution graph, or compiled from Distaff assembly (more info [here](#Writing-programs)).
-* `inputs: &ProgramInputs` - inputs for the program. These include public inputs used to initialize the stack, as well as secret inputs consumed during program execution (more info [here](#Program-inputs)).
+* `program: &Program` - the program to be executed. A program can be constructed manually by building a program execution graph, or compiled from Distaff assembly (see [here](#Writing-programs)).
+* `inputs: &ProgramInputs` - inputs for the program. These include public inputs used to initialize the stack, as well as secret inputs consumed during program execution (see [here](#Program-inputs)).
 * `num_outputs: usize` - number of items on the stack to be returned as program output. Currently, at most 8 outputs can be returned.
 * `options: &ProofOptions` - config parameters for proof generation. The default options target 120-bit security level.
 
@@ -24,12 +24,19 @@ If the program is executed successfully, the function returns a tuple with 2 ele
 To provide inputs for a program, you must create a [ProgramInputs](https://github.com/GuildOfWeavers/distaff/blob/master/src/programs/inputs.rs) object which can contain the following:
 
 * A list of public inputs which will be used to initialize the stack. Currently, at most 8 public inputs can be provided.
-* Two lists of secret inputs. These lists can be thought of as tapes `A` and `B`. You can use `READ` operations to read values from these tapes and push them onto the stack (see [here](#Input-operations)). TODO
+* Two lists of secret inputs. These lists can be thought of as tapes `A` and `B`. You can use `read` operations to read values from these tapes and push them onto the stack.
 
 Besides the `ProgramInputs::new()` function, you can also use `ProgramInputs::from_public()` and `ProgramInputs:none()` convenience functions to construct the inputs object.
 
 #### Writing programs
-TODO
+To execute a program, Distaff VM consumes a [Program](https://github.com/GuildOfWeavers/distaff/blob/master/src/programs/mod.rs) object. This object contains an execution graph for the program, as well as other info needed to execute the program. There are two way of constructing a `Program` object:
+
+1. You can construct a `Program` object by manually building program execution graph from raw Distaff VM [instructions](docs/isa.md).
+2. You can compile [Distaff assembly](docs/assembly.md) source code into a `Program` object.
+
+The latter approach is strongly encouraged because building programs from raw Distaff VM instructions is tedious, error-prone, and requires an in-depth understanding of VM internals. All examples throughout these docs use Distaff assembly syntax.
+
+A general description of Distaff VM is also provided 👉 [here](docs). If you are trying to learn how to write programs for Distaff VM, this would be a good place to start.
 
 #### Program execution example
 Here is a simple example of executing a program which pushes two numbers onto the stack and computes their sum:
@@ -37,7 +44,7 @@ Here is a simple example of executing a program which pushes two numbers onto th
 use distaff::{ self, ProofOptions, ProgramInputs, assembly };
 
 // we'll be using default options
-let options = &ProofOptions::default();
+let options = ProofOptions::default();
 
 // this is our program, we compile it from assembly code
 let program = assembly::compile(
@@ -86,114 +93,56 @@ match distaff::verify(program.hash(), &[], &[8], &proof) {
 }
 ```
 
-## Design
-
-Distaff VM is a simple [stack machine](https://en.wikipedia.org/wiki/Stack_machine). This means all values live on the stack and all operations work with values near the top of the stack. 
-
-### The stack
-Currently, Distaff VM stack can be up to 32 items deep (this will be increased in the future). However, the more stack space a program uses, the longer it will take to execute, and the larger the execution proof will be. So, it pays to use stack space judiciously.
-
-Values on the stack must be elements of a [prime field](https://en.wikipedia.org/wiki/Finite_field) with modulus `340282366920938463463374557953744961537` (which can also be written as 2<sup>128</sup> - 45 * 2<sup>40</sup> + 1). This means that all valid values are in the range between `0` and `340282366920938463463374557953744961536` - this covers almost all 128-bit integers.   
-
-All arithmetic operations (addition, multiplication) also happen in the same prime field. This means that overflow happens after a value exceeds field modulus. So, for example: `340282366920938463463374557953744961536 + 1 = 0`.
-
-Besides being field elements, values in Distaff VM are untyped. However, some operations expect binary values and will fail if you attempt to execute them using non-binary values. Binary values are values which are either `0` or `1`.
-
-### Inputs / outputs
-Currently, there are 3 ways to get values onto the stack:
-
-1. You can use `PUSH` operations to push values onto the stack as shown [here](#Program-execution-example). These values become a part of the program itself, and, therefore, cannot be changed between program executions. You can think of them as constants.
-2. You can initialize the stack with a set of public inputs as described [here](#Program-inputs). Because these inputs are public, they must be shared with a verifier for them to verify program execution.
-3. You can provide unlimited number of secret inputs via input tapes `A` and `B`. Similar to public inputs, these tapes are defined as a part of [program inputs](#Program-inputs). To move secret inputs onto the stack, you'll need to use `READ` operations as described [here](#Input-operations).
-
-Values remaining on the stack after a program is executed can be returned as program outputs. You can specify exactly how many values (from the top of the stack) should be returned. Currently, the number of outputs is limited to 8. A way to return a large number of values (hundreds or thousands) is not yet available, but will be provided in the future.
-
-### Instruction set
-
-### Program hash
-
-As described [here](#Executing-a-program), one of the values produced by Distaff VM after executing a program is program hash. This hash is a reduction of all program instructions into a single 32-byte value. The hash is generated as follows:
-
-1. First, the program is padded with `NOOP` operations. The padding ensures that:
-   1. The program consists of at least 16 operations.
-   2. The number of operations is a power of 2 (16, 32, 64 etc.).
-2. Then, a hash function is used to sequentially hash all instructions together. This hash function is based on Rescue hash function - however, it deviates significantly from the original construction. Security implications of this deviation have not been analyzed. It is possible that this hashing scheme is insecure, and will need to be changed in the future.
-
-The hash function works as follows:
-
-First, a state of 4 field elements is initialized to `0`. Then, the following procedure is applied:
-```
-for each op_code in the program do:
-    add round constants;
-    apply s-box;
-    apply MDS;
-    state[0] = state[0] + state[2] * op_code;
-    state[1] = state[1] * state[3] + op_code;
-    add round constants;
-    apply inverse s-box;
-    apply MDS;
-```
-where `op_code` is the opcode of the operation being executed on the VM. As mentioned above, this is based on the Rescue hash function but with the following significant differences:
-1. The opcodes of the program are injected into the state in the middle of every round.
-2. The number of rounds is equal to the number of operations in the program.
-
-After the above procedure has been applied for all operations of the program, the first two elements of the state are returned as the hash of the program.
-
-### Turing-completeness
-Distaff VM is unlikely to be [Turing-complete](https://en.wikipedia.org/wiki/Turing_completeness) in the foreseeable future. However, even now, you can use `CHOOSE` instructions to simulate conditional branches. In the future, more sophisticated ways to support conditional execution, and maybe even bounded loops, will be added.
-
-### Memory
-Currently, Distaff VM has no random access memory - all values live on the stack. However, a memory module will be added in the future to enable saving values to and reading values from RAM.
-
 ## Fibonacci calculator
-Let's write a simple program for Distaff VM. This program will compute the 5-th [Fibonacci number](https://en.wikipedia.org/wiki/Fibonacci_number):
+Let's write a simple program for Distaff VM (using [Distaff assembly](docs/assembly.md)). Our program will compute the 5-th [Fibonacci number](https://en.wikipedia.org/wiki/Fibonacci_number):
 
 ```
-PUSH 0      // stack state: 0
-PUSH 1      // stack state: 1 0
-SWAP        // stack state: 0 1
-DUP2        // stack state: 0 1 0 1
-DROP        // stack state: 1 0 1
-ADD         // stack state: 1 1
-SWAP        // stack state: 1 1
-DUP2        // stack state: 1 1 1 1
-DROP        // stack state: 1 1 1
-ADD         // stack state: 2 1
-SWAP        // stack state: 1 2
-DUP2        // stack state: 1 2 1 2
-DROP        // stack state: 2 1 2
-ADD         // stack state: 3 2
+push.0      // stack state: 0
+push.1      // stack state: 1 0
+swap        // stack state: 0 1
+dup.2       // stack state: 0 1 0 1
+drop        // stack state: 1 0 1
+add         // stack state: 1 1
+swap        // stack state: 1 1
+dup.2       // stack state: 1 1 1 1
+drop        // stack state: 1 1 1
+add         // stack state: 2 1
+swap        // stack state: 1 2
+dup.2       // stack state: 1 2 1 2
+drop        // stack state: 2 1 2
+add         // stack state: 3 2
 ```
-Notice that except for the first 2 operations which initialize the stack, the sequence of `SWAP DUP2 DROP ADD` operations repeats over and over. In fact, we can repeat these operations an arbitrary number of times to compute an arbitrary Fibonacci number. In Rust, it would like like this (this is actually a simplified version of the example in [fibonacci.rs](https://github.com/GuildOfWeavers/distaff/blob/master/src/examples/fibonacci.rs)):
+Notice that except for the first 2 operations which initialize the stack, the sequence of `swap dup.2 drop add` operations repeats over and over. In fact, we can repeat these operations an arbitrary number of times to compute an arbitrary Fibonacci number. In Rust, it would like like this (this is actually a simplified version of the example in [fibonacci.rs](https://github.com/GuildOfWeavers/distaff/blob/master/src/examples/fibonacci.rs)):
 ```Rust
-use distaff::{ ProofOptions, ProgramInputs, processor, processor::opcodes::f128 as opcodes };
+use distaff::{ self, ProofOptions, ProgramInputs, assembly };
+
+// use default proof options
+let options = ProofOptions::default();
 
 // set the number of terms to compute
 let n = 50;
 
 // build the program
-let mut program = vec![opcodes::BEGIN];
+let mut source = String::new();
 for _ in 0..(n - 1) {
-    program.push(opcodes::SWAP);
-    program.push(opcodes::DUP2);
-    program.push(opcodes::DROP);
-    program.push(opcodes::ADD);
+    source.push_str("swap dup.2 drop add ");
 }
+let program = assembly::compile(&source, options.hash_fn()).unwrap();
 
 // initialize the stack with values 0 and 1
 let inputs = ProgramInputs::from_public(&[1, 0]);
 
 // execute the program
-let (outputs, program_hash, proof) = processor::execute(
+let (outputs, proof) = distaff::execute(
         &program,
         &inputs,
         1,          // top stack item is the output
-        &ProofOptions::default());
+        &options);
 
 // the output should be the 50th Fibonacci number
 assert_eq!(vec![12586269025], outputs);
 ```
-Above, we used public inputs to initialize the stack rather than using `PUSH` operations. This makes the program a bit simpler, and also allows us to run the program from arbitrary starting points without changing program hash.
+Above, we used public inputs to initialize the stack rather than using `push` operations. This makes the program a bit simpler, and also allows us to run the program from arbitrary starting points without changing program hash.
 
 This program is rather efficient: the stack never gets more than 4 items deep.
 
