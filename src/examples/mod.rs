@@ -2,6 +2,7 @@ use distaff::{ math::F128, Program, ProgramInputs, ProofOptions };
 
 mod utils;
 
+pub mod conditional;
 pub mod fibonacci;
 pub mod merkle;
 pub mod range;

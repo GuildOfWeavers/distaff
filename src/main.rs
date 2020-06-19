@@ -1,7 +1,5 @@
-use std::env;
-use std::io::Write;
-use std::time::Instant;
-use distaff::{ self, StarkProof, math::F128 };
+use std::{ env, io::Write, time::Instant };
+use distaff::{ self, StarkProof };
 
 mod examples;
 use examples::{ Example };
@@ -19,17 +17,14 @@ fn main() {
     if args.len() < 2 {
         ex = examples::fibonacci::get_example(&args);
     }
-    else if args[1] == "fibonacci" {
-        ex = examples::fibonacci::get_example(&args[1..]);
-    }
-    else if args[1] == "merkle" {
-        ex = examples::merkle::get_example(&args[1..]);
-    }
-    else if args[1] == "rangecheck" {
-        ex = examples::range::get_example(&args[1..]);
-    }
     else {
-        panic!("Could not find example program for '{}'", args[1]);
+        ex = match args[1].as_str() {
+            "conditional"   => examples::conditional::get_example(&args[1..]),
+            "fibonacci"     => examples::fibonacci::get_example(&args[1..]),
+            "merkle"        => examples::merkle::get_example(&args[1..]),
+            "rangecheck"    => examples::range::get_example(&args[1..]),
+            _ => panic!("Could not find example program for '{}'", args[1])
+        }
     }
     let Example { program, inputs, num_outputs, options, expected_result } = ex;
     println!("--------------------------------");
@@ -52,7 +47,7 @@ fn main() {
 
     // verify that executing a program with a given hash and given inputs
     // results in the expected output
-    let proof = bincode::deserialize::<StarkProof<F128>>(&proof_bytes).unwrap();
+    let proof = bincode::deserialize::<StarkProof<u128>>(&proof_bytes).unwrap();
     let now = Instant::now();
     match distaff::verify(program.hash(), inputs.get_public_inputs(), &outputs, &proof) {
         Ok(_) => println!("Execution verified in {} ms", now.elapsed().as_millis()),
