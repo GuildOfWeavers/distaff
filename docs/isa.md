@@ -1,7 +1,7 @@
 # Distaff VM instruction set
 Distaff VM instruction set consists of a small number of atomic instructions each encoded with an 8-bit opcode. A sequence of instructions forms a linear execution path, and these paths can be combined into program execution graphs which are consumed by Distaff VM.
 
-Constructing programs in this manner may be tedious and error-prone - so, most users are encouraged to write programs using [Distaff assembly](assembly.md) instead. However, it is still beneficial to understand which raw instructions are available in Distaff VM and what their semantics are.
+Constructing programs in this manner may be tedious and error-prone - so, most **users are encouraged** to write programs using [Distaff assembly](assembly.md) instead. However, it is still beneficial to understand which raw instructions are available in Distaff VM and what their semantics are.
 
 The tables below describe all currently available atomic instructions in Distaff VM.
 
@@ -150,7 +150,7 @@ Overall, the number of operations needed to determine whether a value can be rep
 * Checking if a value can be represented with 32 bits requires 34 operations.
 
 ## Hashing in Distaff VM
-Distaff VM provides a `RESCR` instruction which can be used as a building block for computing cryptographic hashes. The `RESCR` instruction computes a single round of a modified [Rescue hash function]((https://eprint.iacr.org/2019/426)) over the top 6 items of the stack. Specifically, the top 6 stack items form the state of the sponge with the items at the top of the stack considered to be the inner part of the sponge, while the items at the bottom of the stack are considered to be the outer part of the sponge.
+Distaff VM provides a `RESCR` instruction which can be used as a building block for computing cryptographic hashes. The `RESCR` instruction computes a single round of a modified [Rescue hash function](https://eprint.iacr.org/2019/426) over the top 6 items of the stack. Specifically, the top 6 stack items form the state of the sponge with the items at the top of the stack considered to be the inner part of the sponge, while the items at the bottom of the stack are considered to be the outer part of the sponge.
 
 The pseudo-code for the modified Rescue round looks like so:
 ```
@@ -195,6 +195,6 @@ RESCR RESCR DROP4
 A quick explanation of what's happening here:
 1. First, we pad the beginning of the program with `NOOP`'s so that the first `RESCR` operation happens on the 16th step.
 2. Then, we read 4 values from the input tape `A` using four `READ` operations. These 4 values represent our two 256-bit values.
-3. Then push two `0`'s onto the stack to initialize the capacity portion of the sponge. This is done by executing `PAD2` operation.
+3. Then, we push two `0`'s onto the stack to initialize the capacity portion of the sponge. This is done by executing `PAD2` operation.
 4. Then, we execute `RESCR` operation 10 times. Notice again that the first `RESCR` operation is executed on the 16th step.
 5. The result of hashing is now in the 5th and 6th positions of the stack. So, we remove top 4 times from the stack (using `DROP4` operation) to move the result to the top of the stack.
