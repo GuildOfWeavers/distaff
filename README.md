@@ -34,9 +34,9 @@ To execute a program, Distaff VM consumes a [Program](https://github.com/GuildOf
 1. You can construct a `Program` object by manually building program execution graph from raw Distaff VM [instructions](docs/isa.md).
 2. You can compile [Distaff assembly](docs/assembly.md) source code into a `Program` object.
 
-The latter approach is strongly encouraged because building programs from raw Distaff VM instructions is tedious, error-prone, and requires an in-depth understanding of VM internals. All examples throughout these docs use Distaff assembly syntax.
+The latter approach is strongly encouraged because building programs from raw Distaff VM instructions is tedious, error-prone, and requires an in-depth understanding of VM internals. All examples throughout these docs use assembly syntax.
 
-A general description of Distaff VM is also provided 👉 [here](docs). If you are trying to learn how to write programs for Distaff VM, this would be a good place to start.
+A general description of Distaff VM is also provided 👉 [here](docs) 👈. If you are trying to learn how to write programs for Distaff VM, this would be a good place to start.
 
 #### Program execution example
 Here is a simple example of executing a program which pushes two numbers onto the stack and computes their sum:
