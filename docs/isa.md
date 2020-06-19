@@ -1,16 +1,19 @@
 # Distaff VM instruction set
+Distaff VM instruction set consists of a small number of atomic instructions each encoded with an 8-bit opcode. A sequence of instructions forms a linear execution path, and these paths can be combined into program execution graphs which are consumed by Distaff VM.
 
+Constructing programs in this manner may be tedious and error-prone - so, most users are encouraged to write programs using [Distaff assembly](assembly.md) instead. However, it is still beneficial to understand which raw instructions are available in Distaff VM and what their semantics are.
 
+The tables below describe all currently available atomic instructions in Distaff VM.
 
-### Flow control operations
+### Flow control instructions
 
 | Instruction | Opcode   | Description                             |
 | ----------- | :------: | --------------------------------------- |
 | NOOP        | 00000000 | Does nothing. |
 | BEGIN       | 11111111 | Marks the beginning of a program. Every program must start with the `BEGIN` operation. |
-| ASSERT      | 00010000 | Pops the top item from the stack and checks if it is equal to `1`. If it is not equal to `1` the program fails. |
+| ASSERT      | 00010000 | Pops the top item from the stack and checks if it is equal to `1`. If it is not equal to `1`, the program fails. |
 
-### Input operations
+### Input instructions
 
 | Instruction | Opcode   | Description                            |
 | ----------- | :------: | -------------------------------------- |
@@ -18,7 +21,7 @@
 | READ        | 00001001 | Pushes the next value from the input tape `A` onto the stack. |
 | READ2       | 00001010 | Pushes the next values from input tapes `A` and `B` onto the stack. Value from input tape `A` is pushed first, followed by the value from input tape `B`. |
 
-### Stack manipulation operations
+### Stack manipulation instructions
 
 | Instruction | Opcode   | Description                            |
 | ----------- | :------: | -------------------------------------- |
@@ -34,36 +37,36 @@
 | ROLL4       | 00011101 | Moves 4th stack item to the top of the stack. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3` becomes `S3 S0 S1 S2`.  |
 | ROLL8       | 00011110 | Moves 8th stack item to the top of the stack. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3 S4 S5 S6 S7` becomes `S7 S0 S1 S2 S3 S4 S5 S6`. |
 
-### Arithmetic and boolean operations
+### Arithmetic and boolean instructions
 
 | Instruction | Opcode   | Description                            |
 | ----------- | :------: | -------------------------------------- |
-| ADD         | 00011001 | Pops top two items from the stack, adds them, and pushes the result back onto the stack. |
-| MUL         | 00011010 | Pops top two items from the stack, multiplies them, and pushes the result back onto the stack. |
-| INV         | 00000011 | Pops the top item from the stack, computes its multiplicative inverse, and pushes the result back onto the stack. This can be used to emulate division with a sequence of two operations: `INV MUL`. If the value at the top of the stack is `0`, the operation will fail.
-| NEG         | 00000100 | Pops the top item from the stack, computes its additive inverse, and pushes the result back onto the stack. This can be used to emulate subtraction with a sequence of two operations: `NEG ADD` |
-| NOT         | 00000101 | Pops the top item from the stack, subtracts it from value `1` and pushes the result back onto the stack. In other words, `0` becomes `1`, and `1` becomes `0`. This is equivalent to `PUSH 1 SWAP NEG ADD` but also enforces that the top stack item is a binary value. |
+| ADD         | 00011001 | Pops top two items from the stack, adds them, and pushes the result onto the stack. |
+| MUL         | 00011010 | Pops top two items from the stack, multiplies them, and pushes the result onto the stack. |
+| INV         | 00000011 | Pops the top item from the stack, computes its multiplicative inverse, and pushes the result onto the stack. This can be used to emulate division with a sequence of two operations: `INV MUL`. If the value at the top of the stack is `0`, the operation will fail.
+| NEG         | 00000100 | Pops the top item from the stack, computes its additive inverse, and pushes the result onto the stack. This can be used to emulate subtraction with a sequence of two operations: `NEG ADD` |
+| NOT         | 00000101 | Pops the top item from the stack, subtracts it from value `1` and pushes the result onto the stack. In other words, `0` becomes `1`, and `1` becomes `0`. This is equivalent to `PUSH 1 SWAP NEG ADD` but also enforces that the top stack item is a binary value. |
 
-### Comparison operations
+### Comparison instructions
 
 | Instruction | Opcode   | Description                            |
 | ----------- | :------: | -------------------------------------- |
-| EQ          | 00010101 | Pops top two items from the stack, compares them, and if their values are equal, pushes `1` back onto the stack; otherwise pushes `0` back onto the stack. |
-| CMP         | 00000001 | Pops top 7 items from the top of the stack, performs a single round of binary comparison, and pushes the result back onto the stack. This operation can be used as a building block for *less then* and *greater than* operations (see [here](#Checking-inequality)). |
-| BINACC      | 00000010 | Pops top 2 items from the top of the stack, performs a single round of binary aggregation, and pushes the result back onto the stack. This operation can be used as a building block for range check operations (see [here](#Checking-binary-decomposition)). |
+| EQ          | 00010101 | Pops top two items from the stack, compares them, and if their values are equal, pushes `1` onto the stack; otherwise pushes `0` onto the stack. |
+| CMP         | 00000001 | Pops top 7 items from the top of the stack, performs a single round of binary comparison, and pushes the resulting 7 values onto the stack. This operation can be used as a building block for *less then* and *greater than* operations (see [here](#Checking-inequality)). |
+| BINACC      | 00000010 | Pops top 2 items from the top of the stack, performs a single round of binary aggregation, and pushes the resulting 2 values onto the stack. This operation can be used as a building block for range check operations (see [here](#Checking-binary-decomposition)). |
 
-### Selection operations
+### Selection instructions
 
 | Instruction | Opcode   | Description                            |
 | ----------- | :------: | -------------------------------------- |
 | CHOOSE      | 00010110 | Pops 3 items from the top of the stack, and pushes either the 1st or the 2nd value back onto the stack depending on whether the 3rd value is `1` or `0`. For example, assuming `S0` is the top of the stack, `S0 S1 1` becomes `S0`, while `S0 S1 0` becomes `S1`. This operation will fail if the 3rd stack item is not a binary value. |
 | CHOOSE2     | 00010111 | Pops 6 items from the top of the stack, and pushes either the 1st or the 2nd pair of values back onto the stack depending on whether the 5th value is `1` or `0`. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3 1 S5` becomes `S0 S1`, while `S0 S1 S2 S3 0 S5` becomes `S2 S3` (notice that `S5` is discarded in both cases). This operation will fail if the 5th stack item is not a binary value. |
 
-### Cryptographic operations
+### Cryptographic instructions
 
 | Instruction | Opcode   | Description                            |
 | ----------- | :------: | -------------------------------------- |
-| RESCR       | 00011000 | Pops top 6 items from the stack, computes a single round of a modified [Rescue](https://eprint.iacr.org/2019/426) hash function over these values, and pushes the results back onto the stack. This operation can be used to hash up to two 256-bit values. However, to achieve 120 bits of security, the `HASHR` operation must be applied at least 10 times in a row (see [here](#Hashing-in-Distaff-VM)).  |
+| RESCR       | 00011000 | Pops top 6 items from the stack, computes a single round of a modified [Rescue](https://eprint.iacr.org/2019/426) hash function over these values, and pushes the resulting 6 values onto the stack. This operation can be used to hash up to two 256-bit values (see [here](#Hashing-in-Distaff-VM)).  |
 
 ## Value comparison in Distaff VM
 There are 3 operations in Distaff VM which can be used to compare values: `EQ`, `CMP`, and `BINACC`. Using these operations you can check whether 2 values a equal, whether one value is greater or less than the other, and whether a value can be represented with a given number of bits.
@@ -137,65 +140,61 @@ where:
 
 To make sure that `a` can fit into `n` bits we need to check that `a_acc = a`. This can be done using the following sequence of operations:
 ```
-DROP EQ ASSERT
+DROP EQ
 ```
-The above sequence discards the first item, then checks the equality of the remaining two items (`1` is placed on the stack if their values are equal), and then asserts that the top of the stack is `1`.
+The above sequence discards the first item, then checks the equality of the remaining two items placing `1` onto the stack if the values are equal, and `0` otherwise.
 
-Overall, the number of operations needed to determine whether a value can be represented by `n` bits is `n + 3`. Specifically:
+Overall, the number of operations needed to determine whether a value can be represented by `n` bits is `n + 2` (assuming you already have the value positioned correctly on the stack). Specifically:
 
-* Checking if a value can be represented with 64 bits requires 67 operations,
-* Checking if a value can be represented with 32 bits requires 35 operations.
+* Checking if a value can be represented with 64 bits requires 66 operations,
+* Checking if a value can be represented with 32 bits requires 34 operations.
 
 ## Hashing in Distaff VM
-To compute hashes in Distaff VM you can use `HASHR` operation. This operation works with the top 6 items of the stack, and depending on what you want to do, you should position the values on the stack in specific orders.
+Distaff VM provides a `RESCR` instruction which can be used as a building block for computing cryptographic hashes. The `RESCR` instruction computes a single round of a modified [Rescue hash function]((https://eprint.iacr.org/2019/426)) over the top 6 items of the stack. Specifically, the top 6 stack items form the state of the sponge with the items at the top of the stack considered to be the inner part of the sponge, while the items at the bottom of the stack are considered to be the outer part of the sponge.
 
-Generally, we want to hash values that are 256 bits long. And since all values in Distaff VM are about 128 bits, we'll need 2 elements to represent each 256-bit value. By convention, values to be hashed are placed in the inner-most positions on the stack, and the result of hashing is also located in the inner-most positions.
+The pseudo-code for the modified Rescue round looks like so:
+```
+add round constants;
+apply s-box of power 3;
+apply MDS;
+add round constants;
+apply inverse s-box;
+apply MDS;
+```
+This modification makes the arithmetization of the function fully foldable. It should not impact security properties of the function, but it is worth noting that this has not been studied to the same extent as the standard Rescue hash function.
 
-For example, suppose we wanted to compute `hash(x)`. First, we'd represent `x` by a pair of elements `(x0, x1)`, and then we'd position these elements on the stack like so:
+Another thing to note is that round constants are on a cycle that repeats every 16 steps. This makes `RESCR` operation context-dependant. Meaning, executing `RESCR` operation on step 1 will use different round constant as compared to executing the operation on step 2. But `RESCR` on step 1 will use the same constants as `RESCR` on step 17.
+
+### Using RESCR instruction
+
+Generally, we want to hash values that are 256 bits long. And since all values in Distaff VM are elements of a 128-bits field, we'll need 2 elements to represent each 256-bit value. For example, suppose we wanted to compute `hash(x)`. First, we'd represent `x` by a pair of elements `(x0, x1)`, and then we'd position these elements on the stack like so:
 ```
 [0, 0, 0, 0, x1, x0]
 ```
-In other words, the first 4 items of the stack should be set to `0`'s, and the following 2 items should be set to the elements representing the value we want to hash.
+In other words, the first 4 items of the stack (the inner part of the sponge) should be set to `0`'s, and the following 2 items (the outer part of the sponge) should be set to the elements representing the value we want to hash.
 
 If we wanted to compute a hash of two values `hash(x, y)`, represented by elements `(x0, x1)` and `(y0, y1)` respectively, we'd position them on the stack like so:
 ```
 [0, 0, y1, y0, x1, x0]
 ```
-In both cases, after the hashing is complete, the result will be located in the 5th and 6th positions of the stack (the result is also represented by two 128-bit elements).
+After the stack is set up for hashing, we execute `RESCR` operation multiple times and then remove the inner part of the sponge from the stack. This way, the outer part of the sponge remains at the top of the stack.
 
-### Hashing programs
+There are a few things to keep in mind:
 
-Hashing requires multiple invocations of `HASHR` operation, and there are a few things to be aware of:
-1. To achieve adequate security (e.g. 120-bits), `HASHR` operation must be executed at least 10 times in a row. This is because each `HASHR` operation computes a single round of the hash function, and at least 10 rounds are required to achieve adequate security.
-2. `HASHR` operation uses a schedule of constants which repeat every 16 steps. So, to make sure you get consistent results, the first `HASHR` operation in every sequence must happen on the step which is a multiple of 16 (e.g. 16, 32, 48 etc.). To ensure this alignment, you can always use `NOOP` operations to pad your programs.
-3. The top two stack items are reserved for internal operations of the hash function. You need to make sure they are set to `0`'s before you start hashing values. This also means, that you can hash at most two 256-bit values at a time.
+1. To achieve adequate security (e.g. 120-bits), `RESCR` operation must be executed at least 10 times in a row.
+2. Since `RESCR` operation is context-dependant, the first `RESCR` operation in every sequence must be executed on the step which is a multiple of 16 (e.g. 16, 32, 48 etc.). To ensure this alignment, you can always use `NOOP` operations to pad your programs.
+3. The inner part of the sponge must consist of at least 2 elements. That is, when setting the stack up for hashing, the top 2 items of the stack must always be set to `0`'s.
 
-You can think of sequences of `HASHR` operations as of "mini-programs". Below is an example of a program which reads two 256-bit values from input tape `A` and computes their hash:
+Below is an example of a program which reads two 256-bit values from input tape `A` and computes their hash:
 ```
 BEGIN NOOP  NOOP  NOOP  NOOP  NOOP  NOOP  NOOP
 NOOP  NOOP  NOOP  READ  READ  READ  READ  PAD2
-HASHR HASHR HASHR HASHR HASHR HASHR HASHR HASHR
-HASHR HASHR DROP4
+RESCR RESCR RESCR RESCR RESCR RESCR RESCR RESCR
+RESCR RESCR DROP4
 ```
 A quick explanation of what's happening here:
-1. First, we pad the beginning of the program with `NOOP`'s so that the first `HASHR` operation happens on the 16th step.
-2. Then, we read 4 values from the input tape `A`. These 4 values represent our two 256-bit values. We also push two `0`'s onto the stack by executing `PAD2` operation.
-3. Then, we execute `HASHR` operation 10 times. Notice again that the first `HASHR` operation is executed on the 16th step.
-4. The result of hashing is now in the 5th and 6th positions of the stack. So, we remove top 4 times from the stack (using `DROP4` operation) to move the result to the top of the stack.
-
-You can also check an example of a more sophisticated program which uses `HASHR` operation to verify a Merkle authentication path [here](https://github.com/GuildOfWeavers/distaff/blob/master/src/examples/merkle.rs).
-
-### Hash function
-As mentioned previously, Distaff VM uses a modified version of [Rescue](https://eprint.iacr.org/2019/426) hash function. This modification adds half-rounds to the beginning and to the end of the standard Rescue hash function to make the arithmetization of the function fully foldable. High-level pseudo-code for the modified version looks like so:
-```
-for 10 iterations do:
-    add round constants;
-    apply s-box;
-    apply MDS;
-    add round constants;
-    apply inverse s-box;
-    apply MDS;
-```
-This modification should not impact security properties of the function, but it is worth noting that it has not been studied to the same extent as the standard Rescue hash function.
-
-Another thing to note: current implementation of the hash function uses S-Box of power 3, but this will likely be changes to S-Box of power 5 in the future.
+1. First, we pad the beginning of the program with `NOOP`'s so that the first `RESCR` operation happens on the 16th step.
+2. Then, we read 4 values from the input tape `A` using four `READ` operations. These 4 values represent our two 256-bit values.
+3. Then push two `0`'s onto the stack to initialize the capacity portion of the sponge. This is done by executing `PAD2` operation.
+4. Then, we execute `RESCR` operation 10 times. Notice again that the first `RESCR` operation is executed on the 16th step.
+5. The result of hashing is now in the 5th and 6th positions of the stack. So, we remove top 4 times from the stack (using `DROP4` operation) to move the result to the top of the stack.
