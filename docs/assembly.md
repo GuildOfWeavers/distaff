@@ -81,7 +81,7 @@ Distaff VM has two input tapes for supplying secret inputs to a program: tape `A
 | --------- | -------------------------------------- | :----: |
 | dup.*n*   | Pushes copies of the top *n* stack items onto the stack. *n* can be any integer between 1 and 4. | 1 - 3 |
 | pad.*n*   | Pushes *n* `0`'s onto the stack; *n* can be any integer between 1 and 8. | 1 - 4 |
-| pick.*n*  | Pushes a copy of the item with index *n* onto the stack. For example, assuming `S0` is the top of the stack, executing `pick.2` transforms `S0 S1 S2 S3` into `S2 S0 S1 S2 S3`. *n* can be any integer between 1 and 3. | 2 - 4 |
+| pick.*n*  | Pushes a copy of the item with index *n* onto the stack. For example, assuming `S0` is the top of the stack, executing `pick.2` transforms `S0 S1 S2 S3` into `S2 S0 S1 S2 S3`. *n* can be any integer between 1 and 3. | 2 - 5 |
 | drop.*n*  | Removes top *n* items from the stack; *n* can be any integer between 1 and 8. | 1 - 3 |
 | swap.1    | Moves the second from the top stack item to the top of the stack (swaps top two stack items). | 1 |
 | swap.2    | Moves 3rd and 4th stack items to the top of the stack. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3` becomes `S2 S3 S0 S1`. | 1 |

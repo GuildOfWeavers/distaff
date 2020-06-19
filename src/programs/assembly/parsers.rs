@@ -349,9 +349,9 @@ pub fn parse_mpath(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<
             format!("parameter {} is invalid; value must be between 2 and 256", n)))
     }
 
-    // read the first two nodes in the Merkle path and push them onto the stack;
+    // read the first node in the Merkle path and push it onto the stack;
     // also pad the stack to prepare it for hashing.
-    program.extend_from_slice(&[opcodes::READ2, opcodes::READ2, opcodes::DUP4, opcodes::PAD2]);
+    program.extend_from_slice(&[opcodes::READ2, opcodes::DUP4, opcodes::PAD2]);
 
     // pad with NOOPs to make sure hashing starts on a step which is a multiple of 16
     let m = 16 - (program.len() % 16);
