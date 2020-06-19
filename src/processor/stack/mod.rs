@@ -1,7 +1,7 @@
 use crate::math::{ FiniteField, F128 };
-use crate::processor::{ ProgramInputs, opcodes };
 use crate::utils::{ filled_vector, Hasher };
 use crate::{ HASH_STATE_WIDTH, MIN_STACK_DEPTH, MAX_STACK_DEPTH };
+use super::{ ProgramInputs, opcodes, ExecutionHint };
 
 #[cfg(test)]
 mod tests;
@@ -16,8 +16,8 @@ const MAX_USER_STACK_DEPTH: usize = MAX_STACK_DEPTH - 1;
 pub struct Stack {
     aux_register    : Vec<u128>,
     user_registers  : Vec<Vec<u128>>,
-    secret_inputs_a : Vec<u128>,
-    secret_inputs_b : Vec<u128>,
+    tape_a          : Vec<u128>,
+    tape_b          : Vec<u128>,
     max_depth       : usize,
     depth           : usize,
 }
@@ -49,16 +49,16 @@ impl Stack {
 
         // reverse secret inputs so that they are consumed in FIFO order
         let [secret_inputs_a, secret_inputs_b] = inputs.get_secret_inputs();
-        let mut secret_inputs_a = secret_inputs_a.clone();
-        secret_inputs_a.reverse();
-        let mut secret_inputs_b = secret_inputs_b.clone();
-        secret_inputs_b.reverse();
+        let mut tape_a = secret_inputs_a.clone();
+        tape_a.reverse();
+        let mut tape_b = secret_inputs_b.clone();
+        tape_b.reverse();
 
         return Stack {
             aux_register,
             user_registers,
-            secret_inputs_a,
-            secret_inputs_b,
+            tape_a,
+            tape_b,
             max_depth: public_inputs.len(),
             depth: public_inputs.len()
         };
@@ -66,7 +66,7 @@ impl Stack {
 
     /// Executes `current_op` against the state of the stack specified by `step` parameter;
     /// if `current_op` is a PUSH, `next_op` will be pushed onto the stack.
-    pub fn execute(&mut self, current_op: u128, next_op: u128, step: usize) {
+    pub fn execute(&mut self, current_op: u128, next_op: u128, hint: ExecutionHint, step: usize) {
 
         // make sure current_op contains a valid opcode
         let op_code = current_op as u8;
@@ -112,8 +112,8 @@ impl Stack {
             opcodes::NOT     => self.op_not(step),
 
             opcodes::EQ      => self.op_eq(step),
-            opcodes::CMP     => self.op_cmp(step),
-            opcodes::BINACC  => self.op_binacc(step),
+            opcodes::CMP     => self.op_cmp(step, hint),
+            opcodes::BINACC  => self.op_binacc(step, hint),
 
             opcodes::RESCR   => self.op_rescr(step),
 
@@ -154,18 +154,18 @@ impl Stack {
     }
 
     fn op_read(&mut self, step: usize) {
-        assert!(self.secret_inputs_a.len() > 0, "ran out of secret inputs at step {}", step);
+        assert!(self.tape_a.len() > 0, "attempt to read from empty tape A at step {}", step);
         self.shift_right(step, 0, 1);
-        let value = self.secret_inputs_a.pop().unwrap();
+        let value = self.tape_a.pop().unwrap();
         self.user_registers[0][step + 1] = value;
     }
 
     fn op_read2(&mut self, step: usize) {
-        assert!(self.secret_inputs_a.len() > 0, "ran out of secret inputs at step {}", step);
-        assert!(self.secret_inputs_b.len() > 0, "ran out of secret inputs at step {}", step);
+        assert!(self.tape_a.len() > 0, "attempt to read from empty tape A at step {}", step);
+        assert!(self.tape_b.len() > 0, "attempt to read from empty tape B at step {}", step);
         self.shift_right(step, 0, 2);
-        let value_a = self.secret_inputs_a.pop().unwrap();
-        let value_b = self.secret_inputs_b.pop().unwrap();
+        let value_a = self.tape_a.pop().unwrap();
+        let value_b = self.tape_b.pop().unwrap();
         self.user_registers[0][step + 1] = value_b;
         self.user_registers[1][step + 1] = value_a;
     }
@@ -345,14 +345,14 @@ impl Stack {
         self.shift_left(step, 2, 1);
     }
 
-    fn op_cmp(&mut self, step: usize) {
+    fn op_cmp(&mut self, step: usize, hint: ExecutionHint) {
         assert!(self.depth >= 7, "stack underflow at step {}", step);
-        assert!(self.secret_inputs_a.len() > 0, "ran out of secret inputs at step {}", step);
-        assert!(self.secret_inputs_b.len() > 0, "ran out of secret inputs at step {}", step);
-        let a_bit = self.secret_inputs_a.pop().unwrap();
+        assert!(self.tape_a.len() > 0, "ran out of secret inputs at step {}", step);
+        assert!(self.tape_b.len() > 0, "ran out of secret inputs at step {}", step);
+        let a_bit = self.tape_a.pop().unwrap();
         assert!(a_bit == F128::ZERO || a_bit == F128::ONE,
             "expected binary input at step {} but received: {}", step, a_bit);
-        let b_bit = self.secret_inputs_b.pop().unwrap();
+        let b_bit = self.tape_b.pop().unwrap();
         assert!(b_bit == F128::ZERO || b_bit == F128::ONE,
             "expected binary input at step {} but received: {}", step, b_bit);
 
@@ -385,11 +385,11 @@ impl Stack {
         self.copy_state(step, 7);
     }
 
-    fn op_binacc(&mut self, step: usize) {
+    fn op_binacc(&mut self, step: usize, hint: ExecutionHint) {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
-        assert!(self.secret_inputs_a.len() > 0, "ran out of secret inputs at step {}", step);
+        assert!(self.tape_a.len() > 0, "ran out of secret inputs at step {}", step);
 
-        let bit = self.secret_inputs_a.pop().unwrap();
+        let bit = self.tape_a.pop().unwrap();
         assert!(bit == F128::ZERO || bit == F128::ONE,
             "expected binary input at step {} but received: {}", step, bit);
 

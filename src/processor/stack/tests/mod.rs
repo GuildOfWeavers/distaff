@@ -1,6 +1,6 @@
 use crate::math::{ F128, FiniteField };
 use crate::utils::{ Hasher };
-use super::{ Stack, super::ProgramInputs };
+use super::{ Stack, super::ProgramInputs, ExecutionHint };
 
 mod comparisons;
 

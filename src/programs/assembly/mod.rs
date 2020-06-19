@@ -1,6 +1,7 @@
+use std::collections::HashMap;
 use crate::crypto::{ HashFunction };
 use crate::processor::{ opcodes::f128 as opcodes };
-use super::{ Program, ExecutionGraph };
+use super::{ Program, ExecutionGraph, ExecutionHint };
 
 mod parsers;
 use parsers::*;
@@ -11,6 +12,8 @@ use errors::{ AssemblyError };
 #[cfg(test)]
 mod tests;
 
+type HintMap = HashMap<usize, ExecutionHint>;
+
 // ASSEMBLER
 // ================================================================================================
 
@@ -19,6 +22,7 @@ pub fn compile(source: &str, hash_fn: HashFunction) -> Result<Program, AssemblyE
     
     // all programs must start with BEGIN operation
     let mut segment_ops = vec![opcodes::BEGIN];
+    let mut segment_hints: HintMap = HashMap::new();
 
     // break assembly string into tokens
     let tokens: Vec<&str> = source.split_whitespace().collect();
@@ -33,13 +37,13 @@ pub fn compile(source: &str, hash_fn: HashFunction) -> Result<Program, AssemblyE
                 let i = find_matching_else(&tokens, i)?;
                 let false_branch = parse_branch(&tokens, i, 1)?;
 
-                let mut exe_graph = ExecutionGraph::new(segment_ops);
+                let mut exe_graph = ExecutionGraph::with_hints(segment_ops, segment_hints);
                 exe_graph.set_next(true_branch, false_branch);
                 return Ok(Program::new(exe_graph, hash_fn));
             },
             "else"  => return Err(AssemblyError::unmatched_else(i)),
             "endif" => return Err(AssemblyError::unmatched_endif(i)),
-            token   => parse_op_token(token, &mut segment_ops, i)
+            token   => parse_op_token(token, &mut segment_ops, &mut segment_hints, i)
         }?;
     }
 
@@ -49,7 +53,8 @@ pub fn compile(source: &str, hash_fn: HashFunction) -> Result<Program, AssemblyE
         return Err(AssemblyError::empty_program());
     }
     else {
-        return Ok(Program::from_path(segment_ops));
+        let exe_graph = ExecutionGraph::with_hints(segment_ops, segment_hints);
+        return Ok(Program::new(exe_graph, hash_fn));
     }
 }
 
@@ -71,6 +76,7 @@ fn parse_branch(tokens: &[&str], mut i: usize, mut depth: usize) -> Result<Execu
         branch_head_length = 2;
         vec![opcodes::NOT, opcodes::ASSERT]
     };
+    let mut segment_hints: HintMap = HashMap::new();
 
     // iterate over tokens and parse them one by one until the next branch is encountered
     while i < tokens.len() {
@@ -86,10 +92,10 @@ fn parse_branch(tokens: &[&str], mut i: usize, mut depth: usize) -> Result<Execu
                 let i = find_matching_else(tokens, i)?;
                 let false_branch = parse_branch(&tokens, i, depth + 1)?;
 
-                // build the graph and return
-                let mut graph = ExecutionGraph::new(segment_ops);
-                graph.set_next(true_branch, false_branch);
-                return Ok(graph);
+                // build the edge and return
+                let mut edge = ExecutionGraph::with_hints(segment_ops, segment_hints);
+                edge.set_next(true_branch, false_branch);
+                return Ok(edge);
             },
             "else" => {
                 i = find_matching_endif(&tokens, i)?;
@@ -102,7 +108,7 @@ fn parse_branch(tokens: &[&str], mut i: usize, mut depth: usize) -> Result<Execu
                 depth -= 1;
             }
             token => {
-                parse_op_token(token, &mut segment_ops, i)?;
+                parse_op_token(token, &mut segment_ops, &mut segment_hints, i)?;
             }
         }
 
@@ -114,11 +120,11 @@ fn parse_branch(tokens: &[&str], mut i: usize, mut depth: usize) -> Result<Execu
         return Err(AssemblyError::empty_branch(first_op, i));
     }
     else {
-        return Ok(ExecutionGraph::new(segment_ops));
+        return Ok(ExecutionGraph::with_hints(segment_ops, segment_hints));
     }
 }
 
-fn parse_op_token(token: &str, program: &mut Vec<u128>, step: usize) -> Result<bool, AssemblyError> {
+fn parse_op_token(token: &str, program: &mut Vec<u128>, hints: &mut HintMap, step: usize) -> Result<bool, AssemblyError> {
 
     let op: Vec<&str> = token.split(".").collect();
 
@@ -145,9 +151,9 @@ fn parse_op_token(token: &str, program: &mut Vec<u128>, step: usize) -> Result<b
         "not"    => parse_not(program, &op, step),
 
         "eq"     => parse_eq(program, &op, step),
-        "gt"     => parse_gt(program, &op, step),
-        "lt"     => parse_lt(program, &op, step),
-        "rc"     => parse_rc(program, &op, step),
+        "gt"     => parse_gt(program, hints, &op, step),
+        "lt"     => parse_lt(program, hints, &op, step),
+        "rc"     => parse_rc(program, hints, &op, step),
 
         "choose" => parse_choose(program, &op, step),
 

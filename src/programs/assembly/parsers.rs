@@ -1,5 +1,5 @@
 use crate::math::{ F128, FiniteField };
-use super::{ opcodes, AssemblyError };
+use super::{ opcodes, AssemblyError, HintMap, ExecutionHint };
 
 // CONTROL FLOW OPERATIONS
 // ================================================================================================
@@ -215,7 +215,7 @@ pub fn parse_eq(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<boo
 
 /// Appends a sequence of operations to the program to determine whether the top value on the 
 /// stack is greater than the following value.
-pub fn parse_gt(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_gt(program: &mut Vec<u128>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     // n is the number of bits sufficient to represent each value; if either of the
     // values does not fit into n bits, the operation fill fail.
     let n = read_param(op, step)?;
@@ -229,6 +229,9 @@ pub fn parse_gt(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<boo
     program.extend_from_slice(&[
         opcodes::PAD2, opcodes::PAD2, opcodes::PAD2, opcodes::PUSH, power_of_two
     ]);
+
+    // add a hint indicating that value comparison is about to start
+    hints.insert(program.len(), ExecutionHint::CmpStart);
 
     // append CMP operations
     program.resize(program.len() + (n as usize), opcodes::CMP);
@@ -244,7 +247,7 @@ pub fn parse_gt(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<boo
 
 /// Appends a sequence of operations to the program to determine whether the top value on the 
 /// stack is less than the following value.
-pub fn parse_lt(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_lt(program: &mut Vec<u128>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     // n is the number of bits sufficient to represent each value; if either of the
     // values does not fit into n bits, the operation fill fail.
     let n = read_param(op, step)?;
@@ -258,6 +261,9 @@ pub fn parse_lt(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<boo
     program.extend_from_slice(&[
         opcodes::PAD2, opcodes::PAD2, opcodes::PAD2, opcodes::PUSH, power_of_two
     ]);
+
+    // add a hint indicating that value comparison is about to start
+    hints.insert(program.len(), ExecutionHint::CmpStart);
 
     // append CMP operations
     program.resize(program.len() + (n as usize), opcodes::CMP);
@@ -273,7 +279,7 @@ pub fn parse_lt(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<boo
 
 /// Appends a sequence of operations to the program to determine whether the top value on the 
 /// stack can be represented with n bits.
-pub fn parse_rc(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_rc(program: &mut Vec<u128>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     // n is the number of bits sufficient to represent each value; if either of the
     // values does not fit into n bits, the operation fill fail.
     let n = read_param(op, step)?;
@@ -285,6 +291,9 @@ pub fn parse_rc(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<boo
     // prepare the stack
     let power_of_two = u128::pow(2, n - 1);
     program.extend_from_slice(&[opcodes::PAD2, opcodes::DROP, opcodes::PUSH, power_of_two]);
+
+    // add a hint indicating that range-checking is about to start
+    hints.insert(program.len(), ExecutionHint::RcStart);
 
     // append BINACC operations
     program.resize(program.len() + (n as usize), opcodes::BINACC);

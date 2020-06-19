@@ -18,7 +18,7 @@ mod processor;
 pub use processor::{ opcodes };
 
 mod programs;
-pub use programs::{ Program, ProgramInputs, ExecutionGraph, assembly };
+pub use programs::{ Program, ProgramInputs, ExecutionGraph, ExecutionHint, assembly };
 
 // EXECUTOR
 // ================================================================================================

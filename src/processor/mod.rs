@@ -1,4 +1,4 @@
-use crate::programs::{ Program, ProgramInputs, ExecutionGraph, get_padded_length };
+use crate::programs::{ Program, ProgramInputs, ExecutionGraph, ExecutionHint, get_padded_length };
 
 // RE-EXPORTS
 // ================================================================================================
@@ -44,7 +44,7 @@ fn traverse(graph: &ExecutionGraph, decoder: &mut Decoder, stack: &mut Stack, mu
     while i < segment_ops.len() - 1 {
         // apply current operation to the decoder and the stack
         decoder.decode(segment_ops[i], false, step);
-        stack.execute(segment_ops[i], segment_ops[i + 1], step);
+        stack.execute(segment_ops[i], segment_ops[i + 1], graph.get_hint(i), step);
 
         // if the current operation is a PUSH, update the decoder and the stack
         // and skip over to the next operation
@@ -52,7 +52,7 @@ fn traverse(graph: &ExecutionGraph, decoder: &mut Decoder, stack: &mut Stack, mu
             step += 1;
             i += 1;
             decoder.decode(segment_ops[i], true, step);
-            stack.execute(opcodes::f128::NOOP, 0, step);
+            stack.execute(opcodes::f128::NOOP, 0, graph.get_hint(i), step);
         }
 
         step += 1;
@@ -64,14 +64,14 @@ fn traverse(graph: &ExecutionGraph, decoder: &mut Decoder, stack: &mut Stack, mu
         // first, execute the last operation in the current segment; we don't pass next_op
         // here because last operation of a segment cannot be a PUSH.
         decoder.decode(segment_ops[i], false, step);
-        stack.execute(segment_ops[i], 0, step);
+        stack.execute(segment_ops[i], 0, graph.get_hint(i), step);
         step += 1;
 
         // then, based on the current value at the top of the stack, select a branch to follow
         let selector = stack.get_stack_top(step);
         match selector {
-            1 => traverse(graph.true_path(), decoder, stack, step),
-            0 => traverse(graph.false_path(), decoder, stack, step),
+            1 => traverse(graph.true_branch(), decoder, stack, step),
+            0 => traverse(graph.false_branch(), decoder, stack, step),
             _ => panic!("cannot branch on a non-binary value {} at step {}", selector, step)
         }
     }
@@ -83,13 +83,13 @@ fn traverse(graph: &ExecutionGraph, decoder: &mut Decoder, stack: &mut Stack, mu
 
         if step < last_step {
             decoder.decode(segment_ops[i], false, step);
-            stack.execute(segment_ops[i], 0, step);
+            stack.execute(segment_ops[i], 0, graph.get_hint(i), step);
             step += 1;
         }
 
         while step < last_step {
             decoder.decode(opcodes::f128::NOOP, false, step);
-            stack.execute(opcodes::f128::NOOP, 0, step);
+            stack.execute(opcodes::f128::NOOP, 0, ExecutionHint::None, step);
             step += 1;
         }
     }

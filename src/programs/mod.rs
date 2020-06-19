@@ -4,7 +4,7 @@ use crate::utils::{ Accumulator, as_bytes };
 use super::{ opcodes::f128 as opcodes};
 
 mod graph;
-pub use graph::{ ExecutionGraph };
+pub use graph::{ ExecutionGraph, ExecutionHint };
 
 mod inputs;
 pub use inputs::{ ProgramInputs };
@@ -25,6 +25,7 @@ pub struct Program {
 // ================================================================================================
 impl Program {
 
+    /// Constructs a new program from the provided execution graph.
     pub fn new(graph: ExecutionGraph, hash_fn: HashFunction) -> Program {
 
         let first_op = graph.operations()[0];
@@ -53,6 +54,7 @@ impl Program {
         return program;
     }
 
+    /// Constructs a new program from a linear execution path.
     pub fn from_path(execution_path: Vec<u128>) -> Program {
 
         let first_op = execution_path[0];
@@ -69,6 +71,7 @@ impl Program {
         };
     }
 
+    /// Returns hash of the program.
     pub fn hash(&self) -> &[u8; 32] {
         if self.path_hashes.len() == 1 {
             return &self.path_hashes[0];
@@ -76,15 +79,14 @@ impl Program {
         return &self.tree_nodes[1];
     }
 
+    /// Returns execution graph underlying the program.
     pub fn execution_graph(&self) -> &ExecutionGraph {
         return &self.op_graph;
     }
 
-    pub fn get_path_hash(&self, index: usize) -> &[u8; 32] {
-        return &self.path_hashes[index];
-    }
-
-    /// TODO
+    /// Computes a Merkle authentication path from the execution path specified by `path_hash`,
+    /// and returns this authentication path together with the index of the execution path
+    /// in the program's execution tree.
     pub fn get_auth_path(&self, path_hash: &[u128; ACC_STATE_RATE]) -> (usize, Vec<[u8; 32]>) {
 
         // convert path hash into byte form
@@ -119,13 +121,15 @@ impl Program {
         return (ph_index, result);
     }
 
-    /// TODO
+    /// Verifies Merkle authentication path against the specifies `program_hash`
     pub fn verify_auth_path(program_hash: &[u8; 32], index: usize, auth_path: &[[u8; 32]], hash: HashFunction) -> bool {
 
+        // if authentication path contains only one node, assume this node is program hash
         if auth_path.len() == 1 {
             return auth_path[0] == *program_hash;
         }
 
+        // otherwise, run standard Merkle path authentication program
         let mut buf = [0u8; 64];
         let mut v = [0u8; 32];
 
@@ -187,8 +191,8 @@ fn digest_graph(graph: &ExecutionGraph, hashes: &mut Vec<[u8; 32]>, mut state: H
         }
 
         // the follow true and false branches of the consequent segments
-        digest_graph(graph.true_path(), hashes, state, step);
-        digest_graph(graph.false_path(), hashes, state, step);
+        digest_graph(graph.true_branch(), hashes, state, step);
+        digest_graph(graph.false_branch(), hashes, state, step);
     }
     else {
         // this is the last segment of the program - so, determine how much padding this path
@@ -228,9 +232,9 @@ mod tests {
 
         pad_program(&mut path);
         let path_hash = u128::digest(&path[..(path.len() - 1)]);
-        assert_eq!(path_hash, *program1.get_path_hash(0));
+        assert_eq!(path_hash, program1.path_hashes[0]);
         assert_eq!(path_hash, *program1.hash());
-        assert_eq!(path_hash, *program2.get_path_hash(0));
+        assert_eq!(path_hash, program2.path_hashes[0]);
         assert_eq!(path_hash, *program2.hash());
     }
 
@@ -254,8 +258,8 @@ mod tests {
         let mut program_hash = [0u8; 32];
         blake3(&buf, &mut program_hash);
 
-        assert_eq!(path1_hash, *program.get_path_hash(0));
-        assert_eq!(path2_hash, *program.get_path_hash(1));
+        assert_eq!(path1_hash, program.path_hashes[0]);
+        assert_eq!(path2_hash, program.path_hashes[1]);
         assert_eq!(program_hash, *program.hash());
     }
 

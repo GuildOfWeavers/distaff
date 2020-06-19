@@ -1,5 +1,5 @@
 use crate::math::{ F128, FiniteField };
-use super::{ init_stack, get_stack_state, get_aux_state, TRACE_LENGTH };
+use super::{ init_stack, get_stack_state, get_aux_state, ExecutionHint, TRACE_LENGTH };
 use super::super::Stack;
 
 // EQUALITY OPERATION
@@ -42,7 +42,7 @@ fn cmp_128() {
 
     // execute CMP operations
     for i in 1..129 {
-        stack.op_cmp(i);
+        stack.op_cmp(i, ExecutionHint::None);
 
         let state = get_stack_state(&stack, i);
 
@@ -74,7 +74,7 @@ fn cmp_64() {
 
     // execute CMP operations
     for i in 1..65 {
-        stack.op_cmp(i);
+        stack.op_cmp(i, ExecutionHint::None);
 
         let state = get_stack_state(&stack, i);
 
@@ -109,7 +109,7 @@ fn lt() {
     stack.op_push(1, p127);
 
     // execute CMP operations
-    for i in 2..130 { stack.op_cmp(i); }
+    for i in 2..130 { stack.op_cmp(i, ExecutionHint::None); }
 
     // execute program finale
     let step = lt_finale(&mut stack, 130);
@@ -134,7 +134,7 @@ fn gt() {
     stack.op_push(1, p127);
 
     // execute CMP operations
-    for i in 2..130 { stack.op_cmp(i); }
+    for i in 2..130 { stack.op_cmp(i, ExecutionHint::None); }
 
     // execute program finale
     let step = gt_finale(&mut stack, 130);
@@ -162,7 +162,7 @@ fn binacc_128() {
     let mut stack = init_stack(&[p127, 0, x, 7, 11], &inputs_a, &[], 256);
 
     // execute binary aggregation operations
-    for i in 0..128 { stack.op_binacc(i); }
+    for i in 0..128 { stack.op_binacc(i, ExecutionHint::None); }
 
     // check the result
     stack.op_drop(128);
@@ -184,7 +184,7 @@ fn binacc_64() {
     let mut stack = init_stack(&[p127, 0, x, 7, 11], &inputs_a, &[], 256);
 
     // execute binary aggregation operations
-    for i in 0..64 { stack.op_binacc(i); }
+    for i in 0..64 { stack.op_binacc(i, ExecutionHint::None); }
 
     // check the result
     stack.op_drop(64);

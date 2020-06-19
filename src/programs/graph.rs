@@ -1,55 +1,86 @@
+use std::collections::HashMap;
 use super::{ opcodes };
 
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct ExecutionGraph {
-    pub operations  : Vec<u128>,
-    pub true_path   : Option<Box<ExecutionGraph>>,
-    pub false_path  : Option<Box<ExecutionGraph>>,
+    operations  : Vec<u128>,
+    op_hints    : HashMap<usize, ExecutionHint>,
+    t_branch    : Option<Box<ExecutionGraph>>,
+    f_branch    : Option<Box<ExecutionGraph>>,
+}
+
+#[derive(Copy, Clone)]
+pub enum ExecutionHint {
+    RcStart,
+    CmpStart,
+    None
 }
 
 // EXECUTION GRAPH IMPLEMENTATION
 // ================================================================================================
 impl ExecutionGraph {
 
+    /// Constructs an edge of an execution graph from the provided sequence of operations.
     pub fn new(operations: Vec<u128>) -> ExecutionGraph {
         let last_op = operations[operations.len() - 1];
         assert!(last_op != opcodes::PUSH, "execution path cannot end with a PUSH operation");
 
         return ExecutionGraph {
             operations  : operations,
-            true_path   : None,
-            false_path  : None
+            op_hints    : HashMap::new(),
+            t_branch    : None,
+            f_branch    : None,
         };
     }
 
-    pub fn set_next(&mut self, true_path: ExecutionGraph, false_path: ExecutionGraph) {
-        // make sure true path starts with ASSERT operation
-        assert!(true_path.operations[0] == opcodes::ASSERT,
+    pub fn with_hints(operations: Vec<u128>, hints: HashMap<usize, ExecutionHint>) -> ExecutionGraph {
+        let last_op = operations[operations.len() - 1];
+        assert!(last_op != opcodes::PUSH, "execution path cannot end with a PUSH operation");
+
+        return ExecutionGraph {
+            operations  : operations,
+            op_hints    : hints,
+            t_branch    : None,
+            f_branch    : None,
+        };
+    }
+
+    /// Attaches true and false execution branches to this edge.
+    pub fn set_next(&mut self, true_branch: ExecutionGraph, false_branch: ExecutionGraph) {
+        // make sure true branch starts with ASSERT operation
+        assert!(true_branch.operations[0] == opcodes::ASSERT,
             "true branch of the execution graph must start with ASSERT operation");        
 
-        // make sure false path starts with NOT ASSERT operation
-        assert!(false_path.operations[0] == opcodes::NOT 
-            && false_path.operations[1] == opcodes::ASSERT,
+        // make sure false branch starts with NOT ASSERT operation
+        assert!(false_branch.operations[0] == opcodes::NOT 
+            && false_branch.operations[1] == opcodes::ASSERT,
             "false branch of the execution graph must start with NOT ASSERT operations");
 
-        self.true_path = Some(Box::new(true_path));
-        self.false_path = Some(Box::new(false_path));
+        self.t_branch = Some(Box::new(true_branch));
+        self.f_branch = Some(Box::new(false_branch));
     }
 
     pub fn has_next(&self) -> bool {
-        return self.true_path.is_some();
+        return self.t_branch.is_some();
     }
 
     pub fn operations(&self) -> &[u128] {
         return &self.operations;
     }
 
-    pub fn true_path(&self) -> &ExecutionGraph {
-        return self.true_path.as_ref().unwrap();
+    pub fn true_branch(&self) -> &ExecutionGraph {
+        return self.t_branch.as_ref().unwrap();
     }
 
-    pub fn false_path(&self) -> &ExecutionGraph {
-        return self.false_path.as_ref().unwrap();
+    pub fn false_branch(&self) -> &ExecutionGraph {
+        return self.f_branch.as_ref().unwrap();
+    }
+
+    pub fn get_hint(&self, op_index: usize) -> ExecutionHint {
+        return match self.op_hints.get(&op_index) {
+            Some(&hint) => hint,
+            None => ExecutionHint::None
+        };
     }
 }
