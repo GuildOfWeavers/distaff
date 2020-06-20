@@ -1,4 +1,5 @@
 use crate::programs::{ Program, ProgramInputs, ExecutionGraph, ExecutionHint, get_padded_length };
+use crate::{ MIN_TRACE_LENGTH };
 
 // RE-EXPORTS
 // ================================================================================================
@@ -18,9 +19,9 @@ use stack::Stack;
 pub fn execute(program: &Program, inputs: &ProgramInputs<u128>) -> Vec<Vec<u128>>
 {
     // initialize decoder and stack components
-    // TODO: don't hard-code init trace length
-    let mut decoder = Decoder::new(16);
-    let mut stack = Stack::new(inputs, 16);
+    // TODO: determine initial trace length dynamically
+    let mut decoder = Decoder::new(MIN_TRACE_LENGTH);
+    let mut stack = Stack::new(inputs, MIN_TRACE_LENGTH);
 
     // execute the program by traversing the execution graph
     traverse(program.execution_graph(), &mut decoder, &mut stack, 0);
