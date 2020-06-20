@@ -346,9 +346,27 @@ impl Stack {
     }
 
     fn op_cmp(&mut self, step: usize, hint: ExecutionHint) {
-        assert!(self.depth >= 7, "stack underflow at step {}", step);
-        assert!(self.tape_a.len() > 0, "ran out of secret inputs at step {}", step);
-        assert!(self.tape_b.len() > 0, "ran out of secret inputs at step {}", step);
+        // process execution hint
+        match hint {
+            ExecutionHint::CmpStart(n) => {
+                // if we are about to start comparison sequence, push binary decompositions
+                // of a and b values onto the tapes
+                assert!(self.depth >= 9, "stack underflow at step {}", step);
+                let a_val = self.user_registers[7][step];
+                let b_val = self.user_registers[8][step];
+                for i in 0..n {
+                    self.tape_a.push((a_val >> i) & 1);
+                    self.tape_b.push((b_val >> i) & 1);
+                }
+            },
+            _ => {
+                assert!(self.depth >= 7, "stack underflow at step {}", step);
+                assert!(self.tape_a.len() > 0, "attempt to read from empty tape A at step {}", step);
+                assert!(self.tape_b.len() > 0, "attempt to read from empty tape B at step {}", step);
+            }
+        }
+
+        // get next bits of a and b values from the tapes
         let a_bit = self.tape_a.pop().unwrap();
         assert!(a_bit == F128::ZERO || a_bit == F128::ONE,
             "expected binary input at step {} but received: {}", step, a_bit);
@@ -356,9 +374,11 @@ impl Stack {
         assert!(b_bit == F128::ZERO || b_bit == F128::ONE,
             "expected binary input at step {} but received: {}", step, b_bit);
 
+        // determine which bit is greater
         let bit_gt = F128::mul(a_bit, F128::sub(F128::ONE, b_bit));
         let bit_lt = F128::mul(b_bit, F128::sub(F128::ONE, a_bit));
 
+        // compute current power of 2 for binary decomposition
         let power_of_two = self.user_registers[0][step];
         assert!(power_of_two.is_power_of_two(),
             "expected top of the stack at step {} to be a power of 2, but received {}", step, power_of_two);
@@ -369,10 +389,12 @@ impl Stack {
             power_of_two >> 1
         };
 
+        // determine if the result of comparison is already known
         let gt = self.user_registers[3][step];
         let lt = self.user_registers[4][step];
         let not_set = F128::mul(F128::sub(F128::ONE, gt), F128::sub(F128::ONE, lt));
 
+        // update the next state of the computation
         self.aux_register[step] = not_set;
         self.user_registers[0][step + 1] = next_power_of_two;
         self.user_registers[1][step + 1] = a_bit;
@@ -386,13 +408,29 @@ impl Stack {
     }
 
     fn op_binacc(&mut self, step: usize, hint: ExecutionHint) {
-        assert!(self.depth >= 2, "stack underflow at step {}", step);
-        assert!(self.tape_a.len() > 0, "ran out of secret inputs at step {}", step);
+        // process execution hint
+        match hint {
+            ExecutionHint::CmpStart(n) => {
+                // if we are about to start range check sequence, push binary decompositions
+                // of the value onto tape A
+                assert!(self.depth >= 3, "stack underflow at step {}", step);
+                let val = self.user_registers[2][step];
+                for i in 0..n {
+                    self.tape_a.push((val >> i) & 1);
+                }
+            },
+            _ => {
+                assert!(self.depth >= 2, "stack underflow at step {}", step);
+                assert!(self.tape_a.len() > 0, "attempt to read from empty tape A at step {}", step);
+            }
+        }
 
+        // get the next bit of the value from tape A
         let bit = self.tape_a.pop().unwrap();
         assert!(bit == F128::ZERO || bit == F128::ONE,
             "expected binary input at step {} but received: {}", step, bit);
 
+        // compute current power of 2 for binary decomposition
         let power_of_two = self.user_registers[0][step];
         assert!(power_of_two.is_power_of_two(),
             "expected top of the stack at step {} to be a power of 2, but received {}", step, power_of_two);
@@ -405,6 +443,7 @@ impl Stack {
 
         let acc = self.user_registers[1][step];
 
+        // update the next state of the computation
         self.aux_register[step] = bit;
         self.user_registers[0][step + 1] = next_power_of_two;
         self.user_registers[1][step + 1] = F128::add(acc, F128::mul(bit, power_of_two));

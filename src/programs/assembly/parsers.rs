@@ -231,7 +231,7 @@ pub fn parse_gt(program: &mut Vec<u128>, hints: &mut HintMap, op: &[&str], step:
     ]);
 
     // add a hint indicating that value comparison is about to start
-    hints.insert(program.len(), ExecutionHint::CmpStart);
+    hints.insert(program.len(), ExecutionHint::CmpStart(n));
 
     // append CMP operations
     program.resize(program.len() + (n as usize), opcodes::CMP);
@@ -263,7 +263,7 @@ pub fn parse_lt(program: &mut Vec<u128>, hints: &mut HintMap, op: &[&str], step:
     ]);
 
     // add a hint indicating that value comparison is about to start
-    hints.insert(program.len(), ExecutionHint::CmpStart);
+    hints.insert(program.len(), ExecutionHint::CmpStart(n));
 
     // append CMP operations
     program.resize(program.len() + (n as usize), opcodes::CMP);
@@ -293,7 +293,7 @@ pub fn parse_rc(program: &mut Vec<u128>, hints: &mut HintMap, op: &[&str], step:
     program.extend_from_slice(&[opcodes::PAD2, opcodes::DROP, opcodes::PUSH, power_of_two]);
 
     // add a hint indicating that range-checking is about to start
-    hints.insert(program.len(), ExecutionHint::RcStart);
+    hints.insert(program.len(), ExecutionHint::RcStart(n));
 
     // append BINACC operations
     program.resize(program.len() + (n as usize), opcodes::BINACC);
