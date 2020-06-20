@@ -1,88 +1,97 @@
-use log::debug;
-use std::{ cmp, time::Instant };
-use crate::math::{ F128, FiniteField };
-use crate::stark::{ self, ProofOptions, StarkProof, ProgramInputs, MAX_OUTPUTS, MIN_TRACE_LENGTH };
-use crate::utils::{ as_bytes };
+use crate::programs::{ Program, ProgramInputs, ExecutionGraph, ExecutionHint, get_padded_length };
+use crate::{ MIN_TRACE_LENGTH };
 
+// RE-EXPORTS
+// ================================================================================================
 pub mod opcodes;
 
-#[cfg(test)]
-mod tests;
+mod decoder;
+use decoder::Decoder;
 
-// TODO: transforming execute() into a fully generic version results in about 10% - 15% runtime
-// penalty (mostly in running FFT). So, keeping it non-generic for now.
+mod stack;
+use stack::Stack;
 
-/// Executes the specified `program` and returns the result together with program hash
-/// and STARK-based proof of execution.
-/// 
-/// * `inputs` specify the initial stack state the with inputs[0] being the top of the stack;
-/// * `num_outputs` specifies the number of elements from the top of the stack to be returned;
-pub fn execute(program: &[F128], inputs: &ProgramInputs<F128>, num_outputs: usize, options: &ProofOptions) -> (Vec<F128>, [u8; 32], StarkProof<F128>)
+// PUBLIC FUNCTIONS
+// ================================================================================================
+
+/// Returns register traces resulting from executing the specified program against the
+/// specified inputs.
+pub fn execute(program: &Program, inputs: &ProgramInputs<u128>) -> Vec<Vec<u128>>
 {
-    assert!(program.len() > 1,
-        "expected a program with at last two operations, but received {}", program.len());
-    assert!(program[0] == F128::from(opcodes::BEGIN),
-        "a program must start with BEGIN operation");
-    assert!(num_outputs <= MAX_OUTPUTS, 
-        "cannot produce more than {} outputs, but requested {}", MAX_OUTPUTS, num_outputs);
+    // initialize decoder and stack components
+    // TODO: determine initial trace length dynamically
+    let mut decoder = Decoder::new(MIN_TRACE_LENGTH);
+    let mut stack = Stack::new(inputs, MIN_TRACE_LENGTH);
 
-    // pad the program with the appropriate number of NOOPs
-    let program = pad_program(program);
+    // execute the program by traversing the execution graph
+    traverse(program.execution_graph(), &mut decoder, &mut stack, 0);
 
-    // execute the program to create an execution trace
-    let now = Instant::now();
-    let mut trace = stark::TraceTable::new(&program, inputs, options.extension_factor());
-    debug!("Generated execution trace of {} registers and {} steps in {} ms",
-        trace.register_count(),
-        trace.unextended_length(),
-        now.elapsed().as_millis());
+    // merge decoder and stack register traces into a single vector
+    let mut register_traces = decoder.into_register_trace();
+    register_traces.append(&mut stack.into_register_traces());
 
-    // copy the user stack state the the last step to return as output
-    let last_state = trace.get_state(trace.unextended_length() - 1);
-    let outputs = last_state.get_user_stack()[0..num_outputs].to_vec();
-
-    // construct program hash
-    let mut program_hash = [0u8; 32];
-    program_hash.copy_from_slice(as_bytes(&trace.get_program_hash()));
-
-    // generate STARK proof
-    let proof = stark::prove(&mut trace, inputs.get_public_inputs(), &outputs, options);
-    return (outputs, program_hash, proof);
+    return register_traces;
 }
 
-/// Verifies that if a program with the specified `program_hash` is executed with the 
-/// provided `public_inputs` and some secret inputs, the result is equal to the `outputs`.
-pub fn verify(program_hash: &[u8; 32], public_inputs: &[F128], outputs: &[F128], proof: &StarkProof<F128>) -> Result<bool, String>
-{
-    return stark::verify(program_hash, public_inputs, outputs, proof);
-}
+// HELPER FUNCTIONS
+// ================================================================================================
 
-/// Pads the program with the appropriate number of NOOPs to ensure that:
-/// 1. The length of the program is at least 16;
-/// 2. The length of the program is a power of 2;
-/// 3. The program terminates with a NOOP.
-pub fn pad_program<T: FiniteField>(program: &[T]) -> Vec<T> {
-    let mut program = program.to_vec();
-    let trace_length = if program.len() == program.len().next_power_of_two() {
-        if program[program.len() - 1] == T::from(opcodes::NOOP) {
-            program.len()
+fn traverse(graph: &ExecutionGraph, decoder: &mut Decoder, stack: &mut Stack, mut step: usize) {
+
+    let segment_ops = graph.operations();
+
+    // execute all operations, except the last one, in the current segment of the graph
+    let mut i = 0;
+    while i < segment_ops.len() - 1 {
+        // apply current operation to the decoder and the stack
+        decoder.decode(segment_ops[i], false, step);
+        stack.execute(segment_ops[i], segment_ops[i + 1], graph.get_hint(i), step);
+
+        // if the current operation is a PUSH, update the decoder and the stack
+        // and skip over to the next operation
+        if segment_ops[i] == opcodes::f128::PUSH {
+            step += 1;
+            i += 1;
+            decoder.decode(segment_ops[i], true, step);
+            stack.execute(opcodes::f128::NOOP, 0, graph.get_hint(i), step);
         }
-        else {
-            program.len().next_power_of_two() * 2
+
+        step += 1;
+        i += 1;
+    }
+
+    // if the graph doesn't end here, traverse the following branches
+    if graph.has_next() {
+        // first, execute the last operation in the current segment; we don't pass next_op
+        // here because last operation of a segment cannot be a PUSH.
+        decoder.decode(segment_ops[i], false, step);
+        stack.execute(segment_ops[i], 0, graph.get_hint(i), step);
+        step += 1;
+
+        // then, based on the current value at the top of the stack, select a branch to follow
+        let selector = stack.get_stack_top(step);
+        match selector {
+            1 => traverse(graph.true_branch(), decoder, stack, step),
+            0 => traverse(graph.false_branch(), decoder, stack, step),
+            _ => panic!("cannot branch on a non-binary value {} at step {}", selector, step)
         }
     }
     else {
-        program.len().next_power_of_two()
-    };
-    program.resize(cmp::max(trace_length, MIN_TRACE_LENGTH), T::from(opcodes::NOOP));
-    return program;
-}
+        // if there are no more branches left, figure out how long the padded execution
+        // path should be
+        let path_length = get_padded_length(step, segment_ops[segment_ops.len() - 1]);
+        let last_step = path_length - 1;
 
-/// Returns a hash value of the program.
-pub fn hash_program<T: stark::Accumulator>(program: &[T]) -> [u8; 32] {
-    assert!(program.len().is_power_of_two(), "program length must be a power of 2");
-    assert!(program.len() >= MIN_TRACE_LENGTH, "program must consist of at least {} operations", MIN_TRACE_LENGTH);
-    assert!(program[0] == T::from(opcodes::BEGIN), "program must start with BEGIN operation");
-    assert!(program[program.len() - 1] == T::from(opcodes::NOOP), "program must end with NOOP operation");
-    return T::digest(&program[..(program.len() - 1)]);
+        if step < last_step {
+            decoder.decode(segment_ops[i], false, step);
+            stack.execute(segment_ops[i], 0, graph.get_hint(i), step);
+            step += 1;
+        }
+
+        while step < last_step {
+            decoder.decode(opcodes::f128::NOOP, false, step);
+            stack.execute(opcodes::f128::NOOP, 0, ExecutionHint::None, step);
+            step += 1;
+        }
+    }
 }

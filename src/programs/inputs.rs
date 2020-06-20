@@ -1,5 +1,5 @@
 use crate::math::{ FiniteField };
-use crate::stark::{ MAX_PUBLIC_INPUTS };
+use crate::{ MAX_PUBLIC_INPUTS };
 
 #[derive(Clone, Debug)]
 pub struct ProgramInputs<T: FiniteField> {

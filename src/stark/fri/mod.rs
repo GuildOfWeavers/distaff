@@ -34,8 +34,8 @@ pub struct FriLayer<T: FiniteField> {
 // ================================================================================================
 #[cfg(test)]
 mod tests {
-    use crate::{ F64, FiniteField, polynom, ProofOptions };
-    use crate::stark::utils::compute_query_positions;
+    use crate::math::{ F64, FiniteField, polynom };
+    use crate::stark::{ ProofOptions, utils::compute_query_positions };
 
     #[test]
     fn prove_verify() {

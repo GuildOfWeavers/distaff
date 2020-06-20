@@ -1,5 +1,6 @@
 use crate::math::{ FiniteField };
-use crate::stark::{ MAX_REGISTER_COUNT, MAX_PUBLIC_INPUTS, MAX_OUTPUTS, MAX_TRANSITION_CONSTRAINTS };
+use crate::{ MAX_REGISTER_COUNT, MAX_PUBLIC_INPUTS, MAX_OUTPUTS };
+use crate::stark::MAX_TRANSITION_CONSTRAINTS;
 
 // CONSTANTS
 // ================================================================================================

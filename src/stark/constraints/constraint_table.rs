@@ -1,6 +1,6 @@
 use crate::math::{ FiniteField, parallel, fft, polynom };
-use crate::stark::{ TraceTable, TraceState, Accumulator, Hasher };
-use crate::utils::{ uninit_vector };
+use crate::stark::{ TraceTable, TraceState };
+use crate::utils::{ Hasher, Accumulator, uninit_vector };
 use super::{ ConstraintEvaluator, ConstraintPoly };
 
 // TYPES AND INTERFACES

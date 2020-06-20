@@ -1,8 +1,8 @@
 use serde::{ Serialize, Deserialize };
 use crate::math::{ FiniteField };
 use crate::crypto::{ BatchMerkleProof };
-use crate::stark::{ Accumulator, fri::FriProof, TraceState, ProofOptions };
-use crate::utils::{ uninit_vector, as_bytes };
+use crate::stark::{ fri::FriProof, TraceState, ProofOptions };
+use crate::utils::{ uninit_vector, as_bytes, Accumulator };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -10,6 +10,8 @@ use crate::utils::{ uninit_vector, as_bytes };
 // TODO: custom serialization should reduce size by 5% - 10%
 #[derive(Clone, Serialize, Deserialize)]
 pub struct StarkProof<T: FiniteField + Accumulator> {
+    auth_path           : Vec<[u8; 32]>,
+    auth_path_index     : u32,
     trace_root          : [u8; 32],
     domain_depth        : u8,
     trace_nodes         : Vec<Vec<[u8; 32]>>,
@@ -45,6 +47,8 @@ impl <T> StarkProof<T>
         options             : &ProofOptions ) -> StarkProof<T>
     {
         return StarkProof {
+            auth_path           : Vec::new(),
+            auth_path_index     : 0,
             trace_root          : *trace_root,
             domain_depth        : trace_proof.depth,
             trace_nodes         : trace_proof.nodes,
@@ -72,7 +76,7 @@ impl <T> StarkProof<T>
 
     pub fn trace_proof(&self) -> BatchMerkleProof {
 
-        let hash = self.options.hash_function();
+        let hash = self.options.hash_fn();
         let mut hashed_states = uninit_vector::<[u8; 32]>(self.trace_evaluations.len());
         for i in 0..self.trace_evaluations.len() {
             hash(as_bytes(&self.trace_evaluations[i]), &mut hashed_states[i]);
@@ -121,5 +125,20 @@ impl <T> StarkProof<T>
 
     pub fn get_state_at_z2(&self) -> TraceState<T> {
         return TraceState::from_raw_state(self.deep_values.trace_at_z2.clone());
+    }
+
+    // AUTH PATH
+    // -------------------------------------------------------------------------------------------
+    pub fn auth_path(&self) -> &Vec<[u8; 32]> {
+        return &self.auth_path;
+    }
+
+    pub fn auth_path_index(&self) -> usize {
+        return self.auth_path_index as usize;
+    }
+
+    pub fn set_auth_path(&mut self, mut auth_path: Vec<[u8; 32]>, path_index: usize) {
+        self.auth_path_index = path_index as u32;
+        self.auth_path.append(&mut auth_path);
     }
 }

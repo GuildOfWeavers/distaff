@@ -19,7 +19,7 @@ pub struct ProofOptions {
     grinding_factor     : u8,
 
     #[serde(with = "hash_fn_serialization")]
-    hash_function: HashFunction,
+    hash_fn: HashFunction,
 }
 
 // PROOF OPTIONS IMPLEMENTATION
@@ -30,7 +30,7 @@ impl ProofOptions {
         extension_factor : usize,
         num_queries      : usize,
         grinding_factor  : u32,
-        hash_function    : HashFunction) -> ProofOptions
+        hash_fn          : HashFunction) -> ProofOptions
     {
         assert!(extension_factor.is_power_of_two(), "extension_factor must be a power of 2");
         assert!(extension_factor >= 16, "extension_factor cannot be smaller than 16");
@@ -45,7 +45,7 @@ impl ProofOptions {
             extension_factor    : extension_factor.trailing_zeros() as u8,
             num_queries         : num_queries as u8,
             grinding_factor     : grinding_factor as u8,
-            hash_function
+            hash_fn
         };
     }
 
@@ -61,8 +61,8 @@ impl ProofOptions {
         return self.grinding_factor as u32;
     }
 
-    pub fn hash_function(&self) -> HashFunction {
-        return self.hash_function;
+    pub fn hash_fn(&self) -> HashFunction {
+        return self.hash_fn;
     }
 
     pub fn security_level(&self, optimistic: bool) -> u32 {
@@ -83,10 +83,10 @@ impl Default for ProofOptions {
 
     fn default() -> ProofOptions {
         return ProofOptions {
-            extension_factor    : DEFAULT_EXTENSION_FACTOR.trailing_zeros() as u8,
-            num_queries         : DEFAULT_NUM_QUERIES,
-            grinding_factor     : DEFAULT_GRINDING_FACTOR,
-            hash_function       : hash::blake3,
+            extension_factor: DEFAULT_EXTENSION_FACTOR.trailing_zeros() as u8,
+            num_queries     : DEFAULT_NUM_QUERIES,
+            grinding_factor : DEFAULT_GRINDING_FACTOR,
+            hash_fn         : hash::blake3,
         };
     }
 

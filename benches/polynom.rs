@@ -1,5 +1,5 @@
 use criterion::{ black_box, criterion_group, Criterion };
-use distaff::{ F64, FiniteField, polynom, quartic };
+use distaff::math::{ F64, FiniteField, polynom, quartic };
 
 pub fn eval(c: &mut Criterion) {
     let p = F64::rand_vector(1024);

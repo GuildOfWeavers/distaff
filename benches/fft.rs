@@ -1,5 +1,5 @@
 use criterion::{ black_box, criterion_group, Criterion };
-use distaff::{ F64, FiniteField, fft};
+use distaff::math::{ F64, FiniteField, fft };
 
 pub fn fft_in_place(c: &mut Criterion) {
 

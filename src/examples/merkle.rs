@@ -1,4 +1,4 @@
-use distaff::{ ProgramInputs, processor::opcodes::f128 as opcodes, FiniteField, F128, stark::Hasher };
+use distaff::{ Program, ProgramInputs, assembly, math::{ FiniteField, F128 }, crypto::hash::blake3, utils::Hasher };
 use super::{ Example, utils::parse_args };
 
 pub fn get_example(args: &[String]) -> Example  {
@@ -37,46 +37,14 @@ pub fn get_example(args: &[String]) -> Example  {
 }
 
 /// Returns a program to verify Merkle authentication path for a tree of depth `n`
-fn generate_merkle_program(n: usize) -> Vec<F128> {
+fn generate_merkle_program(n: usize) -> Program {
 
-    // the program starts by reading the first two nodes in the Merkle
-    // path and pushing them onto the stack (each node is represented
-    // by two field elements). This part also pads the stack to prepare
-    // it for hashing.
-    let mut program = vec![
-        opcodes::BEGIN, opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
-        opcodes::READ2, opcodes::READ2, opcodes::DUP4,  opcodes::PAD2
-    ];
+    let source = format!("
+        read.ab
+        mpath.{}
+    ", n);
 
-    // this cycle of operation gets repeated once for each remaining node. It does
-    // roughly the following :
-    // 1. computes hash(p, v)
-    // 2. reads next bit of position index
-    // 3. computes hash(v, p)
-    // 4. based on position index bit, choses either hash(p, v) or hash(v, p)
-    // 5. reads the next nodes and pushes it onto the stack
-    let level_sub = vec![
-        opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR,
-        opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR,
-        opcodes::HASHR, opcodes::HASHR, opcodes::DROP4, opcodes::READ2,
-        opcodes::SWAP2, opcodes::SWAP4, opcodes::SWAP2, opcodes::PAD2,
-        opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR,
-        opcodes::HASHR, opcodes::HASHR, opcodes::HASHR, opcodes::HASHR,
-        opcodes::HASHR, opcodes::HASHR, opcodes::DROP4, opcodes::CHOOSE2,
-        opcodes::READ2, opcodes::DUP4,  opcodes::PAD2,  opcodes::NOOP
-    ];
-
-    for _ in 0..(n - 2) {
-        program.extend_from_slice(&level_sub);
-    }
-
-    // at the end, we use the same cycle except we don't need to read in
-    // any more nodes - so, we omit the last 4 operations.
-    program.extend_from_slice(&level_sub[..28]);
-
-    return program;
+    return assembly::compile(&source, blake3).unwrap();
 }
 
 /// Converts Merkle authentication path for a node at the specified `index` into 
@@ -88,7 +56,7 @@ fn generate_program_inputs(path: &[Vec<F128>; 2], index: usize) -> ProgramInputs
     let n = path[0].len();
     let mut index = index + usize::pow(2, (n - 1) as u32);
 
-    // push the leaf node of the authentication path onto secret input tapes A and B
+    // push the leaf node onto secret input tapes A and B
     a.push(path[0][0]);
     b.push(path[1][0]);
 

@@ -1,4 +1,4 @@
-use distaff::{ ProgramInputs, processor::opcodes::f128 as opcodes, FiniteField, F128 };
+use distaff::{ Program, ProgramInputs, assembly, math::{ FiniteField, F128 }, crypto::HashFunction };
 use super::{ Example, utils::parse_args };
 
 pub fn get_example(args: &[String]) -> Example  {
@@ -7,7 +7,7 @@ pub fn get_example(args: &[String]) -> Example  {
     let (n, options) = parse_args(args);
     
     // generate the program and expected results
-    let program = generate_fibonacci_program(n);
+    let program = generate_fibonacci_program(n, options.hash_fn());
     let expected_result = vec![compute_fibonacci(n)];
     println!("Generated a program to compute {}-th Fibonacci term; expected result: {}", 
         n,
@@ -29,9 +29,9 @@ pub fn get_example(args: &[String]) -> Example  {
 }
 
 /// Generates a program to compute the `n`-th term of Fibonacci sequence
-fn generate_fibonacci_program(n: usize) -> Vec<F128> {
+fn generate_fibonacci_program(n: usize, hash_fn: HashFunction) -> Program {
 
-    let mut program = vec![opcodes::BEGIN];
+    let mut program = String::with_capacity(n * 20);
 
     // the program is a simple repetition of 4 stack operations:
     // the first operation moves the 2nd stack item to the top,
@@ -40,13 +40,10 @@ fn generate_fibonacci_program(n: usize) -> Vec<F128> {
     // the last operation pops top 2 stack items, adds them, and pushes
     // the result back onto the stack
     for _ in 0..(n - 1) {
-        program.push(opcodes::SWAP);
-        program.push(opcodes::DUP2);
-        program.push(opcodes::DROP);
-        program.push(opcodes::ADD);
+        program.push_str("swap dup.2 drop add ");
     }
 
-    return program;
+    return assembly::compile(&program, hash_fn).unwrap();
 }
 
 /// Computes the `n`-th term of Fibonacci sequence

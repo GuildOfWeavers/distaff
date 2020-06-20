@@ -266,7 +266,7 @@ impl MerkleTree {
 // HELPER FUNCTIONS
 // ================================================================================================
 
-fn build_merkle_nodes(leaves: &[[u8; 32]], hash: HashFunction) -> Vec<[u8; 32]> {
+pub fn build_merkle_nodes(leaves: &[[u8; 32]], hash: HashFunction) -> Vec<[u8; 32]> {
     let n = leaves.len() / 2;
 
     // create un-initialized array to hold all intermediate nodes
@@ -316,7 +316,7 @@ fn normalize_indexes(indexes: &[usize]) -> Vec<usize> {
 #[cfg(test)]
 mod tests {
 
-    use crate::hash;
+    use crate::crypto::hash;
 
     static LEAVES4: [[u8; 32]; 4] = [
         [166, 168,  47, 140, 153, 86, 156,  86, 226, 229, 149,  76,  70, 132, 209, 109, 166, 193, 113, 197,  42, 116, 170, 144,  74, 104,  29, 110, 220, 49, 224, 123],

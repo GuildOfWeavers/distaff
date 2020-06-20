@@ -1,15 +1,14 @@
-use crate::{ ProofOptions, ProgramInputs, opcodes::f128 as opcodes, F128, FiniteField, Accumulator };
-use super::super::{ execute, verify };
+use crate::{ ProofOptions, opcodes::f128 as opcodes, math::{ FiniteField, F128 } };
+use super::super::{ execute, verify, Program, ProgramInputs };
 
 #[test]
 fn eq_operations() {
-    let program = [
+    let program = Program::from_path(vec![
         opcodes::BEGIN, opcodes::EQ,     opcodes::SWAP2, opcodes::EQ,
         opcodes::NOOP,  opcodes::NOOP,   opcodes::NOOP,  opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,   opcodes::NOOP,  opcodes::NOOP,
         opcodes::NOOP,  opcodes::NOOP,   opcodes::NOOP,  opcodes::NOOP,
-    ];
-    let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
+    ]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::from_public(&[1, 2, 3, 4, 4]);
@@ -17,11 +16,10 @@ fn eq_operations() {
 
     let expected_result = vec![1, 0, 3];
 
-    let (outputs, program_hash, proof) = execute(&program, &inputs, num_outputs, &options);
+    let (outputs, proof) = execute(&program, &inputs, num_outputs, &options);
     assert_eq!(expected_result, outputs);
-    assert_eq!(program_hash, expected_hash);
 
-    let result = verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
+    let result = verify(program.hash(), inputs.get_public_inputs(), &outputs, &proof);
     assert_eq!(Ok(true), result);
 }
 
@@ -43,7 +41,7 @@ fn cmp_operation() {
     program.push(opcodes::DROP);
     while program.len() < 256 { program.push(opcodes::NOOP); }
 
-    let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
+    let program = Program::from_path(program);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::new(&[0, 0, 0, 0, 0, 0, a, b], &inputs_a, &inputs_b);
@@ -54,12 +52,11 @@ fn cmp_operation() {
     let expected_result = vec![gt, lt, b, a];
 
     // execute the program and make sure results are correct
-    let (outputs, program_hash, proof) = execute(&program, &inputs, num_outputs, &options);
+    let (outputs, proof) = execute(&program, &inputs, num_outputs, &options);
     assert_eq!(expected_result, outputs);
-    assert_eq!(program_hash, expected_hash);
 
     // verify execution proof
-    let result = verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
+    let result = verify(program.hash(), inputs.get_public_inputs(), &outputs, &proof);
     assert_eq!(Ok(true), result);
 }
 
@@ -80,7 +77,7 @@ fn binacc_operation() {
     program.push(opcodes::DROP);
     while program.len() < 256 { program.push(opcodes::NOOP); }
 
-    let expected_hash = <F128 as Accumulator>::digest(&program[..(program.len() - 1)]);
+    let program = Program::from_path(program);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::new(&[p127, 0, a], &inputs_a, &[]);
@@ -89,12 +86,11 @@ fn binacc_operation() {
     let expected_result = vec![a, a];
 
     // execute the program and make sure results are correct
-    let (outputs, program_hash, proof) = execute(&program, &inputs, num_outputs, &options);
+    let (outputs, proof) = execute(&program, &inputs, num_outputs, &options);
     assert_eq!(expected_result, outputs);
-    assert_eq!(program_hash, expected_hash);
 
     // verify execution proof
-    let result = verify(&program_hash, inputs.get_public_inputs(), &outputs, &proof);
+    let result = verify(program.hash(), inputs.get_public_inputs(), &outputs, &proof);
     assert_eq!(Ok(true), result);
 }
 

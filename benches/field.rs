@@ -1,5 +1,5 @@
 use criterion::{ black_box, criterion_group, Criterion };
-use distaff::{ F64, F128, FiniteField, parallel };
+use distaff::math::{ F64, F128, FiniteField, parallel };
 
 pub fn add64(c: &mut Criterion) {
     let x = F64::rand();

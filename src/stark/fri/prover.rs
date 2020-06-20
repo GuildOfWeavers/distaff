@@ -16,8 +16,8 @@ pub fn reduce<T>(evaluations: &[T], domain: &[T], options: &ProofOptions) -> (Ve
 
     // transpose evaluations into a matrix with 4 columns and put its rows into a Merkle tree
     let mut p_values = quartic::transpose(evaluations, 1);
-    let hashed_values = utils::hash_values(&p_values, options.hash_function());
-    let mut p_tree = MerkleTree::new(hashed_values, options.hash_function());
+    let hashed_values = utils::hash_values(&p_values, options.hash_fn());
+    let mut p_tree = MerkleTree::new(hashed_values, options.hash_fn());
 
     // reduce the degree by 4 at each iteration until the remaining polynomial is small enough
     while p_tree.leaves().len() * 4 > MAX_REMAINDER_LENGTH {
@@ -35,8 +35,8 @@ pub fn reduce<T>(evaluations: &[T], domain: &[T], options: &ProofOptions) -> (Ve
         let mut c_values = quartic::transpose(&column, 1);
 
         // put the resulting matrix into a Merkle tree
-        let hashed_values = utils::hash_values(&c_values, options.hash_function());
-        let mut c_tree = MerkleTree::new(hashed_values, options.hash_function());
+        let hashed_values = utils::hash_values(&c_values, options.hash_fn());
+        let mut c_tree = MerkleTree::new(hashed_values, options.hash_fn());
 
         // set p_tree = c_tree and p_values = c_values for the next iteration of the loop
         mem::swap(&mut c_tree, &mut p_tree);

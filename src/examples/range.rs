@@ -1,4 +1,4 @@
-use distaff::{ ProgramInputs, processor::opcodes::f128 as opcodes, FiniteField, F128 };
+use distaff::{ Program, ProgramInputs, opcodes::f128 as opcodes, math::{ FiniteField, F128 } };
 use super::{ Example, utils::parse_args };
 
 pub fn get_example(args: &[String]) -> Example  {
@@ -41,7 +41,7 @@ fn generate_values(n: usize) -> Vec<F128> {
 }
 
 /// Generates a program to range-check a sequence of values.
-fn generate_range_check_program(n: usize) -> Vec<F128> {
+fn generate_range_check_program(n: usize) -> Program {
 
     let mut program = vec![opcodes::BEGIN];
 
@@ -65,7 +65,7 @@ fn generate_range_check_program(n: usize) -> Vec<F128> {
         program.push(opcodes::ADD);
     }
 
-    return program;
+    return Program::from_path(program);
 }
 
 /// Generates inputs for the range-check program for the specified values.

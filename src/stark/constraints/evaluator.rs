@@ -1,8 +1,8 @@
 use std::mem;
 use crate::math::{ FiniteField };
 use crate::processor::{ opcodes };
-use crate::stark::{ StarkProof, TraceTable, TraceState, ConstraintCoefficients, Accumulator, Hasher };
-use crate::utils::{ uninit_vector };
+use crate::stark::{ StarkProof, TraceTable, TraceState, ConstraintCoefficients };
+use crate::utils::{ Hasher, Accumulator, uninit_vector };
 use super::{ decoder::Decoder, stack::Stack, MAX_CONSTRAINT_DEGREE };
 
 // TYPES AND INTERFACES
@@ -118,14 +118,6 @@ impl <T> Evaluator<T>
 
     pub fn trace_length(&self) -> usize {
         return self.domain_size / self.extension_factor;
-    }
-
-    pub fn extension_factor(&self) -> usize {
-        return self.extension_factor;
-    }
-
-    pub fn transition_evaluations(&self) -> &Vec<Vec<T>> {
-        return &self.t_evaluations;
     }
 
     pub fn get_x_at_last_step(&self) -> T {

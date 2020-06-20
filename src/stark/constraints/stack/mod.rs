@@ -1,6 +1,8 @@
 use crate::math::{ FiniteField };
-use crate::stark::{ TraceState, Accumulator, Hasher, NUM_LD_OPS };
 use crate::processor::{ opcodes };
+use crate::stark::{ TraceState };
+use crate::utils::{ Hasher, Accumulator };
+use crate::{ NUM_LD_OPS };
 
 mod comparisons;
 mod hashing;
@@ -63,7 +65,7 @@ impl <T> Stack<T>
         self.enforce_acyclic_ops(current_stack, next_stack, op_flags, next_op, result);
 
         // evaluate constraints for hash operation
-        let hash_flag = op_flags[opcodes::HASHR as usize];
+        let hash_flag = op_flags[opcodes::RESCR as usize];
         self.hash_evaluator.evaluate(current_stack, next_stack, step, hash_flag, result);
     }
 
@@ -80,7 +82,7 @@ impl <T> Stack<T>
         self.enforce_acyclic_ops(current_stack, next_stack, op_flags, next_op, result);
 
         // evaluate constraints for hash operation
-        let hash_flag = op_flags[opcodes::HASHR as usize];
+        let hash_flag = op_flags[opcodes::RESCR as usize];
         self.hash_evaluator.evaluate_at(current_stack, next_stack, x, hash_flag, result);
     }
 

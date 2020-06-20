@@ -1,8 +1,8 @@
 use std::fmt;
 use std::cmp;
 use crate::math::{ FiniteField };
-use crate::stark::{ 
-    Accumulator,
+use crate::utils::{ Accumulator };
+use crate::{
     MIN_STACK_DEPTH,
     DECODER_WIDTH,
     OP_CODE_INDEX,
