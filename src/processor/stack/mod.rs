@@ -410,7 +410,7 @@ impl Stack {
     fn op_binacc(&mut self, step: usize, hint: ExecutionHint) {
         // process execution hint
         match hint {
-            ExecutionHint::CmpStart(n) => {
+            ExecutionHint::RcStart(n) => {
                 // if we are about to start range check sequence, push binary decompositions
                 // of the value onto tape A
                 assert!(self.depth >= 3, "stack underflow at step {}", step);
