@@ -80,11 +80,22 @@ The simplest program is a linear sequence of instructions with no branches or lo
 ```
 a0, a1, ..., a_i
 ```
-where, a<sub>0</sub>, a<sub>1</sub> etc. are instructions executed one after the other. Such a program can be represented by a single group block like so:
+where, a<sub>0</sub>, a<sub>1</sub> etc. are instructions executed one after the other. Such a program can be described by a single group block like so:
 
-![Linear program diagram](assets/prog_diagram1.svg)
+<p align="center">
+    <img src="assets/prog_diagram1.dio.png">
+</p>
+To briefly explain the diagram:
+
+* The rectangle with rounded corners represents a control block. In this case, it is a group block B<sub>0</sub>.
+* The `next` pointer of this block is null. This is indicated by `∅` in the top right corner of the rectangle.
+* The group block contains a code block with instructions a<sub>0</sub> . . . a<sub>i</sub>, and a `next` pointer set to `∅`.
 
 ### Program with branches
+Let's add some conditional logic to our program. The program below does the following:
+* First, instructions a<sub>0</sub> . . . a<sub>i</sub> are executed.
+* Then, if the top of the stack is `1`, instructions b<sub>0</sub> . . . b<sub>j</sub> are executed. But if the top of the stack is `0`, instructions c<sub>0</sub> . . . c<sub>k</sub> are executed.
+* Finally, instructions d<sub>0</sub> . . . d<sub>n</sub> are executed.
 
 ```
 a0, a1, ..., a_i
@@ -95,9 +106,19 @@ else
 end
 d0, d1, ..., d_n
 ```
+A diagram for this program would look like so:
+
+<p align="center">
+    <img src="assets/prog_diagram2.dio.png">
+</p>
+
+Here, we have 3 control blocks, one describing the initial sequence of instructions, another one describing the *if/else* statement, and the last block describing the final sequence of instructions. The blocks are linked via `next` pointers like so:
+
+* The `next` pointer of the code block within B<sub>0</sub> block points to B<sub>1</sub> block.
+* The `next` pointer of the B<sub>1</sub> block points to B<sub>2</sub> block directly.
 
 ### Programs with nested blocks
-
+Let's add some nesting to our program. The program below is the same as the program from the previous example, except the *else* clause of the *if/else* statement now also contains a loop. This loop will keep executing instructions d<sub>0</sub> . . . d<sub>n</sub> as long as the top of the stack is `1` right after instruction d<sub>n</sub> is executed.
 ```
 a0, a1, ..., a_i
 if.true
@@ -105,12 +126,17 @@ if.true
 else
     c0, c1, ..., c_k
     while.true
-        d0, d1, ..., d_m
+        d0, d1, ..., d_n
     end
+    e0, e1, ..., e_m
 end
-e0, e1, ..., e_n
+f0, f1, ..., f_l
 ```
+A diagram for this program would look like so:
 
+<p align="center">
+    <img src="assets/prog_diagram3.dio.png">
+</p>
 
 ## Program hash
 Each Distaff program can be reduced to 16-byte hash value represented by a single element in a 128-bit field. This hash is computed as follows:
