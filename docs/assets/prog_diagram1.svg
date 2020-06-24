@@ -1,0 +1,22 @@
+<mxfile host="" modified="2020-06-24T16:44:28.090Z" agent="5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.46.1 Chrome/78.0.3904.130 Electron/7.3.1 Safari/537.36" etag="_btUcZhXLinXKmKh57r8" version="13.1.3">
+    <diagram id="6hGFLwfOUW9BJ-s0fimq" name="Page-1">
+        <mxGraphModel dx="566" dy="467" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="2" value="B&lt;sub&gt;0&lt;/sub&gt;: Group" style="rounded=1;whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacingTop=0;spacingLeft=7;" vertex="1" parent="1">
+                    <mxGeometry x="10" y="10" width="120" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="6" value="&lt;span class=&quot;ILfuVd&quot;&gt;&lt;span class=&quot;e24Kjd&quot;&gt;&lt;span&gt;∅&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;fontFamily=Helvetica;fontStyle=0" vertex="1" parent="1">
+                    <mxGeometry x="105" y="10" width="25" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="4" value="a&lt;sub&gt;0&amp;nbsp;&lt;/sub&gt;... a&lt;sub&gt;n&lt;/sub&gt;" style="rounded=0;whiteSpace=wrap;html=1;fontStyle=0" vertex="1" parent="1">
+                    <mxGeometry x="20" y="50" width="75" height="25" as="geometry"/>
+                </mxCell>
+                <mxCell id="5" value="&lt;span class=&quot;ILfuVd&quot;&gt;&lt;span class=&quot;e24Kjd&quot;&gt;&lt;span&gt;∅&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;" style="rounded=0;whiteSpace=wrap;html=1;fontFamily=Helvetica;fontStyle=0" vertex="1" parent="1">
+                    <mxGeometry x="95" y="50" width="25" height="25" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
