@@ -172,7 +172,7 @@ In the section above, we described how to compute hash of the entire program fro
 #### Hashes of control blocks
 Hash of a control block is defined as a tuple of two 128-bit elements (v<sub>0</sub>, v<sub>1</sub>). It is computed by recursively hashing the content of the control block as follows:
 
-For **group blocks**, we set v<sub>0</sub> to the hash of the code block contained within the group block. Specifically:
+For **group blocks**, we set v<sub>0</sub> to the hash of the code block contained within the group block, and set v<sub>1</sub> to `0`. Specifically:
 * *v<sub>0</sub> = hash(content)*
 * *v<sub>1</sub> = 0*
 
@@ -180,9 +180,9 @@ For **switch blocks**, since there are 2 code blocks (one for each branch), we s
 * *v<sub>0</sub> = hash(true_branch)*
 * *v<sub>1</sub> = hash(false_branch)*
 
-For **loop blocks**:
+For **loop blocks**, hashing is a bit more nuanced. First, we define an *exit block*, which is just a group block containing `NOT ASSERT` sequence of instructions. Then we compute v<sub>0</sub> and v<sub>1</sub> as follows:
 * *v<sub>0</sub> = hash(content)*
-* *v<sub>1</sub> = hahs_ops([NOT, ASSERT])*
+* *v<sub>1</sub> = hash(exit block)*
 
 #### Hashes of code blocks
 
@@ -192,10 +192,82 @@ For **code blocks**:
 * *v<sub>1</sub> = 0*
 
 ### hash_acc procedure
+The purpose of *hash_acc()* function is to merge hash of a control block into the running program hash. Recall that hash of a control block is represented by two 128-bit elements, while hash of the program is represented by one 128-bit element. The output of *hash_acc()* is a single 128-bit element.
+
+Denoting *(v<sub>0</sub>, v<sub>1</sub>)* to be the hash of the control block to be merged, and *h* to be the current hash of the program, high-level pseudo-code for *hash_acc()* function looks like so:
+```
+let state = [v0, v1, h, 0];
+for 16 rounds do:
+    state = add_round_constants(state);
+    state = apply_sbox(state);
+    state = apply_mds(state);
+    state = add_round_constants(state);
+    state = apply_inverse_sbox(state);
+    state = apply_mds(state);
+return state[0];
+```
 
 ### hash_ops procedure
+The purpose of *hash_ops()* function is to hash a sequence of instructions into a single 128-bit element. The pseudo-code for this function is as follows:
 
+```
+let state = [0, 0, 0, 0];
+for each op_code in instructions do:
+    state = hash_ops_round(state, op_code);
+return state[0];
+```
+where:
+  * `state` is an array of four 128-bit field elements,
+  * `instructions` is a vector of 128-bit field elements,
+  * `hash_ops_round()` is a function which merges `op_code` into the state. The specifics of this function are currently TBD.
 
-## Program execution semantics
+## Program hash computations
+Distaff VM computes program hash as the program is executed on the VM. Several components of the VM are used in hash computations. These components are:
 
+* **sponge state** which is used by *hash_acc* and *hash_ops* procedures; sponge state takes up 4 registers.
+* **block stack** which holds hashes of currently executing blocks; block stack takes up between 1 and 16 registers (depending on the level of nesting in the program).
+* **loop stack** which holds images of loop contents for loops that are currently executing; loop stack takes up between 0 and 8 registers.
+
+### Flow control instructions
+
+Flow control instructions are used to manipulate these components 
+
+#### BEGIN instruction
+Indicates start of a new control block. Pushes value from the first register of the `sponge state` onto the `block stack`, and then sets all registers of `sponge state` to `0`.
+```
+╒═══ sponge ═══╕  ╒═ block stack ═╕
+[s0, s1, s2, s3], [               ]
+                🡣
+[ 0,  0,  0,  0], [s0             ]
+```
+
+#### TEND instruction
+Indicates end of a control block. This instruction accepts a single parameter `x`. The instruction performs the following actions:
+1. Keeps the 1st register of `sponge state` as is.
+2. Sets the 2nd register of `sponge state` to `x`.
+3. Pops a value from `block stack` and copies it to the 3rd register of `sponge state`.
+4. Sets the 4th register of `sponge state` to `0`.
+```
+╒═══ sponge ═══╕  ╒═ block stack ═╕
+[s0, s1, s2, s3], [b0             ]
+                🡣
+[s0,  x, b0,  0], [               ]
+```
+
+#### FEND instruction
+TODO
+```
+╒═══ sponge ═══╕  ╒═ block stack ═╕
+[s0, s1, s2, s3], [b0             ]
+                🡣
+[s0,  x, b0,  0], [               ]
+```
+
+#### LOOP instruction
+TODO
+
+#### CONTINUE instruction
+TODO
+
+#### BREAK instruction
 TODO
