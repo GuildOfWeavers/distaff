@@ -83,13 +83,13 @@ a0, a1, ..., a_i
 where, a<sub>0</sub>, a<sub>1</sub> etc. are instructions executed one after the other. Such a program can be described by a single group block like so:
 
 <p align="center">
-    <img src="assets/prog_diagram1.dio.png">
+    <img src="assets/prog_tree1.dio.png">
 </p>
 To briefly explain the diagram:
 
 * The rectangle with rounded corners represents a control block. In this case, it is a group block B<sub>0</sub>.
 * The `next` pointer of this block is null. This is indicated by `∅` in the top right corner of the rectangle.
-* The group block contains a code block with instructions a<sub>0</sub> . . . a<sub>i</sub>, and a `next` pointer set to `∅`.
+* The group block contains a code block with instructions a<sub>0</sub> . . . a<sub>i</sub>, and a `next` pointer set to `∅` (null).
 
 ### Program with branches
 Let's add some conditional logic to our program. The program below does the following:
@@ -109,7 +109,7 @@ d0, d1, ..., d_n
 A diagram for this program would look like so:
 
 <p align="center">
-    <img src="assets/prog_diagram2.dio.png">
+    <img src="assets/prog_tree2.dio.png">
 </p>
 
 Here, we have 3 control blocks, one describing the initial sequence of instructions, another one describing the *if/else* statement, and the last block describing the final sequence of instructions. The blocks are linked via `next` pointers like so:
@@ -118,7 +118,7 @@ Here, we have 3 control blocks, one describing the initial sequence of instructi
 * The `next` pointer of the B<sub>1</sub> block points to B<sub>2</sub> block directly.
 
 ### Programs with nested blocks
-Let's add some nesting to our program. The program below is the same as the program from the previous example, except the *else* clause of the *if/else* statement now also contains a loop. This loop will keep executing instructions d<sub>0</sub> . . . d<sub>n</sub> as long as the top of the stack is `1` right after instruction d<sub>n</sub> is executed.
+Let's add nested control logic to our program. The program below is the same as the program from the previous example, except the *else* clause of the *if/else* statement now also contains a loop. This loop will keep executing instructions d<sub>0</sub> . . . d<sub>n</sub> as long as the top of the stack is `1` right after instruction d<sub>n</sub> is executed. Once, the top of the stack becomes `0`, instructions e<sub>0</sub> . . . e<sub>m</sub> are executed.
 ```
 a0, a1, ..., a_i
 if.true
@@ -135,13 +135,66 @@ f0, f1, ..., f_l
 A diagram for this program would look like so:
 
 <p align="center">
-    <img src="assets/prog_diagram3.dio.png">
+    <img src="assets/prog_tree3.dio.png">
 </p>
 
-## Program hash
-Each Distaff program can be reduced to 16-byte hash value represented by a single element in a 128-bit field. This hash is computed as follows:
+Here, we have 5 control blocks, where blocks B<sub>2</sub> and B<sub>3</sub> are nested within the *else* branch of block B<sub>1</sub>.
 
-TODO
+## Program hash
+All Distaff programs can be reduced to a 16-byte hash represented by a single element in a 128-bit field. The hash is designed to target 128-bit preimage and second preimage resistance, and 64-bit collision resistance.
+
+Program hash is computed incrementally. That is, it starts out as `0`, and with every consecutive program block, program hash is updated to include hash of that block.
+
+For example, let's say our program consists of 3 blocks and looks like so:
+
+<p align="center">
+    <img src="assets/prog_hash1.dio.png">
+</p>
+
+Let's also define hash of block B<sub>n</sub> as *hash(B<sub>n</sub>)*, and hash of the program before block *B<sub>n</sub>* is "merged" into it as *h<sub>n</sub>*. Then, hash of the entire program is computed like so:
+
+1. First, we set *h<sub>0</sub> = 0*.
+2. Then, we compute *h<sub>1</sub> = hash_acc(h<sub>0</sub>, hash(B<sub>0</sub>))*, where *hash_acc* is the function for merging block hashes into program hash (see [here](#hash_acc-procedure)).
+3. Then, we compute *h<sub>2</sub> = hash_acc(h<sub>1</sub>, hash(B<sub>1</sub>))*.
+4. Finally, we compute *h<sub>3</sub> = hash_acc(h<sub>2</sub>, hash(B<sub>2</sub>))*, which is our program hash.
+
+Graphically, this looks like so:
+
+<p align="center">
+    <img src="assets/prog_hash2.dio.png">
+</p>
+
+This is a Merkle tree (though lopsided). In fact, all program hashes are roots of Merkle trees, where the shape of the tree is defined by program structure. This is by design. Using this property or program hashes, we can selectively reveal any of the program blocks while keeping the rest of the program private.
+
+### Computing hash of a program block
+In the section above, we described how to compute hash of the entire program from hashes of individual program blocks. In this section, we'll describe how to compute hashes for different types of program blocks.
+
+#### Hashes of control blocks
+Hash of a control block is defined as a tuple of two 128-bit elements (v<sub>0</sub>, v<sub>1</sub>). It is computed by recursively hashing the content of the control block as follows:
+
+For **group blocks**, we set v<sub>0</sub> to the hash of the code block contained within the group block. Specifically:
+* *v<sub>0</sub> = hash(content)*
+* *v<sub>1</sub> = 0*
+
+For **switch blocks**, since there are 2 code blocks (one for each branch), we set v<sub>0</sub> and v<sub>1</sub>, to the hashes of the branches respectively. Specifically:
+* *v<sub>0</sub> = hash(true_branch)*
+* *v<sub>1</sub> = hash(false_branch)*
+
+For **loop blocks**:
+* *v<sub>0</sub> = hash(content)*
+* *v<sub>1</sub> = hahs_ops([NOT, ASSERT])*
+
+#### Hashes of code blocks
+
+
+For **code blocks**:
+* *v<sub>0</sub> = hash_acc(hash_ops(operations), hash(next))*
+* *v<sub>1</sub> = 0*
+
+### hash_acc procedure
+
+### hash_ops procedure
+
 
 ## Program execution semantics
 
