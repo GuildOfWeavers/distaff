@@ -39,20 +39,22 @@ Switch block imposes the following restrictions on its content:
 * `false_branch` must start with `NOT ASSERT` instruction sequence. This guarantees that this branch can be executed only if the top of the stack is `0`.
 
 #### Loop block
-A loop block is used to describe a sequence of instructions which is to be repeated zero or more times based on some condition (i.e. *while* statement). Besides the optional `next` pointer, a loop block must contain a single code block. A data structure for a loop block may look like so:
+A loop block is used to describe a sequence of instructions which is to be repeated zero or more times based on some condition (i.e. *while* statement). Besides the optional `next` pointer, a loop block must contain two code blocks. A data structure for a loop block may look like so:
 ```
 Loop {
     content : CodeBlock,
+    skip    : CodeBLock,
     next?   : ControlBlock,
 }
 ```
 Execution semantics of a loop block are as follows:
-* If the top of the stack is `1`, `content` block is executed.
+* If the top of the stack is `1`, `content` block is executed; if the top of the stack is `0`, then `skip` block is executed.
 * If after executing `content` block, the top of the stack is `1`, `content` block is executed again. This process is repeated until the top of the stack is `0`.
 * Then, if `next` pointer is set, execution moves to the next block.
 
 Loop block imposes the following restrictions on its content:
 * `content` must start with an `ASSERT` instruction. This guarantees that it can be executed only if the top of the stack is `1`.
+* `skip` block must contain `NOT ASSERT` instruction sequence. This guarantees that the loop is not entered only if the top of the stack is `0`.
 
 It is expected that at the end of executing `content` block, the top of the stack will contain a binary value (i.e. `1` or `0`). However, this is not enforced at program construction time, and if the top of the stack is not binary, the program will fail at execution time.
 
@@ -145,7 +147,7 @@ All Distaff programs can be reduced to a 16-byte hash represented by a single el
 
 Program hash is computed incrementally. That is, it starts out as `0`, and with every consecutive program block, program hash is updated to include hash of that block.
 
-For example, let's say our program consists of 3 blocks and looks like so:
+For example, let's say our program consists of 3 control blocks and looks like so:
 
 <p align="center">
     <img src="assets/prog_hash1.dio.png">
@@ -164,35 +166,51 @@ Graphically, this looks like so:
     <img src="assets/prog_hash2.dio.png">
 </p>
 
-This is a Merkle tree (though lopsided). In fact, all program hashes are roots of Merkle trees, where the shape of the tree is defined by program structure. This is by design. Using this property or program hashes, we can selectively reveal any of the program blocks while keeping the rest of the program private.
+This is a Merkle tree (though lopsided). In fact, all program hashes are roots of Merkle trees, where the shape of the tree is defined by program structure. This is by design. Using this property of program hashes, we can selectively reveal any of the program blocks while keeping the rest of the program private.
 
 ### Computing hash of a program block
-In the section above, we described how to compute hash of the entire program from hashes of individual program blocks. In this section, we'll describe how to compute hashes for different types of program blocks.
+In the section above, we described how to compute hash of an entire program from hashes of individual program blocks. In this section, we'll describe how to compute hashes for different types of program blocks.
+
+It is worth noting upfront that hashes of control blocks differ from hashes of code blocks. Specifically:
+1. Hashes of control blocks are defined as tuples of two 128-bit elements *(v<sub>0</sub>, v<sub>1</sub>)*.
+2. While hashes of code blocks are defined as a single 128-bit element *v*.
 
 #### Hashes of control blocks
-Hash of a control block is defined as a tuple of two 128-bit elements (v<sub>0</sub>, v<sub>1</sub>). It is computed by recursively hashing the content of the control block as follows:
+Hashes of control blocks are just hashes of underlying code blocks arranged in specific ways.
 
-For **group blocks**, we set v<sub>0</sub> to the hash of the code block contained within the group block, and set v<sub>1</sub> to `0`. Specifically:
+For **group blocks**, this arrangement looks like so:
 * *v<sub>0</sub> = hash(content)*
 * *v<sub>1</sub> = 0*
 
-For **switch blocks**, since there are 2 code blocks (one for each branch), we set v<sub>0</sub> and v<sub>1</sub>, to the hashes of the branches respectively. Specifically:
+For **switch blocks**, we define the hash to be a hash of both branches simultaneously:
 * *v<sub>0</sub> = hash(true_branch)*
 * *v<sub>1</sub> = hash(false_branch)*
 
-For **loop blocks**, hashing is a bit more nuanced. First, we define an *exit block*, which is just a group block containing `NOT ASSERT` sequence of instructions. Then we compute v<sub>0</sub> and v<sub>1</sub> as follows:
+For **loop blocks**, we also define the hash to be a hash of both code blocks:
 * *v<sub>0</sub> = hash(content)*
-* *v<sub>1</sub> = hash(exit block)*
+* *v<sub>1</sub> = hash(skip)*
+
+A side note: *hash(content)* is called a loop image as it binds each iteration of the loop to a specific hash.
 
 #### Hashes of code blocks
+Recall that a code block has the following form:
+```
+CodeBlock {
+    operations : Vector<u128>,
+    next?      : ControlBlock,
+}
+```
+Hash of a code block is computed as follows:
 
+1. First, we compute hash of instructions contained in `operations` vector. To do this, we use *[hash_ops](#hash_ops-procedure)* procedure. The output of this procedure is a single 128-bit element. If `next` pointer is null, we are done, and this element is returned as hash of the entire block.
+2. If `next` pointer is not null, we compute hash of the control block specified by the pointer according to the rules described in the previous section. We than use [hash_acc](#hash_acc-procedure) procedure to merge this hash with the hash of `operations` we computed in the previous step.
 
-For **code blocks**:
-* *v<sub>0</sub> = hash_acc(hash_ops(operations), hash(next))*
-* *v<sub>1</sub> = 0*
+Or described another way:
+* *v = hash_ops(operations)*, when `next` is null;
+* *v = hash_acc(hash_ops(operations), hash(next))*, when `next` is not null.
 
 ### hash_acc procedure
-The purpose of *hash_acc()* function is to merge hash of a control block into the running program hash. Recall that hash of a control block is represented by two 128-bit elements, while hash of the program is represented by one 128-bit element. The output of *hash_acc()* is a single 128-bit element.
+The purpose of *hash_acc* procedure is to merge hash of a control block into the running program hash. Recall that hash of a control block is represented by two 128-bit elements, while hash of the program is represented by one 128-bit element. The output of *hash_acc()* is a single 128-bit element.
 
 Denoting *(v<sub>0</sub>, v<sub>1</sub>)* to be the hash of the control block to be merged, and *h* to be the current hash of the program, high-level pseudo-code for *hash_acc()* function looks like so:
 ```
@@ -206,6 +224,7 @@ for 16 rounds do:
     state = apply_mds(state);
 return state[0];
 ```
+The above is a modified version of [Rescue](https://eprint.iacr.org/2019/426) hash function. This modification adds half-rounds to the beginning and to the end of the standard Rescue hash function to make the arithmetization of the function fully foldable. It should not impact security properties of the function, but it is worth noting that it has not been studied to the same extent as the standard Rescue hash function.
 
 ### hash_ops procedure
 The purpose of *hash_ops()* function is to hash a sequence of instructions into a single 128-bit element. The pseudo-code for this function is as follows:
