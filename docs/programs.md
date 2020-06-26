@@ -243,50 +243,164 @@ where:
 ## Program hash computations
 Distaff VM computes program hash as the program is executed on the VM. Several components of the VM are used in hash computations. These components are:
 
-* **sponge state** which is used by *hash_acc* and *hash_ops* procedures; sponge state takes up 4 registers.
-* **block stack** which holds hashes of currently executing blocks; block stack takes up between 1 and 16 registers (depending on the level of nesting in the program).
-* **loop stack** which holds images of loop contents for loops that are currently executing; loop stack takes up between 0 and 8 registers.
+* **sponge state** which holds running hash of the currently executing program block; sponge state takes up 4 registers.
+* **context stack** which holds hashes of parent blocks to the currently executing program block; context stack takes up between 1 and 16 registers (depending on the level of nesting in the program).
 
-### Flow control instructions
+General intuition for hashing process is as follows:
 
-Flow control instructions are used to manipulate these components 
+1. At the start of every program block, we push current hash of its outer block onto the `context stack`, and set hash of the new block to `0` (this is done be resetting the `sponge state`).
+2. Then, as we read instructions contained in the block, we merge each instruction into the block's hash.
+    1. If we encounter a new block, we process it recursively starting at step 1.
+3. Once the end of the block is reached, we pop hash of the parent block from the `context stack` and merge our block hash into it.
 
-#### BEGIN instruction
-Indicates start of a new control block. Pushes value from the first register of the `sponge state` onto the `block stack`, and then sets all registers of `sponge state` to `0`.
+Each of these states is explained in detail below.
+
+### Initiating a new program block
+A new program block is started by the `BEGIN` operation. The operation does the following:
+
+1. Pushes hash of the current block onto the `context stack`;
+2. Sets all registers of `sponge state` to `0`.
+
+A diagram of `BEGIN` operation is shown below. By convention, result of hashing is in the first register of `sponge state`. So, `a0` is the hash of of the current block right before `BEGIN` operation is executed.
 ```
-╒═══ sponge ═══╕  ╒═ block stack ═╕
-[s0, s1, s2, s3], [               ]
+╒═══ sponge ═══╕  ╒══ context ═══╕
+[s0, s1, s2, s3], [              ]
                 🡣
-[ 0,  0,  0,  0], [s0             ]
+[ 0,  0,  0,  0], [s0            ]
 ```
 
-#### TEND instruction
-Indicates end of a control block. This instruction accepts a single parameter `x`. The instruction performs the following actions:
-1. Keeps the 1st register of `sponge state` as is.
-2. Sets the 2nd register of `sponge state` to `x`.
-3. Pops a value from `block stack` and copies it to the 3rd register of `sponge state`.
-4. Sets the 4th register of `sponge state` to `0`.
+### Accumulating block hash
+As instructions are executed in the VM, each instruction is merged into the `sponge state` using a modified version of Rescue round.
+
+### Merging block hash into parent hash
+A block can be terminate by one of two operations: `TEND` or `FEND`. These operations behave similarly. Specifically:
+
+* Both operations contain a payload which they move into the `sponge state`.
+* Both operations pop hash of the parent block from the `context stack` and move it into the `sponge state`.
+* Both operations propagate hash of the current block into the `sponge state` at the next step.
+
+However, these operations arrange `sponge state` slightly differently, and are intended to terminate specific branches of execution.
+
+For example, recall that hash of a switch block is defined as tuple *(v0, v1)*, where:
+* *v<sub>0</sub> = hash(true_branch)*
+* *v<sub>1</sub> = hash(false_branch)*
+
+When the VM executes *true_branch* of a switch block, the block must be terminated with `TEND(v1)` operation. A diagram of this operation looks like so:
 ```
-╒═══ sponge ═══╕  ╒═ block stack ═╕
-[s0, s1, s2, s3], [b0             ]
+╒═══ sponge ═══╕  ╒══ context ═══╕
+[s0, s1, s2, s3], [c0            ]
                 🡣
-[s0,  x, b0,  0], [               ]
+[s0, v1, c0,  0], [              ]
 ```
+Note that by the time `TEND` instruction is reached, the first register of the sponge will contain hash of the *true_branch*. Thus, `s0 = v0`, and the result of executing `TEND(v1)` will be sponge state set to `[v0, v1, c0, 0]`, where `c0` is the hash of the parent block.
 
-#### FEND instruction
-TODO
+On the other hand, when the VM executes *false_branch* of a switch block, the block must terminate with `FEND(v0)` operation. A diagram of this operation looks like so:
 ```
-╒═══ sponge ═══╕  ╒═ block stack ═╕
-[s0, s1, s2, s3], [b0             ]
+╒═══ sponge ═══╕  ╒══ context ═══╕
+[s0, s1, s2, s3], [c0            ]
                 🡣
-[s0,  x, b0,  0], [               ]
+[v0, s0, c0,  0], [              ]
+```
+Note also that by the time `FEND` instruction is reached, the first register of the sponge will contain hash of the *false_branch*. Thus, `s0 = v1`, and the result of executing `FEND(v0)` will be sponge state set to `[v0, v1, c0, 0]`.
+
+The crucially important thing here is that by the time we exit the block, `sponge state` is the same, regardless of which branch was taken.
+
+Similar methodology applies to other blocks as well:
+
+* To exit a group block, we should execute `TEND(0)` operation.
+* To exit a loop block, we should use `TEND(v1)` if the body of the loop was executed at least once, and `FEND(v0)`, if the body of the loop was never entered.
+
+After `sponge state` has been arranged as described above, `HACC` operation is executed 14 times to perform [hash_acc](#hash_acc-procedure) procedure. After this, program execution can resume with the following instruction or the next code block in the sequence.
+
+#### A note on operation alignment
+`TEND` and `FEND` operations can be executed only on steps which are multiples of 16 (e.g. 16, 32, 48 etc.). Trying to execute them on other steps will result in program failure.
+
+Since `TEND`/`FEND` instruction is followed by 14 `HACC` instruction, we have a cycle of 16 instructions with the last slot empty. This is convenient because we can fill it with a `BEGIN` instruction in cases when one program block is immediately followed by another. Specifically, the inter-block sequence of instructions could look like so:
+```
+... TEND(v1) HACC HACC HACC HACC HACC HACC HACC
+    HACC     HACC HACC HACC HACC HACC HACC BEGIN ...
 ```
 
-#### LOOP instruction
-TODO
+### Loops
+Ability to execute unbounded loops requires additional structures. Specifically, we need a `loop stack` to holds images of loop bodies for currently active loops. Loop stack takes up between 0 and 8 registers to support nested loops up to 8 levels deep.
 
-#### CONTINUE instruction
-TODO
+Loop execution proceeds as follows:
 
-#### BREAK instruction
-TODO
+First, we check if the top of the stack is `1` or `0`. If it is `0`, we don't need to enter the loop, and instead we execute the following sequence of operations (padding with `NOOP`s is skipped for brevity):
+```
+BEGIN NOT ASSERT FEND(v0)
+```
+Recall that hash of a loop block is defined as a tuple *(v<sub>0</sub>, v<sub>1</sub>)*, where:
+* *v<sub>0</sub> = hash(body)*
+* *v<sub>1</sub> = hash(skip)*, where *skip* is `NOT ASSERT` sequence of instructions.
+
+So, executing `FEND(v0)` operation sets `sponge state` to the following: `[v0, v1, h0, 0]`, where `h0` is the hash of the parent block. Then, we executed 14 `HACC` operations and we are done.
+
+If, however, the top of the stack is `1`, we do need to enter the loop. We do this by executing a `LOOP` operation. This operation is similar to the `BEGIN` operation but it also contains a payload. This payload is set to the loop's image (hash of loop body).
+
+Executing `LOOP(i0)` operation (where `i0` is the loop's image) does the following:
+
+1. Pushes the operation payload `i0` onto the `loop stack`;
+2. Pushes hash of the current block onto the `context stack`;
+3. Sets all registers of `sponge state` to `0`.
+
+A diagram of `LOOP(i0)` operation is shown below:
+```
+╒═══ sponge ═══╕  ╒══ context ═══╕ ╒═ loop stack ═╕
+[s0, s1, s2, s3], [              ] [              ]
+                         🡣
+[ 0,  0,  0,  0], [s0            ] [i0            ]
+```
+
+After the `LOOP` operation, the body of the loop is executed similar to any other block.
+
+If after executing the loop's body, the top of the stack is `1`, we execute a `CONTINUE` operation. `CONTINUE` operation does the following:
+
+1. Checks whether the first register of the `sponge` is equal to the value at the top of the `loop stack` (i.e. `s0 = i0`). If it is not, the program fails.
+2. Check whether the value on the top of the stack is `1`. If it is not, the program fails.
+3. Resets the `sponge state`.
+
+A diagram of `CONTINUE` operation is as follows:
+```
+╒═══ sponge ═══╕  ╒══ context ═══╕ ╒═ loop stack ═╕
+[s0, s1, s2, s3], [h0            ] [              ]
+                         🡣
+[ 0,  0,  0,  0], [h0            ] [i0            ]
+```
+To summarize: the effect of `CONTINUE` operation is to make sure that the sequence of instructions executed in the last iteration of the loop was indeed loop's body, and also to prepare the sponge for the next iteration of the loop.
+
+After the we execute the `CONTINUE` operation, loop body can be executed again.
+
+If after executing the loop's body, the top of the stack is `0`, we execute `BREAK` operation. `BREAK` operation does the following:
+
+1. Checks whether the first register of the `sponge` is equal to the value at the top of the `loop stack` (i.e. `s0 = i0`). If it is not, the program fails.
+2. Check whether the value on the top of the stack is `0`. If it is not, the program fails.
+3. Removes the top value from the `loop stack`.
+
+A diagram of `BREAK` operation is as follows:
+```
+╒═══ sponge ═══╕  ╒══ context ═══╕ ╒═ loop stack ═╕
+[s0, s1, s2, s3], [h0            ] [i0            ]
+                         🡣
+[s0, s1, s2, s3], [h0            ] [              ]
+```
+After the `BREAK` operation is executed we execute `TEND(v1)` operation. This sets the `sponge state` to `[v0, v1, h0, 0]`. We then execute 14 `HACC` operations.
+
+Again, it is important to note that regardless of whether we enter the loop or not, `sponge state` ends up set to  `[v0, v1, h0, 0]` before we start executing `HACC` operations.
+
+#### Loop execution example
+To illustrate execution of a loop on a concrete example, let's say we have the following loop:
+```
+while.true
+  a0, a1, ... a14
+end
+```
+Let's also say that for a given input, the top of the stack is `1`, and it changes to `0` after we execute *a<sub>0</sub>, a<sub>1</sub>, . . ., a<sub>14</sub>* instructions twice. Then, the sequence of instructions executed on the VM to complete this loop will be:
+```
+LOOP
+  a0  a1  a2  a3  a4  a5  a6 a7
+  a8  a9 a10 a11 a12 a13 a14 CONTINUE
+  a0  a1  a2  a3  a4  a5  a6 a7
+  a8  a9 a10 a11 a12 a13 a14 BREAK
+TEND
+```
