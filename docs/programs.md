@@ -157,7 +157,7 @@ For example, let's say our program consists of 3 control blocks and looks like s
 Hash of this program is computed like so:
 
 1. First, we compute hash of instruction block *a<sub>0</sub> . . . a<sub>i</sub>*.
-2. Then, we compute hashes of *b<sub>0</sub> . . . b<sub>j</sub>* and *c<sub>0</sub> . . . c<sub>k</sub>*, and combine them with the hash of block B<sub>1</sub>.
+2. Then, we compute hashes of *b<sub>0</sub> . . . b<sub>j</sub>* and *c<sub>0</sub> . . . c<sub>k</sub>*, and combine them into the hash of block B<sub>1</sub>.
 3. Then, we merge hash of block B<sub>1</sub> with hash of *a<sub>0</sub> . . . a<sub>i</sub>*, and call the resulting value *h<sub>1</sub>*.
 4. Then, we compute hash of *d<sub>0</sub> . . . d<sub>n</sub>* and transform it into hash of block B<sub>2</sub>.
 5. Then, we merge hash of block B<sub>2</sub> with *h<sub>1</sub>* to get the hash of block B<sub>0</sub>.
@@ -172,6 +172,15 @@ Graphically, this process looks like so:
 As mentioned above, hashes of Distaff programs are computed in a manner similar to roots of Merkle trees. This is by design. Using this property of program hashes, we can selectively reveal any of the program blocks while keeping the rest of the program private (e.g. secret programs with public pre/post conditions).
 
 For example, if we wanted to reveal instruction sequence *d<sub>0</sub> . . . d<sub>n</sub>*, we could do so by making intermediate hash *h<sub>1</sub>* public. Then, anyone would be able to reconstruct the root hash from these two pieces of data and be sure that *d<sub>0</sub> . . . d<sub>n</sub>* is, in fact, the last sequence of instructions executed in the program with hash *h<sub>p</sub>*.
+
+To compute program hash, we employ several rules and procedures:
+
+* Rules for constructing hashes of control blocks from hashes of their contents.
+* Procedure *hash_ops* for computing a hash of a sequence of instructions.
+* Procedure *hash_acc* for merging hashes of control blocks with 128-bit values.
+* Procedure *hash_seq* for hashing of sequences of program blocks into 128-bit values.
+
+All of these are described below.
 
 ### Hashes of control blocks
 Hashes of control blocks are defined as tuples of two 128-bit elements *(v<sub>0</sub>, v<sub>1</sub>)*. These tuples are constructed as follows:
