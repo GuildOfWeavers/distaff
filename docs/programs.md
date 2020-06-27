@@ -418,9 +418,13 @@ while.true
   a0, a1, ... a14
 end
 ```
+Hash of this loop will be defined as:
+* *v<sub>0</sub> = hash(a<sub>0</sub> . . . a<sub>14</sub>)*
+* *v<sub>1</sub> = hash(skip)*
+
 Let's also say that for a given input, the top of the stack is `1`, and it changes to `0` after we execute *a<sub>0</sub>, a<sub>1</sub>, . . ., a<sub>14</sub>* instructions twice. Then, the sequence of instructions executed on the VM to complete this loop will be:
 ```
-LOOP
+LOOP<v0>
   a0  a1  a2  a3  a4  a5  a6 a7
   a8  a9 a10 a11 a12 a13 a14 CONTINUE
   a0  a1  a2  a3  a4  a5  a6 a7
