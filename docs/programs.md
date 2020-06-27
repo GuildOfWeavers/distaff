@@ -1,15 +1,25 @@
 # Programs in Distaff VM
-TODO
+Distaff VM consumes programs structured in a form of an execution graph. The purpose of this graph is twofold:
 
-## Execution tree
-Distaff programs can be thought of as execution trees of instructions. As a program is executed, a specific path through the tree is taken. The actual representation of a program is slightly more complex. For example, a program execution tree actually consists of program blocks each with its own structure and execution semantics. At the high level, there are two types of blocks: instruction blocks and control blocks. Both are explained below.
+1. To describe program execution semantics.
+2. To define structure of program hash.
+
+These are related by distinct because two programs which are semantically the same can be reduced to two distinct hashes, depending on how the execution graph is structured.
+
+Program execution graph is constructed from a set of nodes called *program blocks*. Each program block has its own structure and execution semantics. In the following sections we describe these programs blocks, give a few examples of how program graphs are constructed from these blocks, define methodology for computing program hashes from program graphs, and finally, describe how program hash is computed within the VM.
+
+## Program blocks
+At the high level, there are two types of program blocks: instruction blocks and control blocks. Both are explained below.
 
 ### Instruction blocks
-An instruction block is just a a sequence of instructions, where each instruction is a tuple *(op_code, op_value)*. For vast majority of instructions `op_value = 0`, but there are some instructions where it is not. For example, for a `PUSH` instruction, `op_value` is set to the value which is to be pushed onto the stack.
+An instruction block is just a sequence of instructions, where each instruction is a tuple *(op_code, op_value)*. For vast majority of instructions `op_value = 0`, but there are some instructions where it is not. For example, for a `PUSH` instruction, `op_value` is set to the value which is to be pushed onto the stack.
 
-An instruction block imposes the following restrictions on its content:
+Instruction blocks impose the following restrictions on their content:
 * There must be at least one instruction in the block.
-* An instruction block cannot contain any of the flow control instructions. This includes: `BEGIN`, `TEND`, `FEND`, `LOOP`, `CONTINUE`, `BREAK`, and `HACC` instructions.
+* An instruction block cannot contain any of the following the flow control instructions: `BEGIN`, `TEND`, `FEND`, `LOOP`, `CONTINUE`, `BREAK`, and `HACC` instructions.
+* An instruction which carries non-zero `op_value` must be located at a step which is a multiple of 8 (e.g. 8, 16, 32 etc.).
+
+Due to alignment rules within the VM, the first instruction of an instruction block is guaranteed to be executed on a step which is a multiple of 16.
 
 ### Control blocks
 Control blocks are used to specify flow control logic of a program. Currently, there are 3 types of control blocks: (1) group blocks, (2) switch blocks, and (3) loop blocks. Specifics of each type of these are described below.
@@ -26,16 +36,18 @@ where, `ProgramBlock` can be an instruction block or a control block.
 Execution semantics of a group block are as follows:
 * Each block in the `blocks` vector is executed one after the other. 
 
-A group block imposes the following restrictions on its content:
+Group blocks impose the following restrictions on their content:
 * There must be at least one block in the `blocks` vector.
+* The first block in the `blocks` vector must be an instruction block.
 * An instruction block cannot be followed by another instructions block.
 * Number of instructions in an instruction block must be one less than a multiple of 16 (e.g. 15, 31, 47 etc.), unless it is the very last block in the `blocks` vector. In such a case, the number of instructions must be a multiple of 16 (e.g. 16, 32, 48 etc.).
 
-To illustrate the last point, assume our vector of blocks looks like so:
+To illustrate these rules, assume our vector of blocks looks like so:
 ```
 [b0, b1, b2]
 ```
-* If `b0` is an instruction block, number of instructions in `b0` must be one less than a multiple of 16.
+* `b0` must be an instruction block; number of instructions in `b0` must be one less than a multiple of 16.
+* `b1` must be a control block because an instruction block cannot be followed by another instruction block.
 * If `b2` is an instruction block, number of instructions in `b2` must be a multiple of 16.
 
 #### Switch blocks
@@ -51,7 +63,7 @@ Execution semantics of a switch block are as follows:
 * If the top of the stack is `0`, blocks in the `false_branch` is executed one after the other.
 * If the top of the stack is neither `0` nor `1`, program execution fails.
 
-A switch block imposes the following restrictions on its content:
+Switch blocks impose the following restrictions on their content:
 * The first block in the `true_branch` vector must be an instruction block which has `ASSERT` as its first operation. This guarantees that this branch can be executed only if the top of the stack is `1`.
 * The first block in the `false_branch` vector must be an instruction block which has `NOT ASSERT` as its first two instructions. This guarantees that this branch can be executed only if the top of the stack is `0`.
 * Within `true_branch` and `false_branch` vectors, an instruction block cannot be followed by another instructions block.
@@ -73,7 +85,7 @@ Execution semantics of a loop block are as follows:
 * If the top of the stack is `0`, `skip` block is executed.
 * If the top of the stack is neither `0` nor `1`, program execution fails.
 
-Loop block imposes the following restrictions on its content:
+Loop blocks impose the following restrictions on their content:
 * The first block in the `body` vector must be an instruction block which has `ASSERT` as its first operation. This guarantees that a loop iteration can be entered only if the top of the stack is `1`.
 * Within the `body` vector, an instruction block cannot be followed by another instructions block.
 * Number of instructions in an instruction block must be one less than a multiple of 16 (e.g. 15, 31, 47 etc.).
@@ -260,11 +272,11 @@ For example, let's say we want to hash a sequence of blocks `[b0, b1, b2]`, wher
 There is one extra thing to note: when a control block is followed by an instruction block, we do not truncate the result of *hash_acc* procedure to a single value. That is, in the above example, `s2` will be the full state of 4 field elements, rather than a single field element.
 
 ## Hash computations in the VM
-Distaff VM computes program hash as the program is executed on the VM. Hash computations are structured so that if even a single instruction add, removed, or replaced with a different instruction, the computed hash will not match the original hash of the program.
+Distaff VM computes program hash as the program is executed on the VM. Hash computations are structured so that even if a single instruction is added, removed, or replaced with a different instruction, the computed hash will not match the original hash of the program.
 
 There are several components in the VM which facilitate hash computations:
 
-* **sponge state** which holds current hash of the currently executing program block; sponge state takes up 4 registers.
+* **sponge state** which holds running hash of the currently executing program block; sponge state takes up 4 registers.
 * **context stack** which holds hashes of parent blocks to the currently executing control block; context stack takes up between 1 and 16 registers (depending on the level of nesting in the program).
 
 General intuition for hashing process is as follows:
@@ -343,6 +355,7 @@ Since `TEND`/`FEND` instruction is followed by 14 `HACC` instruction, we have a 
 ... TEND(v1) HACC HACC HACC HACC HACC HACC HACC
     HACC     HACC HACC HACC HACC HACC HACC BEGIN ...
 ```
+In cases when a control block is followed by an instruction block, the last operation in the inter-block sequence is set to `NOOP`.
 
 ### Loops
 Ability to execute unbounded loops requires additional structures. Specifically, we need a `loop stack` to holds images of loop bodies for currently active loops. Loop stack takes up between 0 and 8 registers to support nested loops up to 8 levels deep.
@@ -357,7 +370,7 @@ Recall that hash of a loop block is defined as a tuple *(v<sub>0</sub>, v<sub>1<
 * *v<sub>0</sub> = hash(body)*
 * *v<sub>1</sub> = hash(skip)*, where *skip* is `NOT ASSERT` sequence of instructions.
 
-So, executing `FEND(v0)` operation sets `sponge state` to the following: `[v0, v1, h0, 0]`, where `h0` is the hash of the parent block. Then, we executed 14 `HACC` operations and we are done.
+So, executing `FEND(v0)` operation sets `sponge state` to the following: `[v0, v1, c0, 0]`, where `c0` is the hash of the parent block. Then, we executed 14 `HACC` operations and we are done.
 
 If, however, the top of the stack is `1`, we do need to enter the loop. We do this by executing a `LOOP` operation. This operation is similar to the `BEGIN` operation but it also carries a value. This value is set to the loop's image (hash of loop body).
 
@@ -370,7 +383,7 @@ Executing `LOOP(i0)` operation (where `i0` is the loop's image) does the followi
 A diagram of `LOOP(i0)` operation is shown below:
 ```
 ╒═══ sponge ═══╕  ╒══ context ═══╕ ╒═ loop stack ═╕
-[s0, s1, s2, s3], [              ] [i0            ]
+[s0, s1, s2, s3], [              ] [              ]
                          🡣
 [ 0,  0,  0,  0], [s0            ] [i0            ]
 ```
@@ -386,7 +399,7 @@ If after executing the loop's body, the top of the stack is `1`, we execute a `C
 A diagram of `CONTINUE` operation is as follows:
 ```
 ╒═══ sponge ═══╕  ╒══ context ═══╕ ╒═ loop stack ═╕
-[s0, s1, s2, s3], [c0            ] [              ]
+[s0, s1, s2, s3], [c0            ] [i0            ]
                          🡣
 [ 0,  0,  0,  0], [c0            ] [i0            ]
 ```
