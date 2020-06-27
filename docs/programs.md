@@ -2,7 +2,7 @@
 TODO
 
 ## Execution tree
-Distaff programs can be thought of as execution trees of instructions. As a program is executed, a specific path through the tree is taken. The actual representation of a program is slightly more complex. For example, a program execution tree actually consists of code blocks each with its own structure and execution semantics. At the high level, there are two types of blocks: instruction blocks and control blocks. Both are explained below.
+Distaff programs can be thought of as execution trees of instructions. As a program is executed, a specific path through the tree is taken. The actual representation of a program is slightly more complex. For example, a program execution tree actually consists of program blocks each with its own structure and execution semantics. At the high level, there are two types of blocks: instruction blocks and control blocks. Both are explained below.
 
 ### Instruction blocks
 An instruction block is just a a sequence of instructions, where each instruction is a tuple *(op_code, op_value)*. For vast majority of instructions `op_value = 0`, but there are some instructions where it is not. For example, for a `PUSH` instruction, `op_value` is set to the value which is to be pushed onto the stack.
@@ -18,10 +18,10 @@ Control blocks are used to specify flow control logic of a program. Currently, t
 A group block is used to group several blocks together, and has the following structure:
 ```
 Group {
-    blocks : Vector<CodeBlock>,
+    blocks : Vector<ProgramBlock>,
 }
 ```
-where, `CodeBlock` can be an instruction block or a control block.
+where, `ProgramBlock` can be an instruction block or a control block.
 
 Execution semantics of a group block are as follows:
 * Each block in the `blocks` vector is executed one after the other. 
@@ -29,34 +29,39 @@ Execution semantics of a group block are as follows:
 A group block imposes the following restrictions on its content:
 * There must be at least one block in the `blocks` vector.
 * An instruction block cannot be followed by another instructions block.
-* Length of all instruction blocks, except for the last one, must be one less than a multiple of 16 (e.g. 15, 31, 47 etc.).
-  * If the last block in the `blocks` vector happens to be an instruction block, its length must be a multiple of 16 (e.g. 16, 32, 48 etc.).
+* Number of instructions in an instruction block must be one less than a multiple of 16 (e.g. 15, 31, 47 etc.), unless it is the very last block in the `blocks` vector. In such a case, the number of instructions must be a multiple of 16 (e.g. 16, 32, 48 etc.).
+
+To illustrate the last point, assume our vector of blocks looks like so:
+```
+[b0, b1, b2]
+```
+* If `b0` is an instruction block, number of instructions in `b0` must be one less than a multiple of 16.
+* If `b2` is an instruction block, number of instructions in `b2` must be a multiple of 16.
 
 #### Switch blocks
 A switch block is used to describe conditional branching (i.e. *if/else* statements), and has the following structure:
 ```
 Switch {
-    true_branch  : Vector<CodeBlock>,
-    false_branch : Vector<CodeBlock>,
+    true_branch  : Vector<ProgramBlock>,
+    false_branch : Vector<ProgramBlock>,
 }
 ```
 Execution semantics of a switch block are as follows:
 * If the top of the stack is `1`, blocks in the `true_branch` is executed one after the other;
 * If the top of the stack is `0`, blocks in the `false_branch` is executed one after the other.
-* If the top of the stack is neither `0` or `1`, program execution fails.
+* If the top of the stack is neither `0` nor `1`, program execution fails.
 
 A switch block imposes the following restrictions on its content:
 * The first block in the `true_branch` vector must be an instruction block which has `ASSERT` as its first operation. This guarantees that this branch can be executed only if the top of the stack is `1`.
 * The first block in the `false_branch` vector must be an instruction block which has `NOT ASSERT` as its first two instructions. This guarantees that this branch can be executed only if the top of the stack is `0`.
 * Within `true_branch` and `false_branch` vectors, an instruction block cannot be followed by another instructions block.
-* Length of all instruction blocks, except for the last one, must be one less than a multiple of 16 (e.g. 15, 31, 47 etc.).
-  * If the last block in the `true_branch` or `false_branch` vector happens to be an instruction block, its length must be a multiple of 16 (e.g. 16, 32, 48 etc.).
+* Number of instructions in an instruction block must be one less than a multiple of 16 (e.g. 15, 31, 47 etc.), unless it is the very last block in the `true_branch` or `false_branch` vectors. In such a case, the number of instructions must be a multiple of 16 (e.g. 16, 32, 48 etc.).
 
 #### Loop block
 A loop block is used to describe a sequence of instructions which is to be repeated zero or more times based on some condition (i.e. *while* statement). Structure of a loop block looks like so:
 ```
 Loop {
-    body : Vector<CodeBlock>,
+    body : Vector<ProgramBlock>,
     skip : InstructionBlock,
 }
 ```
@@ -64,13 +69,14 @@ where, `skip` is an instruction block containing the following sequence of instr
 
 Execution semantics of a loop block are as follows:
 * If the top of the stack is `1`, blocks in the `body` vector are executed one after the other.
-  * If after executing the `body`, the top of the stack is `1`, the `body` is executed again. This process is repeated until the top of the stack is `0`.
+  * If after executing all blocks in the `body` vector, the top of the stack is `1`, the `body` blocks are executed again. This process is repeated until the top of the stack is `0`.
 * If the top of the stack is `0`, `skip` block is executed.
+* If the top of the stack is neither `0` nor `1`, program execution fails.
 
 Loop block imposes the following restrictions on its content:
 * The first block in the `body` vector must be an instruction block which has `ASSERT` as its first operation. This guarantees that a loop iteration can be entered only if the top of the stack is `1`.
 * Within the `body` vector, an instruction block cannot be followed by another instructions block.
-* Length of all instruction blocks in the `body` vector, must be one less than a multiple of 16 (e.g. 15, 31, 47 etc.).
+* Number of instructions in an instruction block must be one less than a multiple of 16 (e.g. 15, 31, 47 etc.).
 
 It is expected that at the end of executing all `body` block, the top of the stack will contain a binary value (i.e. `1` or `0`). However, this is not enforced at program construction time, and if the top of the stack is not binary, the program will fail at execution time.
 
@@ -112,7 +118,7 @@ A diagram for this program would look like so:
     <img src="assets/prog_tree2.dio.png">
 </p>
 
-Here we have bock B<sub>0</sub> which groups 3 other blocks together. The first one is an instruction block, the second one is a switch block describing *if/else* statement, and the last one is another group block which contains a single instruction block with instructions d<sub>0</sub> . . . d<sub>n</sub>.
+Here we have bock B<sub>0</sub> which groups 3 other blocks together. The first one is an instruction block, the second one is a switch block describing the *if/else* statement, and the last one is another group block which contains a single instruction block with instructions d<sub>0</sub> . . . d<sub>n</sub>.
 
 ### Programs with nested blocks
 Let's add nested control logic to our program. The program below is the same as the program from the previous example, except the *else* clause of the *if/else* statement now also contains a loop. This loop will keep executing instructions d<sub>0</sub> . . . d<sub>n</sub> as long as, right after d<sub>n</sub> is executed, the top of the stack is `1`. Once, the top of the stack becomes `0`, instructions e<sub>0</sub> . . . e<sub>m</sub> are executed, and then execution moves on to instructions f<sub>0</sub> . . . f<sub>l</sub>.
@@ -140,7 +146,9 @@ Here, we have 4 control blocks, where loop blocks B<sub>2</sub> is nested within
 ## Program hash
 All Distaff programs can be reduced to a 16-byte hash represented by a single element in a 128-bit field. The hash is designed to target 128-bit preimage and second preimage resistance, and 64-bit collision resistance.
 
-Program hash is computed from hashes of individual program blocks in a manner similar to computing root of a Merkle tree. For example, let's say our program consists of 3 control blocks and looks like so:
+Program hash is computed from hashes of individual program blocks in a manner similar to computing root of a Merkle tree.
+
+For example, let's say our program consists of 3 control blocks and looks like so:
 
 <p align="center">
     <img src="assets/prog_hash1.dio.png">
@@ -148,13 +156,12 @@ Program hash is computed from hashes of individual program blocks in a manner si
 
 Hash of this program is computed like so:
 
-1. First, we compute hash of instruction block *a<sub>0</sub> . . . a<sub>i</sub>* using [hash_ops](#hash_acc-procedure) procedure. Output of this procedure is a single 128-bit value.
-2. Then, we compute *hash_ops(b<sub>0</sub> . . . b<sub>j</sub>)* and *hash_ops(c<sub>0</sub> . . . c<sub>k</sub>)*, and combine these hashes into the hash of block B<sub>1</sub>.
-3. Then, we merge hash of block B<sub>1</sub> with hash of *a<sub>0</sub> . . . a<sub>i</sub>* using [hash_acc](#hash_acc-procedure) procedure. The result of this procedure is a 128-bit value *h<sub>1</sub>*.
-4. Then, we compute *hash_ops(d<sub>0</sub> . . . d<sub>n</sub>)* and transform it into hash of block B<sub>2</sub>.
-5. Then, finish computing hash of block B<sub>0</sub> by merging hash of block B<sub>2</sub> with *h<sub>1</sub>* using [hash_acc](#hash_acc-procedure) procedure.
-6. Finally, we merge hash of block B<sub>0</sub> with value `0` using [hash_acc](#hash_acc-procedure) procedure to obtain the hash of the entire program *h<sub>p</sub>*.
-
+1. First, we compute hash of instruction block *a<sub>0</sub> . . . a<sub>i</sub>*.
+2. Then, we compute hashes of *b<sub>0</sub> . . . b<sub>j</sub>* and *c<sub>0</sub> . . . c<sub>k</sub>*, and combine them with the hash of block B<sub>1</sub>.
+3. Then, we merge hash of block B<sub>1</sub> with hash of *a<sub>0</sub> . . . a<sub>i</sub>*, and call the resulting value *h<sub>1</sub>*.
+4. Then, we compute hash of *d<sub>0</sub> . . . d<sub>n</sub>* and transform it into hash of block B<sub>2</sub>.
+5. Then, we merge hash of block B<sub>2</sub> with *h<sub>1</sub>* to get the hash of block B<sub>0</sub>.
+6. Finally, we merge hash of block B<sub>0</sub> with value `0` to obtain the hash of the entire program *h<sub>p</sub>*.
 
 Graphically, this process looks like so:
 
@@ -169,32 +176,28 @@ For example, if we wanted to reveal instruction sequence *d<sub>0</sub> . . . d<
 ### Hashes of control blocks
 Hashes of control blocks are defined as tuples of two 128-bit elements *(v<sub>0</sub>, v<sub>1</sub>)*. These tuples are constructed as follows:
 
-For **group blocks**, we define the hash to be a hash of `blocks` contained within the group:
+For **group blocks**, it is just a hash of `blocks` contained within the group:
 * *v<sub>0</sub> = hash_seq(blocks)*
 * *v<sub>1</sub> = 0*
 
 where, *[hash_seq](#hash_seq-procedure)* is the procedure used to hash a sequence of program blocks into a single 128-bit value.
 
-For **switch blocks**, we define the hash to be a hash of both branches simultaneously:
+For **switch blocks**, it is hashes of both branches:
 * *v<sub>0</sub> = hash_seq(true_branch)*
 * *v<sub>1</sub> = hash_seq(false_branch)*
 
-For **loop blocks**, we define the hash to be a hash of the loop's `body` and the `skip` block:
+For **loop blocks**, it is a hash of the loop's `body` and the `skip` block:
 * *v<sub>0</sub> = hash_seq(body)*
 * *v<sub>1</sub> = hash_seq(skip)*
 
 A side note: *hash_seq(body)* is called a loop image as it binds each iteration of the loop to a specific hash.
 
 ### hash_ops procedure
-The purpose of *hash_ops* procedure is to hash a sequence of instructions into a single 128-bit element. The procedure works as follows:
-
-1. First, a state of four 128-bit field elements is initialized to `0`.
-2. Then, for each instruction in the sequence, we apply a round function which injects the instruction into the state.
-3. Lastly, we return the first element of the state as the hash value of the instruction sequence.
+The purpose of *hash_ops* procedure is to hash a sequence of instructions. The procedure takes a state of four 128-bit elements as an input, merges each instruction into the state, and returns the updates state as the output.
 
 The pseudo-code for this procedure looks like so:
 ```
-let state = [0, 0, 0, 0];
+with inputs: state and instruction:
 for each instruction do:
     state = add_round_constants(state);
     state = apply_sbox(state);
@@ -204,15 +207,20 @@ for each instruction do:
     state = add_round_constants(state);
     state = apply_inverse_sbox(state);
     state = apply_mds(state);
-return state[0];
+return state;
 ```
-The round function used above is similar to the round of [Rescue](https://eprint.iacr.org/2019/426) hash function. But there are significant differences. Specifically, injecting values in the middle of every round invalidates security proof of sponge construction. It is possible that this approach is insecure, and will need to be replaced in the future.
+where:
+  * `state` is an array of four 128-bit elements.
+  * `instructions` is a vector of instruction tuples.
+
+The body of the above loop is similar to the round of [Rescue](https://eprint.iacr.org/2019/426) hash function. But there are significant differences. Specifically, injecting values in the middle of every round invalidates security proof of sponge construction. Thus, it is possible that this approach is insecure, and will need to be modified in the future.
 
 ### hash_acc procedure
-The purpose of *hash_acc* procedure is to merge hash of a control block into the running program hash. Recall that hash of a control block is represented by two 128-bit elements, while hash of the program is represented by one 128-bit element. The output of *hash_acc()* is a single 128-bit element.
+The purpose of *hash_acc* procedure is to merge hash of a control block, which is a tuple of two 128-bit values, with a single 128-bit value. The output of the *hash_acc* procedure is a single 128-bit element.
 
-Denoting *(v<sub>0</sub>, v<sub>1</sub>)* to be the hash of the control block to be merged, and *h* to be the current hash of the program, high-level pseudo-code for *hash_acc()* function looks like so:
+Denoting *(v<sub>0</sub>, v<sub>1</sub>)* to be the hash of the control block, and *h* to be the 128-bit value, high-level pseudo-code for *hash_acc* procedure looks like so:
 ```
+with inputs: v0, v1, h:
 let state = [v0, v1, h, 0];
 for 14 rounds do:
     state = add_round_constants(state);
@@ -223,18 +231,28 @@ for 14 rounds do:
     state = apply_mds(state);
 return state[0];
 ```
-The above is a modified version of [Rescue](https://eprint.iacr.org/2019/426) hash function. This modification adds half-rounds to the beginning and to the end of the standard Rescue hash function to make the arithmetization of the function fully foldable. It should not impact security properties of the function, but it is worth noting that it has not been studied to the same extent as the standard Rescue hash function.
+The above is a modified version of [Rescue](https://eprint.iacr.org/2019/426) hash function. This modification adds half-rounds to the beginning and to the end of the standard Rescue hash function to make the arithmetization of the function fully foldable. This should not impact security properties of the function, but it is worth noting that it has not been studied to the same extent as the standard Rescue hash function.
 
 ### hash_seq procedure
 The purpose of *hash_seq* procedure is to hash a sequence of program blocks into a single 128-bit value. The procedure works as follows:
 
-1. First, we initialize a state of four 128-bit elements to `0`'s.
-2. Then, we consume blocks from the sequence one by one, hash them, and merge their hashes into the state. The blocks are hashed as follows:
-    1. Instruction blocks are hashed using [hash_ops](#hash_ops-procedure) procedure described above. However, instead of re-initializing 
-    2. Control blocks are hashed according to the [rules](#Hashes-of-control-blocks) described above. 
+1. First, we initialize a `state` of four 128-bit elements to `0`'s.
+2. Then, we consume blocks from the sequence one by one, hash them, and merge their hashes into the `state`. Hashing and merging is performed as follows:
+    1. Instruction blocks are hashed using [hash_ops](#hash_ops-procedure) procedure described above, and the return value of the *hash_ops* procedure becomes the new `state`.
+    2. Control blocks are hashed according to the [rules](#Hashes-of-control-blocks) described above. The resulting hash is merged into the state using [hash_acc](#Hash_acc-procedure) procedure.
 2. Finally, we return the first element of the state as the hash value of the sequence.
 
-## Program hash computations
+For example, let's say we want to hash a sequence of blocks `[b0, b1, b2]`, where `b0` and `b2` are instruction blocks, and `b1` is a control block. Hashing of this sequence will work as follows:
+
+1. First we initialize the state as `s0 = [0, 0, 0, 0]`.
+2. Then, we merge `b0` into the state as `s1 = hash_ops(s0, b0)`;
+3. Then, we compute the hash of `b1` as `(v0, v1) = hash(b1)`, and merge it into the state as `s2 = hash_acc(s1, v0, v1)`.
+4. Then, we merge `b0` into the state as `s3 = hash_ops(s2, b2)`.
+5. Finally, we return `s3[0]` as the hash of the sequence.
+
+There is one extra thing to note: when a control block is followed by an instruction block, we do not truncate the result of *hash_acc* procedure to a single value. That is, in the above example, `s2` will be the full state of 4 field elements, rather than a single field element.
+
+## Hash computations in the VM
 Distaff VM computes program hash as the program is executed on the VM. Several components of the VM are used in hash computations. These components are:
 
 * **sponge state** which holds running hash of the currently executing program block; sponge state takes up 4 registers.
