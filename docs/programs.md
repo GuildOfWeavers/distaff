@@ -153,7 +153,7 @@ Hash of this program is computed like so:
 3. Then, we merge hash of block B<sub>1</sub> with hash of *a<sub>0</sub> . . . a<sub>i</sub>* using [hash_acc](#hash_acc-procedure) procedure. The result of this procedure is a 128-bit value *h<sub>1</sub>*.
 4. Then, we compute *hash_ops(d<sub>0</sub> . . . d<sub>n</sub>)* and transform it into hash of block B<sub>2</sub>.
 5. Then, finish computing hash of block B<sub>0</sub> by merging hash of block B<sub>2</sub> with *h<sub>1</sub>* using [hash_acc](#hash_acc-procedure) procedure.
-6. Lastly, we merge hash of block B<sub>0</sub> with value `0` using [hash_acc](#hash_acc-procedure) procedure to obtain the hash of the entire program.
+6. Finally, we merge hash of block B<sub>0</sub> with value `0` using [hash_acc](#hash_acc-procedure) procedure to obtain the hash of the entire program *h<sub>p</sub>*.
 
 
 Graphically, this process looks like so:
@@ -162,50 +162,51 @@ Graphically, this process looks like so:
     <img src="assets/prog_hash2.dio.png">
 </p>
 
-All program hashes are roots of Merkle trees, where the shape of the tree is defined by program structure. This is by design. Using this property of program hashes, we can selectively reveal any of the program blocks while keeping the rest of the program private (e.g. secret programs with public pre/post conditions).
+As mentioned above, hashes of Distaff programs are computed in a manner similar to roots of Merkle trees. This is by design. Using this property of program hashes, we can selectively reveal any of the program blocks while keeping the rest of the program private (e.g. secret programs with public pre/post conditions).
 
-### Computing hash of a program block
-In the section above, we described how to compute hash of an entire program from hashes of individual program blocks. In this section, we'll describe how to compute hashes for different types of program blocks.
+For example, if we wanted to reveal instruction sequence *d<sub>0</sub> . . . d<sub>n</sub>*, we could do so by making intermediate hash *h<sub>1</sub>* public. Then, anyone would be able to reconstruct the root hash from these two pieces of data and be sure that *d<sub>0</sub> . . . d<sub>n</sub>* is, in fact, the last sequence of instructions executed in the program with hash *h<sub>p</sub>*.
 
-It is worth noting upfront that hashes of control blocks differ from hashes of code blocks in how they are computed and how they are represented. Specifically:
-1. Hashes of control blocks are defined as tuples of two 128-bit elements *(v<sub>0</sub>, v<sub>1</sub>)*.
-2. While hashes of code blocks are defined as a single 128-bit element *v*.
+### Hashes of control blocks
+Hashes of control blocks are defined as tuples of two 128-bit elements *(v<sub>0</sub>, v<sub>1</sub>)*. These tuples are constructed as follows:
 
-#### Hashes of control blocks
-Hashes of control blocks are just hashes of underlying code blocks arranged in specific ways.
-
-For **group blocks**, this arrangement looks like so:
-* *v<sub>0</sub> = hash(content)*
+For **group blocks**, we define the hash to be a hash of `blocks` contained within the group:
+* *v<sub>0</sub> = hash_seq(blocks)*
 * *v<sub>1</sub> = 0*
 
+where, *[hash_seq](#hash_seq-procedure)* is the procedure used to hash a sequence of program blocks into a single 128-bit value.
+
 For **switch blocks**, we define the hash to be a hash of both branches simultaneously:
-* *v<sub>0</sub> = hash(true_branch)*
-* *v<sub>1</sub> = hash(false_branch)*
+* *v<sub>0</sub> = hash_seq(true_branch)*
+* *v<sub>1</sub> = hash_seq(false_branch)*
 
-For **loop blocks**, we also define the hash to be a hash of its content and of a static *skip* block:
-* *v<sub>0</sub> = hash(content)*
-* *v<sub>1</sub> = hash(skip)*
+For **loop blocks**, we define the hash to be a hash of the loop's `body` and the `skip` block:
+* *v<sub>0</sub> = hash_seq(body)*
+* *v<sub>1</sub> = hash_seq(skip)*
 
-where, `skip` block is defined as a code block containing `NOT ASSERT` sequence of instructions.
+A side note: *hash_seq(body)* is called a loop image as it binds each iteration of the loop to a specific hash.
 
-A side note: *hash(content)* is called a loop image as it binds each iteration of the loop to a specific hash.
+### hash_ops procedure
+The purpose of *hash_ops* procedure is to hash a sequence of instructions into a single 128-bit element. The procedure works as follows:
 
-#### Hashes of code blocks
-Recall that a code block has the following form:
+1. First, a state of four 128-bit field elements is initialized to `0`.
+2. Then, for each instruction in the sequence, we apply a round function which injects the instruction into the state.
+3. Lastly, we return the first element of the state as the hash value of the instruction sequence.
+
+The pseudo-code for this procedure looks like so:
 ```
-CodeBlock {
-    operations : Vector<u128>,
-    next?      : ControlBlock,
-}
+let state = [0, 0, 0, 0];
+for each instruction do:
+    state = add_round_constants(state);
+    state = apply_sbox(state);
+    state = apply_mds(state);
+    state[0] = state[0] + instruction.op_code;
+    state[1] = state[1] + instruction.op_value;
+    state = add_round_constants(state);
+    state = apply_inverse_sbox(state);
+    state = apply_mds(state);
+return state[0];
 ```
-Hash of a code block is computed as follows:
-
-1. First, we compute hash of instructions contained in `operations` vector. To do this, we use *[hash_ops](#hash_ops-procedure)* procedure. The output of this procedure is a single 128-bit element. If `next` pointer is null, we are done, and this element is returned as hash of the entire block.
-2. If `next` pointer is not null, we compute hash of the control block specified by the pointer according to the rules described in the previous section. We than use [hash_acc](#hash_acc-procedure) procedure to merge this hash with the hash of `operations` we computed in the previous step.
-
-Or described another way:
-* *v = hash_ops(operations)*, when `next` is null;
-* *v = hash_acc(hash_ops(operations), hash(next))*, when `next` is not null.
+The round function used above is similar to the round of [Rescue](https://eprint.iacr.org/2019/426) hash function. But there are significant differences. Specifically, injecting values in the middle of every round invalidates security proof of sponge construction. It is possible that this approach is insecure, and will need to be replaced in the future.
 
 ### hash_acc procedure
 The purpose of *hash_acc* procedure is to merge hash of a control block into the running program hash. Recall that hash of a control block is represented by two 128-bit elements, while hash of the program is represented by one 128-bit element. The output of *hash_acc()* is a single 128-bit element.
@@ -224,19 +225,14 @@ return state[0];
 ```
 The above is a modified version of [Rescue](https://eprint.iacr.org/2019/426) hash function. This modification adds half-rounds to the beginning and to the end of the standard Rescue hash function to make the arithmetization of the function fully foldable. It should not impact security properties of the function, but it is worth noting that it has not been studied to the same extent as the standard Rescue hash function.
 
-### hash_ops procedure
-The purpose of *hash_ops()* function is to hash a sequence of instructions into a single 128-bit element. The pseudo-code for this function is as follows:
+### hash_seq procedure
+The purpose of *hash_seq* procedure is to hash a sequence of program blocks into a single 128-bit value. The procedure works as follows:
 
-```
-let state = [0, 0, 0, 0];
-for each op_code in instructions do:
-    state = hash_ops_round(state, op_code);
-return state[0];
-```
-where:
-  * `state` is an array of four 128-bit field elements,
-  * `instructions` is a vector of 128-bit field elements,
-  * `hash_ops_round()` is a function which merges `op_code` into the state. The specifics of this function are currently TBD.
+1. First, we initialize a state of four 128-bit elements to `0`'s.
+2. Then, we consume blocks from the sequence one by one, hash them, and merge their hashes into the state. The blocks are hashed as follows:
+    1. Instruction blocks are hashed using [hash_ops](#hash_ops-procedure) procedure described above. However, instead of re-initializing 
+    2. Control blocks are hashed according to the [rules](#Hashes-of-control-blocks) described above. 
+2. Finally, we return the first element of the state as the hash value of the sequence.
 
 ## Program hash computations
 Distaff VM computes program hash as the program is executed on the VM. Several components of the VM are used in hash computations. These components are:
