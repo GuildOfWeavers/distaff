@@ -146,7 +146,7 @@ Here, we have 4 control blocks, where loop blocks B<sub>2</sub> is nested within
 ## Program hash
 All Distaff programs can be reduced to a 16-byte hash represented by a single element in a 128-bit field. The hash is designed to target 128-bit preimage and second preimage resistance, and 64-bit collision resistance.
 
-Program hash is computed from hashes of individual program blocks in a manner similar to computing root of a Merkle tree.
+Program hash is computed from hashes of individual program blocks in a manner similar to computing roots of Merkle trees.
 
 For example, let's say our program consists of 3 control blocks and looks like so:
 
@@ -176,9 +176,9 @@ For example, if we wanted to reveal instruction sequence *d<sub>0</sub> . . . d<
 To compute program hash, we employ several rules and procedures:
 
 * Rules for constructing hashes of control blocks from hashes of their contents.
-* Procedure *hash_ops* for computing a hash of a sequence of instructions.
-* Procedure *hash_acc* for merging hashes of control blocks with 128-bit values.
-* Procedure *hash_seq* for hashing of sequences of program blocks into 128-bit values.
+* Procedure *[hash_ops](#hash_ops-procedure)* for computing a hash of a sequence of instructions.
+* Procedure *[hash_acc](#hash_acc-procedure)* for merging hashes of control blocks with 128-bit values.
+* Procedure *[hash_seq](#hash_seq-procedure)* for hashing of sequences of program blocks into 128-bit values.
 
 All of these are described below.
 
@@ -188,8 +188,6 @@ Hashes of control blocks are defined as tuples of two 128-bit elements *(v<sub>0
 For **group blocks**, it is just a hash of `blocks` contained within the group:
 * *v<sub>0</sub> = hash_seq(blocks)*
 * *v<sub>1</sub> = 0*
-
-where, *[hash_seq](#hash_seq-procedure)* is the procedure used to hash a sequence of program blocks into a single 128-bit value.
 
 For **switch blocks**, it is hashes of both branches:
 * *v<sub>0</sub> = hash_seq(true_branch)*
@@ -202,12 +200,12 @@ For **loop blocks**, it is a hash of the loop's `body` and the `skip` block:
 A side note: *hash_seq(body)* is called a loop image as it binds each iteration of the loop to a specific hash.
 
 ### hash_ops procedure
-The purpose of *hash_ops* procedure is to hash a sequence of instructions. The procedure takes a state of four 128-bit elements as an input, merges each instruction into the state, and returns the updates state as the output.
+The purpose of *hash_ops* procedure is to hash a sequence of instructions. The procedure takes a state of four 128-bit elements as an input, merges each instruction into the state, and returns the updated state as the output.
 
 The pseudo-code for this procedure looks like so:
 ```
-with inputs: state and instruction:
-for each instruction do:
+with inputs: state, instructions:
+for each instruction in instructions do:
     state = add_round_constants(state);
     state = apply_sbox(state);
     state = apply_mds(state);
@@ -262,27 +260,29 @@ For example, let's say we want to hash a sequence of blocks `[b0, b1, b2]`, wher
 There is one extra thing to note: when a control block is followed by an instruction block, we do not truncate the result of *hash_acc* procedure to a single value. That is, in the above example, `s2` will be the full state of 4 field elements, rather than a single field element.
 
 ## Hash computations in the VM
-Distaff VM computes program hash as the program is executed on the VM. Several components of the VM are used in hash computations. These components are:
+Distaff VM computes program hash as the program is executed on the VM. Hash computations are structured so that if even a single instruction add, removed, or replaced with a different instruction, the computed hash will not match the original hash of the program.
 
-* **sponge state** which holds running hash of the currently executing program block; sponge state takes up 4 registers.
-* **context stack** which holds hashes of parent blocks to the currently executing program block; context stack takes up between 1 and 16 registers (depending on the level of nesting in the program).
+There are several components in the VM which facilitate hash computations:
+
+* **sponge state** which holds current hash of the currently executing program block; sponge state takes up 4 registers.
+* **context stack** which holds hashes of parent blocks to the currently executing control block; context stack takes up between 1 and 16 registers (depending on the level of nesting in the program).
 
 General intuition for hashing process is as follows:
 
-1. At the start of every program block, we push current hash of its outer block onto the `context stack`, and set hash of the new block to `0` (this is done be resetting the `sponge state`).
+1. At the start of every control block, we push current hash of its outer block onto the `context stack`, and set hash of the new block to `0` (this is done be resetting `sponge state`).
 2. Then, as we read instructions contained in the block, we merge each instruction into the block's hash.
     1. If we encounter a new block, we process it recursively starting at step 1.
 3. Once the end of the block is reached, we pop hash of the parent block from the `context stack` and merge our block hash into it.
 
-Each of these states is explained in detail below.
+Each of these steps is explained in detail below.
 
-### Initiating a new program block
-A new program block is started by the `BEGIN` operation. The operation does the following:
+### Initiating a new control block
+A new control block is started by the `BEGIN` operation. The operation does the following:
 
 1. Pushes hash of the current block onto the `context stack`;
 2. Sets all registers of `sponge state` to `0`.
 
-A diagram of `BEGIN` operation is shown below. By convention, result of hashing is in the first register of `sponge state`. So, `a0` is the hash of of the current block right before `BEGIN` operation is executed.
+A diagram of `BEGIN` operation is shown below. By convention, result of hashing is in the first register of `sponge state`. So, `s0` is the hash of the current block right before `BEGIN` operation is executed.
 ```
 ╒═══ sponge ═══╕  ╒══ context ═══╕
 [s0, s1, s2, s3], [              ]
@@ -291,12 +291,14 @@ A diagram of `BEGIN` operation is shown below. By convention, result of hashing 
 ```
 
 ### Accumulating block hash
-As instructions are executed in the VM, each instruction is merged into the `sponge state` using a modified version of Rescue round.
+As instructions are executed in the VM, each instruction is merged into the `sponge state` using a modified version of Rescue round as described in the *[hash_ops](#hash_ops-procedure)* procedure above.
+
+If we encounter a control block, we start a new block with the `BEGIN` operation as described above.
 
 ### Merging block hash into parent hash
 A block can be terminate by one of two operations: `TEND` or `FEND`. These operations behave similarly. Specifically:
 
-* Both operations contain a payload which they move into the `sponge state`.
+* Both operations carry a value which they move into the `sponge state`.
 * Both operations pop hash of the parent block from the `context stack` and move it into the `sponge state`.
 * Both operations propagate hash of the current block into the `sponge state` at the next step.
 
@@ -322,21 +324,21 @@ On the other hand, when the VM executes *false_branch* of a switch block, the bl
                 🡣
 [v0, s0, c0,  0], [              ]
 ```
-Note also that by the time `FEND` instruction is reached, the first register of the sponge will contain hash of the *false_branch*. Thus, `s0 = v1`, and the result of executing `FEND(v0)` will be sponge state set to `[v0, v1, c0, 0]`.
+Note again that by the time `FEND` instruction is reached, the first register of the sponge will contain hash of the *false_branch*. Thus, `s0 = v1`, and the result of executing `FEND(v0)` will be sponge state set to `[v0, v1, c0, 0]`.
 
 The crucially important thing here is that by the time we exit the block, `sponge state` is the same, regardless of which branch was taken.
 
 Similar methodology applies to other blocks as well:
 
-* To exit a group block, we should execute `TEND(0)` operation.
-* To exit a loop block, we should use `TEND(v1)` if the body of the loop was executed at least once, and `FEND(v0)`, if the body of the loop was never entered.
+* To exit a group block, we execute `TEND(0)` operation.
+* To exit a loop block, we execute `TEND(v1)` if the body of the loop was executed at least once, and `FEND(v0)`, if the body of the loop was never entered (see next section for more details).
 
 After `sponge state` has been arranged as described above, `HACC` operation is executed 14 times to perform [hash_acc](#hash_acc-procedure) procedure. After this, program execution can resume with the following instruction or the next code block in the sequence.
 
 #### A note on operation alignment
 `TEND` and `FEND` operations can be executed only on steps which are multiples of 16 (e.g. 16, 32, 48 etc.). Trying to execute them on other steps will result in program failure.
 
-Since `TEND`/`FEND` instruction is followed by 14 `HACC` instruction, we have a cycle of 16 instructions with the last slot empty. This is convenient because we can fill it with a `BEGIN` instruction in cases when one program block is immediately followed by another. Specifically, the inter-block sequence of instructions could look like so:
+Since `TEND`/`FEND` instruction is followed by 14 `HACC` instruction, we have a cycle of 16 instructions with the last slot empty. This is convenient because we can fill it with a `BEGIN` instruction in cases when one control block is immediately followed by another. Specifically, the inter-block sequence of instructions could look like so:
 ```
 ... TEND(v1) HACC HACC HACC HACC HACC HACC HACC
     HACC     HACC HACC HACC HACC HACC HACC BEGIN ...
@@ -357,18 +359,18 @@ Recall that hash of a loop block is defined as a tuple *(v<sub>0</sub>, v<sub>1<
 
 So, executing `FEND(v0)` operation sets `sponge state` to the following: `[v0, v1, h0, 0]`, where `h0` is the hash of the parent block. Then, we executed 14 `HACC` operations and we are done.
 
-If, however, the top of the stack is `1`, we do need to enter the loop. We do this by executing a `LOOP` operation. This operation is similar to the `BEGIN` operation but it also contains a payload. This payload is set to the loop's image (hash of loop body).
+If, however, the top of the stack is `1`, we do need to enter the loop. We do this by executing a `LOOP` operation. This operation is similar to the `BEGIN` operation but it also carries a value. This value is set to the loop's image (hash of loop body).
 
 Executing `LOOP(i0)` operation (where `i0` is the loop's image) does the following:
 
-1. Pushes the operation payload `i0` onto the `loop stack`;
+1. Pushes the operation value `i0` onto the `loop stack`;
 2. Pushes hash of the current block onto the `context stack`;
 3. Sets all registers of `sponge state` to `0`.
 
 A diagram of `LOOP(i0)` operation is shown below:
 ```
 ╒═══ sponge ═══╕  ╒══ context ═══╕ ╒═ loop stack ═╕
-[s0, s1, s2, s3], [              ] [              ]
+[s0, s1, s2, s3], [              ] [i0            ]
                          🡣
 [ 0,  0,  0,  0], [s0            ] [i0            ]
 ```
@@ -384,13 +386,13 @@ If after executing the loop's body, the top of the stack is `1`, we execute a `C
 A diagram of `CONTINUE` operation is as follows:
 ```
 ╒═══ sponge ═══╕  ╒══ context ═══╕ ╒═ loop stack ═╕
-[s0, s1, s2, s3], [h0            ] [              ]
+[s0, s1, s2, s3], [c0            ] [              ]
                          🡣
-[ 0,  0,  0,  0], [h0            ] [i0            ]
+[ 0,  0,  0,  0], [c0            ] [i0            ]
 ```
-To summarize: the effect of `CONTINUE` operation is to make sure that the sequence of instructions executed in the last iteration of the loop was indeed loop's body, and also to prepare the sponge for the next iteration of the loop.
+To summarize: the effect of `CONTINUE` operation is to make sure that the sequence of instructions executed in the last iteration of the loop was indeed the loop's body, and also to prepare the sponge for the next iteration of the loop.
 
-After the we execute the `CONTINUE` operation, loop body can be executed again.
+After we execute the `CONTINUE` operation, loop body can be executed again.
 
 If after executing the loop's body, the top of the stack is `0`, we execute `BREAK` operation. `BREAK` operation does the following:
 
@@ -401,13 +403,13 @@ If after executing the loop's body, the top of the stack is `0`, we execute `BRE
 A diagram of `BREAK` operation is as follows:
 ```
 ╒═══ sponge ═══╕  ╒══ context ═══╕ ╒═ loop stack ═╕
-[s0, s1, s2, s3], [h0            ] [i0            ]
+[s0, s1, s2, s3], [c0            ] [i0            ]
                          🡣
-[s0, s1, s2, s3], [h0            ] [              ]
+[s0, s1, s2, s3], [c0            ] [              ]
 ```
-After the `BREAK` operation is executed we execute `TEND(v1)` operation. This sets the `sponge state` to `[v0, v1, h0, 0]`. We then execute 14 `HACC` operations.
+After the `BREAK` operation is executed we execute `TEND(v1)` operation. This sets the `sponge state` to `[v0, v1, c0, 0]`. We, then, execute 14 `HACC` operations.
 
-Again, it is important to note that regardless of whether we enter the loop or not, `sponge state` ends up set to  `[v0, v1, h0, 0]` before we start executing `HACC` operations.
+Again, it is important to note that regardless of whether we enter the loop or not, `sponge state` ends up set to  `[v0, v1, c0, 0]` before we start executing `HACC` operations.
 
 #### Loop execution example
 To illustrate execution of a loop on a concrete example, let's say we have the following loop:
@@ -423,5 +425,5 @@ LOOP
   a8  a9 a10 a11 a12 a13 a14 CONTINUE
   a0  a1  a2  a3  a4  a5  a6 a7
   a8  a9 a10 a11 a12 a13 a14 BREAK
-TEND
+TEND<v1>
 ```
