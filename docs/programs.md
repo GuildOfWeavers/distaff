@@ -2,76 +2,77 @@
 TODO
 
 ## Execution tree
-Distaff programs can be thought of as execution trees of instructions. As a program is executed, a specific path through the tree is taken. The actual representation of a program is slightly more complex. For example, a program execution tree actually consists of instruction blocks each with its own structure and execution semantics. At the high level, there are two types of blocks: control blocks and code blocks. Both are explained below.
+Distaff programs can be thought of as execution trees of instructions. As a program is executed, a specific path through the tree is taken. The actual representation of a program is slightly more complex. For example, a program execution tree actually consists of code blocks each with its own structure and execution semantics. At the high level, there are two types of blocks: instruction blocks and control blocks. Both are explained below.
+
+### Instruction blocks
+An instruction block is just a a sequence of instructions, where each instruction is a tuple *(op_code, op_value)*. For vast majority of instructions `op_value = 0`, but there are some instructions where it is not. For example, for a `PUSH` instruction, `op_value` is set to the value which is to be pushed onto the stack.
+
+An instruction block imposes the following restrictions on its content:
+* There must be at least one instruction in the block.
+* An instruction block cannot contain any of the flow control instructions. This includes: `BEGIN`, `TEND`, `FEND`, `LOOP`, `CONTINUE`, `BREAK`, and `HACC` instructions.
 
 ### Control blocks
-Control blocks are used to specify flow control logic of a program. Currently, there are 3 types of control blocks: (1) group blocks, (2) switch blocks, and (3) loop blocks. Control blocks can contain one or more code blocks, and also have an optional `next` pointer which can be used to specify the next control block in a program. Specifics of each type of  control blocks are described below.
+Control blocks are used to specify flow control logic of a program. Currently, there are 3 types of control blocks: (1) group blocks, (2) switch blocks, and (3) loop blocks. Specifics of each type of these are described below.
 
 #### Group blocks
-A group block is used to group sequences of instructions together. Besides the optional `next` pointer, a group block must contain a single code block. A data structure for a group block may look like so:
+A group block is used to group several blocks together, and has the following structure:
 ```
 Group {
-    content : CodeBlock,
-    next?   : ControlBlock,
+    blocks : Vector<CodeBlock>,
 }
 ```
+where, `CodeBlock` can be an instruction block or a control block.
+
 Execution semantics of a group block are as follows:
-* First, `content` of the block is executed.
-* Then, if `next` pointer is not null, execution moves to the next block.
+* Each block in the `blocks` vector is executed one after the other. 
+
+A group block imposes the following restrictions on its content:
+* There must be at least one block in the `blocks` vector.
+* An instruction block cannot be followed by another instructions block.
+* Length of all instruction blocks, except for the last one, must be one less than a multiple of 16 (e.g. 15, 31, 47 etc.).
+  * If the last block in the `blocks` vector happens to be an instruction block, its length must be a multiple of 16 (e.g. 16, 32, 48 etc.).
 
 #### Switch blocks
-A switch block is used to describe conditional branching (i.e. *if/else* statements). Besides the optional `next` pointer, a switch block must contain code blocks for *true* and *false* branches of execution. A data structure for a switch block may look like so:
+A switch block is used to describe conditional branching (i.e. *if/else* statements), and has the following structure:
 ```
 Switch {
-    true_branch  : CodeBlock,
-    false_branch : CodeBlock,
-    next?        : ControlBlock,
+    true_branch  : Vector<CodeBlock>,
+    false_branch : Vector<CodeBlock>,
 }
 ```
 Execution semantics of a switch block are as follows:
-* If the top of the stack is `1`, `true_branch` is executed; if the top of the stack is `0`, `false_branch` is executed.
-* Then, if `next` pointer is not null, execution moves to the next block.
+* If the top of the stack is `1`, blocks in the `true_branch` is executed one after the other;
+* If the top of the stack is `0`, blocks in the `false_branch` is executed one after the other.
+* If the top of the stack is neither `0` or `1`, program execution fails.
 
-Switch block imposes the following restrictions on its content:
-* `true_branch` must start with an `ASSERT` instruction. This guarantees that this branch can be executed only if the top of the stack is `1`.
-* `false_branch` must start with `NOT ASSERT` instruction sequence. This guarantees that this branch can be executed only if the top of the stack is `0`.
+A switch block imposes the following restrictions on its content:
+* The first block in the `true_branch` vector must be an instruction block which has `ASSERT` as its first operation. This guarantees that this branch can be executed only if the top of the stack is `1`.
+* The first block in the `false_branch` vector must be an instruction block which has `NOT ASSERT` as its first two instructions. This guarantees that this branch can be executed only if the top of the stack is `0`.
+* Within `true_branch` and `false_branch` vectors, an instruction block cannot be followed by another instructions block.
+* Length of all instruction blocks, except for the last one, must be one less than a multiple of 16 (e.g. 15, 31, 47 etc.).
+  * If the last block in the `true_branch` or `false_branch` vector happens to be an instruction block, its length must be a multiple of 16 (e.g. 16, 32, 48 etc.).
 
 #### Loop block
-A loop block is used to describe a sequence of instructions which is to be repeated zero or more times based on some condition (i.e. *while* statement). Besides the optional `next` pointer, a loop block must contain a code block describing the contents of the loop. A data structure for a loop block may look like so:
+A loop block is used to describe a sequence of instructions which is to be repeated zero or more times based on some condition (i.e. *while* statement). Structure of a loop block looks like so:
 ```
 Loop {
-    content : CodeBlock,
-    next?   : ControlBlock,
+    body : Vector<CodeBlock>,
+    skip : InstructionBlock,
 }
 ```
+where, `skip` is an instruction block containing the following sequence of instructions: `NOT ASSERT` followed by 14 `NOOP`'s.
+
 Execution semantics of a loop block are as follows:
-* If the top of the stack is `1`, `content` block is executed.
-  * If after executing `content` block, the top of the stack is `1`, `content` block is executed again. This process is repeated until the top of the stack is `0`.
-  * Then, if `next` pointer is not null, execution moves to the next block.
-* If the top of the stack is `0`, `NOT ASSERT` sequence of instructions is executed.
-  * Then, if `next` pointer is not null, execution moves to the next block.
+* If the top of the stack is `1`, blocks in the `body` vector are executed one after the other.
+  * If after executing the `body`, the top of the stack is `1`, the `body` is executed again. This process is repeated until the top of the stack is `0`.
+* If the top of the stack is `0`, `skip` block is executed.
 
 Loop block imposes the following restrictions on its content:
-* `content` must start with an `ASSERT` instruction. This guarantees that a loop iteration can be entered only if the top of the stack is `1`.
+* The first block in the `body` vector must be an instruction block which has `ASSERT` as its first operation. This guarantees that a loop iteration can be entered only if the top of the stack is `1`.
+* Within the `body` vector, an instruction block cannot be followed by another instructions block.
+* Length of all instruction blocks in the `body` vector, must be one less than a multiple of 16 (e.g. 15, 31, 47 etc.).
 
-It is expected that at the end of executing `content` block, the top of the stack will contain a binary value (i.e. `1` or `0`). However, this is not enforced at program construction time, and if the top of the stack is not binary, the program will fail at execution time.
-
-### Code blocks
-A code block consists of a sequence of instructions to be executed and an optional `next` pointer which can be used to specify the next control block in a program.  A data structure for a code block may look like so:
-```
-CodeBlock {
-    operations : Vector<u128>,
-    next?      : ControlBlock,
-}
-```
-Execution semantics of a code block are as follows:
-* All `operations` of the block are executed first.
-* Then, if `next` pointer is not null, execution moves to the next block.
-
-Code block imposes the following restrictions on its content:
-* `operations` vector must have a length which is a multiple of 16, and must contain at least 16 instructions.
-
-Having an optional `next` pointer enables nesting of control blocks. For example, a control block can contain a code block, which, in turn, points to another control block and so on. Concrete examples of this are explored in the following section.
+It is expected that at the end of executing all `body` block, the top of the stack will contain a binary value (i.e. `1` or `0`). However, this is not enforced at program construction time, and if the top of the stack is not binary, the program will fail at execution time.
 
 ## Example programs
 
@@ -88,8 +89,7 @@ where, a<sub>0</sub>, a<sub>1</sub> etc. are instructions executed one after the
 To briefly explain the diagram:
 
 * The outer rectangle with rounded corners represents a control block. In this case, it is a group block B<sub>0</sub>.
-* The `next` pointer of this block is null. This is indicated by `∅` in the top right corner of the rectangle.
-* The inner rectangle represents a code block with instructions a<sub>0</sub> . . . a<sub>i</sub>, and `next` pointer set to `∅`.
+* This group block contains a single instruction block, which is represented by the inner rectangle.
 
 ### Program with branches
 Let's add some conditional logic to our program. The program below does the following:
@@ -112,10 +112,7 @@ A diagram for this program would look like so:
     <img src="assets/prog_tree2.dio.png">
 </p>
 
-Here, we have 3 control blocks, one describing the initial sequence of instructions, another one describing the *if/else* statement, and the last block describing the final sequence of instructions. The blocks are linked via `next` pointers like so:
-
-* The `next` pointer of the code block within B<sub>0</sub> block points to B<sub>1</sub> block.
-* The `next` pointer of the B<sub>1</sub> block points to B<sub>2</sub> block directly.
+Here we have bock B<sub>0</sub> which groups 3 other blocks together. The first one is an instruction block, the second one is a switch block describing *if/else* statement, and the last one is another group block which contains a single instruction block with instructions d<sub>0</sub> . . . d<sub>n</sub>.
 
 ### Programs with nested blocks
 Let's add nested control logic to our program. The program below is the same as the program from the previous example, except the *else* clause of the *if/else* statement now also contains a loop. This loop will keep executing instructions d<sub>0</sub> . . . d<sub>n</sub> as long as, right after d<sub>n</sub> is executed, the top of the stack is `1`. Once, the top of the stack becomes `0`, instructions e<sub>0</sub> . . . e<sub>m</sub> are executed, and then execution moves on to instructions f<sub>0</sub> . . . f<sub>l</sub>.
@@ -138,33 +135,34 @@ A diagram for this program would look like so:
     <img src="assets/prog_tree3.dio.png">
 </p>
 
-Here, we have 5 control blocks, where blocks B<sub>2</sub> and B<sub>3</sub> are nested within the *else* branch of block B<sub>1</sub>.
+Here, we have 4 control blocks, where loop blocks B<sub>2</sub> is nested within the *else* branch of block B<sub>1</sub>.
 
 ## Program hash
 All Distaff programs can be reduced to a 16-byte hash represented by a single element in a 128-bit field. The hash is designed to target 128-bit preimage and second preimage resistance, and 64-bit collision resistance.
 
-Program hash is computed incrementally. That is, it starts out as `0`, and with every consecutive program block, program hash is updated to include hash of that block.
-
-For example, let's say our program consists of 3 control blocks and looks like so:
+Program hash is computed from hashes of individual program blocks in a manner similar to computing root of a Merkle tree. For example, let's say our program consists of 3 control blocks and looks like so:
 
 <p align="center">
     <img src="assets/prog_hash1.dio.png">
 </p>
 
-Let's also define hash of block B<sub>n</sub> as *hash(B<sub>n</sub>)*, and hash of the program before block *B<sub>n</sub>* is "merged" into it as *h<sub>n</sub>*. Then, hash of the entire program is computed like so:
+Hash of this program is computed like so:
 
-1. First, we set *h<sub>0</sub> = 0*.
-2. Then, we compute *h<sub>1</sub> = hash_acc(h<sub>0</sub>, hash(B<sub>0</sub>))*, where *[hash_acc]((#hash_acc-procedure))* is a procedure for merging block hashes into program hash.
-3. Then, we compute *h<sub>2</sub> = hash_acc(h<sub>1</sub>, hash(B<sub>1</sub>))*.
-4. Finally, we compute *h<sub>3</sub> = hash_acc(h<sub>2</sub>, hash(B<sub>2</sub>))*, which is our program hash.
+1. First, we compute hash of instruction block *a<sub>0</sub> . . . a<sub>i</sub>* using [hash_ops](#hash_acc-procedure) procedure. Output of this procedure is a single 128-bit value.
+2. Then, we compute *hash_ops(b<sub>0</sub> . . . b<sub>j</sub>)* and *hash_ops(c<sub>0</sub> . . . c<sub>k</sub>)*, and combine these hashes into the hash of block B<sub>1</sub>.
+3. Then, we merge hash of block B<sub>1</sub> with hash of *a<sub>0</sub> . . . a<sub>i</sub>* using [hash_acc](#hash_acc-procedure) procedure. The result of this procedure is a 128-bit value *h<sub>1</sub>*.
+4. Then, we compute *hash_ops(d<sub>0</sub> . . . d<sub>n</sub>)* and transform it into hash of block B<sub>2</sub>.
+5. Then, finish computing hash of block B<sub>0</sub> by merging hash of block B<sub>2</sub> with *h<sub>1</sub>* using [hash_acc](#hash_acc-procedure) procedure.
+6. Lastly, we merge hash of block B<sub>0</sub> with value `0` using [hash_acc](#hash_acc-procedure) procedure to obtain the hash of the entire program.
 
-Graphically, this looks like so:
+
+Graphically, this process looks like so:
 
 <p align="center">
     <img src="assets/prog_hash2.dio.png">
 </p>
 
-This is a Merkle tree (though lopsided). In fact, all program hashes are roots of Merkle trees, where the shape of the tree is defined by program structure. This is by design. Using this property of program hashes, we can selectively reveal any of the program blocks while keeping the rest of the program private (e.g. secret programs with public pre/post conditions).
+All program hashes are roots of Merkle trees, where the shape of the tree is defined by program structure. This is by design. Using this property of program hashes, we can selectively reveal any of the program blocks while keeping the rest of the program private (e.g. secret programs with public pre/post conditions).
 
 ### Computing hash of a program block
 In the section above, we described how to compute hash of an entire program from hashes of individual program blocks. In this section, we'll describe how to compute hashes for different types of program blocks.
