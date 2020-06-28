@@ -1,7 +1,6 @@
 use std::mem;
 use rand::prelude::*;
 use rand::distributions::Uniform;
-use crate::math::{ FiniteField };
 use super::{ ProofOptions, MAX_CONSTRAINT_DEGREE };
 
 // RE-EXPORTS
@@ -45,8 +44,9 @@ pub fn compute_query_positions(seed: &[u8; 32], domain_size: usize, options: &Pr
     return result;
 }
 
-pub fn map_trace_to_constraint_positions<T: FiniteField>(positions: &[usize]) -> Vec<usize> {
-    let element_size = mem::size_of::<T>();
+pub fn map_trace_to_constraint_positions(positions: &[usize]) -> Vec<usize> {
+    // TODO: use constants
+    let element_size = mem::size_of::<u128>();
     let elements_per_leaf = 32 / element_size;
     let mut result = Vec::with_capacity(positions.len());
     for &position in positions.iter() {

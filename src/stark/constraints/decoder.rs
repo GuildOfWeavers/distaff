@@ -17,16 +17,15 @@ const CONSTRAINT_DEGREES: [usize; NUM_CONSTRAINTS] = [
 
 // TYPES AND INTERFACES
 // ================================================================================================
-pub struct Decoder<T: FiniteField> {
-    op_accumulator: AccEvaluator<T>,
+pub struct Decoder {
+    op_accumulator: AccEvaluator,
 }
 
 // DECODER CONSTRAINT EVALUATOR IMPLEMENTATION
 // ================================================================================================
-impl <T> Decoder <T>
-    where T: FiniteField + Accumulator
+impl Decoder
 {
-    pub fn new(trace_length: usize, extension_factor: usize) -> Decoder<T> {
+    pub fn new(trace_length: usize, extension_factor: usize) -> Decoder {
         return Decoder {
             op_accumulator : AccEvaluator::new(trace_length, extension_factor)
         };
@@ -45,7 +44,7 @@ impl <T> Decoder <T>
 
     /// Evaluates decoder transition constraints at the specified step of the evaluation domain and
     /// saves the evaluations into `result`.
-    pub fn evaluate(&self, current: &TraceState<T>, next: &TraceState<T>, step: usize, result: &mut [T]) {
+    pub fn evaluate(&self, current: &TraceState, next: &TraceState, step: usize, result: &mut [u128]) {
 
         // evaluate constraints for decoding op codes
         self.decode_opcode(current, next, result);
@@ -62,7 +61,7 @@ impl <T> Decoder <T>
     /// Evaluates decoder transition constraints at the specified x coordinate and saves the
     /// evaluations into `result`. Unlike the function above, this function can evaluate constraints
     /// at any out-of-domain point, but it is much slower than the previous function.
-    pub fn evaluate_at(&self, current: &TraceState<T>, next: &TraceState<T>, x: T, result: &mut [T]) {
+    pub fn evaluate_at(&self, current: &TraceState, next: &TraceState, x: u128, result: &mut [u128]) {
 
         // evaluate constraints for decoding op codes
         self.decode_opcode(current, next, result);
@@ -78,7 +77,7 @@ impl <T> Decoder <T>
 
     // EVALUATION HELPERS
     // --------------------------------------------------------------------------------------------
-    fn decode_opcode(&self, current: &TraceState<T>, next: &TraceState<T>, result: &mut [T]) {
+    fn decode_opcode(&self, current: &TraceState, next: &TraceState, result: &mut [u128]) {
         
         // 5 constraints, degree 2: op_bits must be binary
         let op_bits = current.get_op_bits();
@@ -90,27 +89,27 @@ impl <T> Decoder <T>
         // zeros (NOOP), otherwise next op_bits must be a binary decomposition of next op_code
         let is_push = current.get_op_flags()[opcodes::PUSH as usize];
         let op_bits_value = combine_bits(next.get_op_bits());
-        let op_code = T::mul(next.get_op_code(), binary_not(is_push));
-        result[5] = T::sub(op_code, op_bits_value);
+        let op_code = u128::mul(next.get_op_code(), binary_not(is_push));
+        result[5] = u128::sub(op_code, op_bits_value);
     }
 }
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn is_binary<T: FiniteField>(v: T) -> T {
-    return T::sub(T::mul(v, v), v);
+fn is_binary(v: u128) -> u128 {
+    return u128::sub(u128::mul(v, v), v);
 }
 
-fn binary_not<T: FiniteField>(v: T) -> T {
-    return T::sub(T::ONE, v);
+fn binary_not(v: u128) -> u128 {
+    return u128::sub(u128::ONE, v);
 }
 
-fn combine_bits<T: FiniteField>(op_bits: &[T]) -> T {
+fn combine_bits(op_bits: &[u128]) -> u128 {
     let mut value = op_bits[0];
     let mut power_of_two = 1;
     for i in 1..op_bits.len() {
         power_of_two = power_of_two << 1;
-        value = T::add(value, T::mul(op_bits[i], T::from(power_of_two)));
+        value = u128::add(value, u128::mul(op_bits[i], power_of_two));
     }
     return value;
 }
@@ -118,27 +117,25 @@ fn combine_bits<T: FiniteField>(op_bits: &[T]) -> T {
 // ACC EVALUATOR
 // ================================================================================================
 
-struct AccEvaluator<T: FiniteField> {
+struct AccEvaluator {
     trace_length    : usize,
     cycle_length    : usize,
-    ark_values      : Vec<[T; 2 * ACC_STATE_WIDTH]>,
-    ark_polys       : Vec<Vec<T>>,
+    ark_values      : Vec<[u128; 2 * ACC_STATE_WIDTH]>,
+    ark_polys       : Vec<Vec<u128>>,
 }
 
-impl<T> AccEvaluator <T>
-    where T: FiniteField + Accumulator
-{
+impl AccEvaluator {
     /// Creates a new AccEvaluator based on the provided `trace_length` and `extension_factor`.
-    pub fn new(trace_length: usize, extension_factor: usize) -> AccEvaluator<T> {
+    pub fn new(trace_length: usize, extension_factor: usize) -> AccEvaluator {
         // extend rounds constants by the specified extension factor
-        let (ark_polys, ark_evaluations) = T::get_extended_constants(extension_factor);
+        let (ark_polys, ark_evaluations) = u128::get_extended_constants(extension_factor);
 
         // transpose round constant evaluations so that constants for each round
         // are stored in a single row
         let cycle_length = ACC_CYCLE_LENGTH * extension_factor;
         let mut ark_values = Vec::with_capacity(cycle_length);
         for i in 0..cycle_length {
-            ark_values.push([T::ZERO; 2 * ACC_STATE_WIDTH]);
+            ark_values.push([u128::ZERO; 2 * ACC_STATE_WIDTH]);
             for j in 0..(2 * ACC_STATE_WIDTH) {
                 ark_values[i][j] = ark_evaluations[j][i];
             }
@@ -148,7 +145,7 @@ impl<T> AccEvaluator <T>
     }
 
     /// Evaluates constraints at the specified step and saves the resulting values into `result`.
-    pub fn evaluate(&self, current: &[T], next: &[T], op_code: T, step: usize, result: &mut [T]) {
+    pub fn evaluate(&self, current: &[u128], next: &[u128], op_code: u128, step: usize, result: &mut [u128]) {
         // determine round constants for the current step
         let ark = &self.ark_values[step % self.cycle_length];
         // evaluate constraints for op code accumulator
@@ -158,12 +155,12 @@ impl<T> AccEvaluator <T>
     /// Evaluates constraints at the specified x coordinate and saves the resulting values into
     /// `result`. Unlike the function above, this function can evaluate constraints for any
     /// out-of-domain coordinate, but is significantly slower.
-    pub fn evaluate_at(&self, current: &[T], next: &[T], op_code: T, x: T, result: &mut [T]) {
+    pub fn evaluate_at(&self, current: &[u128], next: &[u128], op_code: u128, x: u128, result: &mut [u128]) {
 
         // determine round constants at the specified x coordinate
-        let num_cycles = T::from_usize(self.trace_length / ACC_CYCLE_LENGTH);
-        let x = T::exp(x, num_cycles);
-        let mut ark = [T::ZERO; 2 * ACC_STATE_WIDTH];
+        let num_cycles = u128::from_usize(self.trace_length / ACC_CYCLE_LENGTH);
+        let x = u128::exp(x, num_cycles);
+        let mut ark = [u128::ZERO; 2 * ACC_STATE_WIDTH];
         for i in 0..ark.len() {
             ark[i] = polynom::eval(&self.ark_polys[i], x);
         }
@@ -175,33 +172,33 @@ impl<T> AccEvaluator <T>
     /// Uses a modified version of Rescue hash function round to accumulate op_code values.
     /// The state consists of 4 elements and the op_code is injected into the state between
     /// the first and the second half of the round.
-    fn acc_opcode(&self, current: &[T], next: &[T], ark: &[T], op_code: T, result: &mut [T]) {
+    fn acc_opcode(&self, current: &[u128], next: &[u128], ark: &[u128], op_code: u128, result: &mut [u128]) {
 
-        let mut state_part1 = [T::ZERO; ACC_STATE_WIDTH];
+        let mut state_part1 = [u128::ZERO; ACC_STATE_WIDTH];
         state_part1.copy_from_slice(current);
-        let mut state_part2 = [T::ZERO; ACC_STATE_WIDTH];
+        let mut state_part2 = [u128::ZERO; ACC_STATE_WIDTH];
         state_part2.copy_from_slice(next);
 
         // first half of Rescue round
         for i in 0..ACC_STATE_WIDTH {
-            state_part1[i] = T::add(state_part1[i], ark[i]);
+            state_part1[i] = u128::add(state_part1[i], ark[i]);
         }
-        T::apply_sbox(&mut state_part1);
-        T::apply_mds(&mut state_part1);
+        u128::apply_sbox(&mut state_part1);
+        u128::apply_mds(&mut state_part1);
 
         // op_code injection
-        state_part1[0] = T::add(state_part1[0], T::mul(state_part1[2], op_code));
-        state_part1[1] = T::mul(state_part1[1], T::add(state_part1[3], op_code));
+        state_part1[0] = u128::add(state_part1[0], u128::mul(state_part1[2], op_code));
+        state_part1[1] = u128::mul(state_part1[1], u128::add(state_part1[3], op_code));
         
         // second half of Rescue round
-        T::apply_inv_mds(&mut state_part2);
-        T::apply_sbox(&mut state_part2);
+        u128::apply_inv_mds(&mut state_part2);
+        u128::apply_sbox(&mut state_part2);
         for i in 0..ACC_STATE_WIDTH {
-            state_part2[i] = T::sub(state_part2[i], ark[ACC_STATE_WIDTH + i]);
+            state_part2[i] = u128::sub(state_part2[i], ark[ACC_STATE_WIDTH + i]);
         }
 
         for i in 0..ACC_STATE_WIDTH {
-            result[i] = T::sub(state_part2[i], state_part1[i]);
+            result[i] = u128::sub(state_part2[i], state_part1[i]);
         }
     }
 }

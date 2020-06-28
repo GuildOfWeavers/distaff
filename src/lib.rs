@@ -28,7 +28,7 @@ pub use programs::{ Program, ProgramInputs, ExecutionGraph, ExecutionHint, assem
 /// 
 /// * `inputs` specifies the initial stack state and provides secret input tapes;
 /// * `num_outputs` specifies the number of elements from the top of the stack to be returned;
-pub fn execute(program: &Program, inputs: &ProgramInputs<u128>, num_outputs: usize, options: &ProofOptions) -> (Vec<u128>, StarkProof<u128>)
+pub fn execute(program: &Program, inputs: &ProgramInputs<u128>, num_outputs: usize, options: &ProofOptions) -> (Vec<u128>, StarkProof)
 {
     assert!(num_outputs <= MAX_OUTPUTS, 
         "cannot produce more than {} outputs, but requested {}", MAX_OUTPUTS, num_outputs);
@@ -63,7 +63,7 @@ pub fn execute(program: &Program, inputs: &ProgramInputs<u128>, num_outputs: usi
 
 /// Verifies that if a program with the specified `program_hash` is executed with the 
 /// provided `public_inputs` and some secret inputs, the result is equal to the `outputs`.
-pub fn verify(program_hash: &[u8; 32], public_inputs: &[u128], outputs: &[u128], proof: &StarkProof<u128>) -> Result<bool, String>
+pub fn verify(program_hash: &[u8; 32], public_inputs: &[u128], outputs: &[u128], proof: &StarkProof) -> Result<bool, String>
 {
     return stark::verify(program_hash, public_inputs, outputs, proof);
 }
