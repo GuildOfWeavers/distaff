@@ -1,5 +1,5 @@
 use crate::math::{ FiniteField, F128 };
-use crate::utils::{ filled_vector, Hasher };
+use crate::utils::{ filled_vector, hasher };
 use crate::{ HASH_STATE_WIDTH, MIN_STACK_DEPTH, MAX_STACK_DEPTH };
 use super::{ ProgramInputs, opcodes, ExecutionHint };
 
@@ -462,7 +462,7 @@ impl Stack {
             self.user_registers[5][step],
         ];
 
-        F128::apply_round(&mut state, step);
+        hasher::apply_round(&mut state, step);
 
         self.user_registers[0][step + 1] = state[0];
         self.user_registers[1][step + 1] = state[1];

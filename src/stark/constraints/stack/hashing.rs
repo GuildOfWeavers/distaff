@@ -1,6 +1,6 @@
 use std::cmp;
 use crate::math::{ FiniteField, polynom };
-use crate::utils::{ Hasher };
+use crate::utils::{ hasher };
 use crate::{ HASH_STATE_WIDTH, HASH_CYCLE_LENGTH };
 
 // TYPES AND INTERFACES
@@ -18,7 +18,7 @@ impl HashEvaluator {
     /// Creates a new HashEvaluator based on the provided `trace_length` and `extension_factor`.
     pub fn new(trace_length: usize, extension_factor: usize) -> HashEvaluator {
         // extend rounds constants by the specified extension factor
-        let (ark_polys, ark_evaluations) = u128::get_extended_constants(extension_factor);
+        let (ark_polys, ark_evaluations) = hasher::get_extended_constants(extension_factor);
 
         // transpose round constant evaluations so that constants for each round
         // are stored in a single row
@@ -77,11 +77,11 @@ impl HashEvaluator {
         for i in 0..HASH_STATE_WIDTH {
             state_part1[i] = u128::add(state_part1[i], ark[i]);
         }
-        u128::apply_sbox(&mut state_part1);
-        u128::apply_mds(&mut state_part1);
+        hasher::apply_sbox(&mut state_part1);
+        hasher::apply_mds(&mut state_part1);
     
-        u128::apply_inv_mds(&mut state_part2);
-        u128::apply_sbox(&mut state_part2);
+        hasher::apply_inv_mds(&mut state_part2);
+        hasher::apply_sbox(&mut state_part2);
         for i in 0..HASH_STATE_WIDTH {
             state_part2[i] = u128::sub(state_part2[i], ark[HASH_STATE_WIDTH + i]);
         }

@@ -1,4 +1,4 @@
-use distaff::{ Program, ProgramInputs, assembly, math::{ FiniteField, F128 }, crypto::hash::blake3, utils::Hasher };
+use distaff::{ Program, ProgramInputs, assembly, math::{ FiniteField, F128 }, crypto::hash::blake3, utils::hasher };
 use super::{ Example, utils::parse_args };
 
 pub fn get_example(args: &[String]) -> Example  {
@@ -103,7 +103,7 @@ fn compute_merkle_root(path: &[Vec<F128>; 2], index: usize) -> Vec<F128> {
     buf[2] = path[0][1 - r];
     buf[3] = path[1][1 - r];
 
-    v = F128::digest(&buf);
+    v = hasher::digest(&buf);
 
     let mut index = (index + usize::pow(2, (n - 1) as u32)) >> 1;
     for i in 2..n {
@@ -120,7 +120,7 @@ fn compute_merkle_root(path: &[Vec<F128>; 2], index: usize) -> Vec<F128> {
             buf[3] = v[1];
         }
         
-        v = F128::digest(&buf);
+        v = hasher::digest(&buf);
         index = index >> 1;
     }
 

@@ -2,8 +2,7 @@ use std::{ mem, slice };
 
 // RE-EXPORTS
 // ================================================================================================
-mod hasher;
-pub use hasher::{ Hasher };
+pub mod hasher;
 
 mod accumulator;
 pub use accumulator::{ Accumulator };

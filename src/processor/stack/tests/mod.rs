@@ -1,6 +1,7 @@
-use crate::math::{ F128, FiniteField };
-use crate::utils::{ Hasher };
+use crate::math::{ FiniteField };
+use crate::utils::{ hasher };
 use super::{ Stack, super::ProgramInputs, ExecutionHint };
+use crate::{ HASH_STATE_WIDTH };
 
 mod comparisons;
 
@@ -285,7 +286,7 @@ fn mul() {
 fn inv() {
     let mut stack = init_stack(&[2, 3], &[], &[], TRACE_LENGTH);
     stack.op_inv(0);
-    assert_eq!(vec![F128::inv(2), 3, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+    assert_eq!(vec![u128::inv(2), 3, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
     assert_eq!(2, stack.depth);
     assert_eq!(2, stack.max_depth);
@@ -302,7 +303,7 @@ fn inv_zero() {
 fn neg() {
     let mut stack = init_stack(&[2, 3], &[], &[], TRACE_LENGTH);
     stack.op_neg(0);
-    assert_eq!(vec![F128::neg(2), 3, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+    assert_eq!(vec![u128::neg(2), 3, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
     assert_eq!(2, stack.depth);
     assert_eq!(2, stack.max_depth);
@@ -340,11 +341,11 @@ fn rescr() {
     let mut expected = vec![0, 0, 1, 2, 3, 4, 0, 0];
 
     stack.op_rescr(0);
-    <F128 as Hasher>::apply_round(&mut expected[..F128::STATE_WIDTH], 0);
+    hasher::apply_round(&mut expected[..HASH_STATE_WIDTH], 0);
     assert_eq!(expected, get_stack_state(&stack, 1));
 
     stack.op_rescr(1);
-    <F128 as Hasher>::apply_round(&mut expected[..F128::STATE_WIDTH], 1);
+    hasher::apply_round(&mut expected[..HASH_STATE_WIDTH], 1);
     assert_eq!(expected, get_stack_state(&stack, 2));
 
     assert_eq!(6, stack.depth);
@@ -354,12 +355,12 @@ fn rescr() {
 // HELPER FUNCTIONS
 // ================================================================================================
 
-fn init_stack(public_inputs: &[F128], secret_inputs_a: &[F128], secret_inputs_b: &[F128], trace_length: usize) -> Stack {
+fn init_stack(public_inputs: &[u128], secret_inputs_a: &[u128], secret_inputs_b: &[u128], trace_length: usize) -> Stack {
     let inputs = ProgramInputs::new(public_inputs, secret_inputs_a, secret_inputs_b);
     return Stack::new(&inputs, trace_length);
 }
 
-fn get_stack_state(stack: &Stack, step: usize) -> Vec<F128> {
+fn get_stack_state(stack: &Stack, step: usize) -> Vec<u128> {
     let mut state = Vec::with_capacity(stack.user_registers.len());
     for i in 0..stack.user_registers.len() {
         state.push(stack.user_registers[i][step]);
@@ -367,6 +368,6 @@ fn get_stack_state(stack: &Stack, step: usize) -> Vec<F128> {
     return state;
 }
 
-fn get_aux_state(stack: &Stack, step: usize) -> Vec<F128> {
+fn get_aux_state(stack: &Stack, step: usize) -> Vec<u128> {
     return vec![stack.aux_register[step]];
 }
