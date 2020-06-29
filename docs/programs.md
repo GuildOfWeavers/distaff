@@ -216,7 +216,7 @@ The purpose of *hash_ops* procedure is to hash a sequence of instructions. The p
 
 The pseudo-code for this procedure looks like so:
 ```
-with inputs: state, instructions:
+with inputs: state[], instructions[]:
 for each instruction in instructions do:
     state = add_round_constants(state);
     state = apply_sbox(state);
@@ -235,11 +235,11 @@ where:
 The body of the above loop is similar to the round of [Rescue](https://eprint.iacr.org/2019/426) hash function. But there are significant differences. Specifically, injecting values in the middle of every round invalidates security proof of sponge construction. Thus, it is possible that this approach is insecure, and will need to be modified in the future.
 
 ### hash_acc procedure
-The purpose of *hash_acc* procedure is to merge hash of a control block, which is a tuple of two 128-bit values, with a single 128-bit value. The output of the *hash_acc* procedure is a single 128-bit element.
+The purpose of *hash_acc* procedure is to merge hash of a control block, which is a tuple of two 128-bit values, with a single 128-bit value. The output of the *hash_acc* procedure an array of four 128-bit elements.
 
 Denoting *(v<sub>0</sub>, v<sub>1</sub>)* to be the hash of the control block, and *h* to be the 128-bit value, high-level pseudo-code for *hash_acc* procedure looks like so:
 ```
-with inputs: v0, v1, h:
+with inputs: h, v0, v1:
 let state = [v0, v1, h, 0];
 for 14 rounds do:
     state = add_round_constants(state);
@@ -248,7 +248,7 @@ for 14 rounds do:
     state = add_round_constants(state);
     state = apply_inverse_sbox(state);
     state = apply_mds(state);
-return state[0];
+return state;
 ```
 The above is a modified version of [Rescue](https://eprint.iacr.org/2019/426) hash function. This modification adds half-rounds to the beginning and to the end of the standard Rescue hash function to make the arithmetization of the function fully foldable. This should not impact security properties of the function, but it is worth noting that it has not been studied to the same extent as the standard Rescue hash function.
 
@@ -259,7 +259,31 @@ The purpose of *hash_seq* procedure is to hash a sequence of program blocks into
 2. Then, we consume blocks from the sequence one by one, hash them, and merge their hashes into the `state`. Hashing and merging is performed as follows:
     1. Instruction blocks are hashed using [hash_ops](#hash_ops-procedure) procedure described above, and the return value of the *hash_ops* procedure becomes the new `state`.
     2. Control blocks are hashed according to the [rules](#Hashes-of-control-blocks) described above. The resulting hash is merged into the state using [hash_acc](#Hash_acc-procedure) procedure.
-2. Finally, we return the first element of the state as the hash value of the sequence.
+3. Finally, we return the first element of the state as the hash value of the sequence.
+
+High-level pseudo-code for the *hash_seq* procedure is as follows:
+```
+with input blocks[]:
+let state = [0, 0, 0, 0];
+for each block in blocks
+    if block is instruction block
+		state = hash_ops(state, block.instructions);
+	else
+		if block is group block
+			v0 = hash_seq(block.blocks);
+			v1 = 0;
+		else if block is switch block 
+			v0 = hash_seq(block.true_branch);
+			v1 = hash_seq(block.false_branch);
+		else if 
+			v0 = hash_seq(block.body);
+			v1 = hash_seq(block.skip);
+		end if
+		state = hash_acc(state[0], v0, v1);
+	end if
+end loop
+return state[0];
+```
 
 For example, let's say we want to hash a sequence of blocks `[b0, b1, b2]`, where `b0` and `b2` are instruction blocks, and `b1` is a control block. Hashing of this sequence will work as follows:
 
@@ -268,8 +292,6 @@ For example, let's say we want to hash a sequence of blocks `[b0, b1, b2]`, wher
 3. Then, we compute the hash of `b1` as `(v0, v1) = hash(b1)`, and merge it into the state as `s2 = hash_acc(s1, v0, v1)`.
 4. Then, we merge `b0` into the state as `s3 = hash_ops(s2, b2)`.
 5. Finally, we return `s3[0]` as the hash of the sequence.
-
-There is one extra thing to note: when a control block is followed by an instruction block, we do not truncate the result of *hash_acc* procedure to a single value. That is, in the above example, `s2` will be the full state of 4 field elements, rather than a single field element.
 
 ## Hash computations in the VM
 Distaff VM computes program hash as the program is executed on the VM. Hash computations are structured so that even if a single instruction is added, removed, or replaced with a different instruction, the computed hash will not match the original hash of the program.
@@ -409,9 +431,10 @@ After we execute the `CONTINUE` operation, loop body can be executed again.
 
 If after executing the loop's body, the top of the stack is `0`, we execute `BREAK` operation. `BREAK` operation does the following:
 
-1. Checks whether the first register of the `sponge` is equal to the value at the top of the `loop stack` (i.e. `s0 = i0`). If it is not, the program fails.
-2. Check whether the value on the top of the stack is `0`. If it is not, the program fails.
-3. Removes the top value from the `loop stack`.
+1. Pops the value from the `loop stack`, and checks whether it is equal to the first register of the `sponge state` (i.e. `s0 = i0`). If it is not, the program fails.
+2. Pops the value from the stack, and checks whether it is equal to `0`. If it is not, the program fails.
+
+Notice that unlike the `CONTINUE` operation, the `BREAK` operation removes top values from both, the `loop stack` and user stack.
 
 A diagram of `BREAK` operation is as follows:
 ```
@@ -437,10 +460,18 @@ Hash of this loop will be defined as:
 
 Let's also say that for a given input, the top of the stack is `1`, and it changes to `0` after we execute *a<sub>0</sub>, a<sub>1</sub>, . . ., a<sub>14</sub>* instructions twice. Then, the sequence of instructions executed on the VM to complete this loop will be:
 ```
-LOOP<v0>
+LOOP(v0)
   a0  a1  a2  a3  a4  a5  a6 a7
   a8  a9 a10 a11 a12 a13 a14 CONTINUE
   a0  a1  a2  a3  a4  a5  a6 a7
   a8  a9 a10 a11 a12 a13 a14 BREAK
-TEND<v1>
+TEND(v1)
+```
+
+If, however, the top of the stack is `0` before we enter the loop, the sequence of instructions will be:
+```
+BEGIN
+  NOT  ASSERT NOOP NOOP NOOP NOOP NOOP NOOP
+  NOOP NOOP   NOOP NOOP NOOP NOOP NOOP NOOP
+FEND(v0)
 ```
