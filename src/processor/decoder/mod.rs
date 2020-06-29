@@ -1,5 +1,5 @@
 use crate::{ ACC_STATE_WIDTH, NUM_OP_BITS};
-use crate::utils::{ Accumulator };
+use crate::utils::{ accumulator };
 use super::{ opcodes::f128 as opcodes };
 
 // TYPES AND INTERFACES
@@ -64,7 +64,7 @@ impl Decoder {
         }
         
         // add the operation operation to program hash
-        u128::apply_round(&mut self.acc_state, op, step);
+        accumulator::apply_round(&mut self.acc_state, op, step);
         for i in 0..ACC_STATE_WIDTH {
             self.op_acc[i][step + 1] = self.acc_state[i];
         }

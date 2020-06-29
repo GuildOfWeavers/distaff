@@ -1,6 +1,6 @@
 use crate::math::{ FiniteField, polynom };
 use crate::processor::{ opcodes };
-use crate::utils::{ Accumulator };
+use crate::utils::{ accumulator };
 use crate::stark::{ TraceState };
 use crate::{ ACC_STATE_WIDTH, ACC_CYCLE_LENGTH };
 
@@ -128,7 +128,7 @@ impl AccEvaluator {
     /// Creates a new AccEvaluator based on the provided `trace_length` and `extension_factor`.
     pub fn new(trace_length: usize, extension_factor: usize) -> AccEvaluator {
         // extend rounds constants by the specified extension factor
-        let (ark_polys, ark_evaluations) = u128::get_extended_constants(extension_factor);
+        let (ark_polys, ark_evaluations) = accumulator::get_extended_constants(extension_factor);
 
         // transpose round constant evaluations so that constants for each round
         // are stored in a single row
@@ -183,16 +183,16 @@ impl AccEvaluator {
         for i in 0..ACC_STATE_WIDTH {
             state_part1[i] = u128::add(state_part1[i], ark[i]);
         }
-        u128::apply_sbox(&mut state_part1);
-        u128::apply_mds(&mut state_part1);
+        accumulator::apply_sbox(&mut state_part1);
+        accumulator::apply_mds(&mut state_part1);
 
         // op_code injection
         state_part1[0] = u128::add(state_part1[0], u128::mul(state_part1[2], op_code));
         state_part1[1] = u128::mul(state_part1[1], u128::add(state_part1[3], op_code));
         
         // second half of Rescue round
-        u128::apply_inv_mds(&mut state_part2);
-        u128::apply_sbox(&mut state_part2);
+        accumulator::apply_inv_mds(&mut state_part2);
+        accumulator::apply_sbox(&mut state_part2);
         for i in 0..ACC_STATE_WIDTH {
             state_part2[i] = u128::sub(state_part2[i], ark[ACC_STATE_WIDTH + i]);
         }

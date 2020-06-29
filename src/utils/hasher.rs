@@ -8,13 +8,13 @@ use crate::{
     HASH_NUM_ROUNDS as NUM_ROUNDS,
 };
 
-// 128-BIT ACCUMULATOR IMPLEMENTATION
+// HASHER FUNCTIONS
 // ================================================================================================
 pub fn digest(values: &[u128]) -> Vec<u128> {
     assert!(values.len() <= STATE_RATE,
         "expected no more than {}, but received {}", STATE_RATE, values.len());
 
-    let mut state = vec![u128::ZERO; STATE_WIDTH];
+    let mut state = [u128::ZERO; STATE_WIDTH];
     state[..values.len()].copy_from_slice(values);
     state.reverse();
 

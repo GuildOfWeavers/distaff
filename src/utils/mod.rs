@@ -3,9 +3,7 @@ use std::{ mem, slice };
 // RE-EXPORTS
 // ================================================================================================
 pub mod hasher;
-
-mod accumulator;
-pub use accumulator::{ Accumulator };
+pub mod accumulator;
 
 // VECTOR FUNCTIONS
 // ================================================================================================
