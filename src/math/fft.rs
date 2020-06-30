@@ -120,8 +120,9 @@ mod tests {
         // degree 3
         let mut p: [u128; 4] = [1, 2, 3, 4];
         let g = field::get_root_of_unity(4);
+        let xs = field::get_power_series(g, 4);
+        let expected: Vec<u128> = xs.into_iter().map(|x| polynom::eval(&p, x)).collect();
         let twiddles = super::get_twiddles(g, 4);
-        let expected = vec![ 10, 7428598796440720870, 18446743880436023295, 11018145083995302423 ];
         super::fft_in_place(&mut p, &twiddles, 1, 1, 0, 1);
         super::permute(&mut p);
         assert_eq!(expected, p);
@@ -130,10 +131,8 @@ mod tests {
         let mut p: [u128; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
         let g = field::get_root_of_unity(8);
         let twiddles = super::get_twiddles(g, 8);
-        let expected = vec![
-                              36, 15351167094271246394, 14857197592881441740, 4083515788944386203,
-            18446743880436023293, 14363228091491637086,  3589546287554581549, 3095576786164776895
-        ];
+        let xs = field::get_power_series(g, 8);
+        let expected: Vec<u128> = xs.into_iter().map(|x| polynom::eval(&p, x)).collect();
         super::fft_in_place(&mut p, &twiddles, 1, 1, 0, 1);
         super::permute(&mut p);
         assert_eq!(expected, p);
@@ -142,12 +141,8 @@ mod tests {
         let mut p: [u128; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
         let g = field::get_root_of_unity(16);
         let twiddles = super::get_twiddles(g, 16);
-        let expected = vec![
-                             136,   975820629354483782, 12255590308106469491,  7040425242073983439,
-            11267651305326860183,  9153105966732461908,  8167031577888772406, 13358127774013591378,
-            18446743880436023289,  5088616106422431903, 10279712302547250875,  9293637913703561373,
-             7179092575109163098, 11406318638362039842,  6191153572329553790, 17470923251081539499
-        ];
+        let xs = field::get_power_series(g, 16);
+        let expected: Vec<u128> = xs.into_iter().map(|x| polynom::eval(&p, x)).collect();
         super::fft_in_place(&mut p, &twiddles, 1, 1, 0, 1);
         super::permute(&mut p);
         assert_eq!(expected, p);
