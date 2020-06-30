@@ -1,4 +1,4 @@
-use crate::{ ProofOptions, opcodes::f128 as opcodes, math::{ FiniteField, F128 } };
+use crate::{ ProofOptions, opcodes::f128 as opcodes, math::field };
 use super::super::{ execute, verify, Program, ProgramInputs };
 
 #[test]
@@ -26,9 +26,9 @@ fn eq_operations() {
 #[test]
 fn cmp_operation() {
 
-    let a: u128 = F128::rand();
-    let b: u128 = F128::rand();
-    let p127: u128 = F128::exp(2, 127);
+    let a: u128 = field::rand();
+    let b: u128 = field::rand();
+    let p127: u128 = field::exp(2, 127);
 
     // build inputs
     let (inputs_a, inputs_b) = build_inputs_for_cmp(a, b, 128);
@@ -47,8 +47,8 @@ fn cmp_operation() {
     let inputs = ProgramInputs::new(&[0, 0, 0, 0, 0, 0, a, b], &inputs_a, &inputs_b);
     let num_outputs = 4;
 
-    let lt = if a < b { F128::ONE }  else { F128::ZERO };
-    let gt = if a < b { F128::ZERO } else { F128::ONE  };
+    let lt = if a < b { field::ONE }  else { field::ZERO };
+    let gt = if a < b { field::ZERO } else { field::ONE  };
     let expected_result = vec![gt, lt, b, a];
 
     // execute the program and make sure results are correct
@@ -63,8 +63,8 @@ fn cmp_operation() {
 #[test]
 fn binacc_operation() {
 
-    let a: u128 = F128::rand();
-    let p127: u128 = F128::exp(2, 127);
+    let a: u128 = field::rand();
+    let p127: u128 = field::exp(2, 127);
 
     // build inputs
     let mut inputs_a = Vec::new();

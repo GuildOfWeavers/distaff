@@ -28,7 +28,7 @@ pub use programs::{ Program, ProgramInputs, ExecutionGraph, ExecutionHint, assem
 /// 
 /// * `inputs` specifies the initial stack state and provides secret input tapes;
 /// * `num_outputs` specifies the number of elements from the top of the stack to be returned;
-pub fn execute(program: &Program, inputs: &ProgramInputs<u128>, num_outputs: usize, options: &ProofOptions) -> (Vec<u128>, StarkProof)
+pub fn execute(program: &Program, inputs: &ProgramInputs, num_outputs: usize, options: &ProofOptions) -> (Vec<u128>, StarkProof)
 {
     assert!(num_outputs <= MAX_OUTPUTS, 
         "cannot produce more than {} outputs, but requested {}", MAX_OUTPUTS, num_outputs);

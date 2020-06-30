@@ -16,7 +16,7 @@ use stack::Stack;
 
 /// Returns register traces resulting from executing the specified program against the
 /// specified inputs.
-pub fn execute(program: &Program, inputs: &ProgramInputs<u128>) -> Vec<Vec<u128>>
+pub fn execute(program: &Program, inputs: &ProgramInputs) -> Vec<Vec<u128>>
 {
     // initialize decoder and stack components
     // TODO: determine initial trace length dynamically

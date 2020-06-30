@@ -1,4 +1,4 @@
-use crate::math::{ FiniteField, fft, polynom };
+use crate::math::{ field, fft, polynom };
 use crate::utils::{ filled_vector };
 use crate::{
     HASH_STATE_WIDTH as STATE_WIDTH,
@@ -14,7 +14,7 @@ pub fn digest(values: &[u128]) -> Vec<u128> {
     assert!(values.len() <= STATE_RATE,
         "expected no more than {}, but received {}", STATE_RATE, values.len());
 
-    let mut state = [u128::ZERO; STATE_WIDTH];
+    let mut state = [field::ZERO; STATE_WIDTH];
     state[..values.len()].copy_from_slice(values);
     state.reverse();
 
@@ -42,66 +42,66 @@ pub fn apply_round(state: &mut [u128], step: usize) {
 
 pub fn add_constants(state: &mut[u128], idx: usize, offset: usize) {
     for i in 0..STATE_WIDTH {
-        state[i] = u128::add(state[i], ARK[offset + i][idx]);
+        state[i] = field::add(state[i], ARK[offset + i][idx]);
     }
 }
 
 pub fn apply_sbox(state: &mut [u128]) {
     for i in 0..STATE_WIDTH {
-        state[i] = u128::exp(state[i], ALPHA);
+        state[i] = field::exp(state[i], ALPHA);
     }
 }
 
 pub fn apply_inv_sbox(state: &mut[u128]) {
     // TODO: optimize
     for i in 0..STATE_WIDTH {
-        state[i] = u128::exp(state[i], INV_ALPHA);
+        state[i] = field::exp(state[i], INV_ALPHA);
     }
 }
 
 pub fn apply_mds(state: &mut[u128]) {
-    let mut result = [u128::ZERO; STATE_WIDTH];
-    let mut temp = [u128::ZERO; STATE_WIDTH];
+    let mut result = [field::ZERO; STATE_WIDTH];
+    let mut temp = [field::ZERO; STATE_WIDTH];
     for i in 0..STATE_WIDTH {
         for j in 0..STATE_WIDTH {
-            temp[j] = u128::mul(MDS[i * STATE_WIDTH + j], state[j]);
+            temp[j] = field::mul(MDS[i * STATE_WIDTH + j], state[j]);
         }
 
         for j in 0..STATE_WIDTH {
-            result[i] = u128::add(result[i], temp[j]);
+            result[i] = field::add(result[i], temp[j]);
         }
     }
     state.copy_from_slice(&result);
 }
 
 pub fn apply_inv_mds(state: &mut[u128]) {
-    let mut result = [u128::ZERO; STATE_WIDTH];
-    let mut temp = [u128::ZERO; STATE_WIDTH];
+    let mut result = [field::ZERO; STATE_WIDTH];
+    let mut temp = [field::ZERO; STATE_WIDTH];
     for i in 0..STATE_WIDTH {
         for j in 0..STATE_WIDTH {
-            temp[j] = u128::mul(INV_MDS[i * STATE_WIDTH + j], state[j]);
+            temp[j] = field::mul(INV_MDS[i * STATE_WIDTH + j], state[j]);
         }
 
         for j in 0..STATE_WIDTH {
-            result[i] = u128::add(result[i], temp[j]);
+            result[i] = field::add(result[i], temp[j]);
         }
     }
     state.copy_from_slice(&result);
 }
 
 pub fn get_extended_constants(extension_factor: usize) -> (Vec<Vec<u128>>, Vec<Vec<u128>>) {
-    let root = u128::get_root_of_unity(CYCLE_LENGTH);
+    let root = field::get_root_of_unity(CYCLE_LENGTH);
     let inv_twiddles = fft::get_inv_twiddles(root, CYCLE_LENGTH);
 
     let domain_size = CYCLE_LENGTH * extension_factor;
-    let domain_root = u128::get_root_of_unity(domain_size);
+    let domain_root = field::get_root_of_unity(domain_size);
     let twiddles = fft::get_twiddles(domain_root, domain_size);
 
     let mut polys = Vec::with_capacity(ARK.len());
     let mut evaluations = Vec::with_capacity(ARK.len());
 
     for constant in ARK.iter() {
-        let mut extended_constant = filled_vector(CYCLE_LENGTH, domain_size, u128::ZERO);
+        let mut extended_constant = filled_vector(CYCLE_LENGTH, domain_size, field::ZERO);
         extended_constant.copy_from_slice(constant);
 
         polynom::interpolate_fft_twiddles(&mut extended_constant, &inv_twiddles, true);

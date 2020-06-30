@@ -1,5 +1,5 @@
 use std::cmp;
-use crate::math::{ FiniteField, polynom };
+use crate::math::{ field, polynom };
 use crate::utils::{ hasher };
 use crate::{ HASH_STATE_WIDTH, HASH_CYCLE_LENGTH };
 
@@ -25,7 +25,7 @@ impl HashEvaluator {
         let cycle_length = HASH_CYCLE_LENGTH * extension_factor;
         let mut ark_values = Vec::with_capacity(cycle_length);
         for i in 0..cycle_length {
-            ark_values.push([u128::ZERO; 2 * HASH_STATE_WIDTH]);
+            ark_values.push([field::ZERO; 2 * HASH_STATE_WIDTH]);
             for j in 0..(2 * HASH_STATE_WIDTH) {
                 ark_values[i][j] = ark_evaluations[j][i];
             }
@@ -52,9 +52,9 @@ impl HashEvaluator {
     pub fn evaluate_at(&self, current: &[u128], next: &[u128], x: u128, op_flag: u128, result: &mut [u128]) {
 
         // determine mask and round constants at the specified x coordinate
-        let num_cycles = u128::from_usize(self.trace_length / HASH_CYCLE_LENGTH);
-        let x = u128::exp(x, num_cycles);
-        let mut ark = [u128::ZERO; 2 * HASH_STATE_WIDTH];
+        let num_cycles =(self.trace_length / HASH_CYCLE_LENGTH) as u128;
+        let x = field::exp(x, num_cycles);
+        let mut ark = [field::ZERO; 2 * HASH_STATE_WIDTH];
         for i in 0..ark.len() {
             ark[i] = polynom::eval(&self.ark_polys[i], x);
         }
@@ -69,13 +69,13 @@ impl HashEvaluator {
     fn eval_hash(&self, current: &[u128], next: &[u128], ark: &[u128], op_flag: u128, result: &mut [u128]) {
 
         // TODO: use a constant for user stack offset
-        let mut state_part1 = [u128::ZERO; HASH_STATE_WIDTH];
+        let mut state_part1 = [field::ZERO; HASH_STATE_WIDTH];
         state_part1.copy_from_slice(&current[1..(1 + HASH_STATE_WIDTH)]);
-        let mut state_part2 = [u128::ZERO; HASH_STATE_WIDTH];
+        let mut state_part2 = [field::ZERO; HASH_STATE_WIDTH];
         state_part2.copy_from_slice(&next[1..(1 + HASH_STATE_WIDTH)]);
 
         for i in 0..HASH_STATE_WIDTH {
-            state_part1[i] = u128::add(state_part1[i], ark[i]);
+            state_part1[i] = field::add(state_part1[i], ark[i]);
         }
         hasher::apply_sbox(&mut state_part1);
         hasher::apply_mds(&mut state_part1);
@@ -83,21 +83,21 @@ impl HashEvaluator {
         hasher::apply_inv_mds(&mut state_part2);
         hasher::apply_sbox(&mut state_part2);
         for i in 0..HASH_STATE_WIDTH {
-            state_part2[i] = u128::sub(state_part2[i], ark[HASH_STATE_WIDTH + i]);
+            state_part2[i] = field::sub(state_part2[i], ark[HASH_STATE_WIDTH + i]);
         }
 
         let result = &mut result[1..]; // TODO: use constant
         for i in 0..cmp::min(result.len(), HASH_STATE_WIDTH) {
-            let evaluation = u128::sub(state_part2[i], state_part1[i]);
-            result[i] = u128::add(result[i], u128::mul(evaluation, op_flag));
+            let evaluation = field::sub(state_part2[i], state_part1[i]);
+            result[i] = field::add(result[i], field::mul(evaluation, op_flag));
         }
     }
 
     /// Evaluates constraints for stack registers un-affected by hash transition.
     fn eval_rest(&self, current: &[u128], next: &[u128], op_flag: u128, result: &mut [u128]) {
         for i in (1 + HASH_STATE_WIDTH)..result.len() { // TODO: use constant
-            let evaluation = u128::sub(next[i], current[i]);
-            result[i] = u128::add(result[i], u128::mul(evaluation, op_flag));
+            let evaluation = field::sub(next[i], current[i]);
+            result[i] = field::add(result[i], field::mul(evaluation, op_flag));
         }
     }
 }

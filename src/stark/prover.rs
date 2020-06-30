@@ -1,6 +1,6 @@
 use std::{ mem, time::Instant };
 use log::debug;
-use crate::math::{ FiniteField, polynom, fft, F128 };
+use crate::math::{ field, polynom, fft };
 use crate::crypto::{ MerkleTree };
 use super::trace::{ TraceTable, TraceState };
 use super::constraints::{ ConstraintTable, ConstraintPoly, MAX_CONSTRAINT_DEGREE };
@@ -14,8 +14,8 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u128], outputs: &[u128], options:
     let now = Instant::now();
 
     // build LDE domain and LDE twiddles (for FFT evaluation over LDE domain)
-    let lde_root = F128::get_root_of_unity(trace.domain_size());
-    let lde_domain = F128::get_power_series(lde_root, trace.domain_size());
+    let lde_root = field::get_root_of_unity(trace.domain_size());
+    let lde_domain = field::get_power_series(lde_root, trace.domain_size());
     let lde_twiddles = twiddles_from_domain(&lde_domain);
 
     // extend the execution trace registers to LDE domain
@@ -184,7 +184,7 @@ fn evaluations_to_leaves(evaluations: Vec<u128>) -> Vec<[u8; 32]> {
 fn build_composition_poly(trace: &TraceTable, constraint_poly: ConstraintPoly, seed: &[u8; 32]) -> (Vec<u128>, DeepValues)
 {
     // pseudo-randomly selection deep point z and coefficients for the composition
-    let z = F128::prng(*seed);
+    let z = field::prng(*seed);
     let coefficients = CompositionCoefficients::new(*seed);
 
     // divide out deep point from trace polynomials and merge them into a single polynomial

@@ -1,4 +1,4 @@
-use crate::math::{ F128, FiniteField };
+use crate::math::{ field };
 use super::{ opcodes, AssemblyError, HintMap, ExecutionHint };
 
 // CONTROL FLOW OPERATIONS
@@ -445,9 +445,9 @@ fn read_value(op: &[&str], step: usize) -> Result<u128, AssemblyError> {
     };
 
     // make sure the value is a valid field element
-    if result >= F128::MODULUS {
+    if result >= field::MODULUS {
         return Err(AssemblyError::invalid_param_reason(op, step,
-            format!("parameter value must be smaller than {}", F128::MODULUS)));
+            format!("parameter value must be smaller than {}", field::MODULUS)));
     }
 
     return Ok(result);

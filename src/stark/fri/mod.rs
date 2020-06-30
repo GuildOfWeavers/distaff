@@ -33,15 +33,15 @@ pub struct FriLayer {
 // ================================================================================================
 #[cfg(test)]
 mod tests {
-    use crate::math::{ F128, FiniteField, polynom };
+    use crate::math::{ field, polynom };
     use crate::stark::{ ProofOptions, utils::compute_query_positions };
 
     #[test]
     fn prove_verify() {
         let degree: usize = 63;
         let domain_size: usize = 512;
-        let root = F128::get_root_of_unity(domain_size);
-        let domain = F128::get_power_series(root, domain_size);
+        let root = field::get_root_of_unity(domain_size);
+        let domain = field::get_power_series(root, domain_size);
         let options = ProofOptions::default();
 
         let evaluations = build_random_poly_evaluations(domain_size, degree);
@@ -61,8 +61,8 @@ mod tests {
     fn verify_fail() {
         let degree: usize = 63;
         let domain_size: usize = 512;
-        let root = F128::get_root_of_unity(domain_size);
-        let domain = F128::get_power_series(root, domain_size);
+        let root = field::get_root_of_unity(domain_size);
+        let domain = field::get_power_series(root, domain_size);
         let options = ProofOptions::default();
 
         // degree too low 1
@@ -97,7 +97,7 @@ mod tests {
     // TODO: add more tests
 
     fn build_random_poly_evaluations(domain_size: usize, degree: usize) -> Vec<u128> {
-        let mut evaluations = F128::rand_vector(degree + 1);
+        let mut evaluations = field::rand_vector(degree + 1);
         evaluations.resize(domain_size, 0);
         polynom::eval_fft(&mut evaluations, true);
         return evaluations;

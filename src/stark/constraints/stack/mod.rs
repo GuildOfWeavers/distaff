@@ -1,4 +1,4 @@
-use crate::math::{ FiniteField };
+use crate::math::{ field };
 use crate::processor::{ opcodes };
 use crate::stark::{ TraceState };
 use crate::{ NUM_LD_OPS };
@@ -99,12 +99,12 @@ impl Stack {
         // initialize a vector to hold constraint evaluations; this is needed because constraint
         // evaluator functions assume that the stack is at least 8 items deep; while it may
         // actually be smaller than that
-        let mut evaluations = vec![u128::ZERO; current.len()];
+        let mut evaluations = vec![field::ZERO; current.len()];
 
         // control flow operations
         enforce_no_change(&mut evaluations, current, next, op_flags[opcodes::BEGIN as usize]);
         enforce_no_change(&mut evaluations, current, next, op_flags[opcodes::NOOP as usize]);
-        result[0] = u128::add(result[0],
+        result[0] = field::add(result[0],
             enforce_assert(&mut evaluations, current, next, op_flags[opcodes::ASSERT as usize]));
 
         // input operations
@@ -133,28 +133,28 @@ impl Stack {
         enforce_mul(&mut evaluations,       current, next, op_flags[opcodes::MUL as usize]);
         enforce_inv(&mut evaluations,       current, next, op_flags[opcodes::INV as usize]);
         enforce_neg(&mut evaluations,       current, next, op_flags[opcodes::NEG as usize]);
-        result[0] = u128::add(result[0],
+        result[0] = field::add(result[0],
             enforce_not(&mut evaluations,   current, next, op_flags[opcodes::NOT as usize]));
         
         // comparison operations
-        result[0] = u128::add(result[0],
+        result[0] = field::add(result[0],
             enforce_eq(&mut evaluations,      current, next, aux, op_flags[opcodes::EQ as usize]));
-        result[0] = u128::add(result[0],
+        result[0] = field::add(result[0],
             enforce_cmp(&mut evaluations,     current, next, aux, op_flags[opcodes::CMP as usize]));
-        result[0] = u128::add(result[0],
+        result[0] = field::add(result[0],
             enforce_binacc(&mut evaluations,  current, next, aux, op_flags[opcodes::BINACC as usize]));
 
         // conditional selection operations
-        result[0] = u128::add(result[0],
+        result[0] = field::add(result[0],
             enforce_choose(&mut evaluations,  current, next, op_flags[opcodes::CHOOSE as usize]));
-        result[0] = u128::add(result[0],
+        result[0] = field::add(result[0],
             enforce_choose2(&mut evaluations, current, next, op_flags[opcodes::CHOOSE2 as usize]));
 
         // copy evaluations into the result while skipping the aux constraint because it
         // is already updated in the result vector
         let result = &mut result[1..];  // TODO: use constant
         for i in 0..result.len() {
-            result[i] = u128::add(result[i], evaluations[i]);
+            result[i] = field::add(result[i], evaluations[i]);
         }
     }
 }
@@ -167,7 +167,7 @@ impl Stack {
 fn enforce_assert(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) -> u128 {
     let n = next.len() - 1;
     enforce_no_change(&mut result[0..n], &current[1..], &next[0..n], op_flag);
-    return u128::mul(op_flag, u128::sub(u128::ONE, current[0]));
+    return field::mul(op_flag, field::sub(field::ONE, current[0]));
 }
 
 // INPUT OPERATIONS
@@ -309,7 +309,7 @@ fn enforce_add(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u1
 
     let x = current[0];
     let y = current[1];
-    let op_result = u128::add(x, y);
+    let op_result = field::add(x, y);
     result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], op_result));
 
     // ensure that the rest of the stack is shifted left by 1 element
@@ -323,7 +323,7 @@ fn enforce_mul(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u1
 
     let x = current[0];
     let y = current[1];
-    let op_result = u128::mul(x, y);
+    let op_result = field::mul(x, y);
     result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], op_result));
 
     // ensure that the rest of the stack is shifted left by 1 element
@@ -339,7 +339,7 @@ fn enforce_inv(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u1
     // that if x = 0, the constraint will not be satisfied
     let x = current[0];
     let inv_x = next[0];
-    result[0] = agg_op_constraint(result[0], op_flag, are_equal(u128::ONE, u128::mul(inv_x, x)));
+    result[0] = agg_op_constraint(result[0], op_flag, are_equal(field::ONE, field::mul(inv_x, x)));
 
     // ensure nothing changed beyond the first item of the stack 
     enforce_no_change(&mut result[1..], &current[1..], &next[1..], op_flag);
@@ -352,7 +352,7 @@ fn enforce_neg(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u1
     // Constraint for NEG operation is defined as: x + neg(x) = 0
     let x = current[0];
     let neg_x = next[0];
-    result[0] = agg_op_constraint(result[0], op_flag, u128::add(neg_x, x));
+    result[0] = agg_op_constraint(result[0], op_flag, field::add(neg_x, x));
 
     // ensure nothing changed beyond the first item of the stack 
     enforce_no_change(&mut result[1..], &current[1..], &next[1..], op_flag);
@@ -365,12 +365,12 @@ fn enforce_not(evaluations: &mut [u128], current: &[u128], next: &[u128], op_fla
 
     // NOT operation is defined simply as: 1 - x; this means 0 becomes 1, and 1 becomes 0
     let x = current[0];
-    let op_result = u128::sub(u128::ONE, x);
+    let op_result = field::sub(field::ONE, x);
     evaluations[0] = agg_op_constraint(evaluations[0], op_flag, are_equal(next[0], op_result));
 
     // ensure nothing changed beyond the first item of the stack 
     enforce_no_change(&mut evaluations[1..], &current[1..], &next[1..], op_flag);
 
     // we also need to make sure that the operand is binary (i.e. 0 or 1)
-    return u128::mul(op_flag, is_binary(x));
+    return field::mul(op_flag, is_binary(x));
 }

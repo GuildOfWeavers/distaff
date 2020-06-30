@@ -1,4 +1,4 @@
-use crate::{ ProofOptions, opcodes::f128 as opcodes, math::{ FiniteField }, utils::hasher };
+use crate::{ ProofOptions, opcodes::f128 as opcodes, math::field, utils::hasher };
 use super::{ Program, ProgramInputs, };
 
 mod branches;
@@ -147,7 +147,7 @@ fn math_operations() {
     let inputs = ProgramInputs::from_public(&[7, 6, 5, 0, 2, 3]);
     let num_outputs = 2;
 
-    let expected_result = vec![u128::ONE, u128::neg(u128::inv(65))];
+    let expected_result = vec![field::ONE, field::neg(field::inv(65))];
 
     let (outputs, proof) = super::execute(&program, &inputs, num_outputs, &options);
     assert_eq!(expected_result, outputs);

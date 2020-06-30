@@ -1,4 +1,4 @@
-use crate::math::{ FiniteField };
+use crate::math::{ field };
 use crate::{ MAX_REGISTER_COUNT, MAX_PUBLIC_INPUTS, MAX_OUTPUTS };
 use crate::stark::MAX_TRANSITION_CONSTRAINTS;
 
@@ -29,20 +29,20 @@ impl ConstraintCoefficients {
     pub fn new(seed: [u8; 32]) -> ConstraintCoefficients {
 
         // generate a pseudo-random list of coefficients
-        let coefficients = u128::prng_vector(seed, 2 * NUM_CONSTRAINTS);
+        let coefficients = field::prng_vector(seed, 2 * NUM_CONSTRAINTS);
 
         // copy coefficients to their respective segments
         let end_index = 2 * (DECODER_WIDTH + MAX_PUBLIC_INPUTS);
-        let mut i_boundary = [u128::ZERO; 2 * (DECODER_WIDTH + MAX_PUBLIC_INPUTS)];
+        let mut i_boundary = [field::ZERO; 2 * (DECODER_WIDTH + MAX_PUBLIC_INPUTS)];
         i_boundary.copy_from_slice(&coefficients[..end_index]);
 
         let start_index = end_index;
         let end_index = start_index + 2 * (DECODER_WIDTH + MAX_OUTPUTS);
-        let mut f_boundary = [u128::ZERO; 2 * (DECODER_WIDTH + MAX_OUTPUTS)];
+        let mut f_boundary = [field::ZERO; 2 * (DECODER_WIDTH + MAX_OUTPUTS)];
         f_boundary.copy_from_slice(&coefficients[start_index..end_index]);
 
         let start_index = end_index;
-        let mut transition = [u128::ZERO; 2 * MAX_TRANSITION_CONSTRAINTS];
+        let mut transition = [field::ZERO; 2 * MAX_TRANSITION_CONSTRAINTS];
         transition.copy_from_slice(&coefficients[start_index..]);
 
         return ConstraintCoefficients { i_boundary, f_boundary, transition };
@@ -52,19 +52,19 @@ impl ConstraintCoefficients {
 impl CompositionCoefficients {
     pub fn new(seed: [u8; 32]) -> CompositionCoefficients {
         // generate a pseudo-random list of coefficients
-        let coefficients = u128::prng_vector(seed, 1 + 4 * MAX_REGISTER_COUNT + 3);
+        let coefficients = field::prng_vector(seed, 1 + 4 * MAX_REGISTER_COUNT + 3);
 
         // skip the first value because it is used up by deep point z
         let start_index = 1;
 
         // copy coefficients to their respective segments
         let end_index = start_index + 2 * MAX_REGISTER_COUNT;
-        let mut trace1 = [u128::ZERO; 2 * MAX_REGISTER_COUNT];
+        let mut trace1 = [field::ZERO; 2 * MAX_REGISTER_COUNT];
         trace1.copy_from_slice(&coefficients[start_index..end_index]);
 
         let start_index = end_index;
         let end_index = start_index + 2 * MAX_REGISTER_COUNT;
-        let mut trace2 = [u128::ZERO; 2 * MAX_REGISTER_COUNT];
+        let mut trace2 = [field::ZERO; 2 * MAX_REGISTER_COUNT];
         trace2.copy_from_slice(&coefficients[start_index..end_index]);
 
         let index = end_index;

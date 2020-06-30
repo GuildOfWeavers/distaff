@@ -1,4 +1,4 @@
-use crate::math::{ FiniteField, polynom, parallel };
+use crate::math::{ field, polynom, parallel };
 use crate::stark::{ MAX_CONSTRAINT_DEGREE, utils::CompositionCoefficients };
 
 // TYPES AND INTERFACES
@@ -29,7 +29,7 @@ impl ConstraintPoly {
         let domain_size = twiddles.len() * 2;
         assert!(domain_size > self.poly.len(), "domain size must be greater than poly length");
 
-        let mut evaluations = vec![u128::ZERO; domain_size];
+        let mut evaluations = vec![field::ZERO; domain_size];
         evaluations[..self.poly.len()].copy_from_slice(&self.poly);
         polynom::eval_fft_twiddles(&mut evaluations, twiddles, true);
 
@@ -42,7 +42,7 @@ impl ConstraintPoly {
         let z_value = polynom::eval(&self.poly, z);
 
         // compute C(x) = (P(x) - P(z)) / (x - z)
-        self.poly[0] = u128::sub(self.poly[0], z_value);
+        self.poly[0] = field::sub(self.poly[0], z_value);
         polynom::syn_div_in_place(&mut self.poly, z);
 
         // add C(x) * cc into the result

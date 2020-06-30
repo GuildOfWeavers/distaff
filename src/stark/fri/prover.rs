@@ -1,5 +1,5 @@
 use std::mem;
-use crate::math::{ FiniteField, quartic };
+use crate::math::{ field, quartic };
 use crate::crypto::{ MerkleTree };
 use crate::stark::{ ProofOptions };
 
@@ -26,7 +26,7 @@ pub fn reduce(evaluations: &[u128], domain: &[u128], options: &ProofOptions) -> 
         let polys = quartic::interpolate_batch(&xs, &p_values);
 
         // select a pseudo-random x coordinate and evaluate each row polynomial at that x
-        let special_x = u128::prng(*p_tree.root());
+        let special_x = field::prng(*p_tree.root());
         let column = quartic::evaluate_batch(&polys, special_x);
 
         // break the column in a polynomial value matrix for the next layer
@@ -84,7 +84,7 @@ pub fn build_proof(trees: Vec<MerkleTree>, values: Vec<Vec<[u128; 4]>>, position
     let last_tree = &trees[trees.len() - 1];
     let last_values = &values[values.len() - 1];
     let n = last_values.len();
-    let mut remainder = vec![u128::ZERO; n * 4];
+    let mut remainder = vec![field::ZERO; n * 4];
     for i in 0..last_values.len() {
         remainder[i] = last_values[i][0];
         remainder[i + n] = last_values[i][1];

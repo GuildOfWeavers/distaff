@@ -1,6 +1,4 @@
-mod field;
-pub use field::{ FiniteField, prime64::F64, prime128::F128 };
-
+pub mod field;
 pub mod fft;
 pub mod polynom;
 pub mod quartic;

@@ -1,4 +1,4 @@
-use crate::math::{ FiniteField, polynom };
+use crate::math::{ field, polynom };
 use crate::processor::{ opcodes };
 use crate::utils::{ accumulator };
 use crate::stark::{ TraceState };
@@ -89,19 +89,19 @@ impl Decoder
         // zeros (NOOP), otherwise next op_bits must be a binary decomposition of next op_code
         let is_push = current.get_op_flags()[opcodes::PUSH as usize];
         let op_bits_value = combine_bits(next.get_op_bits());
-        let op_code = u128::mul(next.get_op_code(), binary_not(is_push));
-        result[5] = u128::sub(op_code, op_bits_value);
+        let op_code = field::mul(next.get_op_code(), binary_not(is_push));
+        result[5] = field::sub(op_code, op_bits_value);
     }
 }
 
 // HELPER FUNCTIONS
 // ================================================================================================
 fn is_binary(v: u128) -> u128 {
-    return u128::sub(u128::mul(v, v), v);
+    return field::sub(field::mul(v, v), v);
 }
 
 fn binary_not(v: u128) -> u128 {
-    return u128::sub(u128::ONE, v);
+    return field::sub(field::ONE, v);
 }
 
 fn combine_bits(op_bits: &[u128]) -> u128 {
@@ -109,7 +109,7 @@ fn combine_bits(op_bits: &[u128]) -> u128 {
     let mut power_of_two = 1;
     for i in 1..op_bits.len() {
         power_of_two = power_of_two << 1;
-        value = u128::add(value, u128::mul(op_bits[i], power_of_two));
+        value = field::add(value, field::mul(op_bits[i], power_of_two));
     }
     return value;
 }
@@ -135,7 +135,7 @@ impl AccEvaluator {
         let cycle_length = ACC_CYCLE_LENGTH * extension_factor;
         let mut ark_values = Vec::with_capacity(cycle_length);
         for i in 0..cycle_length {
-            ark_values.push([u128::ZERO; 2 * ACC_STATE_WIDTH]);
+            ark_values.push([field::ZERO; 2 * ACC_STATE_WIDTH]);
             for j in 0..(2 * ACC_STATE_WIDTH) {
                 ark_values[i][j] = ark_evaluations[j][i];
             }
@@ -158,9 +158,9 @@ impl AccEvaluator {
     pub fn evaluate_at(&self, current: &[u128], next: &[u128], op_code: u128, x: u128, result: &mut [u128]) {
 
         // determine round constants at the specified x coordinate
-        let num_cycles = u128::from_usize(self.trace_length / ACC_CYCLE_LENGTH);
-        let x = u128::exp(x, num_cycles);
-        let mut ark = [u128::ZERO; 2 * ACC_STATE_WIDTH];
+        let num_cycles = (self.trace_length / ACC_CYCLE_LENGTH) as u128;
+        let x = field::exp(x, num_cycles);
+        let mut ark = [field::ZERO; 2 * ACC_STATE_WIDTH];
         for i in 0..ark.len() {
             ark[i] = polynom::eval(&self.ark_polys[i], x);
         }
@@ -174,31 +174,31 @@ impl AccEvaluator {
     /// the first and the second half of the round.
     fn acc_opcode(&self, current: &[u128], next: &[u128], ark: &[u128], op_code: u128, result: &mut [u128]) {
 
-        let mut state_part1 = [u128::ZERO; ACC_STATE_WIDTH];
+        let mut state_part1 = [field::ZERO; ACC_STATE_WIDTH];
         state_part1.copy_from_slice(current);
-        let mut state_part2 = [u128::ZERO; ACC_STATE_WIDTH];
+        let mut state_part2 = [field::ZERO; ACC_STATE_WIDTH];
         state_part2.copy_from_slice(next);
 
         // first half of Rescue round
         for i in 0..ACC_STATE_WIDTH {
-            state_part1[i] = u128::add(state_part1[i], ark[i]);
+            state_part1[i] = field::add(state_part1[i], ark[i]);
         }
         accumulator::apply_sbox(&mut state_part1);
         accumulator::apply_mds(&mut state_part1);
 
         // op_code injection
-        state_part1[0] = u128::add(state_part1[0], u128::mul(state_part1[2], op_code));
-        state_part1[1] = u128::mul(state_part1[1], u128::add(state_part1[3], op_code));
+        state_part1[0] = field::add(state_part1[0], field::mul(state_part1[2], op_code));
+        state_part1[1] = field::mul(state_part1[1], field::add(state_part1[3], op_code));
         
         // second half of Rescue round
         accumulator::apply_inv_mds(&mut state_part2);
         accumulator::apply_sbox(&mut state_part2);
         for i in 0..ACC_STATE_WIDTH {
-            state_part2[i] = u128::sub(state_part2[i], ark[ACC_STATE_WIDTH + i]);
+            state_part2[i] = field::sub(state_part2[i], ark[ACC_STATE_WIDTH + i]);
         }
 
         for i in 0..ACC_STATE_WIDTH {
-            result[i] = u128::sub(state_part2[i], state_part1[i]);
+            result[i] = field::sub(state_part2[i], state_part1[i]);
         }
     }
 }

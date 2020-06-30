@@ -1,6 +1,6 @@
 use std::fmt;
 use std::cmp;
-use crate::math::{ FiniteField };
+use crate::math::field;
 use crate::{
     MIN_STACK_DEPTH,
     DECODER_WIDTH,
@@ -29,9 +29,9 @@ impl TraceState {
         let num_registers = DECODER_WIDTH + cmp::max(stack_depth, MIN_STACK_DEPTH);
         
         return TraceState {
-            registers   : vec![u128::ZERO; num_registers],
+            registers   : vec![field::ZERO; num_registers],
             state_width : state_width,
-            op_flags    : [u128::ZERO; NUM_LD_OPS],
+            op_flags    : [field::ZERO; NUM_LD_OPS],
             op_flags_set: false
         };
     }
@@ -41,13 +41,13 @@ impl TraceState {
         let stack_depth = state_width - DECODER_WIDTH;
 
         if stack_depth < MIN_STACK_DEPTH {
-            state.resize(state.len() + (MIN_STACK_DEPTH - stack_depth), u128::ZERO);
+            state.resize(state.len() + (MIN_STACK_DEPTH - stack_depth), field::ZERO);
         }
 
         return TraceState {
             registers   : state,
             state_width : state_width,
-            op_flags    : [u128::ZERO; NUM_LD_OPS],
+            op_flags    : [field::ZERO; NUM_LD_OPS],
             op_flags_set: false
         };
     }
@@ -111,7 +111,7 @@ impl TraceState {
         // TODO: needs to be optimized
 
         // initialize op_flags to 1
-        let mut op_flags = [u128::ONE; NUM_LD_OPS];
+        let mut op_flags = [field::ONE; NUM_LD_OPS];
 
         // expand the bits
         let op_bits = self.get_op_bits();
@@ -119,13 +119,13 @@ impl TraceState {
             
             let segment_length = usize::pow(2, (i + 1) as u32);
 
-            let inv_bit = u128::sub(u128::ONE, op_bits[i]);
+            let inv_bit = field::sub(field::ONE, op_bits[i]);
             for j in 0..(segment_length / 2) {
-                op_flags[j] = u128::mul(op_flags[j], inv_bit);
+                op_flags[j] = field::mul(op_flags[j], inv_bit);
             }
 
             for j in (segment_length / 2)..segment_length {
-                op_flags[j] = u128::mul(op_flags[j], op_bits[i]);
+                op_flags[j] = field::mul(op_flags[j], op_bits[i]);
             }
 
             for j in (segment_length..NUM_LD_OPS).step_by(segment_length) {

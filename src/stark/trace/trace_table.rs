@@ -1,4 +1,4 @@
-use crate::math::{ FiniteField, fft, polynom, parallel };
+use crate::math::{ field, fft, polynom, parallel };
 use crate::crypto::{ MerkleTree, HashFunction };
 use crate::stark::{ CompositionCoefficients, utils };
 use crate::utils::{ uninit_vector, filled_vector, as_bytes };
@@ -47,7 +47,7 @@ impl TraceTable {
             self.unextended_length() - 1
         };
 
-        let mut result = vec![u128::ZERO; PROG_HASH_RANGE.end - PROG_HASH_RANGE.start];
+        let mut result = vec![field::ZERO; PROG_HASH_RANGE.end - PROG_HASH_RANGE.start];
         for (i, j) in PROG_HASH_RANGE.enumerate() {
             result[i] = self.registers[j][last_step];
         }
@@ -123,7 +123,7 @@ impl TraceTable {
         assert!(twiddles.len() * 2 == self.domain_size(), "invalid number of twiddles");
 
         // build inverse twiddles needed for FFT interpolation
-        let root = u128::get_root_of_unity(self.unextended_length());
+        let root = field::get_root_of_unity(self.unextended_length());
         let inv_twiddles = fft::get_inv_twiddles(root, self.unextended_length());
         
         // move register traces into polys
@@ -137,7 +137,7 @@ impl TraceTable {
             polynom::interpolate_fft_twiddles(poly, &inv_twiddles, true);
             
             // allocate space to hold extended evaluations and copy the polynomial into it
-            let mut register = vec![u128::ZERO; domain_size];
+            let mut register = vec![field::ZERO; domain_size];
             register[..poly.len()].copy_from_slice(&poly);
             
             // evaluate the polynomial over extended domain
@@ -150,7 +150,7 @@ impl TraceTable {
     /// a distinct leaf in the tree; all registers at a given step are hashed together to
     /// form a single leaf value.
     pub fn build_merkle_tree(&self, hash: HashFunction) -> MerkleTree {
-        let mut trace_state = vec![u128::ZERO; self.register_count()];
+        let mut trace_state = vec![field::ZERO; self.register_count()];
         let mut hashed_states = uninit_vector::<[u8; 32]>(self.domain_size());
         // TODO: this loop should be parallelized
         for i in 0..self.domain_size() {
@@ -186,29 +186,29 @@ impl TraceTable {
         let trace_length = self.unextended_length();
         assert!(self.is_extended(), "trace table has not been extended yet");
         
-        let g = u128::get_root_of_unity(trace_length);
-        let next_z = u128::mul(z, g);
+        let g = field::get_root_of_unity(trace_length);
+        let next_z = field::mul(z, g);
 
         // compute state of registers at deep points z and z * g
         let trace_state1 = self.eval_polys_at(z);
         let trace_state2 = self.eval_polys_at(next_z);
 
-        let mut t1_composition = vec![u128::ZERO; trace_length];
-        let mut t2_composition = vec![u128::ZERO; trace_length];
+        let mut t1_composition = vec![field::ZERO; trace_length];
+        let mut t2_composition = vec![field::ZERO; trace_length];
 
         // combine trace polynomials into 2 composition polynomials T1(x) and T2(x)
         for i in 0..self.polys.len() {
             // compute T1(x) = (T(x) - T(z)), multiply it by a pseudo-random coefficient,
             // and add the result into composition polynomial
             parallel::mul_acc(&mut t1_composition, &self.polys[i], cc.trace1[i], 1);
-            let adjusted_tz = u128::mul(trace_state1[i], cc.trace1[i]);
-            t1_composition[0] = u128::sub(t1_composition[0], adjusted_tz);
+            let adjusted_tz = field::mul(trace_state1[i], cc.trace1[i]);
+            t1_composition[0] = field::sub(t1_composition[0], adjusted_tz);
 
             // compute T2(x) = (T(x) - T(z * g)), multiply it by a pseudo-random
             // coefficient, and add the result into composition polynomial
             parallel::mul_acc(&mut t2_composition, &self.polys[i], cc.trace2[i], 1);
-            let adjusted_tz = u128::mul(trace_state2[i], cc.trace2[i]);
-            t2_composition[0] = u128::sub(t2_composition[0], adjusted_tz);
+            let adjusted_tz = field::mul(trace_state2[i], cc.trace2[i]);
+            t2_composition[0] = field::sub(t2_composition[0], adjusted_tz);
         }
 
         // divide the two composition polynomials by (x - z) and (x - z * g)
@@ -220,7 +220,7 @@ impl TraceTable {
         // adjust the degree of the polynomial to match the degree parameter by computing
         // C(x) = T(x) * k_1 + T(x) * x^incremental_degree * k_2
         let poly_size = utils::get_composition_degree(trace_length).next_power_of_two();
-        let mut composition_poly = filled_vector(poly_size, self.domain_size(), u128::ZERO);
+        let mut composition_poly = filled_vector(poly_size, self.domain_size(), field::ZERO);
         let incremental_degree = utils::get_incremental_trace_degree(trace_length);
         // this is equivalent to T(x) * k_1
         parallel::mul_acc(
@@ -244,7 +244,7 @@ impl TraceTable {
 #[cfg(test)]
 mod tests {
 
-    use crate::math::{ F128, FiniteField, polynom, parallel, fft };
+    use crate::math::{ field, polynom, parallel, fft };
     use crate::{ crypto::hash::blake3, processor::opcodes::f128 as opcodes };
     use crate::programs::{ Program, ProgramInputs };
     use crate::processor::{ execute };
@@ -255,16 +255,16 @@ mod tests {
     #[test]
     fn eval_polys_at() {
         let mut trace = build_trace_table();
-        let lde_root = F128::get_root_of_unity(trace.domain_size());
+        let lde_root = field::get_root_of_unity(trace.domain_size());
         trace.extend(&fft::get_twiddles(lde_root, trace.domain_size()));
 
-        let g = F128::get_root_of_unity(trace.unextended_length());
+        let g = field::get_root_of_unity(trace.unextended_length());
 
         let v1 = trace.eval_polys_at(g);
         let s1 = trace.get_state(1 * EXT_FACTOR);
         assert_eq!(v1, s1.registers());
 
-        let v2 = trace.eval_polys_at(F128::exp(g, 2));
+        let v2 = trace.eval_polys_at(field::exp(g, 2));
         let s2 = trace.get_state(2 * EXT_FACTOR);
         assert_eq!(v2, s2.registers());
     }
@@ -273,17 +273,17 @@ mod tests {
     fn get_composition_poly() {
 
         let mut trace = build_trace_table();
-        let lde_root = F128::get_root_of_unity(trace.domain_size());
+        let lde_root = field::get_root_of_unity(trace.domain_size());
         trace.extend(&fft::get_twiddles(lde_root, trace.domain_size()));
 
         // compute trace composition polynomial
         let t_tree = trace.build_merkle_tree(blake3);
-        let z = F128::prng(*t_tree.root());
+        let z = field::prng(*t_tree.root());
         let cc = CompositionCoefficients::new(*t_tree.root());
         let target_degree = (trace.unextended_length() - 2) * MAX_CONSTRAINT_DEGREE - 1;
 
-        let g = F128::get_root_of_unity(trace.unextended_length());
-        let zg = F128::mul(z, g);
+        let g = field::get_root_of_unity(trace.unextended_length());
+        let zg = field::mul(z, g);
 
         let (composition_poly, ..) = trace.get_composition_poly(z, &cc);
         let mut actual_evaluations = composition_poly.clone();
@@ -292,8 +292,8 @@ mod tests {
 
         // compute expected evaluations
         let domain_size = target_degree.next_power_of_two();
-        let domain_root = F128::get_root_of_unity(domain_size);
-        let domain = F128::get_power_series(domain_root, domain_size);
+        let domain_root = field::get_root_of_unity(domain_size);
+        let domain = field::get_power_series(domain_root, domain_size);
 
         let mut expected_evaluations = vec![0; domain_size];
 
@@ -307,7 +307,7 @@ mod tests {
             polynom::eval_fft(&mut trace_poly, true);
             parallel::sub_const_in_place(&mut trace_poly, tz[i], 1);
             for j in 0..trace_poly.len() {
-                trace_poly[j] = F128::div(trace_poly[j], F128::sub(domain[j], z));
+                trace_poly[j] = field::div(trace_poly[j], field::sub(domain[j], z));
             }
             parallel::mul_acc(&mut expected_evaluations, &trace_poly, cc.trace1[i], 1);
 
@@ -317,7 +317,7 @@ mod tests {
             polynom::eval_fft(&mut trace_poly, true);
             parallel::sub_const_in_place(&mut trace_poly, tzg[i], 1);
             for j in 0..trace_poly.len() {
-                trace_poly[j] = F128::div(trace_poly[j], F128::sub(domain[j], zg));
+                trace_poly[j] = field::div(trace_poly[j], field::sub(domain[j], zg));
             }
             parallel::mul_acc(&mut expected_evaluations, &trace_poly, cc.trace2[i], 1);
         }
@@ -326,11 +326,11 @@ mod tests {
         let incremental_degree = target_degree - (trace.unextended_length() - 2);
         for i in 0..domain.len() {
             let y = expected_evaluations[i];
-            let y1 = F128::mul(y, cc.t1_degree);
+            let y1 = field::mul(y, cc.t1_degree);
 
-            let xp = F128::exp(domain[i], F128::from_usize(incremental_degree));
-            let y2 = F128::mul(F128::mul(y, xp), cc.t2_degree);
-            expected_evaluations[i] = F128::add(y1, y2);
+            let xp = field::exp(domain[i], incremental_degree as u128);
+            let y2 = field::mul(field::mul(y, xp), cc.t2_degree);
+            expected_evaluations[i] = field::add(y1, y2);
         }
 
         assert_eq!(expected_evaluations, actual_evaluations);

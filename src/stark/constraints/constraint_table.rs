@@ -1,4 +1,4 @@
-use crate::math::{ FiniteField, parallel, fft, polynom };
+use crate::math::{ field, parallel, fft, polynom };
 use crate::stark::{ TraceTable, TraceState };
 use crate::utils::{ uninit_vector };
 use super::{ ConstraintEvaluator, ConstraintPoly };
@@ -53,7 +53,7 @@ impl ConstraintTable {
     /// polynomials into a single polynomial using pseudo-random linear combination.
     pub fn combine_polys(mut self) -> ConstraintPoly {
 
-        let combination_root = u128::get_root_of_unity(self.evaluation_domain_size());
+        let combination_root = field::get_root_of_unity(self.evaluation_domain_size());
         let inv_twiddles = fft::get_inv_twiddles(combination_root, self.evaluation_domain_size());
         
         let mut combined_poly = uninit_vector(self.evaluation_domain_size());
@@ -62,7 +62,7 @@ impl ConstraintTable {
         // interpolate initial step boundary constraint combination into a polynomial, divide the 
         // polynomial by Z(x) = (x - 1), and add it to the result
         polynom::interpolate_fft_twiddles(&mut self.i_evaluations, &inv_twiddles, true);
-        polynom::syn_div_in_place(&mut self.i_evaluations, u128::ONE);
+        polynom::syn_div_in_place(&mut self.i_evaluations, field::ONE);
         combined_poly.copy_from_slice(&self.i_evaluations);
 
         // 2 ----- boundary constraints for the final step ----------------------------------------

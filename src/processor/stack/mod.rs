@@ -1,4 +1,4 @@
-use crate::math::{ FiniteField, F128 };
+use crate::math::{ field };
 use crate::utils::{ filled_vector, hasher };
 use crate::{ HASH_STATE_WIDTH, MIN_STACK_DEPTH, MAX_STACK_DEPTH };
 use super::{ ProgramInputs, opcodes, ExecutionHint };
@@ -29,7 +29,7 @@ impl Stack {
     /// Returns a new Stack with enough memory allocated for each register to hold trace lengths
     /// of `init_trace_length` steps. Register traces will be expanded dynamically if the number
     /// of actual steps exceeds this initial setting.
-    pub fn new(inputs: &ProgramInputs<u128>, init_trace_length: usize) -> Stack {
+    pub fn new(inputs: &ProgramInputs, init_trace_length: usize) -> Stack {
 
         // allocate space for user register traces and initialize the first state with
         // public inputs
@@ -37,7 +37,7 @@ impl Stack {
         let init_stack_depth = std::cmp::max(public_inputs.len(), MIN_USER_STACK_DEPTH);
         let mut user_registers: Vec<Vec<u128>> = Vec::with_capacity(init_stack_depth);
         for i in 0..init_stack_depth {
-            let mut register = vec![F128::ZERO; init_trace_length];
+            let mut register = vec![field::ZERO; init_trace_length];
             if i < public_inputs.len() { 
                 register[0] = public_inputs[i];
             }
@@ -45,7 +45,7 @@ impl Stack {
         }
 
         // allocate space for aux stack register
-        let aux_register = vec![F128::ZERO; init_trace_length];
+        let aux_register = vec![field::ZERO; init_trace_length];
 
         // reverse secret inputs so that they are consumed in FIFO order
         let [secret_inputs_a, secret_inputs_b] = inputs.get_secret_inputs();
@@ -144,11 +144,11 @@ impl Stack {
     fn op_assert(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
         let value = self.user_registers[0][step];
-        assert!(value == F128::ONE, "ASSERT failed at step {}", step);
+        assert!(value == field::ONE, "ASSERT failed at step {}", step);
         self.shift_left(step, 1, 1);
     }
 
-    fn op_push(&mut self, step: usize, value: F128) {
+    fn op_push(&mut self, step: usize, value: u128) {
         self.shift_right(step, 0, 1);
         self.user_registers[0][step + 1] = value;
     }
@@ -194,8 +194,8 @@ impl Stack {
 
     fn op_pad2(&mut self, step: usize) {
         self.shift_right(step, 0, 2);
-        self.user_registers[0][step + 1] = F128::ZERO;
-        self.user_registers[1][step + 1] = F128::ZERO;
+        self.user_registers[0][step + 1] = field::ZERO;
+        self.user_registers[1][step + 1] = field::ZERO;
     }
 
     fn op_drop(&mut self, step: usize) {
@@ -262,10 +262,10 @@ impl Stack {
     fn op_choose(&mut self, step: usize) {
         assert!(self.depth >= 3, "stack underflow at step {}", step);
         let condition = self.user_registers[2][step];
-        if condition == F128::ONE {
+        if condition == field::ONE {
             self.user_registers[0][step + 1] = self.user_registers[0][step];
         }
-        else if condition == F128::ZERO {
+        else if condition == field::ZERO {
             self.user_registers[0][step + 1] = self.user_registers[1][step];
         }
         else {
@@ -277,11 +277,11 @@ impl Stack {
     fn op_choose2(&mut self, step: usize) {
         assert!(self.depth >= 6, "stack underflow at step {}", step);
         let condition = self.user_registers[4][step];
-        if condition == F128::ONE {
+        if condition == field::ONE {
             self.user_registers[0][step + 1] = self.user_registers[0][step];
             self.user_registers[1][step + 1] = self.user_registers[1][step];
         }
-        else if condition == F128::ZERO {
+        else if condition == field::ZERO {
             self.user_registers[0][step + 1] = self.user_registers[2][step];
             self.user_registers[1][step + 1] = self.user_registers[3][step];
         }
@@ -295,7 +295,7 @@ impl Stack {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
         let x = self.user_registers[0][step];
         let y = self.user_registers[1][step];
-        self.user_registers[0][step + 1] = F128::add(x, y);
+        self.user_registers[0][step + 1] = field::add(x, y);
         self.shift_left(step, 2, 1);
     }
 
@@ -303,30 +303,30 @@ impl Stack {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
         let x = self.user_registers[0][step];
         let y = self.user_registers[1][step];
-        self.user_registers[0][step + 1] = F128::mul(x, y);
+        self.user_registers[0][step + 1] = field::mul(x, y);
         self.shift_left(step, 2, 1);
     }
 
     fn op_inv(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
         let x = self.user_registers[0][step];
-        assert!(x != F128::ZERO, "cannot compute INV of {} at step {}", F128::ZERO, step);
-        self.user_registers[0][step + 1] = F128::inv(x);
+        assert!(x != field::ZERO, "cannot compute INV of {} at step {}", field::ZERO, step);
+        self.user_registers[0][step + 1] = field::inv(x);
         self.copy_state(step, 1);
     }
 
     fn op_neg(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
         let x = self.user_registers[0][step];
-        self.user_registers[0][step + 1] = F128::neg(x);
+        self.user_registers[0][step + 1] = field::neg(x);
         self.copy_state(step, 1);
     }
 
     fn op_not(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
         let x = self.user_registers[0][step];
-        assert!(x == F128::ZERO || x == F128::ONE, "cannot compute NOT of a non-binary value at step {}", step);
-        self.user_registers[0][step + 1] = F128::sub(F128::ONE, x);
+        assert!(x == field::ZERO || x == field::ONE, "cannot compute NOT of a non-binary value at step {}", step);
+        self.user_registers[0][step + 1] = field::sub(field::ONE, x);
         self.copy_state(step, 1);
     }
 
@@ -335,12 +335,12 @@ impl Stack {
         let x = self.user_registers[0][step];
         let y = self.user_registers[1][step];
         if x == y {
-            self.aux_register[step] = F128::ONE;
-            self.user_registers[0][step + 1] = F128::ONE;
+            self.aux_register[step] = field::ONE;
+            self.user_registers[0][step + 1] = field::ONE;
         } else {
-            let diff = F128::sub(x, y);
-            self.aux_register[step] = F128::inv(diff);
-            self.user_registers[0][step + 1] = F128::ZERO;
+            let diff = field::sub(x, y);
+            self.aux_register[step] = field::inv(diff);
+            self.user_registers[0][step + 1] = field::ZERO;
         }
         self.shift_left(step, 2, 1);
     }
@@ -368,22 +368,22 @@ impl Stack {
 
         // get next bits of a and b values from the tapes
         let a_bit = self.tape_a.pop().unwrap();
-        assert!(a_bit == F128::ZERO || a_bit == F128::ONE,
+        assert!(a_bit == field::ZERO || a_bit == field::ONE,
             "expected binary input at step {} but received: {}", step, a_bit);
         let b_bit = self.tape_b.pop().unwrap();
-        assert!(b_bit == F128::ZERO || b_bit == F128::ONE,
+        assert!(b_bit == field::ZERO || b_bit == field::ONE,
             "expected binary input at step {} but received: {}", step, b_bit);
 
         // determine which bit is greater
-        let bit_gt = F128::mul(a_bit, F128::sub(F128::ONE, b_bit));
-        let bit_lt = F128::mul(b_bit, F128::sub(F128::ONE, a_bit));
+        let bit_gt = field::mul(a_bit, field::sub(field::ONE, b_bit));
+        let bit_lt = field::mul(b_bit, field::sub(field::ONE, a_bit));
 
         // compute current power of 2 for binary decomposition
         let power_of_two = self.user_registers[0][step];
         assert!(power_of_two.is_power_of_two(),
             "expected top of the stack at step {} to be a power of 2, but received {}", step, power_of_two);
         let next_power_of_two = if power_of_two == 1 {
-            F128::div(power_of_two, F128::from_usize(2))
+            field::div(power_of_two, 2) // TODO: replace with shift
         }
         else {
             power_of_two >> 1
@@ -392,17 +392,17 @@ impl Stack {
         // determine if the result of comparison is already known
         let gt = self.user_registers[3][step];
         let lt = self.user_registers[4][step];
-        let not_set = F128::mul(F128::sub(F128::ONE, gt), F128::sub(F128::ONE, lt));
+        let not_set = field::mul(field::sub(field::ONE, gt), field::sub(field::ONE, lt));
 
         // update the next state of the computation
         self.aux_register[step] = not_set;
         self.user_registers[0][step + 1] = next_power_of_two;
         self.user_registers[1][step + 1] = a_bit;
         self.user_registers[2][step + 1] = b_bit;
-        self.user_registers[3][step + 1] = F128::add(gt, F128::mul(bit_gt, not_set));
-        self.user_registers[4][step + 1] = F128::add(lt, F128::mul(bit_lt, not_set));
-        self.user_registers[5][step + 1] = F128::add(self.user_registers[5][step], F128::mul(b_bit, power_of_two));
-        self.user_registers[6][step + 1] = F128::add(self.user_registers[6][step], F128::mul(a_bit, power_of_two));
+        self.user_registers[3][step + 1] = field::add(gt, field::mul(bit_gt, not_set));
+        self.user_registers[4][step + 1] = field::add(lt, field::mul(bit_lt, not_set));
+        self.user_registers[5][step + 1] = field::add(self.user_registers[5][step], field::mul(b_bit, power_of_two));
+        self.user_registers[6][step + 1] = field::add(self.user_registers[6][step], field::mul(a_bit, power_of_two));
 
         self.copy_state(step, 7);
     }
@@ -427,7 +427,7 @@ impl Stack {
 
         // get the next bit of the value from tape A
         let bit = self.tape_a.pop().unwrap();
-        assert!(bit == F128::ZERO || bit == F128::ONE,
+        assert!(bit == field::ZERO || bit == field::ONE,
             "expected binary input at step {} but received: {}", step, bit);
 
         // compute current power of 2 for binary decomposition
@@ -435,7 +435,7 @@ impl Stack {
         assert!(power_of_two.is_power_of_two(),
             "expected top of the stack at step {} to be a power of 2, but received {}", step, power_of_two);
         let next_power_of_two = if power_of_two == 1 {
-                F128::div(power_of_two, F128::from_usize(2))
+                field::div(power_of_two, 2) // TODO: replace with shift
             }
             else {
                 power_of_two >> 1
@@ -446,7 +446,7 @@ impl Stack {
         // update the next state of the computation
         self.aux_register[step] = bit;
         self.user_registers[0][step + 1] = next_power_of_two;
-        self.user_registers[1][step + 1] = F128::add(acc, F128::mul(bit, power_of_two));
+        self.user_registers[1][step + 1] = field::add(acc, field::mul(bit, power_of_two));
 
         self.copy_state(step, 2);
     }
@@ -495,7 +495,7 @@ impl Stack {
 
         // set all "shifted-in" slots to 0
         for i in (self.depth - pos_count)..self.depth {
-            self.user_registers[i][step + 1] = F128::ZERO;
+            self.user_registers[i][step + 1] = field::ZERO;
         }
 
         // stack depth has been reduced by pos_count
@@ -525,7 +525,7 @@ impl Stack {
         let trace_length = self.user_registers[0].len();
         let trace_capacity = self.user_registers[0].capacity();
         for _ in 0..num_registers {
-            let register = filled_vector(trace_length, trace_capacity, F128::ZERO);
+            let register = filled_vector(trace_length, trace_capacity, field::ZERO);
             self.user_registers.push(register);
         }
     }

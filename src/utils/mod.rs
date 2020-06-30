@@ -20,7 +20,7 @@ pub fn filled_vector<T: Copy>(length: usize, capacity: usize, value: T) -> Vec<T
 }
 
 #[cfg(test)]
-pub fn remove_leading_zeros(values: &[u64]) -> Vec<u64> {
+pub fn remove_leading_zeros(values: &[u128]) -> Vec<u128> {
     for i in (0..values.len()).rev() {
         if values[i] != 0 {
             return values[0..(i + 1)].to_vec();

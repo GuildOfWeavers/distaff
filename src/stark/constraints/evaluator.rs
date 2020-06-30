@@ -1,5 +1,5 @@
 use std::mem;
-use crate::math::{ FiniteField };
+use crate::math::{ field };
 use crate::processor::{ opcodes };
 use crate::stark::{ StarkProof, TraceTable, TraceState, ConstraintCoefficients };
 use crate::utils::{ uninit_vector };
@@ -118,8 +118,8 @@ impl Evaluator {
     }
 
     pub fn get_x_at_last_step(&self) -> u128 {
-        let trace_root = u128::get_root_of_unity(self.trace_length());
-        return u128::exp(trace_root, u128::from_usize(self.trace_length() - 1));
+        let trace_root = field::get_root_of_unity(self.trace_length());
+        return field::exp(trace_root, (self.trace_length() - 1) as u128);
     }
 
     // CONSTRAINT EVALUATORS
@@ -131,7 +131,7 @@ impl Evaluator {
     pub fn evaluate_transition(&self, current: &TraceState, next: &TraceState, x: u128, step: usize) -> u128 {
         
         // evaluate transition constraints
-        let mut evaluations = vec![u128::ZERO; self.t_constraint_num];
+        let mut evaluations = vec![field::ZERO; self.t_constraint_num];
         self.decoder.evaluate(&current, &next, step, &mut evaluations);
         self.stack.evaluate(&current, &next, step, &mut evaluations[self.decoder.constraint_count()..]);
 
@@ -144,9 +144,9 @@ impl Evaluator {
         if self.should_evaluate_to_zero_at(step) {
             let step = step / self.extension_factor;
             for i in 0..evaluations.len() {
-                assert!(evaluations[i] == u128::ZERO, "transition constraint at step {} were not satisfied", step);
+                assert!(evaluations[i] == field::ZERO, "transition constraint at step {} were not satisfied", step);
             }
-            return u128::ZERO;
+            return field::ZERO;
         }
 
         // compute a pseudo-random linear combination of all transition constraints
@@ -158,7 +158,7 @@ impl Evaluator {
     /// in the filed (not just in the evaluation domain). However, it is also much slower.
     pub fn evaluate_transition_at(&self, current: &TraceState, next: &TraceState, x: u128) -> u128 {
         // evaluate transition constraints
-        let mut evaluations = vec![u128::ZERO; self.t_constraint_num];
+        let mut evaluations = vec![field::ZERO; self.t_constraint_num];
         self.decoder.evaluate_at(&current, &next, x, &mut evaluations);
         self.stack.evaluate_at(&current, &next, x, &mut evaluations[self.decoder.constraint_count()..]);
 
@@ -173,87 +173,87 @@ impl Evaluator {
     pub fn evaluate_boundaries(&self, current: &TraceState, x: u128) -> (u128, u128) {
         
         // compute degree adjustment factor
-        let xp = u128::exp(x, self.b_degree_adj);
+        let xp = field::exp(x, self.b_degree_adj);
 
         // 1 ----- compute combination of boundary constraints for the first step ------------------
-        let mut i_result = u128::ZERO;
-        let mut result_adj = u128::ZERO;
+        let mut i_result = field::ZERO;
+        let mut result_adj = field::ZERO;
 
         let cc = self.coefficients.i_boundary;
         let mut cc_idx = 0;
 
         // make sure op_code and ob_bits are set to BEGIN
         let op_code = current.get_op_code();
-        let val = u128::sub(op_code, u128::from(opcodes::BEGIN));
-        i_result = u128::add(i_result, u128::mul(val, cc[cc_idx]));
-        result_adj = u128::add(result_adj, u128::mul(val, cc[cc_idx]));
+        let val = field::sub(op_code, opcodes::BEGIN as u128);
+        i_result = field::add(i_result, field::mul(val, cc[cc_idx]));
+        result_adj = field::add(result_adj, field::mul(val, cc[cc_idx]));
 
         let op_bits = current.get_op_bits();
         for i in 0..op_bits.len() {
             cc_idx += 2;
-            let val = u128::sub(op_bits[i], u128::ONE);
-            i_result = u128::add(i_result, u128::mul(val, cc[cc_idx]));
-            result_adj = u128::add(result_adj, u128::mul(val, cc[cc_idx + 1]));
+            let val = field::sub(op_bits[i], field::ONE);
+            i_result = field::add(i_result, field::mul(val, cc[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
         }
 
         // make sure operation accumulator registers are set to zeros 
         let op_acc = current.get_op_acc();
         for i in 0..op_acc.len() {
             cc_idx += 2;
-            i_result = u128::add(i_result, u128::mul(op_acc[i], cc[cc_idx]));
-            result_adj = u128::add(result_adj, u128::mul(op_acc[i], cc[cc_idx + 1]));
+            i_result = field::add(i_result, field::mul(op_acc[i], cc[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(op_acc[i], cc[cc_idx + 1]));
         }
 
         // make sure stack registers are set to inputs
         let user_stack = current.get_user_stack();
         for i in 0..self.inputs.len() {
             cc_idx += 2;
-            let val = u128::sub(user_stack[i], self.inputs[i]);
-            i_result = u128::add(i_result, u128::mul(val, cc[cc_idx]));
-            result_adj = u128::add(result_adj, u128::mul(val, cc[cc_idx + 1]));
+            let val = field::sub(user_stack[i], self.inputs[i]);
+            i_result = field::add(i_result, field::mul(val, cc[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
         }
 
         // raise the degree of adjusted terms and sum all the terms together
-        i_result = u128::add(i_result, u128::mul(result_adj, xp));
+        i_result = field::add(i_result, field::mul(result_adj, xp));
 
         // 2 ----- compute combination of boundary constraints for the last step -------------------
-        let mut f_result = u128::ZERO;
-        let mut result_adj = u128::ZERO;
+        let mut f_result = field::ZERO;
+        let mut result_adj = field::ZERO;
 
         let cc = self.coefficients.f_boundary;
         let mut cc_idx = 0;
 
         // make sure op_code and op_bits are set to NOOP
         let op_code = current.get_op_code();
-        f_result = u128::add(f_result, u128::mul(op_code, cc[cc_idx]));
-        result_adj = u128::add(result_adj, u128::mul(op_code, cc[cc_idx + 1]));
+        f_result = field::add(f_result, field::mul(op_code, cc[cc_idx]));
+        result_adj = field::add(result_adj, field::mul(op_code, cc[cc_idx + 1]));
 
         let op_bits = current.get_op_bits();
         for i in 0..op_bits.len() {
             cc_idx += 2;
-            f_result = u128::add(f_result, u128::mul(op_bits[i], cc[cc_idx]));
-            result_adj = u128::add(result_adj, u128::mul(op_bits[i], cc[cc_idx + 1]));
+            f_result = field::add(f_result, field::mul(op_bits[i], cc[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(op_bits[i], cc[cc_idx + 1]));
         }
 
         // make sure operation accumulator contains program hash
         let program_hash = current.get_program_hash();
         for i in 0..self.program_hash.len() {
             cc_idx += 2;
-            let val = u128::sub(program_hash[i], self.program_hash[i]);
-            f_result = u128::add(f_result, u128::mul(val, cc[cc_idx]));
-            result_adj = u128::add(result_adj, u128::mul(val, cc[cc_idx + 1]));
+            let val = field::sub(program_hash[i], self.program_hash[i]);
+            f_result = field::add(f_result, field::mul(val, cc[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
         }
 
         // make sure stack registers are set to outputs
         for i in 0..self.outputs.len() {
             cc_idx += 2;
-            let val = u128::sub(user_stack[i], self.outputs[i]);
-            f_result = u128::add(f_result, u128::mul(val, cc[cc_idx]));
-            result_adj = u128::add(result_adj, u128::mul(val, cc[cc_idx + 1]));
+            let val = field::sub(user_stack[i], self.outputs[i]);
+            f_result = field::add(f_result, field::mul(val, cc[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
         }
 
         // raise the degree of adjusted terms and sum all the terms together
-        f_result = u128::add(f_result, u128::mul(result_adj, xp));
+        f_result = field::add(f_result, field::mul(result_adj, xp));
 
         return (i_result, f_result);
     }
@@ -267,24 +267,24 @@ impl Evaluator {
 
     fn combine_transition_constraints(&self, evaluations: &Vec<u128>, x: u128) -> u128 {
         let cc = self.coefficients.transition;
-        let mut result = u128::ZERO;
+        let mut result = field::ZERO;
 
         let mut i = 0;
         for (incremental_degree, constraints) in self.t_degree_groups.iter() {
 
             // for each group of constraints with the same degree, separately compute
             // combinations of D(x) and D(x) * x^p
-            let mut result_adj = u128::ZERO;
+            let mut result_adj = field::ZERO;
             for &constraint_idx in constraints.iter() {
                 let evaluation = evaluations[constraint_idx];
-                result = u128::add(result, u128::mul(evaluation, cc[i * 2]));
-                result_adj = u128::add(result_adj, u128::mul(evaluation, cc[i * 2 + 1]));
+                result = field::add(result, field::mul(evaluation, cc[i * 2]));
+                result_adj = field::add(result_adj, field::mul(evaluation, cc[i * 2 + 1]));
                 i += 1;
             }
 
             // increase the degree of D(x) * x^p
-            let xp = u128::exp(x, *incremental_degree);
-            result = u128::add(result, u128::mul(result_adj, xp));
+            let xp = field::exp(x, *incremental_degree);
+            result = field::add(result, field::mul(result_adj, xp));
         }
 
         return result;
@@ -319,7 +319,7 @@ fn group_transition_constraints(degrees: Vec<usize>, trace_length: usize) -> Vec
     for (degree, constraints) in groups.iter().enumerate() {
         if constraints.len() == 0 { continue; }
         let constraint_degree = (trace_length - 1) * degree;    
-        let incremental_degree = u128::from_usize(target_degree - constraint_degree);
+        let incremental_degree = (target_degree - constraint_degree) as u128;
         result.push((incremental_degree, constraints.clone()));
     }
 
@@ -329,7 +329,7 @@ fn group_transition_constraints(degrees: Vec<usize>, trace_length: usize) -> Vec
 fn get_boundary_constraint_adjustment_degree(trace_length: usize) -> u128 {
     let target_degree = get_boundary_constraint_target_degree(trace_length);
     let boundary_constraint_degree = trace_length - 1;
-    return u128::from_usize(target_degree - boundary_constraint_degree);
+    return (target_degree - boundary_constraint_degree) as u128;
 }
 
 /// target degree for boundary constraints is set so that when divided by boundary
@@ -356,7 +356,7 @@ fn parse_program_hash(program_hash: &[u8; 32]) -> Vec<u128> {
     let num_elements = program_hash.len() / element_size;
     let mut result = Vec::with_capacity(num_elements);
     for i in (0..program_hash.len()).step_by(element_size) {
-        result.push(u128::from_bytes(&program_hash[i..(i + element_size)]))
+        result.push(field::from_bytes(&program_hash[i..(i + element_size)]))
     }
     return result;
 }

@@ -1,4 +1,4 @@
-use crate::math::{ FiniteField };
+use crate::math::{ field };
 use crate::utils::{ hasher };
 use super::{ Stack, super::ProgramInputs, ExecutionHint };
 use crate::{ HASH_STATE_WIDTH };
@@ -286,7 +286,7 @@ fn mul() {
 fn inv() {
     let mut stack = init_stack(&[2, 3], &[], &[], TRACE_LENGTH);
     stack.op_inv(0);
-    assert_eq!(vec![u128::inv(2), 3, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+    assert_eq!(vec![field::inv(2), 3, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
     assert_eq!(2, stack.depth);
     assert_eq!(2, stack.max_depth);
@@ -303,7 +303,7 @@ fn inv_zero() {
 fn neg() {
     let mut stack = init_stack(&[2, 3], &[], &[], TRACE_LENGTH);
     stack.op_neg(0);
-    assert_eq!(vec![u128::neg(2), 3, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+    assert_eq!(vec![field::neg(2), 3, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
     assert_eq!(2, stack.depth);
     assert_eq!(2, stack.max_depth);

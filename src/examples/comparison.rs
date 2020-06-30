@@ -1,4 +1,4 @@
-use distaff::{ ProgramInputs, assembly, math::FiniteField };
+use distaff::{ ProgramInputs, assembly, math::field };
 use super::{ Example, utils::parse_args };
 
 pub fn get_example(args: &[String]) -> Example  {
@@ -8,10 +8,10 @@ pub fn get_example(args: &[String]) -> Example  {
 
     // determine the expected result
     let expected_result: u128 = if value < 10 {
-        u128::mul(10, value as u128)
+        field::mul(10, value as u128)
     }
     else {
-        u128::add(10, value as u128)
+        field::add(10, value as u128)
     };
     
     // construct the program which checks if the value provided via secret inputs is

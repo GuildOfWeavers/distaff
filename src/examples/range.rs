@@ -1,4 +1,4 @@
-use distaff::{ Program, ProgramInputs, opcodes::f128 as opcodes, math::{ FiniteField, F128 } };
+use distaff::{ Program, ProgramInputs, opcodes::f128 as opcodes, math::field };
 use super::{ Example, utils::parse_args };
 
 pub fn get_example(args: &[String]) -> Example  {
@@ -32,8 +32,8 @@ pub fn get_example(args: &[String]) -> Example  {
 }
 
 /// Generates a random sequence of 64-bit values.
-fn generate_values(n: usize) -> Vec<F128> {
-    let mut values = F128::rand_vector(n);
+fn generate_values(n: usize) -> Vec<u128> {
+    let mut values = field::rand_vector(n);
     for i in 0..values.len() {
         values[i] = (values[i] as u64) as u128;
     }
@@ -69,9 +69,9 @@ fn generate_range_check_program(n: usize) -> Program {
 }
 
 /// Generates inputs for the range-check program for the specified values.
-fn generate_program_inputs(values: &[F128]) -> ProgramInputs<F128> {
+fn generate_program_inputs(values: &[u128]) -> ProgramInputs {
 
-    let p62: u128 = F128::exp(2, 62);
+    let p62: u128 = field::exp(2, 62);
 
     // we need a single tape of secret inputs. For each value, we'll push
     // the value itself onto the tape, followed by lower 63-bits of the value
@@ -93,8 +93,8 @@ fn generate_program_inputs(values: &[F128]) -> ProgramInputs<F128> {
 }
 
 /// Counts the number of values smaller than 63-bits in size.
-fn count_63_bit_values(values: &[F128]) -> u128 {
-    let p63: u128 = F128::exp(2, 63);
+fn count_63_bit_values(values: &[u128]) -> u128 {
+    let p63: u128 = field::exp(2, 63);
 
     let mut result = 0;
     for &value in values.iter() {
