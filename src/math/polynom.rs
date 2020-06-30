@@ -396,15 +396,34 @@ mod tests {
         let poly2: [u128; 3] = [9918505539874556741, 16401861429499852246, 12181445947541805654];
 
         // same degree
-        let pr = vec![3955396989677724641, 11645020397934612208, 5279606801653296505, 4127428352286805209, 5628361441431074344];
+        let pr = vec![
+            field::mul(poly1[0], poly2[0]),
+            field::add(field::mul(poly1[0], poly2[1]), field::mul(poly2[0], poly1[1])),
+            field::add(
+                field::mul(poly1[1], poly2[1]),
+                field::add(field::mul(poly1[2], poly2[0]), field::mul(poly2[2], poly1[0]))
+            ),
+            field::add(field::mul(poly1[2], poly2[1]), field::mul(poly2[2], poly1[1])),
+            field::mul(poly1[2], poly2[2])
+            ];
         assert_eq!(pr, super::mul(&poly1, &poly2));
 
         // poly1 is lower degree
-        let pr = vec![3955396989677724641, 11645020397934612208, 3726230352653943207, 12439170984765704776];
+        let pr = vec![
+            field::mul(poly1[0], poly2[0]),
+            field::add(field::mul(poly1[0], poly2[1]), field::mul(poly2[0], poly1[1])),
+            field::add(field::mul(poly1[0], poly2[2]), field::mul(poly2[1], poly1[1])),
+            field::mul(poly1[1], poly2[2]),
+            ];
         assert_eq!(pr, super::mul(&poly1[..2], &poly2));
 
         // poly2 is lower degree
-        let pr = vec![3955396989677724641, 11645020397934612208, 13101514511927787479, 10135001247957123730];
+        let pr = vec![
+            field::mul(poly1[0], poly2[0]),
+            field::add(field::mul(poly1[0], poly2[1]), field::mul(poly2[0], poly1[1])),
+            field::add(field::mul(poly1[2], poly2[0]), field::mul(poly2[1], poly1[1])),
+            field::mul(poly1[2], poly2[1]),
+            ];
         assert_eq!(pr, super::mul(&poly1, &poly2[..2]));
     }
 
@@ -418,23 +437,20 @@ mod tests {
 
     #[test]
     fn div() {
+        let poly1: Vec<u128> = vec![384863712573444386, 7682273369345308472, 13294661765012277990];
+        let poly2: Vec<u128> = vec![9918505539874556741, 16401861429499852246, 12181445947541805654];
+
         // divide degree 4 by degree 2
-        let poly1: [u128; 5] = [3955396989677724641, 11645020397934612208, 5279606801653296505, 4127428352286805209, 5628361441431074344];
-        let poly2: [u128; 3] = [384863712573444386, 7682273369345308472, 13294661765012277990];
-        let pr = vec![9918505539874556741, 16401861429499852246, 12181445947541805654];
-        assert_eq!(pr, super::div(&poly1, &poly2));
+        let poly3 = super::mul(&poly1, &poly2);
+        assert_eq!(poly1, super::div(&poly3, &poly2));
 
         // divide degree 3 by degree 2
-        let poly1: [u128; 4] = [3955396989677724641, 11645020397934612208, 3726230352653943207, 12439170984765704776];
-        let poly2: [u128; 3] = [9918505539874556741, 16401861429499852246, 12181445947541805654];
-        let pr = vec![384863712573444386, 7682273369345308472];
-        assert_eq!(pr, super::div(&poly1, &poly2));
+        let poly3 = super::mul(&poly1[..2], &poly2);
+        assert_eq!(poly1[..2].to_vec(), super::div(&poly3, &poly2));
 
         // divide degree 3 by degree 3
-        let poly1: [u128; 3] = [14327042696637944021, 16658076832266294442, 5137918534171880203];
-        let poly2: [u128; 3] = [384863712573444386, 7682273369345308472, 13294661765012277990];
-        let pr = vec![11269864713250585702];
-        assert_eq!(pr, super::div(&poly1, &poly2));
+        let poly3 = super::mul_by_const(&poly1, 11269864713250585702);
+        assert_eq!(vec![11269864713250585702], super::div(&poly3, &poly1));
     }
 
     #[test]
