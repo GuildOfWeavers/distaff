@@ -75,12 +75,13 @@ fn binacc_operation() {
     let mut program = vec![opcodes::BEGIN];
     for _ in 0..128 { program.push(opcodes::BINACC); }
     program.push(opcodes::DROP);
+    program.push(opcodes::DROP);
     while program.len() < 256 { program.push(opcodes::NOOP); }
 
     let program = Program::from_path(program);
 
     let options = ProofOptions::default();
-    let inputs = ProgramInputs::new(&[p127, 0, a], &inputs_a, &[]);
+    let inputs = ProgramInputs::new(&[p127, 0, 0, a], &inputs_a, &[]);
     let num_outputs = 2;
 
     let expected_result = vec![a, a];

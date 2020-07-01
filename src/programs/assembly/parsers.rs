@@ -290,7 +290,7 @@ pub fn parse_rc(program: &mut Vec<u128>, hints: &mut HintMap, op: &[&str], step:
 
     // prepare the stack
     let power_of_two = u128::pow(2, n - 1);
-    program.extend_from_slice(&[opcodes::PAD2, opcodes::DROP, opcodes::PUSH, power_of_two]);
+    program.extend_from_slice(&[opcodes::PAD2, opcodes::PUSH, power_of_two]);
 
     // add a hint indicating that range-checking is about to start
     hints.insert(program.len(), ExecutionHint::RcStart(n));
@@ -299,7 +299,7 @@ pub fn parse_rc(program: &mut Vec<u128>, hints: &mut HintMap, op: &[&str], step:
     program.resize(program.len() + (n as usize), opcodes::BINACC);
 
     // compare binary aggregation value with the original value
-    program.extend_from_slice(&[opcodes::DROP, opcodes::EQ]);
+    program.extend_from_slice(&[opcodes::DROP, opcodes::DROP, opcodes::EQ]);
     return Ok(true);
 }
 

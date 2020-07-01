@@ -413,14 +413,14 @@ impl Stack {
             ExecutionHint::RcStart(n) => {
                 // if we are about to start range check sequence, push binary decompositions
                 // of the value onto tape A
-                assert!(self.depth >= 3, "stack underflow at step {}", step);
-                let val = self.user_registers[2][step];
+                assert!(self.depth >= 4, "stack underflow at step {}", step);
+                let val = self.user_registers[3][step];
                 for i in 0..n {
                     self.tape_a.push((val >> i) & 1);
                 }
             },
             _ => {
-                assert!(self.depth >= 2, "stack underflow at step {}", step);
+                assert!(self.depth >= 3, "stack underflow at step {}", step);
                 assert!(self.tape_a.len() > 0, "attempt to read from empty tape A at step {}", step);
             }
         }
@@ -441,14 +441,14 @@ impl Stack {
                 power_of_two >> 1
             };
 
-        let acc = self.user_registers[1][step];
+        let acc = self.user_registers[2][step];
 
         // update the next state of the computation
-        self.aux_register[step] = bit;
         self.user_registers[0][step + 1] = next_power_of_two;
-        self.user_registers[1][step + 1] = field::add(acc, field::mul(bit, power_of_two));
+        self.user_registers[1][step + 1] = bit;
+        self.user_registers[2][step + 1] = field::add(acc, field::mul(bit, power_of_two));
 
-        self.copy_state(step, 2);
+        self.copy_state(step, 3);
     }
 
     fn op_rescr(&mut self, step: usize) {

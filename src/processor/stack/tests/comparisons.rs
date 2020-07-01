@@ -159,14 +159,15 @@ fn binacc_128() {
     for i in 0..128 { inputs_a.push((x >> i) & 1); }
     inputs_a.reverse();
 
-    let mut stack = init_stack(&[p127, 0, x, 7, 11], &inputs_a, &[], 256);
+    let mut stack = init_stack(&[p127, 0, 0, x, 7, 11], &inputs_a, &[], 256);
 
     // execute binary aggregation operations
     for i in 0..128 { stack.op_binacc(i, ExecutionHint::None); }
 
     // check the result
     stack.op_drop(128);
-    let state = get_stack_state(&stack, 129);
+    stack.op_drop(129);
+    let state = get_stack_state(&stack, 130);
     assert_eq!(vec![x, x, 7, 11, 0, 0, 0, 0], state);
 }
 
@@ -181,14 +182,15 @@ fn binacc_64() {
     for i in 0..64 { inputs_a.push((x >> i) & 1); }
     inputs_a.reverse();
 
-    let mut stack = init_stack(&[p127, 0, x, 7, 11], &inputs_a, &[], 256);
+    let mut stack = init_stack(&[p127, 0, 0, x, 7, 11], &inputs_a, &[], 256);
 
     // execute binary aggregation operations
     for i in 0..64 { stack.op_binacc(i, ExecutionHint::None); }
 
     // check the result
     stack.op_drop(64);
-    let state = get_stack_state(&stack, 65);
+    stack.op_drop(65);
+    let state = get_stack_state(&stack, 66);
     assert_eq!(vec![x, x, 7, 11, 0, 0, 0, 0], state);
 }
 

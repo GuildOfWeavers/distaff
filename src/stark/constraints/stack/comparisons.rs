@@ -81,23 +81,25 @@ pub fn enforce_cmp(evaluations: &mut [u128], current: &[u128], next: &[u128], au
     return aux_constraint;
 }
 
-pub fn enforce_binacc(evaluations: &mut [u128], current: &[u128], next: &[u128], aux: u128, op_flag: u128) -> u128 {
+pub fn enforce_binacc(evaluations: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
 
-    let bit = aux;
+    // layout of first 3 registers:
+    // [power of two, value bit, accumulated value]
+    // value bit is located in the next state (not current state)
 
     // power of 2 register was updated correctly
     let power_of_two = current[0];
     let power_of_two_constraint = are_equal(field::mul(next[0], 2), power_of_two);
     evaluations[0] = agg_op_constraint(evaluations[0], op_flag, power_of_two_constraint);
 
+    // the bit was a binary value
+    let bit = next[1];
+    evaluations[1] = agg_op_constraint(evaluations[1], op_flag, is_binary(bit));
+
     // binary representation accumulator was updated correctly
-    let acc = field::add(current[1], field::mul(bit, power_of_two));
-    evaluations[1] = agg_op_constraint(evaluations[4], op_flag, are_equal(next[1], acc));
+    let acc = field::add(current[2], field::mul(bit, power_of_two));
+    evaluations[2] = agg_op_constraint(evaluations[2], op_flag, are_equal(next[2], acc));
 
     // registers beyond 2nd register remained the same
-    enforce_no_change(&mut evaluations[2..], &current[2..], &next[2..], op_flag);
-
-    // the bit was a binary value
-    let aux_constraint = field::mul(op_flag, is_binary(bit));
-    return aux_constraint;
+    enforce_no_change(&mut evaluations[3..], &current[3..], &next[3..], op_flag);
 }

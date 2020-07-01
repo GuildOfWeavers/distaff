@@ -138,11 +138,10 @@ impl Stack {
         
         // comparison operations
         result[0] = field::add(result[0],
-            enforce_eq(&mut evaluations,      current, next, aux, op_flags[opcodes::EQ as usize]));
+            enforce_eq(&mut evaluations,    current, next, aux, op_flags[opcodes::EQ as usize]));
         result[0] = field::add(result[0],
-            enforce_cmp(&mut evaluations,     current, next, aux, op_flags[opcodes::CMP as usize]));
-        result[0] = field::add(result[0],
-            enforce_binacc(&mut evaluations,  current, next, aux, op_flags[opcodes::BINACC as usize]));
+            enforce_cmp(&mut evaluations,   current, next, aux, op_flags[opcodes::CMP as usize]));
+        enforce_binacc(&mut evaluations,    current, next, op_flags[opcodes::BINACC as usize]);
 
         // conditional selection operations
         result[0] = field::add(result[0],

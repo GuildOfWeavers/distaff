@@ -1,4 +1,4 @@
-use distaff::{ Program, ProgramInputs, opcodes::f128 as opcodes, math::field };
+use distaff::{ Program, ProgramInputs, assembly, crypto::HashFunction, math::field };
 use super::{ Example, utils::parse_args };
 
 pub fn get_example(args: &[String]) -> Example  {
@@ -10,14 +10,14 @@ pub fn get_example(args: &[String]) -> Example  {
     let values = generate_values(n);
 
     // generate the program and expected results
-    let program = generate_range_check_program(n);
+    let program = generate_range_check_program(n, options.hash_fn());
     let expected_result = vec![count_63_bit_values(&values)];
     println!("Generated a program to range-check {} values; expected result: {}", 
         n,
         expected_result[0]);
 
-    // transform the sequence of values into inputs for the program
-    let inputs = generate_program_inputs(&values);
+    // set public inputs to the initial sum (0), and pass values to the secret tape A
+    let inputs = ProgramInputs::new(&[0], &values, &[]);
 
     // a single element from the top of the stack will be the output
     let num_outputs = 1;
@@ -41,55 +41,19 @@ fn generate_values(n: usize) -> Vec<u128> {
 }
 
 /// Generates a program to range-check a sequence of values.
-fn generate_range_check_program(n: usize) -> Program {
+fn generate_range_check_program(n: usize, hash_fn: HashFunction) -> Program {
 
-    let mut program = vec![opcodes::BEGIN];
+    let mut program = String::with_capacity(n * 80);
 
-    // for each value in the list we do the following:
-    // 1. read the value from secret input tape
-    // 2. arrange the values on the stack in a way required by BINACC operation
-    // 3. execute BINACC operation 63 times
-    // 4. check if 63-bit representation of the value is equal to the value
-    // 5. if it is, add it to the running sum of 63-bit values
+    // repeat the cycle of the following operations:
+    // 1. read a value from secret tape A
+    // 2. check if it fits into 63 bits (result is 1 if true, 0 otherwise)
+    // 3. add the result into the running sum
     for _ in 0..n {
-        program.push(opcodes::READ);
-        program.push(opcodes::SWAP2);
-        program.push(opcodes::DUP2);
-        program.push(opcodes::SWAP4);
-        program.push(opcodes::SWAP2);
-        for _ in 0..63 {
-            program.push(opcodes::BINACC);
-        }
-        program.push(opcodes::DROP);
-        program.push(opcodes::EQ);
-        program.push(opcodes::ADD);
+        program.push_str("read rc.63 add ");
     }
 
-    return Program::from_path(program);
-}
-
-/// Generates inputs for the range-check program for the specified values.
-fn generate_program_inputs(values: &[u128]) -> ProgramInputs {
-
-    let p62: u128 = field::exp(2, 62);
-
-    // we need a single tape of secret inputs. For each value, we'll push
-    // the value itself onto the tape, followed by lower 63-bits of the value
-    // in the reverse order.
-    let mut a = Vec::new();
-    for &value in values.iter() {
-        a.push(value);
-        let mut bits = Vec::new();
-        for i in 0..63 {
-            bits.push((value >> i) & 1);
-        }
-        bits.reverse();
-        a.extend_from_slice(&bits);
-    }
-
-    // we also need public inputs of this form. the first 0 is the 
-    // placeholder for the number of values smaller than 64 bits
-    return ProgramInputs::new(&[0, p62, 0, p62, 0], &a, &[]);
+    return assembly::compile(&program, hash_fn).unwrap();
 }
 
 /// Counts the number of values smaller than 63-bits in size.
