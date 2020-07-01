@@ -15,9 +15,9 @@ use utils::{ agg_op_constraint, enforce_no_change, are_equal, is_binary };
 
 // CONSTANTS
 // ================================================================================================
-const STACK_HEAD_DEGREES: [usize; 7] = [
-    7,                  // aux constraints
-    8, 8, 8, 8, 8, 8,   // constraints for the first 6 registers of user stack
+const STACK_HEAD_DEGREES: [usize; 8] = [
+    7,                      // aux constraints
+    8, 8, 8, 8, 8, 8, 7,    // constraints for the first 7 registers of user stack
 ];
 const STACK_REST_DEGREE: usize = 6; // degree for the rest of the stack registers
 
@@ -139,8 +139,7 @@ impl Stack {
         // comparison operations
         result[0] = field::add(result[0],
             enforce_eq(&mut evaluations,    current, next, aux, op_flags[opcodes::EQ as usize]));
-        result[0] = field::add(result[0],
-            enforce_cmp(&mut evaluations,   current, next, aux, op_flags[opcodes::CMP as usize]));
+        enforce_cmp(&mut evaluations,       current, next, op_flags[opcodes::CMP as usize]);
         enforce_binacc(&mut evaluations,    current, next, op_flags[opcodes::BINACC as usize]);
 
         // conditional selection operations

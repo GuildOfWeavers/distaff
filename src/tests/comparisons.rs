@@ -34,17 +34,15 @@ fn cmp_operation() {
     let (inputs_a, inputs_b) = build_inputs_for_cmp(a, b, 128);
 
     // build the program
-    let mut program = vec![opcodes::BEGIN, opcodes::PUSH, p127];
+    let mut program = vec![opcodes::BEGIN, opcodes::PAD2, opcodes::PUSH, p127];
     for _ in 0..128 { program.push(opcodes::CMP);  }
-    program.push(opcodes::DROP);
-    program.push(opcodes::DROP);
-    program.push(opcodes::DROP);
+    program.push(opcodes::DROP4);
     while program.len() < 256 { program.push(opcodes::NOOP); }
 
     let program = Program::from_path(program);
 
     let options = ProofOptions::default();
-    let inputs = ProgramInputs::new(&[0, 0, 0, 0, 0, 0, a, b], &inputs_a, &inputs_b);
+    let inputs = ProgramInputs::new(&[0, 0, 0, 0, 0, a, b], &inputs_a, &inputs_b);
     let num_outputs = 4;
 
     let lt = if a < b { field::ONE }  else { field::ZERO };

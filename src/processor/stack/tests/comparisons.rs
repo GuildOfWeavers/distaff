@@ -37,27 +37,29 @@ fn cmp_128() {
     
     // initialize the stack
     let (inputs_a, inputs_b) = build_inputs_for_cmp(a, b, 128);
-    let mut stack = init_stack(&[0, 0, 0, 0, 0, 0, a, b], &inputs_a, &inputs_b, 256);
-    stack.op_push(0, p127);
+    let mut stack = init_stack(&[0, 0, 0, 0, 0, a, b], &inputs_a, &inputs_b, 256);
+    stack.op_pad2(0);
+    stack.op_push(1, p127);
 
     // execute CMP operations
-    for i in 1..129 {
+    for i in 2..130 {
         stack.op_cmp(i, ExecutionHint::None);
 
         let state = get_stack_state(&stack, i);
+        let next  = get_stack_state(&stack, i + 1);
 
-        let gt = state[3];
-        let lt = state[4];
+        let gt = state[4];
+        let lt = state[5];
         let not_set = field::mul(field::sub(field::ONE, gt), field::sub(field::ONE, lt));
-        assert_eq!(vec![not_set], get_aux_state(&stack, i));
+        assert_eq!(not_set, next[3]);
     }
 
     // check the result
     let lt = if a < b { field::ONE }  else { field::ZERO };
     let gt = if a < b { field::ZERO } else { field::ONE  };
 
-    let state = get_stack_state(&stack, 129);
-    assert_eq!([gt, lt, b, a], state[3..7]);
+    let state = get_stack_state(&stack, 130);
+    assert_eq!([gt, lt, b, a], state[4..8]);
 }
 
 #[test]
@@ -69,27 +71,29 @@ fn cmp_64() {
     
     // initialize the stack
     let (inputs_a, inputs_b) = build_inputs_for_cmp(a, b, 64);
-    let mut stack = init_stack(&[0, 0, 0, 0, 0, 0, a, b], &inputs_a, &inputs_b, 256);
-    stack.op_push(0, p63);
+    let mut stack = init_stack(&[0, 0, 0, 0, 0, a, b], &inputs_a, &inputs_b, 256);
+    stack.op_pad2(0);
+    stack.op_push(1, p63);
 
     // execute CMP operations
-    for i in 1..65 {
+    for i in 2..66 {
         stack.op_cmp(i, ExecutionHint::None);
 
         let state = get_stack_state(&stack, i);
+        let next  = get_stack_state(&stack, i + 1);
 
-        let gt = state[3];
-        let lt = state[4];
+        let gt = state[4];
+        let lt = state[5];
         let not_set = field::mul(field::sub(field::ONE, gt), field::sub(field::ONE, lt));
-        assert_eq!(vec![not_set], get_aux_state(&stack, i));
+        assert_eq!(not_set, next[3]);
     }
 
     // check the result
     let lt = if a < b { field::ONE }  else { field::ZERO };
     let gt = if a < b { field::ZERO } else { field::ONE  };
 
-    let state = get_stack_state(&stack, 65);
-    assert_eq!([gt, lt, b, a], state[3..7]);
+    let state = get_stack_state(&stack, 66);
+    assert_eq!([gt, lt, b, a], state[4..8]);
 }
 
 // COMPARISON PROGRAMS
@@ -104,20 +108,21 @@ fn lt() {
     
     // initialize the stack
     let (inputs_a, inputs_b) = build_inputs_for_cmp(a, b, 128);
-    let mut stack = init_stack(&[0, 0, 0, 0, a, b, 7, 11], &inputs_a, &inputs_b, 256);
+    let mut stack = init_stack(&[0, 0, 0, a, b, 7, 11], &inputs_a, &inputs_b, 256);
     stack.op_pad2(0);
-    stack.op_push(1, p127);
+    stack.op_pad2(1);
+    stack.op_push(2, p127);
 
     // execute CMP operations
-    for i in 2..130 { stack.op_cmp(i, ExecutionHint::None); }
+    for i in 3..131 { stack.op_cmp(i, ExecutionHint::None); }
 
     // execute program finale
-    let step = lt_finale(&mut stack, 130);
+    let step = lt_finale(&mut stack, 131);
 
     // check the result
     let state = get_stack_state(&stack, step);
     let expected = if a < b { field::ONE }  else { field::ZERO };
-    assert_eq!(vec![expected, 7, 11, 0, 0, 0, 0, 0, 0, 0, 0], state);
+    assert_eq!(vec![expected, 7, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0], state);
 }
 
 #[test]
@@ -129,20 +134,21 @@ fn gt() {
     
     // initialize the stack
     let (inputs_a, inputs_b) = build_inputs_for_cmp(a, b, 128);
-    let mut stack = init_stack(&[0, 0, 0, 0, a, b, 7, 11], &inputs_a, &inputs_b, 256);
+    let mut stack = init_stack(&[0, 0, 0, a, b, 7, 11], &inputs_a, &inputs_b, 256);
     stack.op_pad2(0);
-    stack.op_push(1, p127);
+    stack.op_pad2(1);
+    stack.op_push(2, p127);
 
     // execute CMP operations
-    for i in 2..130 { stack.op_cmp(i, ExecutionHint::None); }
+    for i in 3..131 { stack.op_cmp(i, ExecutionHint::None); }
 
     // execute program finale
-    let step = gt_finale(&mut stack, 130);
+    let step = gt_finale(&mut stack, 131);
 
     // check the result
     let state = get_stack_state(&stack, step);
     let expected = if a > b { field::ONE }  else { field::ZERO };
-    assert_eq!(vec![expected, 7, 11, 0, 0, 0, 0, 0, 0, 0, 0], state);
+    assert_eq!(vec![expected, 7, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0], state);
 }
 
 // BINARY DECOMPOSITION
@@ -211,30 +217,30 @@ fn build_inputs_for_cmp(a: u128, b: u128, size: usize) -> (Vec<u128>, Vec<u128>)
 }
 
 fn lt_finale(stack: &mut Stack, step: usize) -> usize {
-    stack.op_drop(step + 0);
-    stack.op_swap4(step + 1);
-    stack.op_roll4(step + 2);
-    stack.op_eq(step + 3);
-    stack.op_assert(step + 4);
-    stack.op_eq(step + 5);
-    stack.op_assert(step + 6);
-    stack.op_drop(step + 7);
-    stack.op_drop(step + 8);
-    stack.op_drop(step + 9);
+    stack.op_drop4(step + 0);
+    stack.op_pad2(step + 1);
+    stack.op_swap4(step + 2);
+    stack.op_roll4(step + 3);
+    stack.op_eq(step + 4);
+    stack.op_assert(step + 5);
+    stack.op_eq(step + 6);
+    stack.op_assert(step + 7);
+    stack.op_dup(step + 8);
+    stack.op_drop4(step + 9);
     return step + 10;
 }
 
 fn gt_finale(stack: &mut Stack, step: usize) -> usize {
-    stack.op_drop(step + 0);
-    stack.op_swap4(step + 1);
-    stack.op_roll4(step + 2);
-    stack.op_eq(step + 3);
-    stack.op_assert(step + 4);
-    stack.op_eq(step + 5);
-    stack.op_assert(step + 6);
-    stack.op_drop(step + 7);
-    stack.op_drop(step + 8);
-    stack.op_swap(step + 9);
-    stack.op_drop(step + 10);
+    stack.op_drop4(step + 0);
+    stack.op_pad2(step + 1);
+    stack.op_swap4(step + 2);
+    stack.op_roll4(step + 3);
+    stack.op_eq(step + 4);
+    stack.op_assert(step + 5);
+    stack.op_eq(step + 6);
+    stack.op_assert(step + 7);
+    stack.op_roll4(step + 8);
+    stack.op_dup(step + 9);
+    stack.op_drop4(step + 10);
     return step + 11;
 }

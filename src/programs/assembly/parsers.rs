@@ -239,8 +239,9 @@ pub fn parse_gt(program: &mut Vec<u128>, hints: &mut HintMap, op: &[&str], step:
     // compare binary aggregation values with the original values, and drop everything
     // but the GT value from the stack
     program.extend_from_slice(&[
-        opcodes::DROP, opcodes::SWAP4,  opcodes::ROLL4, opcodes::EQ,  opcodes::ASSERT,
-        opcodes::EQ,   opcodes::ASSERT, opcodes::ROLL4, opcodes::DUP, opcodes::DROP4
+        opcodes::DROP4,  opcodes::PAD2, opcodes::SWAP4,  opcodes::ROLL4, opcodes::EQ,
+        opcodes::ASSERT, opcodes::EQ,   opcodes::ASSERT, opcodes::ROLL4, opcodes::DUP,
+        opcodes::DROP4
     ]);
     return Ok(true);
 }
@@ -259,7 +260,7 @@ pub fn parse_lt(program: &mut Vec<u128>, hints: &mut HintMap, op: &[&str], step:
     // prepare the stack
     let power_of_two = u128::pow(2, n - 1);
     program.extend_from_slice(&[
-        opcodes::PAD2, opcodes::PAD2, opcodes::PAD2, opcodes::PUSH, power_of_two
+        opcodes::PAD2, opcodes::PAD2, opcodes::PAD2, opcodes::DUP, opcodes::PUSH, power_of_two
     ]);
 
     // add a hint indicating that value comparison is about to start
@@ -271,8 +272,8 @@ pub fn parse_lt(program: &mut Vec<u128>, hints: &mut HintMap, op: &[&str], step:
     // compare binary aggregation values with the original values, and drop everything
     // but the LT value from the stack
     program.extend_from_slice(&[
-        opcodes::DROP, opcodes::SWAP4,  opcodes::ROLL4, opcodes::EQ,   opcodes::ASSERT,
-        opcodes::EQ,   opcodes::ASSERT, opcodes::DUP,   opcodes::DROP4
+        opcodes::DROP4,  opcodes::PAD2, opcodes::SWAP4,  opcodes::ROLL4, opcodes::EQ,
+        opcodes::ASSERT, opcodes::EQ,   opcodes::ASSERT, opcodes::DUP,   opcodes::DROP4
     ]);
     return Ok(true);
 }

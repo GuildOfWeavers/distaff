@@ -4,13 +4,14 @@ use super::utils::{ agg_op_constraint, is_binary, are_equal, enforce_no_change }
 // CONSTANTS
 // ================================================================================================
 
-const POW2_IDX  : usize = 0;
-const X_BIT_IDX : usize = 1;
-const Y_BIT_IDX : usize = 2;
-const GT_IDX    : usize = 3;
-const LT_IDX    : usize = 4;
-const Y_ACC_IDX : usize = 5;
-const X_ACC_IDX : usize = 6;
+const POW2_IDX      : usize = 0;
+const X_BIT_IDX     : usize = 1;
+const Y_BIT_IDX     : usize = 2;
+const NOT_SET_IDX   : usize = 3;
+const GT_IDX        : usize = 4;
+const LT_IDX        : usize = 5;
+const Y_ACC_IDX     : usize = 6;
+const X_ACC_IDX     : usize = 7;
 
 // CONSTRAINT EVALUATORS
 // ================================================================================================
@@ -43,7 +44,10 @@ pub fn enforce_eq(evaluations: &mut [u128], current: &[u128], next: &[u128], aux
 }
 
 /// Evaluates constraints for CMP operation.
-pub fn enforce_cmp(evaluations: &mut [u128], current: &[u128], next: &[u128], aux: u128, op_flag: u128) -> u128 {
+pub fn enforce_cmp(evaluations: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
+
+    // layout of first 8 registers
+    // [pow, bit_a, bit_b, not_set, gt, lt, acc_b, acc_a]
 
     // x and y bits are binary
     let x_bit = next[X_BIT_IDX];
@@ -52,7 +56,7 @@ pub fn enforce_cmp(evaluations: &mut [u128], current: &[u128], next: &[u128], au
     evaluations[1] = agg_op_constraint(evaluations[1], op_flag, is_binary(y_bit));
 
     // comparison trackers were updated correctly
-    let not_set = aux;
+    let not_set = next[NOT_SET_IDX];
     let bit_gt = field::mul(x_bit, field::sub(field::ONE, y_bit));
     let bit_lt = field::mul(y_bit, field::sub(field::ONE, x_bit));
 
@@ -68,17 +72,16 @@ pub fn enforce_cmp(evaluations: &mut [u128], current: &[u128], next: &[u128], au
     evaluations[4] = agg_op_constraint(evaluations[4], op_flag, are_equal(next[Y_ACC_IDX], y_acc));
     evaluations[5] = agg_op_constraint(evaluations[5], op_flag, are_equal(next[X_ACC_IDX], x_acc));
 
-    // power of 2 register was updated correctly
-    let power_of_two_constraint = are_equal(field::mul(next[POW2_IDX], 2), power_of_two);
-    evaluations[6] = agg_op_constraint(evaluations[6], op_flag, power_of_two_constraint);
-
-    // registers beyond the 7th register were not affected
-    enforce_no_change(&mut evaluations[7..], &current[7..], &next[7..], op_flag);
-
     // when GT or LT register is set to 1, not_set flag is cleared
     let not_set_check = field::mul(field::sub(field::ONE, current[LT_IDX]), field::sub(field::ONE, current[GT_IDX]));
-    let aux_constraint = field::mul(op_flag, field::sub(not_set, not_set_check));
-    return aux_constraint;
+    evaluations[6] = agg_op_constraint(evaluations[6], op_flag, are_equal(not_set, not_set_check));
+
+    // power of 2 register was updated correctly
+    let power_of_two_constraint = are_equal(field::mul(next[POW2_IDX], 2), power_of_two);
+    evaluations[7] = agg_op_constraint(evaluations[7], op_flag, power_of_two_constraint);
+
+    // registers beyond the 7th register were not affected
+    enforce_no_change(&mut evaluations[8..], &current[8..], &next[8..], op_flag);
 }
 
 pub fn enforce_binacc(evaluations: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {

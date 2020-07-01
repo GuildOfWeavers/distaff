@@ -351,16 +351,16 @@ impl Stack {
             ExecutionHint::CmpStart(n) => {
                 // if we are about to start comparison sequence, push binary decompositions
                 // of a and b values onto the tapes
-                assert!(self.depth >= 9, "stack underflow at step {}", step);
-                let a_val = self.user_registers[7][step];
-                let b_val = self.user_registers[8][step];
+                assert!(self.depth >= 10, "stack underflow at step {}", step);
+                let a_val = self.user_registers[8][step];
+                let b_val = self.user_registers[9][step];
                 for i in 0..n {
                     self.tape_a.push((a_val >> i) & 1);
                     self.tape_b.push((b_val >> i) & 1);
                 }
             },
             _ => {
-                assert!(self.depth >= 7, "stack underflow at step {}", step);
+                assert!(self.depth >= 8, "stack underflow at step {}", step);
                 assert!(self.tape_a.len() > 0, "attempt to read from empty tape A at step {}", step);
                 assert!(self.tape_b.len() > 0, "attempt to read from empty tape B at step {}", step);
             }
@@ -390,21 +390,21 @@ impl Stack {
         };
 
         // determine if the result of comparison is already known
-        let gt = self.user_registers[3][step];
-        let lt = self.user_registers[4][step];
+        let gt = self.user_registers[4][step];
+        let lt = self.user_registers[5][step];
         let not_set = field::mul(field::sub(field::ONE, gt), field::sub(field::ONE, lt));
 
         // update the next state of the computation
-        self.aux_register[step] = not_set;
         self.user_registers[0][step + 1] = next_power_of_two;
         self.user_registers[1][step + 1] = a_bit;
         self.user_registers[2][step + 1] = b_bit;
-        self.user_registers[3][step + 1] = field::add(gt, field::mul(bit_gt, not_set));
-        self.user_registers[4][step + 1] = field::add(lt, field::mul(bit_lt, not_set));
-        self.user_registers[5][step + 1] = field::add(self.user_registers[5][step], field::mul(b_bit, power_of_two));
-        self.user_registers[6][step + 1] = field::add(self.user_registers[6][step], field::mul(a_bit, power_of_two));
+        self.user_registers[3][step + 1] = not_set;
+        self.user_registers[4][step + 1] = field::add(gt, field::mul(bit_gt, not_set));
+        self.user_registers[5][step + 1] = field::add(lt, field::mul(bit_lt, not_set));
+        self.user_registers[6][step + 1] = field::add(self.user_registers[6][step], field::mul(b_bit, power_of_two));
+        self.user_registers[7][step + 1] = field::add(self.user_registers[7][step], field::mul(a_bit, power_of_two));
 
-        self.copy_state(step, 7);
+        self.copy_state(step, 8);
     }
 
     fn op_binacc(&mut self, step: usize, hint: ExecutionHint) {
