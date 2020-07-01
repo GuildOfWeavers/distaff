@@ -383,7 +383,7 @@ impl Stack {
         assert!(power_of_two.is_power_of_two(),
             "expected top of the stack at step {} to be a power of 2, but received {}", step, power_of_two);
         let next_power_of_two = if power_of_two == 1 {
-            field::div(power_of_two, 2) // TODO: replace with shift
+            field::div(power_of_two, 2)
         }
         else {
             power_of_two >> 1
@@ -435,7 +435,7 @@ impl Stack {
         assert!(power_of_two.is_power_of_two(),
             "expected top of the stack at step {} to be a power of 2, but received {}", step, power_of_two);
         let next_power_of_two = if power_of_two == 1 {
-                field::div(power_of_two, 2) // TODO: replace with shift
+                field::div(power_of_two, 2)
             }
             else {
                 power_of_two >> 1

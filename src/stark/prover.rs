@@ -1,4 +1,4 @@
-use std::{ mem, time::Instant };
+use std::time::Instant;
 use log::debug;
 use crate::math::{ field, polynom, fft };
 use crate::crypto::{ MerkleTree };
@@ -167,22 +167,17 @@ fn twiddles_from_domain(domain: &[u128]) -> Vec<u128> {
     return twiddles;
 }
 
+/// Re-interpret vector of 16-byte values as a vector of 32-byte arrays
 fn evaluations_to_leaves(evaluations: Vec<u128>) -> Vec<[u8; 32]> {
-    // TODO: replace with constants
-    let element_size = mem::size_of::<u128>();
-    let elements_per_leaf = 32 / element_size;
-
-    assert!(evaluations.len() % elements_per_leaf == 0,
-        "number of values must be divisible by {}", elements_per_leaf);
+    assert!(evaluations.len() % 2 == 0, "number of values must be divisible by 2");
     let mut v = std::mem::ManuallyDrop::new(evaluations);
     let p = v.as_mut_ptr();
-    let len = v.len() / elements_per_leaf;
-    let cap = v.capacity() / elements_per_leaf;
+    let len = v.len() / 2;
+    let cap = v.capacity() / 2;
     return unsafe { Vec::from_raw_parts(p as *mut [u8; 32], len, cap) };
 }
 
-fn build_composition_poly(trace: &TraceTable, constraint_poly: ConstraintPoly, seed: &[u8; 32]) -> (Vec<u128>, DeepValues)
-{
+fn build_composition_poly(trace: &TraceTable, constraint_poly: ConstraintPoly, seed: &[u8; 32]) -> (Vec<u128>, DeepValues) {
     // pseudo-randomly selection deep point z and coefficients for the composition
     let z = field::prng(*seed);
     let coefficients = CompositionCoefficients::new(*seed);

@@ -2,8 +2,6 @@ use crossbeam_utils::thread;
 use crate::math::{ field };
 use crate::utils::{ uninit_vector };
 
-// TODO: generic versions seems to be about 10% slower than concrete versions; investigate.
-
 // ADDITION
 // ================================================================================================
 

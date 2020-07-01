@@ -1,4 +1,3 @@
-use std::mem;
 use crate::{ math::field, crypto::{ MerkleTree }, Program };
 use super::{ StarkProof, TraceState, ConstraintEvaluator, CompositionCoefficients, fri, utils };
 
@@ -137,14 +136,11 @@ fn compose_registers(proof: &StarkProof, positions: &[usize], z: u128, cc: &Comp
 fn compose_constraints(proof: &StarkProof, t_positions: &[usize], c_positions: &[usize], z: u128, evaluation_at_z: u128, cc: &CompositionCoefficients) -> Vec<u128> {
     // build constraint evaluation values from the leaves of constraint Merkle proof
     let mut evaluations: Vec<u128> = Vec::with_capacity(t_positions.len());
-    // TODO: use constants
-    let element_size = mem::size_of::<u128>();
-    let elements_per_leaf = 32 / element_size;
     let leaves = proof.constraint_proof().values;
     for &position in t_positions.iter() {
-        let leaf_idx = c_positions.iter().position(|&v| v == position / elements_per_leaf).unwrap();
-        let element_start = (position % elements_per_leaf) * element_size;
-        let element_bytes = &leaves[leaf_idx][element_start..(element_start + element_size)];
+        let leaf_idx = c_positions.iter().position(|&v| v == position / 2).unwrap();
+        let element_start = (position % 2) * 16;
+        let element_bytes = &leaves[leaf_idx][element_start..(element_start + 16)];
         evaluations.push(field::from_bytes(element_bytes));
     }
 

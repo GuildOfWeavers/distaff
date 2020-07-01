@@ -1,4 +1,3 @@
-use std::mem;
 use crate::math::{ field };
 use crate::processor::{ opcodes };
 use crate::stark::{ StarkProof, TraceTable, TraceState, ConstraintCoefficients };
@@ -351,12 +350,8 @@ fn get_transition_constraint_target_degree(trace_length: usize) -> usize {
 }
 
 fn parse_program_hash(program_hash: &[u8; 32]) -> Vec<u128> {
-    // TODO: use constants
-    let element_size = mem::size_of::<u128>();
-    let num_elements = program_hash.len() / element_size;
-    let mut result = Vec::with_capacity(num_elements);
-    for i in (0..program_hash.len()).step_by(element_size) {
-        result.push(field::from_bytes(&program_hash[i..(i + element_size)]))
-    }
-    return result;
+    return vec![
+        field::from_bytes(&program_hash[..16]),
+        field::from_bytes(&program_hash[16..]),
+    ];
 }
