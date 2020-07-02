@@ -367,7 +367,3 @@ fn get_stack_state(stack: &Stack, step: usize) -> Vec<u128> {
     }
     return state;
 }
-
-fn get_aux_state(stack: &Stack, step: usize) -> Vec<u128> {
-    return vec![stack.aux_register[step]];
-}

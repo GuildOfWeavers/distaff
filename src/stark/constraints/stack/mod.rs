@@ -88,9 +88,6 @@ impl Stack {
     /// are not tied to any repeating cycles in the execution trace.
     fn enforce_acyclic_ops(&self, current: &[u128], next: &[u128], op_flags: [u128; NUM_LD_OPS], next_op: u128, result: &mut [u128]) {
         
-        // save the aux register of the stack
-        let aux = current[0];
-
         // trim stack states only to the user portion of the stack (excluding aux register)
         // TODO: use a separate constant for user stack offset
         let current = &current[1..];
@@ -138,7 +135,7 @@ impl Stack {
         
         // comparison operations
         result[0] = field::add(result[0],
-            enforce_eq(&mut evaluations,    current, next, aux, op_flags[opcodes::EQ as usize]));
+            enforce_eq(&mut evaluations,    current, next, op_flags[opcodes::EQ as usize]));
         enforce_cmp(&mut evaluations,       current, next, op_flags[opcodes::CMP as usize]);
         enforce_binacc(&mut evaluations,    current, next, op_flags[opcodes::BINACC as usize]);
 

@@ -18,24 +18,23 @@ const X_ACC_IDX     : usize = 7;
 
 /// Evaluates constraints for EQ operation. These enforce that when x == y, top of the stack at
 /// the next step is set to 1, otherwise top of the stack at the next step is set to 0.
-pub fn enforce_eq(evaluations: &mut [u128], current: &[u128], next: &[u128], aux: u128, op_flag: u128) -> u128 {
+pub fn enforce_eq(evaluations: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) -> u128 {
 
     // compute difference between top two values of the stack
-    let x = current[0];
-    let y = current[1];
+    let x = current[1];
+    let y = current[2];
     let diff = field::sub(x, y);
 
-    // aux stack register contains inverse of the difference, or when
-    // the values are equal, it will contain value 1
-    let inv_diff = aux;
+    // when x == y, the first stack register contains inverse of the difference
+    let inv_diff = current[0];
 
     // the operation is defined as 1 - diff * inv(diff)
     let op_result = field::sub(field::ONE, field::mul(diff, inv_diff));
     evaluations[0] = agg_op_constraint(evaluations[0], op_flag, are_equal(next[0], op_result));
 
-    // stack items beyond 2nd item are shifted the the left by 1
-    let n = next.len() - 1;
-    enforce_no_change(&mut evaluations[1..n], &current[2..], &next[1..n], op_flag);
+    // stack items beyond 3nd item are shifted the the left by 2
+    let n = next.len() - 2;
+    enforce_no_change(&mut evaluations[1..n], &current[3..], &next[1..n], op_flag);
 
     // we also need to make sure that result * diff = 0; this ensures that when diff != 0
     // the result must be set to 0

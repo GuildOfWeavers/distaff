@@ -4,14 +4,15 @@ use super::super::{ execute, verify, Program, ProgramInputs };
 #[test]
 fn eq_operations() {
     let program = Program::from_path(vec![
-        opcodes::BEGIN, opcodes::EQ,     opcodes::SWAP2, opcodes::EQ,
-        opcodes::NOOP,  opcodes::NOOP,   opcodes::NOOP,  opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP,   opcodes::NOOP,  opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP,   opcodes::NOOP,  opcodes::NOOP,
+        opcodes::BEGIN, opcodes::READ,  opcodes::EQ,    opcodes::SWAP2,
+        opcodes::READ,  opcodes::EQ,    opcodes::NOOP,  opcodes::NOOP,
+        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
+        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
     ]);
 
     let options = ProofOptions::default();
-    let inputs = ProgramInputs::from_public(&[1, 2, 3, 4, 4]);
+    let diff_inv = field::inv(field::sub(1, 2));
+    let inputs = ProgramInputs::new(&[1, 2, 3, 4, 4], &[diff_inv, 1], &[]);
     let num_outputs = 3;
 
     let expected_result = vec![1, 0, 3];

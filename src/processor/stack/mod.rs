@@ -332,17 +332,17 @@ impl Stack {
 
     fn op_eq(&mut self, step: usize) {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
-        let x = self.user_registers[0][step];
-        let y = self.user_registers[1][step];
+        let aux = self.user_registers[0][step];
+        let x = self.user_registers[1][step];
+        let y = self.user_registers[2][step];
         if x == y {
-            self.aux_register[step] = field::ONE;
             self.user_registers[0][step + 1] = field::ONE;
         } else {
             let diff = field::sub(x, y);
-            self.aux_register[step] = field::inv(diff);
+            assert!(aux == field::inv(diff), "invalid AUX value for EQ operation at step {}", step);
             self.user_registers[0][step + 1] = field::ZERO;
         }
-        self.shift_left(step, 2, 1);
+        self.shift_left(step, 3, 2);
     }
 
     fn op_cmp(&mut self, step: usize, hint: ExecutionHint) {

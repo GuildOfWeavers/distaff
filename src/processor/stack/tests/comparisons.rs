@@ -1,5 +1,5 @@
 use crate::math::{ field };
-use super::{ init_stack, get_stack_state, get_aux_state, ExecutionHint, TRACE_LENGTH };
+use super::{ init_stack, get_stack_state, ExecutionHint, TRACE_LENGTH };
 use super::super::Stack;
 
 // EQUALITY OPERATION
@@ -7,22 +7,22 @@ use super::super::Stack;
 
 #[test]
 fn eq() {
-    let mut stack = init_stack(&[3, 3, 4, 5], &[], &[], TRACE_LENGTH);
+    let inv_diff = field::inv(field::sub(1, 4));
+    let mut stack = init_stack(&[3, 3, 4, 5], &[0, inv_diff], &[], TRACE_LENGTH);
 
-    stack.op_eq(0);
-    assert_eq!(vec![1], get_aux_state(&stack, 0));
-    assert_eq!(vec![1, 4, 5, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+    stack.op_read(0);
+    stack.op_eq(1);
+    assert_eq!(vec![1, 4, 5, 0, 0, 0, 0, 0], get_stack_state(&stack, 2));
 
     assert_eq!(3, stack.depth);
-    assert_eq!(4, stack.max_depth);
+    assert_eq!(5, stack.max_depth);
 
-    stack.op_eq(1);
-    let inv_diff = field::inv(field::sub(1, 4));
-    assert_eq!(vec![inv_diff], get_aux_state(&stack, 1));
-    assert_eq!(vec![0, 5, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 2));
+    stack.op_read(2);
+    stack.op_eq(3);
+    assert_eq!(vec![0, 5, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 4));
 
     assert_eq!(2, stack.depth);
-    assert_eq!(4, stack.max_depth);
+    assert_eq!(5, stack.max_depth);
 }
 
 // COMPARISON OPERATION
