@@ -85,11 +85,6 @@ impl TraceState {
         return &self.registers[DECODER_WIDTH..];
     }
 
-    pub fn get_user_stack(&self) -> &[u128] {
-        // TODO: move user stack offset into a separate constant
-        return &self.registers[(DECODER_WIDTH + 1)..];
-    }
-
     pub fn compute_stack_depth(trace_register_count: usize) -> usize {
         return trace_register_count - DECODER_WIDTH;
     }

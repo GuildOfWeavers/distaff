@@ -15,8 +15,10 @@ use utils::{ agg_op_constraint, enforce_no_change, are_equal, is_binary };
 
 // CONSTANTS
 // ================================================================================================
-const STACK_HEAD_DEGREES: [usize; 8] = [
-    7,                      // aux constraints
+const NUM_AUX_CONSTRAINTS: usize = 1;
+const AUX_CONSTRAINT_DEGREES: [usize; NUM_AUX_CONSTRAINTS] = [7];
+
+const STACK_HEAD_DEGREES: [usize; 7] = [
     8, 8, 8, 8, 8, 8, 7,    // constraints for the first 7 registers of user stack
 ];
 const STACK_REST_DEGREE: usize = 6; // degree for the rest of the stack registers
@@ -33,8 +35,9 @@ pub struct Stack {
 impl Stack {
     pub fn new(trace_length: usize, extension_factor: usize, stack_depth: usize) -> Stack {
 
-        let mut degrees = Vec::from(&STACK_HEAD_DEGREES[..]);
-        degrees.resize(stack_depth, STACK_REST_DEGREE);
+        let mut degrees = Vec::from(&AUX_CONSTRAINT_DEGREES[..]);
+        degrees.extend_from_slice(&STACK_HEAD_DEGREES[..]);
+        degrees.resize(stack_depth + NUM_AUX_CONSTRAINTS, STACK_REST_DEGREE);
 
         return Stack {
             hash_evaluator      : HashEvaluator::new(trace_length, extension_factor),
@@ -88,11 +91,6 @@ impl Stack {
     /// are not tied to any repeating cycles in the execution trace.
     fn enforce_acyclic_ops(&self, current: &[u128], next: &[u128], op_flags: [u128; NUM_LD_OPS], next_op: u128, result: &mut [u128]) {
         
-        // trim stack states only to the user portion of the stack (excluding aux register)
-        // TODO: use a separate constant for user stack offset
-        let current = &current[1..];
-        let next = &next[1..];
-
         // initialize a vector to hold constraint evaluations; this is needed because constraint
         // evaluator functions assume that the stack is at least 8 items deep; while it may
         // actually be smaller than that
@@ -149,7 +147,7 @@ impl Stack {
 
         // copy evaluations into the result while skipping the aux constraint because it
         // is already updated in the result vector
-        let result = &mut result[1..];  // TODO: use constant
+        let result = &mut result[NUM_AUX_CONSTRAINTS..];
         for i in 0..result.len() {
             result[i] = field::add(result[i], evaluations[i]);
         }

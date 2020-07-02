@@ -44,7 +44,7 @@ pub fn execute(program: &Program, inputs: &ProgramInputs, num_outputs: usize, op
 
     // copy the user stack state the the last step to return as output
     let last_state = trace.get_state(trace.unextended_length() - 1);
-    let outputs = last_state.get_user_stack()[..num_outputs].to_vec();
+    let outputs = last_state.get_stack()[..num_outputs].to_vec();
 
     // generate STARK proof
     let mut proof = stark::prove(&mut trace, inputs.get_public_inputs(), &outputs, options);
@@ -119,5 +119,5 @@ const PROG_HASH_RANGE       : Range<usize> = Range { start: 6, end: 6 + ACC_STAT
 
 pub const MAX_PUBLIC_INPUTS : usize = 8;
 pub const MAX_OUTPUTS       : usize = 8;
-const MIN_STACK_DEPTH       : usize = 9;
+const MIN_STACK_DEPTH       : usize = 8;
 const MAX_STACK_DEPTH       : usize = 32;

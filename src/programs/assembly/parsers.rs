@@ -228,7 +228,7 @@ pub fn parse_gt(program: &mut Vec<u128>, hints: &mut HintMap, op: &[&str], step:
     // prepare the stack
     let power_of_two = u128::pow(2, n - 1);
     program.extend_from_slice(&[
-        opcodes::PAD2, opcodes::PAD2, opcodes::PAD2, opcodes::PUSH, power_of_two
+        opcodes::PAD2, opcodes::PAD2, opcodes::PAD2, opcodes::DUP, opcodes::PUSH, power_of_two
     ]);
 
     // add a hint indicating that value comparison is about to start
@@ -301,7 +301,9 @@ pub fn parse_rc(program: &mut Vec<u128>, hints: &mut HintMap, op: &[&str], step:
     program.resize(program.len() + (n as usize), opcodes::BINACC);
 
     // compare binary aggregation value with the original value
-    program.extend_from_slice(&[opcodes::DROP, opcodes::DROP, opcodes::EQ]);
+    program.extend_from_slice(&[opcodes::DROP, opcodes::DROP]);
+    hints.insert(program.len(), ExecutionHint::EqStart);
+    program.extend_from_slice(&[opcodes::READ, opcodes::EQ]);
     return Ok(true);
 }
 

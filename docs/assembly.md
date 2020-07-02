@@ -110,10 +110,10 @@ Divisions in prime fields are defined as inverse of multiplication. Specifically
 
 | Operation | Description                            | Cycles |
 | --------- | -------------------------------------- | :----: |
-| eq        | Pops top two items from the stack, compares them, and if their values are equal, pushes `1` onto the stack; otherwise pushes `0` onto the stack. | 1 |
+| eq        | Pops top two items from the stack, compares them, and if their values are equal, pushes `1` onto the stack; otherwise pushes `0` onto the stack. | 2 |
 | gt.*n*    | Pops top two items from the stack, compares them, and if the 1st value is greater than the 2nd value, pushes `1` onto the stack; otherwise pushes `0` onto the stack. If either of the values is greater than 2<sup>*n*</sup>, the operation will fail. *n* can be any integer between 4 and 128. | *n + 15* |
 | lt.*n*    | Pops top two items from the stack, compares them, and if the 1st value is less than the 2nd value, pushes `1` onto the stack; otherwise pushes `0` onto the stack. If either of the values is greater than 2<sup>*n*</sup>, the operation will fail. *n* can be any integer between 4 and 128. | *n + 14* |
-| rc.*n*    | Pops the top item from the stack, checks if it is less than 2<sup>*n*</sup>, and if it is, pushes `1` onto the stack; otherwise pushes `0` onto the stack. *n* can be any integer between 4 and 128.| *n + 6* |
+| rc.*n*    | Pops the top item from the stack, checks if it is less than 2<sup>*n*</sup>, and if it is, pushes `1` onto the stack; otherwise pushes `0` onto the stack. *n* can be any integer between 4 and 128.| *n + 7* |
 
 ### Selection instructions
 

@@ -204,7 +204,7 @@ impl Evaluator {
         }
 
         // make sure stack registers are set to inputs
-        let user_stack = current.get_user_stack();
+        let user_stack = current.get_stack();
         for i in 0..self.inputs.len() {
             cc_idx += 2;
             let val = field::sub(user_stack[i], self.inputs[i]);

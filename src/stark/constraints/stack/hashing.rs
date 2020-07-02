@@ -2,6 +2,7 @@ use std::cmp;
 use crate::math::{ field, polynom };
 use crate::utils::{ hasher };
 use crate::{ HASH_STATE_WIDTH, HASH_CYCLE_LENGTH };
+use super::{ NUM_AUX_CONSTRAINTS };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -42,8 +43,8 @@ impl HashEvaluator {
         let ark = &self.ark_values[step];
 
         // evaluate constraints for the hash function and for the rest of the stack
-        self.eval_hash(current, next, ark, op_flag, result);
-        self.eval_rest(current, next, op_flag, result);
+        self.eval_hash(current, next, ark, op_flag, &mut result[NUM_AUX_CONSTRAINTS..]);
+        self.eval_rest(current, next, op_flag, &mut result[NUM_AUX_CONSTRAINTS..]);
     }
 
     /// Evaluates constraints at the specified x coordinate and adds the resulting values to `result`.
@@ -60,19 +61,18 @@ impl HashEvaluator {
         }
 
         // evaluate constraints for the hash function and for the rest of the stack
-        self.eval_hash(current, next, &ark, op_flag, result);
-        self.eval_rest(current, next, op_flag, result);
+        self.eval_hash(current, next, &ark, op_flag, &mut result[NUM_AUX_CONSTRAINTS..]);
+        self.eval_rest(current, next, op_flag, &mut result[NUM_AUX_CONSTRAINTS..]);
     }
 
     /// Evaluates constraints for a single round of a modified Rescue hash function. Hash state is
     /// assumed to be in the first 6 registers of user stack (aux registers are not affected).
     fn eval_hash(&self, current: &[u128], next: &[u128], ark: &[u128], op_flag: u128, result: &mut [u128]) {
 
-        // TODO: use a constant for user stack offset
         let mut state_part1 = [field::ZERO; HASH_STATE_WIDTH];
-        state_part1.copy_from_slice(&current[1..(1 + HASH_STATE_WIDTH)]);
+        state_part1.copy_from_slice(&current[..HASH_STATE_WIDTH]);
         let mut state_part2 = [field::ZERO; HASH_STATE_WIDTH];
-        state_part2.copy_from_slice(&next[1..(1 + HASH_STATE_WIDTH)]);
+        state_part2.copy_from_slice(&next[..HASH_STATE_WIDTH]);
 
         for i in 0..HASH_STATE_WIDTH {
             state_part1[i] = field::add(state_part1[i], ark[i]);
@@ -86,7 +86,6 @@ impl HashEvaluator {
             state_part2[i] = field::sub(state_part2[i], ark[HASH_STATE_WIDTH + i]);
         }
 
-        let result = &mut result[1..]; // TODO: use constant
         for i in 0..cmp::min(result.len(), HASH_STATE_WIDTH) {
             let evaluation = field::sub(state_part2[i], state_part1[i]);
             result[i] = field::add(result[i], field::mul(evaluation, op_flag));
@@ -95,7 +94,7 @@ impl HashEvaluator {
 
     /// Evaluates constraints for stack registers un-affected by hash transition.
     fn eval_rest(&self, current: &[u128], next: &[u128], op_flag: u128, result: &mut [u128]) {
-        for i in (1 + HASH_STATE_WIDTH)..result.len() { // TODO: use constant
+        for i in HASH_STATE_WIDTH..result.len() {
             let evaluation = field::sub(next[i], current[i]);
             result[i] = field::add(result[i], field::mul(evaluation, op_flag));
         }

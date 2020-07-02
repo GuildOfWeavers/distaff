@@ -6,20 +6,14 @@ use super::{ ProgramInputs, opcodes, ExecutionHint };
 #[cfg(test)]
 mod tests;
 
-// CONSTANTS
-// ================================================================================================
-const MIN_USER_STACK_DEPTH: usize = MIN_STACK_DEPTH - 1;
-const MAX_USER_STACK_DEPTH: usize = MAX_STACK_DEPTH - 1;
-
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct Stack {
-    aux_register    : Vec<u128>,
-    user_registers  : Vec<Vec<u128>>,
-    tape_a          : Vec<u128>,
-    tape_b          : Vec<u128>,
-    max_depth       : usize,
-    depth           : usize,
+    registers   : Vec<Vec<u128>>,
+    tape_a      : Vec<u128>,
+    tape_b      : Vec<u128>,
+    max_depth   : usize,
+    depth       : usize,
 }
 
 // STACK IMPLEMENTATION
@@ -31,21 +25,17 @@ impl Stack {
     /// of actual steps exceeds this initial setting.
     pub fn new(inputs: &ProgramInputs, init_trace_length: usize) -> Stack {
 
-        // allocate space for user register traces and initialize the first state with
-        // public inputs
+        // allocate space for register traces and initialize the first state with public inputs
         let public_inputs = inputs.get_public_inputs();
-        let init_stack_depth = std::cmp::max(public_inputs.len(), MIN_USER_STACK_DEPTH);
-        let mut user_registers: Vec<Vec<u128>> = Vec::with_capacity(init_stack_depth);
+        let init_stack_depth = std::cmp::max(public_inputs.len(), MIN_STACK_DEPTH);
+        let mut registers: Vec<Vec<u128>> = Vec::with_capacity(init_stack_depth);
         for i in 0..init_stack_depth {
             let mut register = vec![field::ZERO; init_trace_length];
             if i < public_inputs.len() { 
                 register[0] = public_inputs[i];
             }
-            user_registers.push(register);
+            registers.push(register);
         }
-
-        // allocate space for aux stack register
-        let aux_register = vec![field::ZERO; init_trace_length];
 
         // reverse secret inputs so that they are consumed in FIFO order
         let [secret_inputs_a, secret_inputs_b] = inputs.get_secret_inputs();
@@ -55,8 +45,7 @@ impl Stack {
         tape_b.reverse();
 
         return Stack {
-            aux_register,
-            user_registers,
+            registers,
             tape_a,
             tape_b,
             max_depth: public_inputs.len(),
@@ -124,16 +113,13 @@ impl Stack {
 
     /// Returns the value at the top of the stack at specified `step`.
     pub fn get_stack_top(&self, step: usize) -> u128 {
-        return self.user_registers[0][step];
+        return self.registers[0][step];
     }
 
     /// Merges all register traces into a single vector of traces.
     pub fn into_register_traces(mut self) -> Vec<Vec<u128>> {
-        self.user_registers.truncate(self.max_depth);
-        let mut registers = Vec::with_capacity(1 + self.user_registers.len());
-        registers.push(self.aux_register);
-        registers.append(&mut self.user_registers);
-        return registers;
+        self.registers.truncate(self.max_depth);
+        return self.registers;
     }
 
     // OPERATIONS
@@ -144,22 +130,22 @@ impl Stack {
 
     fn op_assert(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
-        let value = self.user_registers[0][step];
+        let value = self.registers[0][step];
         assert!(value == field::ONE, "ASSERT failed at step {}", step);
         self.shift_left(step, 1, 1);
     }
 
     fn op_asserteq(&mut self, step: usize) {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
-        let x = self.user_registers[0][step];
-        let y = self.user_registers[1][step];
+        let x = self.registers[0][step];
+        let y = self.registers[1][step];
         assert!(x == y, "ASSERTEQ failed at step {}", step);
         self.shift_left(step, 2, 2);
     }
 
     fn op_push(&mut self, step: usize, value: u128) {
         self.shift_right(step, 0, 1);
-        self.user_registers[0][step + 1] = value;
+        self.registers[0][step + 1] = value;
     }
 
     fn op_read(&mut self, step: usize, hint: ExecutionHint) {
@@ -170,8 +156,8 @@ impl Stack {
                 // between top two stack values onto secret tape A, if they are equal; otherwise
                 // push value 1
                 assert!(self.depth >= 2, "stack underflow at step {}", step);
-                let x = self.user_registers[0][step];
-                let y = self.user_registers[1][step];
+                let x = self.registers[0][step];
+                let y = self.registers[1][step];
                 if x == y {
                     self.tape_a.push(field::ONE);
                 }
@@ -186,7 +172,7 @@ impl Stack {
 
         self.shift_right(step, 0, 1);
         let value = self.tape_a.pop().unwrap();
-        self.user_registers[0][step + 1] = value;
+        self.registers[0][step + 1] = value;
     }
 
     fn op_read2(&mut self, step: usize) {
@@ -195,36 +181,36 @@ impl Stack {
         self.shift_right(step, 0, 2);
         let value_a = self.tape_a.pop().unwrap();
         let value_b = self.tape_b.pop().unwrap();
-        self.user_registers[0][step + 1] = value_b;
-        self.user_registers[1][step + 1] = value_a;
+        self.registers[0][step + 1] = value_b;
+        self.registers[1][step + 1] = value_a;
     }
 
     fn op_dup(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
         self.shift_right(step, 0, 1);
-        self.user_registers[0][step + 1] = self.user_registers[0][step];
+        self.registers[0][step + 1] = self.registers[0][step];
     }
 
     fn op_dup2(&mut self, step: usize) {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
         self.shift_right(step, 0, 2);
-        self.user_registers[0][step + 1] = self.user_registers[0][step];
-        self.user_registers[1][step + 1] = self.user_registers[1][step];
+        self.registers[0][step + 1] = self.registers[0][step];
+        self.registers[1][step + 1] = self.registers[1][step];
     }
 
     fn op_dup4(&mut self, step: usize) {
         assert!(self.depth >= 4, "stack underflow at step {}", step);
         self.shift_right(step, 0, 4);
-        self.user_registers[0][step + 1] = self.user_registers[0][step];
-        self.user_registers[1][step + 1] = self.user_registers[1][step];
-        self.user_registers[2][step + 1] = self.user_registers[2][step];
-        self.user_registers[3][step + 1] = self.user_registers[3][step];
+        self.registers[0][step + 1] = self.registers[0][step];
+        self.registers[1][step + 1] = self.registers[1][step];
+        self.registers[2][step + 1] = self.registers[2][step];
+        self.registers[3][step + 1] = self.registers[3][step];
     }
 
     fn op_pad2(&mut self, step: usize) {
         self.shift_right(step, 0, 2);
-        self.user_registers[0][step + 1] = field::ZERO;
-        self.user_registers[1][step + 1] = field::ZERO;
+        self.registers[0][step + 1] = field::ZERO;
+        self.registers[1][step + 1] = field::ZERO;
     }
 
     fn op_drop(&mut self, step: usize) {
@@ -239,63 +225,63 @@ impl Stack {
 
     fn op_swap(&mut self, step: usize) {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
-        self.user_registers[0][step + 1] = self.user_registers[1][step];
-        self.user_registers[1][step + 1] = self.user_registers[0][step];
+        self.registers[0][step + 1] = self.registers[1][step];
+        self.registers[1][step + 1] = self.registers[0][step];
         self.copy_state(step, 2);
     }
 
     fn op_swap2(&mut self, step: usize) {
         assert!(self.depth >= 4, "stack underflow at step {}", step);
-        self.user_registers[0][step + 1] = self.user_registers[2][step];
-        self.user_registers[1][step + 1] = self.user_registers[3][step];
-        self.user_registers[2][step + 1] = self.user_registers[0][step];
-        self.user_registers[3][step + 1] = self.user_registers[1][step];
+        self.registers[0][step + 1] = self.registers[2][step];
+        self.registers[1][step + 1] = self.registers[3][step];
+        self.registers[2][step + 1] = self.registers[0][step];
+        self.registers[3][step + 1] = self.registers[1][step];
         self.copy_state(step, 4);
     }
 
     fn op_swap4(&mut self, step: usize) {
         assert!(self.depth >= 8, "stack underflow at step {}", step);
-        self.user_registers[0][step + 1] = self.user_registers[4][step];
-        self.user_registers[1][step + 1] = self.user_registers[5][step];
-        self.user_registers[2][step + 1] = self.user_registers[6][step];
-        self.user_registers[3][step + 1] = self.user_registers[7][step];
-        self.user_registers[4][step + 1] = self.user_registers[0][step];
-        self.user_registers[5][step + 1] = self.user_registers[1][step];
-        self.user_registers[6][step + 1] = self.user_registers[2][step];
-        self.user_registers[7][step + 1] = self.user_registers[3][step];
+        self.registers[0][step + 1] = self.registers[4][step];
+        self.registers[1][step + 1] = self.registers[5][step];
+        self.registers[2][step + 1] = self.registers[6][step];
+        self.registers[3][step + 1] = self.registers[7][step];
+        self.registers[4][step + 1] = self.registers[0][step];
+        self.registers[5][step + 1] = self.registers[1][step];
+        self.registers[6][step + 1] = self.registers[2][step];
+        self.registers[7][step + 1] = self.registers[3][step];
         self.copy_state(step, 8);
     }
 
     fn op_roll4(&mut self, step: usize) {
         assert!(self.depth >= 4, "stack underflow at step {}", step);
-        self.user_registers[0][step + 1] = self.user_registers[3][step];
-        self.user_registers[1][step + 1] = self.user_registers[0][step];
-        self.user_registers[2][step + 1] = self.user_registers[1][step];
-        self.user_registers[3][step + 1] = self.user_registers[2][step];
+        self.registers[0][step + 1] = self.registers[3][step];
+        self.registers[1][step + 1] = self.registers[0][step];
+        self.registers[2][step + 1] = self.registers[1][step];
+        self.registers[3][step + 1] = self.registers[2][step];
         self.copy_state(step, 4);
     }
 
     fn op_roll8(&mut self, step: usize) {
         assert!(self.depth >= 8, "stack underflow at step {}", step);
-        self.user_registers[0][step + 1] = self.user_registers[7][step];
-        self.user_registers[1][step + 1] = self.user_registers[0][step];
-        self.user_registers[2][step + 1] = self.user_registers[1][step];
-        self.user_registers[3][step + 1] = self.user_registers[2][step];
-        self.user_registers[4][step + 1] = self.user_registers[3][step];
-        self.user_registers[5][step + 1] = self.user_registers[4][step];
-        self.user_registers[6][step + 1] = self.user_registers[5][step];
-        self.user_registers[7][step + 1] = self.user_registers[6][step];
+        self.registers[0][step + 1] = self.registers[7][step];
+        self.registers[1][step + 1] = self.registers[0][step];
+        self.registers[2][step + 1] = self.registers[1][step];
+        self.registers[3][step + 1] = self.registers[2][step];
+        self.registers[4][step + 1] = self.registers[3][step];
+        self.registers[5][step + 1] = self.registers[4][step];
+        self.registers[6][step + 1] = self.registers[5][step];
+        self.registers[7][step + 1] = self.registers[6][step];
         self.copy_state(step, 8);
     }
 
     fn op_choose(&mut self, step: usize) {
         assert!(self.depth >= 3, "stack underflow at step {}", step);
-        let condition = self.user_registers[2][step];
+        let condition = self.registers[2][step];
         if condition == field::ONE {
-            self.user_registers[0][step + 1] = self.user_registers[0][step];
+            self.registers[0][step + 1] = self.registers[0][step];
         }
         else if condition == field::ZERO {
-            self.user_registers[0][step + 1] = self.user_registers[1][step];
+            self.registers[0][step + 1] = self.registers[1][step];
         }
         else {
             assert!(false, "CHOOSE on a non-binary condition at step {}", step);
@@ -305,14 +291,14 @@ impl Stack {
 
     fn op_choose2(&mut self, step: usize) {
         assert!(self.depth >= 6, "stack underflow at step {}", step);
-        let condition = self.user_registers[4][step];
+        let condition = self.registers[4][step];
         if condition == field::ONE {
-            self.user_registers[0][step + 1] = self.user_registers[0][step];
-            self.user_registers[1][step + 1] = self.user_registers[1][step];
+            self.registers[0][step + 1] = self.registers[0][step];
+            self.registers[1][step + 1] = self.registers[1][step];
         }
         else if condition == field::ZERO {
-            self.user_registers[0][step + 1] = self.user_registers[2][step];
-            self.user_registers[1][step + 1] = self.user_registers[3][step];
+            self.registers[0][step + 1] = self.registers[2][step];
+            self.registers[1][step + 1] = self.registers[3][step];
         }
         else {
             assert!(false, "CHOOSE2 on a non-binary condition at step {}", step);
@@ -322,54 +308,54 @@ impl Stack {
 
     fn op_add(&mut self, step: usize) {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
-        let x = self.user_registers[0][step];
-        let y = self.user_registers[1][step];
-        self.user_registers[0][step + 1] = field::add(x, y);
+        let x = self.registers[0][step];
+        let y = self.registers[1][step];
+        self.registers[0][step + 1] = field::add(x, y);
         self.shift_left(step, 2, 1);
     }
 
     fn op_mul(&mut self, step: usize) {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
-        let x = self.user_registers[0][step];
-        let y = self.user_registers[1][step];
-        self.user_registers[0][step + 1] = field::mul(x, y);
+        let x = self.registers[0][step];
+        let y = self.registers[1][step];
+        self.registers[0][step + 1] = field::mul(x, y);
         self.shift_left(step, 2, 1);
     }
 
     fn op_inv(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
-        let x = self.user_registers[0][step];
+        let x = self.registers[0][step];
         assert!(x != field::ZERO, "cannot compute INV of {} at step {}", field::ZERO, step);
-        self.user_registers[0][step + 1] = field::inv(x);
+        self.registers[0][step + 1] = field::inv(x);
         self.copy_state(step, 1);
     }
 
     fn op_neg(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
-        let x = self.user_registers[0][step];
-        self.user_registers[0][step + 1] = field::neg(x);
+        let x = self.registers[0][step];
+        self.registers[0][step + 1] = field::neg(x);
         self.copy_state(step, 1);
     }
 
     fn op_not(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
-        let x = self.user_registers[0][step];
+        let x = self.registers[0][step];
         assert!(x == field::ZERO || x == field::ONE, "cannot compute NOT of a non-binary value at step {}", step);
-        self.user_registers[0][step + 1] = field::sub(field::ONE, x);
+        self.registers[0][step + 1] = field::sub(field::ONE, x);
         self.copy_state(step, 1);
     }
 
     fn op_eq(&mut self, step: usize) {
         assert!(self.depth >= 3, "stack underflow at step {}", step);
-        let aux = self.user_registers[0][step];
-        let x = self.user_registers[1][step];
-        let y = self.user_registers[2][step];
+        let aux = self.registers[0][step];
+        let x = self.registers[1][step];
+        let y = self.registers[2][step];
         if x == y {
-            self.user_registers[0][step + 1] = field::ONE;
+            self.registers[0][step + 1] = field::ONE;
         } else {
             let diff = field::sub(x, y);
             assert!(aux == field::inv(diff), "invalid AUX value for EQ operation at step {}", step);
-            self.user_registers[0][step + 1] = field::ZERO;
+            self.registers[0][step + 1] = field::ZERO;
         }
         self.shift_left(step, 3, 2);
     }
@@ -381,8 +367,8 @@ impl Stack {
                 // if we are about to start comparison sequence, push binary decompositions
                 // of a and b values onto the tapes
                 assert!(self.depth >= 10, "stack underflow at step {}", step);
-                let a_val = self.user_registers[8][step];
-                let b_val = self.user_registers[9][step];
+                let a_val = self.registers[8][step];
+                let b_val = self.registers[9][step];
                 for i in 0..n {
                     self.tape_a.push((a_val >> i) & 1);
                     self.tape_b.push((b_val >> i) & 1);
@@ -408,7 +394,7 @@ impl Stack {
         let bit_lt = field::mul(b_bit, field::sub(field::ONE, a_bit));
 
         // compute current power of 2 for binary decomposition
-        let power_of_two = self.user_registers[0][step];
+        let power_of_two = self.registers[0][step];
         assert!(power_of_two.is_power_of_two(),
             "expected top of the stack at step {} to be a power of 2, but received {}", step, power_of_two);
         let next_power_of_two = if power_of_two == 1 {
@@ -419,19 +405,19 @@ impl Stack {
         };
 
         // determine if the result of comparison is already known
-        let gt = self.user_registers[4][step];
-        let lt = self.user_registers[5][step];
+        let gt = self.registers[4][step];
+        let lt = self.registers[5][step];
         let not_set = field::mul(field::sub(field::ONE, gt), field::sub(field::ONE, lt));
 
         // update the next state of the computation
-        self.user_registers[0][step + 1] = next_power_of_two;
-        self.user_registers[1][step + 1] = a_bit;
-        self.user_registers[2][step + 1] = b_bit;
-        self.user_registers[3][step + 1] = not_set;
-        self.user_registers[4][step + 1] = field::add(gt, field::mul(bit_gt, not_set));
-        self.user_registers[5][step + 1] = field::add(lt, field::mul(bit_lt, not_set));
-        self.user_registers[6][step + 1] = field::add(self.user_registers[6][step], field::mul(b_bit, power_of_two));
-        self.user_registers[7][step + 1] = field::add(self.user_registers[7][step], field::mul(a_bit, power_of_two));
+        self.registers[0][step + 1] = next_power_of_two;
+        self.registers[1][step + 1] = a_bit;
+        self.registers[2][step + 1] = b_bit;
+        self.registers[3][step + 1] = not_set;
+        self.registers[4][step + 1] = field::add(gt, field::mul(bit_gt, not_set));
+        self.registers[5][step + 1] = field::add(lt, field::mul(bit_lt, not_set));
+        self.registers[6][step + 1] = field::add(self.registers[6][step], field::mul(b_bit, power_of_two));
+        self.registers[7][step + 1] = field::add(self.registers[7][step], field::mul(a_bit, power_of_two));
 
         self.copy_state(step, 8);
     }
@@ -443,7 +429,7 @@ impl Stack {
                 // if we are about to start range check sequence, push binary decompositions
                 // of the value onto tape A
                 assert!(self.depth >= 4, "stack underflow at step {}", step);
-                let val = self.user_registers[3][step];
+                let val = self.registers[3][step];
                 for i in 0..n {
                     self.tape_a.push((val >> i) & 1);
                 }
@@ -460,7 +446,7 @@ impl Stack {
             "expected binary input at step {} but received: {}", step, bit);
 
         // compute current power of 2 for binary decomposition
-        let power_of_two = self.user_registers[0][step];
+        let power_of_two = self.registers[0][step];
         assert!(power_of_two.is_power_of_two(),
             "expected top of the stack at step {} to be a power of 2, but received {}", step, power_of_two);
         let next_power_of_two = if power_of_two == 1 {
@@ -470,12 +456,12 @@ impl Stack {
                 power_of_two >> 1
             };
 
-        let acc = self.user_registers[2][step];
+        let acc = self.registers[2][step];
 
         // update the next state of the computation
-        self.user_registers[0][step + 1] = next_power_of_two;
-        self.user_registers[1][step + 1] = bit;
-        self.user_registers[2][step + 1] = field::add(acc, field::mul(bit, power_of_two));
+        self.registers[0][step + 1] = next_power_of_two;
+        self.registers[1][step + 1] = bit;
+        self.registers[2][step + 1] = field::add(acc, field::mul(bit, power_of_two));
 
         self.copy_state(step, 3);
     }
@@ -483,22 +469,22 @@ impl Stack {
     fn op_rescr(&mut self, step: usize) {
         assert!(self.depth >= HASH_STATE_WIDTH, "stack underflow at step {}", step);
         let mut state = [
-            self.user_registers[0][step],
-            self.user_registers[1][step],
-            self.user_registers[2][step],
-            self.user_registers[3][step],
-            self.user_registers[4][step],
-            self.user_registers[5][step],
+            self.registers[0][step],
+            self.registers[1][step],
+            self.registers[2][step],
+            self.registers[3][step],
+            self.registers[4][step],
+            self.registers[5][step],
         ];
 
         hasher::apply_round(&mut state, step);
 
-        self.user_registers[0][step + 1] = state[0];
-        self.user_registers[1][step + 1] = state[1];
-        self.user_registers[2][step + 1] = state[2];
-        self.user_registers[3][step + 1] = state[3];
-        self.user_registers[4][step + 1] = state[4];
-        self.user_registers[5][step + 1] = state[5];
+        self.registers[0][step + 1] = state[0];
+        self.registers[1][step + 1] = state[1];
+        self.registers[2][step + 1] = state[2];
+        self.registers[3][step + 1] = state[3];
+        self.registers[4][step + 1] = state[4];
+        self.registers[5][step + 1] = state[5];
 
         self.copy_state(step, HASH_STATE_WIDTH);
     }
@@ -508,8 +494,8 @@ impl Stack {
 
     fn copy_state(&mut self, step: usize, start: usize,) {
         for i in start..self.depth {
-            let slot_value = self.user_registers[i][step];
-            self.user_registers[i][step + 1] = slot_value;
+            let slot_value = self.registers[i][step];
+            self.registers[i][step + 1] = slot_value;
         }
     }
 
@@ -518,13 +504,13 @@ impl Stack {
         
         // shift all values by pos_count to the left
         for i in start..self.depth {
-            let slot_value = self.user_registers[i][step];
-            self.user_registers[i - pos_count][step + 1] = slot_value;
+            let slot_value = self.registers[i][step];
+            self.registers[i - pos_count][step + 1] = slot_value;
         }
 
         // set all "shifted-in" slots to 0
         for i in (self.depth - pos_count)..self.depth {
-            self.user_registers[i][step + 1] = field::ZERO;
+            self.registers[i][step + 1] = field::ZERO;
         }
 
         // stack depth has been reduced by pos_count
@@ -534,37 +520,37 @@ impl Stack {
     fn shift_right(&mut self, step: usize, start: usize, pos_count: usize) {
         
         self.depth += pos_count;
-        assert!(self.depth <= MAX_USER_STACK_DEPTH, "stack overflow at step {}", step);
+        assert!(self.depth <= MAX_STACK_DEPTH, "stack overflow at step {}", step);
 
         if self.depth > self.max_depth {
             self.max_depth += pos_count;
-            if self.max_depth > self.user_registers.len() {
-                self.add_registers(self.max_depth - self.user_registers.len());
+            if self.max_depth > self.registers.len() {
+                self.add_registers(self.max_depth - self.registers.len());
             }
         }
 
         for i in start..(self.depth - pos_count) {
-            let slot_value = self.user_registers[i][step];
-            self.user_registers[i + pos_count][step + 1] = slot_value;
+            let slot_value = self.registers[i][step];
+            self.registers[i + pos_count][step + 1] = slot_value;
         }
     }
 
     /// Extends the stack by the specified number of registers
     fn add_registers(&mut self, num_registers: usize) {
-        let trace_length = self.user_registers[0].len();
-        let trace_capacity = self.user_registers[0].capacity();
+        let trace_length = self.registers[0].len();
+        let trace_capacity = self.registers[0].capacity();
         for _ in 0..num_registers {
             let register = filled_vector(trace_length, trace_capacity, field::ZERO);
-            self.user_registers.push(register);
+            self.registers.push(register);
         }
     }
 
     fn ensure_trace_capacity(&mut self, step: usize) {
-        if step >= self.aux_register.len() - 1 {
-            let new_length = self.aux_register.len() * 2;
-            self.aux_register.resize(new_length, 0);
-            for i in 0..self.user_registers.len() {
-                self.user_registers[i].resize(new_length, 0);
+        let current_length = self.registers[0].len();
+        if step >= current_length - 1 {
+            let new_length = current_length * 2;
+            for i in 0..self.registers.len() {
+                self.registers[i].resize(new_length, 0);
             }
         }
     }

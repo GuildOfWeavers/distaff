@@ -378,9 +378,9 @@ fn init_stack(public_inputs: &[u128], secret_inputs_a: &[u128], secret_inputs_b:
 }
 
 fn get_stack_state(stack: &Stack, step: usize) -> Vec<u128> {
-    let mut state = Vec::with_capacity(stack.user_registers.len());
-    for i in 0..stack.user_registers.len() {
-        state.push(stack.user_registers[i][step]);
+    let mut state = Vec::with_capacity(stack.registers.len());
+    for i in 0..stack.registers.len() {
+        state.push(stack.registers[i][step]);
     }
     return state;
 }
