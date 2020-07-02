@@ -10,14 +10,33 @@ fn eq() {
     let inv_diff = field::inv(field::sub(1, 4));
     let mut stack = init_stack(&[3, 3, 4, 5], &[0, inv_diff], &[], TRACE_LENGTH);
 
-    stack.op_read(0);
+    stack.op_read(0, ExecutionHint::None);
     stack.op_eq(1);
     assert_eq!(vec![1, 4, 5, 0, 0, 0, 0, 0], get_stack_state(&stack, 2));
 
     assert_eq!(3, stack.depth);
     assert_eq!(5, stack.max_depth);
 
-    stack.op_read(2);
+    stack.op_read(2, ExecutionHint::None);
+    stack.op_eq(3);
+    assert_eq!(vec![0, 5, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 4));
+
+    assert_eq!(2, stack.depth);
+    assert_eq!(5, stack.max_depth);
+}
+
+#[test]
+fn eq_with_hint() {
+    let mut stack = init_stack(&[3, 3, 4, 5], &[], &[], TRACE_LENGTH);
+
+    stack.op_read(0, ExecutionHint::EqStart);
+    stack.op_eq(1);
+    assert_eq!(vec![1, 4, 5, 0, 0, 0, 0, 0], get_stack_state(&stack, 2));
+
+    assert_eq!(3, stack.depth);
+    assert_eq!(5, stack.max_depth);
+
+    stack.op_read(2, ExecutionHint::EqStart);
     stack.op_eq(3);
     assert_eq!(vec![0, 5, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 4));
 
@@ -221,13 +240,11 @@ fn lt_finale(stack: &mut Stack, step: usize) -> usize {
     stack.op_pad2(step + 1);
     stack.op_swap4(step + 2);
     stack.op_roll4(step + 3);
-    stack.op_eq(step + 4);
-    stack.op_assert(step + 5);
-    stack.op_eq(step + 6);
-    stack.op_assert(step + 7);
-    stack.op_dup(step + 8);
-    stack.op_drop4(step + 9);
-    return step + 10;
+    stack.op_asserteq(step + 4);
+    stack.op_asserteq(step + 5);
+    stack.op_dup(step + 6);
+    stack.op_drop4(step + 7);
+    return step + 8;
 }
 
 fn gt_finale(stack: &mut Stack, step: usize) -> usize {
@@ -235,12 +252,10 @@ fn gt_finale(stack: &mut Stack, step: usize) -> usize {
     stack.op_pad2(step + 1);
     stack.op_swap4(step + 2);
     stack.op_roll4(step + 3);
-    stack.op_eq(step + 4);
-    stack.op_assert(step + 5);
-    stack.op_eq(step + 6);
-    stack.op_assert(step + 7);
-    stack.op_roll4(step + 8);
-    stack.op_dup(step + 9);
-    stack.op_drop4(step + 10);
-    return step + 11;
+    stack.op_asserteq(step + 4);
+    stack.op_asserteq(step + 5);
+    stack.op_roll4(step + 6);
+    stack.op_dup(step + 7);
+    stack.op_drop4(step + 8);
+    return step + 9;
 }

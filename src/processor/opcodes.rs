@@ -14,7 +14,7 @@ pub const DUP: u8      = 0b000_01_011;  // same as: DUP2 SWAP DROP
 pub const DUP2: u8     = 0b000_01_100;
 pub const DUP4: u8     = 0b000_01_101;
 pub const PAD2: u8     = 0b000_01_110;  // same as: PUSH 0 DUP
-//pub const ???: u8    = 0b000_01_111;
+pub const ASSERTEQ: u8 = 0b000_01_111;
 
 pub const ASSERT: u8   = 0b000_10_000;
 pub const DROP: u8     = 0b000_10_001;
@@ -39,6 +39,7 @@ pub mod f128 {
     pub const BEGIN   : u128 = super::BEGIN as u128;
     pub const NOOP    : u128 = super::NOOP as u128;
     pub const ASSERT  : u128 = super::ASSERT as u128;
+    pub const ASSERTEQ: u128 = super::ASSERTEQ as u128;
 
     // input ops
     pub const PUSH    : u128 = super::PUSH as u128;

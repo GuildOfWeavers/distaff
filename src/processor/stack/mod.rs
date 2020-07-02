@@ -78,44 +78,45 @@ impl Stack {
         // execute the appropriate action against the current state of the stack
         match op_code {
 
-            opcodes::BEGIN   => self.op_noop(step),
-            opcodes::NOOP    => self.op_noop(step),
-            opcodes::ASSERT  => self.op_assert(step),
+            opcodes::BEGIN      => self.op_noop(step),
+            opcodes::NOOP       => self.op_noop(step),
+            opcodes::ASSERT     => self.op_assert(step),
+            opcodes::ASSERTEQ   => self.op_asserteq(step),
 
-            opcodes::PUSH    => self.op_push(step, next_op),
+            opcodes::PUSH       => self.op_push(step, next_op),
 
-            opcodes::READ    => self.op_read(step),
-            opcodes::READ2   => self.op_read2(step),
+            opcodes::READ       => self.op_read(step, hint),
+            opcodes::READ2      => self.op_read2(step),
 
-            opcodes::DUP     => self.op_dup(step),
-            opcodes::DUP2    => self.op_dup2(step),
-            opcodes::DUP4    => self.op_dup4(step),
-            opcodes::PAD2    => self.op_pad2(step),
+            opcodes::DUP        => self.op_dup(step),
+            opcodes::DUP2       => self.op_dup2(step),
+            opcodes::DUP4       => self.op_dup4(step),
+            opcodes::PAD2       => self.op_pad2(step),
 
-            opcodes::DROP    => self.op_drop(step),
-            opcodes::DROP4   => self.op_drop4(step),
+            opcodes::DROP       => self.op_drop(step),
+            opcodes::DROP4      => self.op_drop4(step),
 
-            opcodes::SWAP    => self.op_swap(step),
-            opcodes::SWAP2   => self.op_swap2(step),
-            opcodes::SWAP4   => self.op_swap4(step),
+            opcodes::SWAP       => self.op_swap(step),
+            opcodes::SWAP2      => self.op_swap2(step),
+            opcodes::SWAP4      => self.op_swap4(step),
 
-            opcodes::ROLL4   => self.op_roll4(step),
-            opcodes::ROLL8   => self.op_roll8(step),
+            opcodes::ROLL4      => self.op_roll4(step),
+            opcodes::ROLL8      => self.op_roll8(step),
 
-            opcodes::CHOOSE  => self.op_choose(step),
-            opcodes::CHOOSE2 => self.op_choose2(step),
+            opcodes::CHOOSE     => self.op_choose(step),
+            opcodes::CHOOSE2    => self.op_choose2(step),
 
-            opcodes::ADD     => self.op_add(step),
-            opcodes::MUL     => self.op_mul(step),
-            opcodes::INV     => self.op_inv(step),
-            opcodes::NEG     => self.op_neg(step),
-            opcodes::NOT     => self.op_not(step),
+            opcodes::ADD        => self.op_add(step),
+            opcodes::MUL        => self.op_mul(step),
+            opcodes::INV        => self.op_inv(step),
+            opcodes::NEG        => self.op_neg(step),
+            opcodes::NOT        => self.op_not(step),
 
-            opcodes::EQ      => self.op_eq(step),
-            opcodes::CMP     => self.op_cmp(step, hint),
-            opcodes::BINACC  => self.op_binacc(step, hint),
+            opcodes::EQ         => self.op_eq(step),
+            opcodes::CMP        => self.op_cmp(step, hint),
+            opcodes::BINACC     => self.op_binacc(step, hint),
 
-            opcodes::RESCR   => self.op_rescr(step),
+            opcodes::RESCR      => self.op_rescr(step),
 
             _ => panic!("operation {} is not supported", current_op)
         }
@@ -148,13 +149,41 @@ impl Stack {
         self.shift_left(step, 1, 1);
     }
 
+    fn op_asserteq(&mut self, step: usize) {
+        assert!(self.depth >= 2, "stack underflow at step {}", step);
+        let x = self.user_registers[0][step];
+        let y = self.user_registers[1][step];
+        assert!(x == y, "ASSERTEQ failed at step {}", step);
+        self.shift_left(step, 2, 2);
+    }
+
     fn op_push(&mut self, step: usize, value: u128) {
         self.shift_right(step, 0, 1);
         self.user_registers[0][step + 1] = value;
     }
 
-    fn op_read(&mut self, step: usize) {
-        assert!(self.tape_a.len() > 0, "attempt to read from empty tape A at step {}", step);
+    fn op_read(&mut self, step: usize, hint: ExecutionHint) {
+        // process execution hint
+        match hint {
+            ExecutionHint::EqStart => {
+                // if we are about to equality comparison sequence, push inverse of the difference
+                // between top two stack values onto secret tape A, if they are equal; otherwise
+                // push value 1
+                assert!(self.depth >= 2, "stack underflow at step {}", step);
+                let x = self.user_registers[0][step];
+                let y = self.user_registers[1][step];
+                if x == y {
+                    self.tape_a.push(field::ONE);
+                }
+                else {
+                    self.tape_a.push(field::inv(field::sub(x, y)));
+                }
+            },
+            _ => {
+                assert!(self.tape_a.len() > 0, "attempt to read from empty tape A at step {}", step);
+            }
+        }
+
         self.shift_right(step, 0, 1);
         let value = self.tape_a.pop().unwrap();
         self.user_registers[0][step + 1] = value;
@@ -331,7 +360,7 @@ impl Stack {
     }
 
     fn op_eq(&mut self, step: usize) {
-        assert!(self.depth >= 2, "stack underflow at step {}", step);
+        assert!(self.depth >= 3, "stack underflow at step {}", step);
         let aux = self.user_registers[0][step];
         let x = self.user_registers[1][step];
         let y = self.user_registers[2][step];

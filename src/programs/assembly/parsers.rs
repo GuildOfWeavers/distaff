@@ -207,9 +207,10 @@ pub fn parse_not(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<bo
 // ================================================================================================
 
 /// Appends EQ operation to the program.
-pub fn parse_eq(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_eq(program: &mut Vec<u128>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     if op.len() > 1 { return Err(AssemblyError::extra_param(op, step)); }
-    program.push(opcodes::EQ);
+    hints.insert(program.len(), ExecutionHint::EqStart);
+    program.extend_from_slice(&[opcodes::READ, opcodes::EQ]);
     return Ok(true);
 }
 
@@ -239,8 +240,8 @@ pub fn parse_gt(program: &mut Vec<u128>, hints: &mut HintMap, op: &[&str], step:
     // compare binary aggregation values with the original values, and drop everything
     // but the GT value from the stack
     program.extend_from_slice(&[
-        opcodes::DROP4,  opcodes::PAD2, opcodes::SWAP4,  opcodes::ROLL4, opcodes::EQ,
-        opcodes::ASSERT, opcodes::EQ,   opcodes::ASSERT, opcodes::ROLL4, opcodes::DUP,
+        opcodes::DROP4,    opcodes::PAD2,     opcodes::SWAP4, opcodes::ROLL4,
+        opcodes::ASSERTEQ, opcodes::ASSERTEQ, opcodes::ROLL4, opcodes::DUP,
         opcodes::DROP4
     ]);
     return Ok(true);
@@ -272,8 +273,8 @@ pub fn parse_lt(program: &mut Vec<u128>, hints: &mut HintMap, op: &[&str], step:
     // compare binary aggregation values with the original values, and drop everything
     // but the LT value from the stack
     program.extend_from_slice(&[
-        opcodes::DROP4,  opcodes::PAD2, opcodes::SWAP4,  opcodes::ROLL4, opcodes::EQ,
-        opcodes::ASSERT, opcodes::EQ,   opcodes::ASSERT, opcodes::DUP,   opcodes::DROP4
+        opcodes::DROP4,    opcodes::PAD2,     opcodes::SWAP4, opcodes::ROLL4,
+        opcodes::ASSERTEQ, opcodes::ASSERTEQ, opcodes::DUP,   opcodes::DROP4
     ]);
     return Ok(true);
 }

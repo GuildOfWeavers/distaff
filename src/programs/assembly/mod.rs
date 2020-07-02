@@ -150,7 +150,7 @@ fn parse_op_token(token: &str, program: &mut Vec<u128>, hints: &mut HintMap, ste
         "inv"    => parse_inv(program, &op, step),
         "not"    => parse_not(program, &op, step),
 
-        "eq"     => parse_eq(program, &op, step),
+        "eq"     => parse_eq(program, hints, &op, step),
         "gt"     => parse_gt(program, hints, &op, step),
         "lt"     => parse_lt(program, hints, &op, step),
         "rc"     => parse_rc(program, hints, &op, step),

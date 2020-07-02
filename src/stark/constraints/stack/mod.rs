@@ -99,10 +99,12 @@ impl Stack {
         let mut evaluations = vec![field::ZERO; current.len()];
 
         // control flow operations
-        enforce_no_change(&mut evaluations, current, next, op_flags[opcodes::BEGIN as usize]);
-        enforce_no_change(&mut evaluations, current, next, op_flags[opcodes::NOOP as usize]);
+        enforce_no_change(&mut evaluations,     current, next, op_flags[opcodes::BEGIN as usize]);
+        enforce_no_change(&mut evaluations,     current, next, op_flags[opcodes::NOOP as usize]);
         result[0] = field::add(result[0],
-            enforce_assert(&mut evaluations, current, next, op_flags[opcodes::ASSERT as usize]));
+            enforce_assert(&mut evaluations,    current, next, op_flags[opcodes::ASSERT as usize]));
+        result[0] = field::add(result[0],
+            enforce_asserteq(&mut evaluations,  current, next, op_flags[opcodes::ASSERTEQ as usize]));
 
         // input operations
         enforce_push(&mut evaluations,      current, next, next_op, op_flags[opcodes::PUSH as usize]);
@@ -162,7 +164,15 @@ impl Stack {
 fn enforce_assert(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) -> u128 {
     let n = next.len() - 1;
     enforce_no_change(&mut result[0..n], &current[1..], &next[0..n], op_flag);
-    return field::mul(op_flag, field::sub(field::ONE, current[0]));
+    return field::mul(op_flag, are_equal(field::ONE, current[0]));
+}
+
+/// Enforces constraints for ASSERTEQ operation. The stack is shifted by 2 registers the left and
+/// an auxiliary constraint enforces that the first element of the stack is equal to the second.
+fn enforce_asserteq(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) -> u128 {
+    let n = next.len() - 2;
+    enforce_no_change(&mut result[0..n], &current[2..], &next[0..n], op_flag);
+    return field::mul(op_flag, are_equal(current[0], current[1]));
 }
 
 // INPUT OPERATIONS

@@ -12,6 +12,7 @@ pub struct ExecutionGraph {
 
 #[derive(Copy, Clone)]
 pub enum ExecutionHint {
+    EqStart,
     RcStart(u32),
     CmpStart(u32),
     None

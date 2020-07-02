@@ -37,6 +37,23 @@ fn assert_fail() {
     stack.op_assert(0);
 }
 
+#[test]
+fn asserteq() {
+    let mut stack = init_stack(&[1, 1, 3, 4], &[], &[], TRACE_LENGTH);
+    stack.op_asserteq(0);
+    assert_eq!(vec![3, 4, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+    assert_eq!(2, stack.depth);
+    assert_eq!(4, stack.max_depth);
+}
+
+#[test]
+#[should_panic(expected = "ASSERTEQ failed at step 0")]
+fn asserteq_fail() {
+    let mut stack = init_stack(&[2, 3, 4], &[], &[], TRACE_LENGTH);
+    stack.op_asserteq(0);
+}
+
 // INPUT OPERATIONS
 // ================================================================================================
 
@@ -54,13 +71,13 @@ fn push() {
 fn read() {
     let mut stack = init_stack(&[1], &[2, 3], &[], TRACE_LENGTH);
 
-    stack.op_read(0);
+    stack.op_read(0, ExecutionHint::None);
     assert_eq!(vec![2, 1, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
     assert_eq!(2, stack.depth);
     assert_eq!(2, stack.max_depth);
 
-    stack.op_read(1);
+    stack.op_read(1, ExecutionHint::None);
     assert_eq!(vec![3, 2, 1, 0, 0, 0, 0, 0], get_stack_state(&stack, 2));
 
     assert_eq!(3, stack.depth);
