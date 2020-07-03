@@ -11,7 +11,7 @@ The tables below describe all currently available atomic instructions in Distaff
 | ----------- | :------: | --------------------------------------- |
 | NOOP        | 00000000 | Does nothing. |
 | BEGIN       | 11111111 | Marks the beginning of a program. Every program must start with the `BEGIN` operation. |
-| ASSERT      | 00010000 | Pops the top item from the stack and checks if it is equal to `1`. If it is not equal to `1`, the program fails. |
+| ASSERT      | 00010000 | Pops the top item from the stack and checks if it is equal to `1`. If it is not equal to `1`, the operation will fail. |
 | ASSERTEQ    | 00001111 | Pops top two items from the stack and checks if they are equal. If they are not equal, the operation will fail. |
 
 ### Input instructions
