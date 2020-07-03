@@ -219,6 +219,31 @@ fn binacc_64() {
     assert_eq!(vec![x, x, 7, 11, 0, 0, 0, 0], state);
 }
 
+#[test]
+fn isodd_128() {
+
+    let x: u128 = field::rand();
+    let is_odd = x & 1;
+    let p127: u128 = field::exp(2, 127);
+    
+    // initialize the stack
+    let mut inputs_a = Vec::new();
+    for i in 0..128 { inputs_a.push((x >> i) & 1); }
+    inputs_a.reverse();
+
+    let mut stack = init_stack(&[p127, 0, 0, x, 7, 11], &inputs_a, &[], 256);
+
+    // execute binary aggregation operations
+    for i in 0..128 { stack.op_binacc(i, ExecutionHint::None); }
+
+    // check the result
+    stack.op_swap2(128);
+    stack.op_asserteq(129);
+    stack.op_drop(130);
+    let state = get_stack_state(&stack, 131);
+    assert_eq!(vec![is_odd, 7, 11, 0, 0, 0, 0, 0], state);
+}
+
 // HELPER FUNCTIONS
 // ================================================================================================
 fn build_inputs_for_cmp(a: u128, b: u128, size: usize) -> (Vec<u128>, Vec<u128>) {

@@ -7,18 +7,18 @@ pub fn get_example(args: &[String]) -> Example  {
     let (value, options) = parse_args(args);
 
     // determine the expected result
-    let expected_result: u128 = if value < 10 {
-        field::mul(10, value as u128)
+    let expected_result: u128 = if value < 9 {
+        field::mul(9, value as u128) & 1
     }
     else {
-        field::add(10, value as u128)
+        field::add(9, value as u128) & 1
     };
     
     // construct the program which checks if the value provided via secret inputs is
-    // less than 10; if it is, the value is multiplied by 10, otherwise, 10 is added
-    // to the value
+    // less than 9; if it is, the value is multiplied by 9, otherwise, 9 is added
+    // to the value; then we check if the value is odd.
     let program = assembly::compile("
-        push.10
+        push.9
         read
         dup.2
         lt.128
@@ -26,7 +26,8 @@ pub fn get_example(args: &[String]) -> Example  {
             mul
         else
             add
-        endif",
+        endif
+        isodd.128",
         options.hash_fn()).unwrap();
 
     println!("Generated a program to test comparisons; expected result: {}", 

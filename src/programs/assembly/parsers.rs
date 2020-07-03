@@ -203,6 +203,20 @@ pub fn parse_not(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<bo
     return Ok(true);
 }
 
+/// Appends AND operation to the program.
+pub fn parse_and(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+    if op.len() > 1 { return Err(AssemblyError::extra_param(op, step)); }
+    program.push(opcodes::AND);
+    return Ok(true);
+}
+
+/// Appends OR operation to the program.
+pub fn parse_or(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+    if op.len() > 1 { return Err(AssemblyError::extra_param(op, step)); }
+    program.push(opcodes::OR);
+    return Ok(true);
+}
+
 // COMPARISON OPERATIONS
 // ================================================================================================
 
@@ -282,8 +296,7 @@ pub fn parse_lt(program: &mut Vec<u128>, hints: &mut HintMap, op: &[&str], step:
 /// Appends a sequence of operations to the program to determine whether the top value on the 
 /// stack can be represented with n bits.
 pub fn parse_rc(program: &mut Vec<u128>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
-    // n is the number of bits sufficient to represent each value; if either of the
-    // values does not fit into n bits, the operation fill fail.
+    // n is the number of bits against which to test the binary decomposition
     let n = read_param(op, step)?;
     if n < 4 || n > 128 {
         return Err(AssemblyError::invalid_param_reason(op, step,
@@ -304,6 +317,33 @@ pub fn parse_rc(program: &mut Vec<u128>, hints: &mut HintMap, op: &[&str], step:
     program.extend_from_slice(&[opcodes::DROP, opcodes::DROP]);
     hints.insert(program.len(), ExecutionHint::EqStart);
     program.extend_from_slice(&[opcodes::READ, opcodes::EQ]);
+    return Ok(true);
+}
+
+/// Appends a sequence of operations to the program to determine whether the top value on the 
+/// stack is odd.
+pub fn parse_isodd(program: &mut Vec<u128>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+    // n is the number of bits sufficient to represent top stack value;
+    // if the values does not fit into n bits, the operation fill fail.
+    let n = read_param(op, step)?;
+    if n < 4 || n > 128 {
+        return Err(AssemblyError::invalid_param_reason(op, step,
+            format!("parameter {} is invalid; value must be between 4 and 128", n)))
+    }
+
+    // prepare the stack
+    let power_of_two = u128::pow(2, n - 1);
+    program.extend_from_slice(&[opcodes::PAD2, opcodes::PUSH, power_of_two]);
+
+    // add a hint indicating that range-checking is about to start
+    hints.insert(program.len(), ExecutionHint::RcStart(n));
+
+    // append BINACC operations
+    program.resize(program.len() + (n as usize), opcodes::BINACC);
+
+    // compare binary aggregation value with the original value and drop all
+    // values used in computations except for the least significant bit of the value
+    program.extend_from_slice(&[opcodes::SWAP2, opcodes::ASSERTEQ, opcodes::DROP]);
     return Ok(true);
 }
 
