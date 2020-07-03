@@ -1,4 +1,4 @@
-use distaff::{ Program, ProgramInputs, assembly, math::{ FiniteField, F128 }, crypto::hash::blake3, utils::Hasher };
+use distaff::{ Program, ProgramInputs, assembly, math::field, crypto::hash::blake3, utils::hasher };
 use super::{ Example, utils::parse_args };
 
 pub fn get_example(args: &[String]) -> Example  {
@@ -49,7 +49,7 @@ fn generate_merkle_program(n: usize) -> Program {
 
 /// Converts Merkle authentication path for a node at the specified `index` into 
 /// a set of inputs which can be consumed by the program created by the function above.
-fn generate_program_inputs(path: &[Vec<F128>; 2], index: usize) -> ProgramInputs<F128> {
+fn generate_program_inputs(path: &[Vec<u128>; 2], index: usize) -> ProgramInputs {
 
     let mut a = Vec::new();
     let mut b = Vec::new();
@@ -67,8 +67,8 @@ fn generate_program_inputs(path: &[Vec<F128>; 2], index: usize) -> ProgramInputs
 
         // push next bit of the position index onto tapes A and B; we use both tapes
         // here so that we can use READ2 instruction when reading inputs from the tapes
-        a.push(F128::ZERO);
-        b.push(F128::from_usize(index & 1));
+        a.push(field::ZERO);
+        b.push((index & 1) as u128);
         index = index >> 1;
     }
 
@@ -77,24 +77,24 @@ fn generate_program_inputs(path: &[Vec<F128>; 2], index: usize) -> ProgramInputs
 
 /// Pseudo-randomly generates a Merkle authentication path for an imaginary Merkle tree
 /// of depth equal to `n`
-fn generate_authentication_path(n: usize) -> ([Vec<F128>; 2], usize) {
+fn generate_authentication_path(n: usize) -> ([Vec<u128>; 2], usize) {
     let mut s1 = [0u8; 32];
     s1[0] = 1; s1[1] = 2; s1[2] = 3;
     let mut s2 = [0u8; 32];
     s2[0] = 4; s2[1] = 5; s2[2] = 6;
 
     let leaves = u128::pow(2, (n - 1) as u32);
-    let leaf_index = (F128::prng(s1) % leaves) as usize;
+    let leaf_index = (field::prng(s1) % leaves) as usize;
 
-    return ([F128::prng_vector(s1, n), F128::prng_vector(s2, n)], leaf_index);
+    return ([field::prng_vector(s1, n), field::prng_vector(s2, n)], leaf_index);
 }
 
 /// Computes tree root to which a given authentication path resolves assuming the
 /// path is for a leaf node at position specified by `index` parameter.
-fn compute_merkle_root(path: &[Vec<F128>; 2], index: usize) -> Vec<F128> {
+fn compute_merkle_root(path: &[Vec<u128>; 2], index: usize) -> Vec<u128> {
 
-    let mut buf = [F128::ZERO; 4];
-    let mut v: Vec<F128>;
+    let mut buf = [field::ZERO; 4];
+    let mut v: Vec<u128>;
     let n = path[0].len();
 
     let r = index & 1;
@@ -103,7 +103,7 @@ fn compute_merkle_root(path: &[Vec<F128>; 2], index: usize) -> Vec<F128> {
     buf[2] = path[0][1 - r];
     buf[3] = path[1][1 - r];
 
-    v = F128::digest(&buf);
+    v = hasher::digest(&buf);
 
     let mut index = (index + usize::pow(2, (n - 1) as u32)) >> 1;
     for i in 2..n {
@@ -120,7 +120,7 @@ fn compute_merkle_root(path: &[Vec<F128>; 2], index: usize) -> Vec<F128> {
             buf[3] = v[1];
         }
         
-        v = F128::digest(&buf);
+        v = hasher::digest(&buf);
         index = index >> 1;
     }
 

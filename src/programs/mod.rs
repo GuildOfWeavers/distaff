@@ -1,6 +1,6 @@
 use crate::crypto::{ HashFunction, build_merkle_nodes };
 use crate::{ MIN_TRACE_LENGTH, ACC_STATE_WIDTH, ACC_STATE_RATE };
-use crate::utils::{ Accumulator, as_bytes };
+use crate::utils::{ accumulator, as_bytes };
 use super::{ opcodes::f128 as opcodes};
 
 mod graph;
@@ -186,7 +186,7 @@ fn digest_graph(graph: &ExecutionGraph, hashes: &mut Vec<[u8; 32]>, mut state: H
     if graph.has_next() {
         // this is not the last segment of the program - so, update the state with all opcodes
         for i in 0..segment_ops.len() {
-            u128::apply_round(&mut state, segment_ops[i], step);
+            accumulator::apply_round(&mut state, segment_ops[i], step);
             step += 1;
         }
 
@@ -204,7 +204,7 @@ fn digest_graph(graph: &ExecutionGraph, hashes: &mut Vec<[u8; 32]>, mut state: H
 
         // update the state with all opcodes but the last one
         for i in 0..(segment_ops.len() - 1) {
-            u128::apply_round(&mut state, segment_ops[i], step);
+            accumulator::apply_round(&mut state, segment_ops[i], step);
             step += 1;
         }
 
@@ -220,7 +220,7 @@ fn digest_graph(graph: &ExecutionGraph, hashes: &mut Vec<[u8; 32]>, mut state: H
 #[cfg(test)]
 mod tests {
 
-    use crate::{ utils::Accumulator, crypto::hash::blake3 };
+    use crate::{ utils::accumulator, crypto::hash::blake3 };
     use super::{ opcodes, ExecutionGraph, Program };
 
     #[test]
@@ -231,7 +231,7 @@ mod tests {
         let program2 = Program::from_path(path.clone());
 
         pad_program(&mut path);
-        let path_hash = u128::digest(&path[..(path.len() - 1)]);
+        let path_hash = accumulator::digest(&path[..(path.len() - 1)]);
         assert_eq!(path_hash, program1.path_hashes[0]);
         assert_eq!(path_hash, *program1.hash());
         assert_eq!(path_hash, program2.path_hashes[0]);
@@ -249,10 +249,10 @@ mod tests {
 
         let mut path1 = vec![opcodes::BEGIN, opcodes::ADD, opcodes::MUL, opcodes::ASSERT, opcodes::DROP];
         pad_program(&mut path1);
-        let path1_hash = u128::digest(&path1[..(path1.len() - 1)]);
+        let path1_hash = accumulator::digest(&path1[..(path1.len() - 1)]);
         let mut path2 = vec![opcodes::BEGIN, opcodes::ADD, opcodes::MUL, opcodes::NOT, opcodes::ASSERT, opcodes::DUP];
         pad_program(&mut path2);
-        let path2_hash = u128::digest(&path2[..(path2.len() - 1)]);
+        let path2_hash = accumulator::digest(&path2[..(path2.len() - 1)]);
 
         let buf = [path1_hash, path2_hash].concat();
         let mut program_hash = [0u8; 32];

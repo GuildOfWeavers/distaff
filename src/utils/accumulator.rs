@@ -1,99 +1,138 @@
-use crate::math::{ FiniteField, F128, fft, polynom };
+use std::{ slice, mem };
+use crate::math::{ field, fft, polynom };
 use crate::utils::{ filled_vector };
-use super::{ Accumulator };
+use crate::{
+    ACC_NUM_ROUNDS as NUM_ROUNDS,
+    ACC_STATE_WIDTH as STATE_WIDTH,
+    ACC_DIGEST_SIZE as DIGEST_SIZE,
+};
 
-// 128-BIT ACCUMULATOR IMPLEMENTATION
+// ACCUMULATOR FUNCTIONS
 // ================================================================================================
-impl Accumulator for F128 {
 
-    const NUM_ROUNDS    : usize = NUM_ROUNDS;
-    const STATE_WIDTH   : usize = STATE_WIDTH;
-    const DIGEST_SIZE   : usize = DIGEST_SIZE;
-
-    fn add_constants(state: &mut[Self], idx: usize, offset: usize) {
-        for i in 0..STATE_WIDTH {
-            state[i] = F128::add(state[i], ARK[offset + i][idx]);
-        }
+/// Hashes a list of u64 values into a single 32-byte value using a modified version of 
+/// [Rescue](https://eprint.iacr.org/2019/426) hash function. The modifications are:
+/// 
+/// 1. First and last steps of the permutation are removed to make the permutation fully-foldable.
+/// 2. A single round is executed for each value in the list with constants cycling every 16 
+/// rounds. This means that a new value is injected into the state at the beginning of each round.
+/// 
+/// The last modification differs significantly form how the function was originally designed,
+/// and likely compromises security.
+pub fn digest(values: &[u128]) -> [u8; 32] {
+    let mut state = vec![field::ZERO; STATE_WIDTH];
+    for i in 0..values.len() {
+        apply_round(&mut state, values[i], i);
     }
 
-    fn apply_sbox(state: &mut [F128]) {
-        for i in 0..STATE_WIDTH {
-            state[i] = F128::exp(state[i], ALPHA);
+    let element_size = mem::size_of::<u128>();
+    debug_assert!(element_size * DIGEST_SIZE == 32, "digest size must be 32 bytes");
+    let state_slice = &state[0..DIGEST_SIZE];
+    let state_slice = unsafe {  slice::from_raw_parts(state_slice.as_ptr() as *const u8, 32) };
+
+    let mut result = [0u8; 32];
+    result.copy_from_slice(state_slice);
+
+    return result;
+}
+
+pub fn apply_round(state: &mut [u128], value: u128, step: usize) {
+    
+    let ark_idx = step % NUM_ROUNDS;
+
+    // apply first half of Rescue round
+    add_constants(state, ark_idx, 0);
+    apply_sbox(state);
+    apply_mds(state);
+
+    // inject value into the state
+    state[0] = field::add(state[0], field::mul(state[2], value));
+    state[1] = field::mul(state[1], field::add(state[3], value));
+
+    // apply second half of Rescue round
+    add_constants(state, ark_idx, STATE_WIDTH);
+    apply_inv_sbox(state);
+    apply_mds(state);
+}
+
+pub fn add_constants(state: &mut[u128], idx: usize, offset: usize) {
+    for i in 0..STATE_WIDTH {
+        state[i] = field::add(state[i], ARK[offset + i][idx]);
+    }
+}
+
+pub fn apply_sbox(state: &mut [u128]) {
+    for i in 0..STATE_WIDTH {
+        state[i] = field::exp(state[i], ALPHA);
+    }
+}
+
+pub fn apply_inv_sbox(state: &mut[u128]) {
+    // TODO: optimize
+    for i in 0..STATE_WIDTH {
+        state[i] = field::exp(state[i], INV_ALPHA);
+    }
+}
+
+pub fn apply_mds(state: &mut[u128]) {
+    let mut result = [field::ZERO; STATE_WIDTH];
+    let mut temp = [field::ZERO; STATE_WIDTH];
+    for i in 0..STATE_WIDTH {
+        for j in 0..STATE_WIDTH {
+            temp[j] = field::mul(MDS[i * STATE_WIDTH + j], state[j]);
         }
+
+        for j in 0..STATE_WIDTH {
+            result[i] = field::add(result[i], temp[j]);
+        }
+    }
+    state.copy_from_slice(&result);
+}
+
+pub fn apply_inv_mds(state: &mut[u128]) {
+    let mut result = [field::ZERO; STATE_WIDTH];
+    let mut temp = [field::ZERO; STATE_WIDTH];
+    for i in 0..STATE_WIDTH {
+        for j in 0..STATE_WIDTH {
+            temp[j] = field::mul(INV_MDS[i * STATE_WIDTH + j], state[j]);
+        }
+
+        for j in 0..STATE_WIDTH {
+            result[i] = field::add(result[i], temp[j]);
+        }
+    }
+    state.copy_from_slice(&result);
+}
+
+pub fn get_extended_constants(extension_factor: usize) -> (Vec<Vec<u128>>, Vec<Vec<u128>>) {
+    let root = field::get_root_of_unity(NUM_ROUNDS);
+    let inv_twiddles = fft::get_inv_twiddles(root, NUM_ROUNDS);
+
+    let domain_size = NUM_ROUNDS * extension_factor;
+    let domain_root = field::get_root_of_unity(domain_size);
+    let twiddles = fft::get_twiddles(domain_root, domain_size);
+
+    let mut polys = Vec::with_capacity(ARK.len());
+    let mut evaluations = Vec::with_capacity(ARK.len());
+
+    for constant in ARK.iter() {
+        let mut extended_constant = filled_vector(NUM_ROUNDS, domain_size, field::ZERO);
+        extended_constant.copy_from_slice(constant);
+
+        polynom::interpolate_fft_twiddles(&mut extended_constant, &inv_twiddles, true);
+        polys.push(extended_constant.clone());
+
+        unsafe { extended_constant.set_len(extended_constant.capacity()); }
+        polynom::eval_fft_twiddles(&mut extended_constant, &twiddles, true);
+
+        evaluations.push(extended_constant);
     }
 
-    fn apply_inv_sbox(state: &mut[F128]) {
-        // TODO: optimize
-        for i in 0..STATE_WIDTH {
-            state[i] = F128::exp(state[i], INV_ALPHA);
-        }
-    }
-
-    fn apply_mds(state: &mut[F128]) {
-        let mut result = [F128::ZERO; STATE_WIDTH];
-        let mut temp = [F128::ZERO; STATE_WIDTH];
-        for i in 0..STATE_WIDTH {
-            for j in 0..STATE_WIDTH {
-                temp[j] = F128::mul(MDS[i * STATE_WIDTH + j], state[j]);
-            }
-    
-            for j in 0..STATE_WIDTH {
-                result[i] = F128::add(result[i], temp[j]);
-            }
-        }
-        state.copy_from_slice(&result);
-    }
-
-    fn apply_inv_mds(state: &mut[F128]) {
-        let mut result = [F128::ZERO; STATE_WIDTH];
-        let mut temp = [F128::ZERO; STATE_WIDTH];
-        for i in 0..STATE_WIDTH {
-            for j in 0..STATE_WIDTH {
-                temp[j] = F128::mul(INV_MDS[i * STATE_WIDTH + j], state[j]);
-            }
-    
-            for j in 0..STATE_WIDTH {
-                result[i] = F128::add(result[i], temp[j]);
-            }
-        }
-        state.copy_from_slice(&result);
-    }
-
-    fn get_extended_constants(extension_factor: usize) -> (Vec<Vec<F128>>, Vec<Vec<F128>>) {
-        let root = F128::get_root_of_unity(NUM_ROUNDS);
-        let inv_twiddles = fft::get_inv_twiddles(root, NUM_ROUNDS);
-    
-        let domain_size = NUM_ROUNDS * extension_factor;
-        let domain_root = F128::get_root_of_unity(domain_size);
-        let twiddles = fft::get_twiddles(domain_root, domain_size);
-    
-        let mut polys = Vec::with_capacity(ARK.len());
-        let mut evaluations = Vec::with_capacity(ARK.len());
-    
-        for constant in ARK.iter() {
-            let mut extended_constant = filled_vector(NUM_ROUNDS, domain_size, F128::ZERO);
-            extended_constant.copy_from_slice(constant);
-    
-            polynom::interpolate_fft_twiddles(&mut extended_constant, &inv_twiddles, true);
-            polys.push(extended_constant.clone());
-    
-            unsafe { extended_constant.set_len(extended_constant.capacity()); }
-            polynom::eval_fft_twiddles(&mut extended_constant, &twiddles, true);
-    
-            evaluations.push(extended_constant);
-        }
-    
-        return (polys, evaluations);
-    }
+    return (polys, evaluations);
 }
 
 // 128-BIT RESCUE CONSTANTS
 // ================================================================================================
-
-const NUM_ROUNDS    : usize = 16;
-const STATE_WIDTH   : usize = 4;
-const DIGEST_SIZE   : usize = 2;
-
 const ALPHA: u128 = 3;
 const INV_ALPHA: u128 = 226854911280625642308916371969163307691;
 

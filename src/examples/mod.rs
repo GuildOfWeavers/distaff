@@ -1,4 +1,4 @@
-use distaff::{ math::F128, Program, ProgramInputs, ProofOptions };
+use distaff::{ Program, ProgramInputs, ProofOptions };
 
 mod utils;
 
@@ -10,8 +10,8 @@ pub mod range;
 
 pub struct Example {
     pub program         : Program,
-    pub inputs          : ProgramInputs<F128>,
+    pub inputs          : ProgramInputs,
     pub num_outputs     : usize,
     pub options         : ProofOptions,
-    pub expected_result : Vec<F128>
+    pub expected_result : Vec<u128>
 }

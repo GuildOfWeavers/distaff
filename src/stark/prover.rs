@@ -1,8 +1,7 @@
-use std::{ mem, time::Instant };
+use std::time::Instant;
 use log::debug;
-use crate::math::{ FiniteField, polynom, fft };
+use crate::math::{ field, polynom, fft };
 use crate::crypto::{ MerkleTree };
-use crate::utils::{ Hasher, Accumulator };
 use super::trace::{ TraceTable, TraceState };
 use super::constraints::{ ConstraintTable, ConstraintPoly, MAX_CONSTRAINT_DEGREE };
 use super::{ ProofOptions, StarkProof, CompositionCoefficients, DeepValues, fri, utils };
@@ -10,15 +9,13 @@ use super::{ ProofOptions, StarkProof, CompositionCoefficients, DeepValues, fri,
 // PROVER FUNCTION
 // ================================================================================================
 
-pub fn prove<T>(trace: &mut TraceTable<T>, inputs: &[T], outputs: &[T], options: &ProofOptions) -> StarkProof<T>
-    where T: FiniteField + Accumulator + Hasher
-{
+pub fn prove(trace: &mut TraceTable, inputs: &[u128], outputs: &[u128], options: &ProofOptions) -> StarkProof {
     // 1 ----- extend execution trace -------------------------------------------------------------
     let now = Instant::now();
 
     // build LDE domain and LDE twiddles (for FFT evaluation over LDE domain)
-    let lde_root = T::get_root_of_unity(trace.domain_size());
-    let lde_domain = T::get_power_series(lde_root, trace.domain_size());
+    let lde_root = field::get_root_of_unity(trace.domain_size());
+    let lde_domain = field::get_power_series(lde_root, trace.domain_size());
     let lde_twiddles = twiddles_from_domain(&lde_domain);
 
     // extend the execution trace registers to LDE domain
@@ -144,7 +141,7 @@ pub fn prove<T>(trace: &mut TraceTable<T>, inputs: &[T], outputs: &[T], options:
     let trace_evaluations = trace.get_register_values_at(&positions);
 
     // build a list of constraint positions
-    let constraint_positions = utils::map_trace_to_constraint_positions::<T>(&positions);
+    let constraint_positions = utils::map_trace_to_constraint_positions(&positions);
 
     // build the proof object
     let proof = StarkProof::new(
@@ -164,30 +161,25 @@ pub fn prove<T>(trace: &mut TraceTable<T>, inputs: &[T], outputs: &[T], options:
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn twiddles_from_domain<T: FiniteField>(domain: &[T]) -> Vec<T> {
+fn twiddles_from_domain(domain: &[u128]) -> Vec<u128> {
     let mut twiddles = domain[..(domain.len() / 2)].to_vec();
     fft::permute(&mut twiddles);
     return twiddles;
 }
 
-fn evaluations_to_leaves<T: FiniteField>(evaluations: Vec<T>) -> Vec<[u8; 32]> {
-    let element_size = mem::size_of::<T>();
-    let elements_per_leaf = 32 / element_size;
-
-    assert!(evaluations.len() % elements_per_leaf == 0,
-        "number of values must be divisible by {}", elements_per_leaf);
+/// Re-interpret vector of 16-byte values as a vector of 32-byte arrays
+fn evaluations_to_leaves(evaluations: Vec<u128>) -> Vec<[u8; 32]> {
+    assert!(evaluations.len() % 2 == 0, "number of values must be divisible by 2");
     let mut v = std::mem::ManuallyDrop::new(evaluations);
     let p = v.as_mut_ptr();
-    let len = v.len() / elements_per_leaf;
-    let cap = v.capacity() / elements_per_leaf;
+    let len = v.len() / 2;
+    let cap = v.capacity() / 2;
     return unsafe { Vec::from_raw_parts(p as *mut [u8; 32], len, cap) };
 }
 
-fn build_composition_poly<T>(trace: &TraceTable<T>, constraint_poly: ConstraintPoly<T>, seed: &[u8; 32]) -> (Vec<T>, DeepValues<T>)
-    where T: FiniteField + Accumulator + Hasher
-{
+fn build_composition_poly(trace: &TraceTable, constraint_poly: ConstraintPoly, seed: &[u8; 32]) -> (Vec<u128>, DeepValues) {
     // pseudo-randomly selection deep point z and coefficients for the composition
-    let z = T::prng(*seed);
+    let z = field::prng(*seed);
     let coefficients = CompositionCoefficients::new(*seed);
 
     // divide out deep point from trace polynomials and merge them into a single polynomial

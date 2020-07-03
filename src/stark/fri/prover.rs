@@ -1,5 +1,5 @@
 use std::mem;
-use crate::math::{ FiniteField, quartic };
+use crate::math::{ field, quartic };
 use crate::crypto::{ MerkleTree };
 use crate::stark::{ ProofOptions };
 
@@ -8,11 +8,9 @@ use super::{ FriProof, FriLayer, utils, MAX_REMAINDER_LENGTH};
 // PROVER FUNCTIONS
 // ================================================================================================
 
-pub fn reduce<T>(evaluations: &[T], domain: &[T], options: &ProofOptions) -> (Vec<MerkleTree>, Vec<Vec<[T; 4]>>)
-    where T: FiniteField
-{
+pub fn reduce(evaluations: &[u128], domain: &[u128], options: &ProofOptions) -> (Vec<MerkleTree>, Vec<Vec<[u128; 4]>>) {
     let mut tree_results: Vec<MerkleTree> = Vec::new();
-    let mut value_results: Vec<Vec<[T; 4]>> = Vec::new();
+    let mut value_results: Vec<Vec<[u128; 4]>> = Vec::new();
 
     // transpose evaluations into a matrix with 4 columns and put its rows into a Merkle tree
     let mut p_values = quartic::transpose(evaluations, 1);
@@ -28,7 +26,7 @@ pub fn reduce<T>(evaluations: &[T], domain: &[T], options: &ProofOptions) -> (Ve
         let polys = quartic::interpolate_batch(&xs, &p_values);
 
         // select a pseudo-random x coordinate and evaluate each row polynomial at that x
-        let special_x = T::prng(*p_tree.root());
+        let special_x = field::prng(*p_tree.root());
         let column = quartic::evaluate_batch(&polys, special_x);
 
         // break the column in a polynomial value matrix for the next layer
@@ -54,9 +52,7 @@ pub fn reduce<T>(evaluations: &[T], domain: &[T], options: &ProofOptions) -> (Ve
     return (tree_results, value_results);
 }
 
-pub fn build_proof<T>(trees: Vec<MerkleTree>, values: Vec<Vec<[T; 4]>>, positions: &[usize]) -> FriProof<T>
-    where T: FiniteField
-{
+pub fn build_proof(trees: Vec<MerkleTree>, values: Vec<Vec<[u128; 4]>>, positions: &[usize]) -> FriProof {
     let mut positions = positions.to_vec();
     let mut domain_size = trees[0].leaves().len() * 4;
 
@@ -70,7 +66,7 @@ pub fn build_proof<T>(trees: Vec<MerkleTree>, values: Vec<Vec<[T; 4]>>, position
         let tree = &trees[i];
         let proof = tree.prove_batch(&positions);
         
-        let mut queried_values: Vec<[T; 4]> = Vec::with_capacity(positions.len());
+        let mut queried_values: Vec<[u128; 4]> = Vec::with_capacity(positions.len());
         for &position in positions.iter() {
             queried_values.push(values[i][position]);
         }
@@ -88,7 +84,7 @@ pub fn build_proof<T>(trees: Vec<MerkleTree>, values: Vec<Vec<[T; 4]>>, position
     let last_tree = &trees[trees.len() - 1];
     let last_values = &values[values.len() - 1];
     let n = last_values.len();
-    let mut remainder = vec![T::ZERO; n * 4];
+    let mut remainder = vec![field::ZERO; n * 4];
     for i in 0..last_values.len() {
         remainder[i] = last_values[i][0];
         remainder[i + n] = last_values[i][1];

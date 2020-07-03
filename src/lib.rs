@@ -28,7 +28,7 @@ pub use programs::{ Program, ProgramInputs, ExecutionGraph, ExecutionHint, assem
 /// 
 /// * `inputs` specifies the initial stack state and provides secret input tapes;
 /// * `num_outputs` specifies the number of elements from the top of the stack to be returned;
-pub fn execute(program: &Program, inputs: &ProgramInputs<u128>, num_outputs: usize, options: &ProofOptions) -> (Vec<u128>, StarkProof<u128>)
+pub fn execute(program: &Program, inputs: &ProgramInputs, num_outputs: usize, options: &ProofOptions) -> (Vec<u128>, StarkProof)
 {
     assert!(num_outputs <= MAX_OUTPUTS, 
         "cannot produce more than {} outputs, but requested {}", MAX_OUTPUTS, num_outputs);
@@ -44,7 +44,7 @@ pub fn execute(program: &Program, inputs: &ProgramInputs<u128>, num_outputs: usi
 
     // copy the user stack state the the last step to return as output
     let last_state = trace.get_state(trace.unextended_length() - 1);
-    let outputs = last_state.get_user_stack()[..num_outputs].to_vec();
+    let outputs = last_state.get_stack()[..num_outputs].to_vec();
 
     // generate STARK proof
     let mut proof = stark::prove(&mut trace, inputs.get_public_inputs(), &outputs, options);
@@ -63,7 +63,7 @@ pub fn execute(program: &Program, inputs: &ProgramInputs<u128>, num_outputs: usi
 
 /// Verifies that if a program with the specified `program_hash` is executed with the 
 /// provided `public_inputs` and some secret inputs, the result is equal to the `outputs`.
-pub fn verify(program_hash: &[u8; 32], public_inputs: &[u128], outputs: &[u128], proof: &StarkProof<u128>) -> Result<bool, String>
+pub fn verify(program_hash: &[u8; 32], public_inputs: &[u128], outputs: &[u128], proof: &StarkProof) -> Result<bool, String>
 {
     return stark::verify(program_hash, public_inputs, outputs, proof);
 }
@@ -81,6 +81,8 @@ const HASH_STATE_RATE       : usize = 4;
 const HASH_STATE_CAPACITY   : usize = 2;
 const HASH_STATE_WIDTH      : usize = HASH_STATE_RATE + HASH_STATE_CAPACITY;
 const HASH_CYCLE_LENGTH     : usize = 16;
+const HASH_NUM_ROUNDS       : usize = 10;
+const HASH_DIGEST_SIZE      : usize = 2;
 
 // HASH ACCUMULATOR
 // ------------------------------------------------------------------------------------------------
@@ -88,6 +90,8 @@ const ACC_STATE_RATE        : usize = 2;
 const ACC_STATE_CAPACITY    : usize = 2;
 const ACC_STATE_WIDTH       : usize = ACC_STATE_RATE + ACC_STATE_CAPACITY;
 const ACC_CYCLE_LENGTH      : usize = 16;
+const ACC_NUM_ROUNDS        : usize = 16;
+const ACC_DIGEST_SIZE       : usize = 2;
 
 // DECODER LAYOUT
 // ------------------------------------------------------------------------------------------------
@@ -115,5 +119,5 @@ const PROG_HASH_RANGE       : Range<usize> = Range { start: 6, end: 6 + ACC_STAT
 
 pub const MAX_PUBLIC_INPUTS : usize = 8;
 pub const MAX_OUTPUTS       : usize = 8;
-const MIN_STACK_DEPTH       : usize = 9;
+const MIN_STACK_DEPTH       : usize = 8;
 const MAX_STACK_DEPTH       : usize = 32;

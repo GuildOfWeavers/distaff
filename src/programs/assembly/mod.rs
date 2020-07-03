@@ -149,11 +149,14 @@ fn parse_op_token(token: &str, program: &mut Vec<u128>, hints: &mut HintMap, ste
         "neg"    => parse_neg(program, &op, step),
         "inv"    => parse_inv(program, &op, step),
         "not"    => parse_not(program, &op, step),
+        "and"    => parse_and(program, &op, step),
+        "or"     => parse_or(program, &op, step),
 
-        "eq"     => parse_eq(program, &op, step),
+        "eq"     => parse_eq(program, hints, &op, step),
         "gt"     => parse_gt(program, hints, &op, step),
         "lt"     => parse_lt(program, hints, &op, step),
         "rc"     => parse_rc(program, hints, &op, step),
+        "isodd"  => parse_isodd(program, hints, &op, step),
 
         "choose" => parse_choose(program, &op, step),
 

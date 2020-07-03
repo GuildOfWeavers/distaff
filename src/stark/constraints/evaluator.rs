@@ -1,39 +1,35 @@
-use std::mem;
-use crate::math::{ FiniteField };
+use crate::math::{ field };
 use crate::processor::{ opcodes };
 use crate::stark::{ StarkProof, TraceTable, TraceState, ConstraintCoefficients };
-use crate::utils::{ Hasher, Accumulator, uninit_vector };
+use crate::utils::{ uninit_vector };
 use super::{ decoder::Decoder, stack::Stack, MAX_CONSTRAINT_DEGREE };
 
 // TYPES AND INTERFACES
 // ================================================================================================
-pub struct Evaluator<T>
-    where T: FiniteField + Accumulator + Hasher
-{
-    decoder         : Decoder<T>,
-    stack           : Stack<T>,
+pub struct Evaluator {
+    decoder         : Decoder,
+    stack           : Stack,
 
-    coefficients    : ConstraintCoefficients<T>,
+    coefficients    : ConstraintCoefficients,
     domain_size     : usize,
     extension_factor: usize,
 
     t_constraint_num: usize,
-    t_degree_groups : Vec<(T, Vec<usize>)>,
-    t_evaluations   : Vec<Vec<T>>,
+    t_degree_groups : Vec<(u128, Vec<usize>)>,
+    t_evaluations   : Vec<Vec<u128>>,
 
     b_constraint_num: usize,
-    program_hash    : Vec<T>,
-    inputs          : Vec<T>,
-    outputs         : Vec<T>,
-    b_degree_adj    : T,
+    program_hash    : Vec<u128>,
+    inputs          : Vec<u128>,
+    outputs         : Vec<u128>,
+    b_degree_adj    : u128,
 }
 
 // EVALUATOR IMPLEMENTATION
 // ================================================================================================
-impl <T> Evaluator<T>
-    where T: FiniteField + Accumulator + Hasher
-{
-    pub fn from_trace(trace: &TraceTable<T>, trace_root: &[u8; 32], inputs: &[T], outputs: &[T]) -> Evaluator<T> {
+impl Evaluator {
+
+    pub fn from_trace(trace: &TraceTable, trace_root: &[u8; 32], inputs: &[u128], outputs: &[u128]) -> Evaluator {
 
         let stack_depth = trace.max_stack_depth();
         let program_hash = trace.get_program_hash();
@@ -76,7 +72,7 @@ impl <T> Evaluator<T>
         };
     }
 
-    pub fn from_proof(proof: &StarkProof<T>, program_hash: &[u8; 32], inputs: &[T], outputs: &[T]) -> Evaluator<T> {
+    pub fn from_proof(proof: &StarkProof, program_hash: &[u8; 32], inputs: &[u128], outputs: &[u128]) -> Evaluator {
         
         let stack_depth = proof.stack_depth();
         let trace_length = proof.trace_length();
@@ -120,9 +116,9 @@ impl <T> Evaluator<T>
         return self.domain_size / self.extension_factor;
     }
 
-    pub fn get_x_at_last_step(&self) -> T {
-        let trace_root = T::get_root_of_unity(self.trace_length());
-        return T::exp(trace_root, T::from_usize(self.trace_length() - 1));
+    pub fn get_x_at_last_step(&self) -> u128 {
+        let trace_root = field::get_root_of_unity(self.trace_length());
+        return field::exp(trace_root, (self.trace_length() - 1) as u128);
     }
 
     // CONSTRAINT EVALUATORS
@@ -131,10 +127,10 @@ impl <T> Evaluator<T>
     /// Computes pseudo-random linear combination of transition constraints D_i at point x as:
     /// cc_{i * 2} * D_i + cc_{i * 2 + 1} * D_i * x^p for all i, where cc_j are the coefficients
     /// used in the linear combination and x^p is a degree adjustment factor (different for each degree).
-    pub fn evaluate_transition(&self, current: &TraceState<T>, next: &TraceState<T>, x: T, step: usize) -> T {
+    pub fn evaluate_transition(&self, current: &TraceState, next: &TraceState, x: u128, step: usize) -> u128 {
         
         // evaluate transition constraints
-        let mut evaluations = vec![T::ZERO; self.t_constraint_num];
+        let mut evaluations = vec![field::ZERO; self.t_constraint_num];
         self.decoder.evaluate(&current, &next, step, &mut evaluations);
         self.stack.evaluate(&current, &next, step, &mut evaluations[self.decoder.constraint_count()..]);
 
@@ -147,9 +143,9 @@ impl <T> Evaluator<T>
         if self.should_evaluate_to_zero_at(step) {
             let step = step / self.extension_factor;
             for i in 0..evaluations.len() {
-                assert!(evaluations[i] == T::ZERO, "transition constraint at step {} were not satisfied", step);
+                assert!(evaluations[i] == field::ZERO, "transition constraint at step {} were not satisfied", step);
             }
-            return T::ZERO;
+            return field::ZERO;
         }
 
         // compute a pseudo-random linear combination of all transition constraints
@@ -159,9 +155,9 @@ impl <T> Evaluator<T>
     /// Computes pseudo-random liner combination of transition constraints at point x. This function
     /// is similar to the one above but it can also be used to evaluate constraints at any point
     /// in the filed (not just in the evaluation domain). However, it is also much slower.
-    pub fn evaluate_transition_at(&self, current: &TraceState<T>, next: &TraceState<T>, x: T) -> T {
+    pub fn evaluate_transition_at(&self, current: &TraceState, next: &TraceState, x: u128) -> u128 {
         // evaluate transition constraints
-        let mut evaluations = vec![T::ZERO; self.t_constraint_num];
+        let mut evaluations = vec![field::ZERO; self.t_constraint_num];
         self.decoder.evaluate_at(&current, &next, x, &mut evaluations);
         self.stack.evaluate_at(&current, &next, x, &mut evaluations[self.decoder.constraint_count()..]);
 
@@ -173,90 +169,90 @@ impl <T> Evaluator<T>
     /// for the first and for the last steps of the program; the constraints are computed as:
     /// cc_{i * 2} * B_i + cc_{i * 2 + 1} * B_i * x^p for all i, where cc_j are the coefficients
     /// used in the linear combination and x^p is a degree adjustment factor.
-    pub fn evaluate_boundaries(&self, current: &TraceState<T>, x: T) -> (T, T) {
+    pub fn evaluate_boundaries(&self, current: &TraceState, x: u128) -> (u128, u128) {
         
         // compute degree adjustment factor
-        let xp = T::exp(x, self.b_degree_adj);
+        let xp = field::exp(x, self.b_degree_adj);
 
         // 1 ----- compute combination of boundary constraints for the first step ------------------
-        let mut i_result = T::ZERO;
-        let mut result_adj = T::ZERO;
+        let mut i_result = field::ZERO;
+        let mut result_adj = field::ZERO;
 
         let cc = self.coefficients.i_boundary;
         let mut cc_idx = 0;
 
         // make sure op_code and ob_bits are set to BEGIN
         let op_code = current.get_op_code();
-        let val = T::sub(op_code, T::from(opcodes::BEGIN));
-        i_result = T::add(i_result, T::mul(val, cc[cc_idx]));
-        result_adj = T::add(result_adj, T::mul(val, cc[cc_idx]));
+        let val = field::sub(op_code, opcodes::BEGIN as u128);
+        i_result = field::add(i_result, field::mul(val, cc[cc_idx]));
+        result_adj = field::add(result_adj, field::mul(val, cc[cc_idx]));
 
         let op_bits = current.get_op_bits();
         for i in 0..op_bits.len() {
             cc_idx += 2;
-            let val = T::sub(op_bits[i], T::ONE);
-            i_result = T::add(i_result, T::mul(val, cc[cc_idx]));
-            result_adj = T::add(result_adj, T::mul(val, cc[cc_idx + 1]));
+            let val = field::sub(op_bits[i], field::ONE);
+            i_result = field::add(i_result, field::mul(val, cc[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
         }
 
         // make sure operation accumulator registers are set to zeros 
         let op_acc = current.get_op_acc();
         for i in 0..op_acc.len() {
             cc_idx += 2;
-            i_result = T::add(i_result, T::mul(op_acc[i], cc[cc_idx]));
-            result_adj = T::add(result_adj, T::mul(op_acc[i], cc[cc_idx + 1]));
+            i_result = field::add(i_result, field::mul(op_acc[i], cc[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(op_acc[i], cc[cc_idx + 1]));
         }
 
         // make sure stack registers are set to inputs
-        let user_stack = current.get_user_stack();
+        let user_stack = current.get_stack();
         for i in 0..self.inputs.len() {
             cc_idx += 2;
-            let val = T::sub(user_stack[i], self.inputs[i]);
-            i_result = T::add(i_result, T::mul(val, cc[cc_idx]));
-            result_adj = T::add(result_adj, T::mul(val, cc[cc_idx + 1]));
+            let val = field::sub(user_stack[i], self.inputs[i]);
+            i_result = field::add(i_result, field::mul(val, cc[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
         }
 
         // raise the degree of adjusted terms and sum all the terms together
-        i_result = T::add(i_result, T::mul(result_adj, xp));
+        i_result = field::add(i_result, field::mul(result_adj, xp));
 
         // 2 ----- compute combination of boundary constraints for the last step -------------------
-        let mut f_result = T::ZERO;
-        let mut result_adj = T::ZERO;
+        let mut f_result = field::ZERO;
+        let mut result_adj = field::ZERO;
 
         let cc = self.coefficients.f_boundary;
         let mut cc_idx = 0;
 
         // make sure op_code and op_bits are set to NOOP
         let op_code = current.get_op_code();
-        f_result = T::add(f_result, T::mul(op_code, cc[cc_idx]));
-        result_adj = T::add(result_adj, T::mul(op_code, cc[cc_idx + 1]));
+        f_result = field::add(f_result, field::mul(op_code, cc[cc_idx]));
+        result_adj = field::add(result_adj, field::mul(op_code, cc[cc_idx + 1]));
 
         let op_bits = current.get_op_bits();
         for i in 0..op_bits.len() {
             cc_idx += 2;
-            f_result = T::add(f_result, T::mul(op_bits[i], cc[cc_idx]));
-            result_adj = T::add(result_adj, T::mul(op_bits[i], cc[cc_idx + 1]));
+            f_result = field::add(f_result, field::mul(op_bits[i], cc[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(op_bits[i], cc[cc_idx + 1]));
         }
 
         // make sure operation accumulator contains program hash
         let program_hash = current.get_program_hash();
         for i in 0..self.program_hash.len() {
             cc_idx += 2;
-            let val = T::sub(program_hash[i], self.program_hash[i]);
-            f_result = T::add(f_result, T::mul(val, cc[cc_idx]));
-            result_adj = T::add(result_adj, T::mul(val, cc[cc_idx + 1]));
+            let val = field::sub(program_hash[i], self.program_hash[i]);
+            f_result = field::add(f_result, field::mul(val, cc[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
         }
 
         // make sure stack registers are set to outputs
         for i in 0..self.outputs.len() {
             cc_idx += 2;
-            let val = T::sub(user_stack[i], self.outputs[i]);
-            f_result = T::add(f_result, T::mul(val, cc[cc_idx]));
-            result_adj = T::add(result_adj, T::mul(val, cc[cc_idx + 1]));
+            let val = field::sub(user_stack[i], self.outputs[i]);
+            f_result = field::add(f_result, field::mul(val, cc[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
         }
 
         // raise the degree of adjusted terms and sum all the terms together
-        f_result = T::add(f_result, T::mul(result_adj, xp));
+        f_result = field::add(f_result, field::mul(result_adj, xp));
 
         return (i_result, f_result);
     }
@@ -268,35 +264,35 @@ impl <T> Evaluator<T>
             && (step != self.domain_size - self.extension_factor);
     }
 
-    fn combine_transition_constraints(&self, evaluations: &Vec<T>, x: T) -> T {
+    fn combine_transition_constraints(&self, evaluations: &Vec<u128>, x: u128) -> u128 {
         let cc = self.coefficients.transition;
-        let mut result = T::ZERO;
+        let mut result = field::ZERO;
 
         let mut i = 0;
         for (incremental_degree, constraints) in self.t_degree_groups.iter() {
 
             // for each group of constraints with the same degree, separately compute
             // combinations of D(x) and D(x) * x^p
-            let mut result_adj = T::ZERO;
+            let mut result_adj = field::ZERO;
             for &constraint_idx in constraints.iter() {
                 let evaluation = evaluations[constraint_idx];
-                result = T::add(result, T::mul(evaluation, cc[i * 2]));
-                result_adj = T::add(result_adj, T::mul(evaluation, cc[i * 2 + 1]));
+                result = field::add(result, field::mul(evaluation, cc[i * 2]));
+                result_adj = field::add(result_adj, field::mul(evaluation, cc[i * 2 + 1]));
                 i += 1;
             }
 
             // increase the degree of D(x) * x^p
-            let xp = T::exp(x, *incremental_degree);
-            result = T::add(result, T::mul(result_adj, xp));
+            let xp = field::exp(x, *incremental_degree);
+            result = field::add(result, field::mul(result_adj, xp));
         }
 
         return result;
     }
 
     #[cfg(debug_assertions)]
-    fn save_transition_evaluations(&self, evaluations: &[T], step: usize) {
+    fn save_transition_evaluations(&self, evaluations: &[u128], step: usize) {
         unsafe {
-            let mutable_self = &mut *(self as *const _ as *mut Evaluator<T>);
+            let mutable_self = &mut *(self as *const _ as *mut Evaluator);
             for i in 0..evaluations.len() {
                 mutable_self.t_evaluations[i][step] = evaluations[i];
             }
@@ -306,9 +302,7 @@ impl <T> Evaluator<T>
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn group_transition_constraints<T>(degrees: Vec<usize>, trace_length: usize) -> Vec<(T, Vec<usize>)>
-    where T: FiniteField
-{
+fn group_transition_constraints(degrees: Vec<usize>, trace_length: usize) -> Vec<(u128, Vec<usize>)> {
     let mut groups = [
         Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(),
         Vec::new(), Vec::new(), Vec::new(), Vec::new(),
@@ -324,19 +318,17 @@ fn group_transition_constraints<T>(degrees: Vec<usize>, trace_length: usize) -> 
     for (degree, constraints) in groups.iter().enumerate() {
         if constraints.len() == 0 { continue; }
         let constraint_degree = (trace_length - 1) * degree;    
-        let incremental_degree = T::from_usize(target_degree - constraint_degree);
+        let incremental_degree = (target_degree - constraint_degree) as u128;
         result.push((incremental_degree, constraints.clone()));
     }
 
     return result;
 }
 
-fn get_boundary_constraint_adjustment_degree<T>(trace_length: usize) -> T
-    where T: FiniteField
-{
+fn get_boundary_constraint_adjustment_degree(trace_length: usize) -> u128 {
     let target_degree = get_boundary_constraint_target_degree(trace_length);
     let boundary_constraint_degree = trace_length - 1;
-    return T::from_usize(target_degree - boundary_constraint_degree);
+    return (target_degree - boundary_constraint_degree) as u128;
 }
 
 /// target degree for boundary constraints is set so that when divided by boundary
@@ -357,14 +349,9 @@ fn get_transition_constraint_target_degree(trace_length: usize) -> usize {
     return combination_degree + divisor_degree;
 }
 
-fn parse_program_hash<T>(program_hash: &[u8; 32]) -> Vec<T>
-    where T: FiniteField
-{
-    let element_size = mem::size_of::<T>();
-    let num_elements = program_hash.len() / element_size;
-    let mut result = Vec::with_capacity(num_elements);
-    for i in (0..program_hash.len()).step_by(element_size) {
-        result.push(T::from_bytes(&program_hash[i..(i + element_size)]))
-    }
-    return result;
+fn parse_program_hash(program_hash: &[u8; 32]) -> Vec<u128> {
+    return vec![
+        field::from_bytes(&program_hash[..16]),
+        field::from_bytes(&program_hash[16..]),
+    ];
 }

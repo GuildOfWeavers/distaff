@@ -1,4 +1,4 @@
-use crate::{ ProofOptions, opcodes::f128 as opcodes, math::{ FiniteField, F128 }, utils::Hasher };
+use crate::{ ProofOptions, opcodes::f128 as opcodes, math::field, utils::hasher };
 use super::{ Program, ProgramInputs, };
 
 mod branches;
@@ -147,7 +147,29 @@ fn math_operations() {
     let inputs = ProgramInputs::from_public(&[7, 6, 5, 0, 2, 3]);
     let num_outputs = 2;
 
-    let expected_result = vec![F128::ONE, F128::neg(F128::inv(65))];
+    let expected_result = vec![field::ONE, field::neg(field::inv(65))];
+
+    let (outputs, proof) = super::execute(&program, &inputs, num_outputs, &options);
+    assert_eq!(expected_result, outputs);
+
+    let result = super::verify(program.hash(), inputs.get_public_inputs(), &outputs, &proof);
+    assert_eq!(Ok(true), result);
+}
+
+#[test]
+fn bool_operations() {
+    let program = Program::from_path(vec![
+        opcodes::BEGIN, opcodes::NOT,  opcodes::OR,   opcodes::OR,
+        opcodes::AND,   opcodes::AND,  opcodes::NOT,  opcodes::NOOP,
+        opcodes::NOOP,  opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
+        opcodes::NOOP,  opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
+    ]);
+
+    let options = ProofOptions::default();
+    let inputs = ProgramInputs::from_public(&[1, 0, 1, 1, 0]);
+    let num_outputs = 1;
+
+    let expected_result = vec![field::ONE];
 
     let (outputs, proof) = super::execute(&program, &inputs, num_outputs, &options);
     assert_eq!(expected_result, outputs);
@@ -171,7 +193,7 @@ fn hash_operations() {
     ]);
 
     let value = [1, 2, 3, 4];
-    let mut expected_hash = <F128 as Hasher>::digest(&value);
+    let mut expected_hash = hasher::digest(&value);
     expected_hash.reverse();
 
     let options = ProofOptions::default();
@@ -201,8 +223,8 @@ fn hash_operations() {
     ]);
 
     let value = [1, 2, 3, 4];
-    let mut expected_hash = <F128 as Hasher>::digest(&value);
-    expected_hash = <F128 as Hasher>::digest(&expected_hash);
+    let mut expected_hash = hasher::digest(&value);
+    expected_hash = hasher::digest(&expected_hash);
     expected_hash.reverse();
 
     let options = ProofOptions::default();

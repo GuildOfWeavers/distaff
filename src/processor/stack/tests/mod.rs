@@ -1,6 +1,7 @@
-use crate::math::{ F128, FiniteField };
-use crate::utils::{ Hasher };
+use crate::math::{ field };
+use crate::utils::{ hasher };
 use super::{ Stack, super::ProgramInputs, ExecutionHint };
+use crate::{ HASH_STATE_WIDTH };
 
 mod comparisons;
 
@@ -36,6 +37,23 @@ fn assert_fail() {
     stack.op_assert(0);
 }
 
+#[test]
+fn asserteq() {
+    let mut stack = init_stack(&[1, 1, 3, 4], &[], &[], TRACE_LENGTH);
+    stack.op_asserteq(0);
+    assert_eq!(vec![3, 4, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+    assert_eq!(2, stack.depth);
+    assert_eq!(4, stack.max_depth);
+}
+
+#[test]
+#[should_panic(expected = "ASSERTEQ failed at step 0")]
+fn asserteq_fail() {
+    let mut stack = init_stack(&[2, 3, 4], &[], &[], TRACE_LENGTH);
+    stack.op_asserteq(0);
+}
+
 // INPUT OPERATIONS
 // ================================================================================================
 
@@ -53,13 +71,13 @@ fn push() {
 fn read() {
     let mut stack = init_stack(&[1], &[2, 3], &[], TRACE_LENGTH);
 
-    stack.op_read(0);
+    stack.op_read(0, ExecutionHint::None);
     assert_eq!(vec![2, 1, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
     assert_eq!(2, stack.depth);
     assert_eq!(2, stack.max_depth);
 
-    stack.op_read(1);
+    stack.op_read(1, ExecutionHint::None);
     assert_eq!(vec![3, 2, 1, 0, 0, 0, 0, 0], get_stack_state(&stack, 2));
 
     assert_eq!(3, stack.depth);
@@ -285,7 +303,7 @@ fn mul() {
 fn inv() {
     let mut stack = init_stack(&[2, 3], &[], &[], TRACE_LENGTH);
     stack.op_inv(0);
-    assert_eq!(vec![F128::inv(2), 3, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+    assert_eq!(vec![field::inv(2), 3, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
     assert_eq!(2, stack.depth);
     assert_eq!(2, stack.max_depth);
@@ -302,7 +320,7 @@ fn inv_zero() {
 fn neg() {
     let mut stack = init_stack(&[2, 3], &[], &[], TRACE_LENGTH);
     stack.op_neg(0);
-    assert_eq!(vec![F128::neg(2), 3, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+    assert_eq!(vec![field::neg(2), 3, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
 
     assert_eq!(2, stack.depth);
     assert_eq!(2, stack.max_depth);
@@ -331,6 +349,52 @@ fn not_fail() {
     stack.op_not(0);
 }
 
+#[test]
+fn and() {
+    let mut stack = init_stack(&[1, 1, 0], &[], &[], TRACE_LENGTH);
+    stack.op_and(0);
+    assert_eq!(vec![1, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+    assert_eq!(2, stack.depth);
+    assert_eq!(3, stack.max_depth);
+
+    stack.op_and(1);
+    assert_eq!(vec![0, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 2));
+
+    assert_eq!(1, stack.depth);
+    assert_eq!(3, stack.max_depth);
+}
+
+#[test]
+#[should_panic(expected = "cannot compute AND for a non-binary value at step 0")]
+fn and_fail() {
+    let mut stack = init_stack(&[1, 3], &[], &[], TRACE_LENGTH);
+    stack.op_and(0);
+}
+
+#[test]
+fn or() {
+    let mut stack = init_stack(&[0, 0, 1], &[], &[], TRACE_LENGTH);
+    stack.op_or(0);
+    assert_eq!(vec![0, 1, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+    assert_eq!(2, stack.depth);
+    assert_eq!(3, stack.max_depth);
+
+    stack.op_or(1);
+    assert_eq!(vec![1, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 2));
+
+    assert_eq!(1, stack.depth);
+    assert_eq!(3, stack.max_depth);
+}
+
+#[test]
+#[should_panic(expected = "cannot compute OR for a non-binary value at step 0")]
+fn and_or() {
+    let mut stack = init_stack(&[1, 3], &[], &[], TRACE_LENGTH);
+    stack.op_or(0);
+}
+
 // CRYPTOGRAPHIC OPERATIONS
 // ================================================================================================
 
@@ -340,11 +404,11 @@ fn rescr() {
     let mut expected = vec![0, 0, 1, 2, 3, 4, 0, 0];
 
     stack.op_rescr(0);
-    <F128 as Hasher>::apply_round(&mut expected[..F128::STATE_WIDTH], 0);
+    hasher::apply_round(&mut expected[..HASH_STATE_WIDTH], 0);
     assert_eq!(expected, get_stack_state(&stack, 1));
 
     stack.op_rescr(1);
-    <F128 as Hasher>::apply_round(&mut expected[..F128::STATE_WIDTH], 1);
+    hasher::apply_round(&mut expected[..HASH_STATE_WIDTH], 1);
     assert_eq!(expected, get_stack_state(&stack, 2));
 
     assert_eq!(6, stack.depth);
@@ -354,19 +418,15 @@ fn rescr() {
 // HELPER FUNCTIONS
 // ================================================================================================
 
-fn init_stack(public_inputs: &[F128], secret_inputs_a: &[F128], secret_inputs_b: &[F128], trace_length: usize) -> Stack {
+fn init_stack(public_inputs: &[u128], secret_inputs_a: &[u128], secret_inputs_b: &[u128], trace_length: usize) -> Stack {
     let inputs = ProgramInputs::new(public_inputs, secret_inputs_a, secret_inputs_b);
     return Stack::new(&inputs, trace_length);
 }
 
-fn get_stack_state(stack: &Stack, step: usize) -> Vec<F128> {
-    let mut state = Vec::with_capacity(stack.user_registers.len());
-    for i in 0..stack.user_registers.len() {
-        state.push(stack.user_registers[i][step]);
+fn get_stack_state(stack: &Stack, step: usize) -> Vec<u128> {
+    let mut state = Vec::with_capacity(stack.registers.len());
+    for i in 0..stack.registers.len() {
+        state.push(stack.registers[i][step]);
     }
     return state;
-}
-
-fn get_aux_state(stack: &Stack, step: usize) -> Vec<F128> {
-    return vec![stack.aux_register[step]];
 }

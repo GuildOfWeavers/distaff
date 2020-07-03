@@ -1,11 +1,11 @@
 pub const NOOP: u8     = 0b000_00_000;
 pub const CMP: u8      = 0b000_00_001;
 pub const BINACC: u8   = 0b000_00_010;
-//pub const ??: u8     = 0b000_00_011;
-pub const INV: u8      = 0b000_00_100;
-pub const NEG: u8      = 0b000_00_101;
-pub const NOT: u8      = 0b000_00_110;  // same as: PUSH 1 SWAP NEG ADD
-//pub const ???: u8    = 0b000_00_111;
+pub const INV: u8      = 0b000_00_011;
+pub const NEG: u8      = 0b000_00_100;
+pub const NOT: u8      = 0b000_00_101;  // same as: PUSH 1 SWAP NEG ADD
+pub const AND: u8      = 0b000_00_110;
+pub const OR: u8       = 0b000_00_111;
 
 pub const PUSH: u8     = 0b000_01_000;
 pub const READ: u8     = 0b000_01_001;  // same as: READ2 DROP
@@ -14,7 +14,7 @@ pub const DUP: u8      = 0b000_01_011;  // same as: DUP2 SWAP DROP
 pub const DUP2: u8     = 0b000_01_100;
 pub const DUP4: u8     = 0b000_01_101;
 pub const PAD2: u8     = 0b000_01_110;  // same as: PUSH 0 DUP
-//pub const ???: u8    = 0b000_01_111;
+pub const ASSERTEQ: u8 = 0b000_01_111;
 
 pub const ASSERT: u8   = 0b000_10_000;
 pub const DROP: u8     = 0b000_10_001;
@@ -39,6 +39,7 @@ pub mod f128 {
     pub const BEGIN   : u128 = super::BEGIN as u128;
     pub const NOOP    : u128 = super::NOOP as u128;
     pub const ASSERT  : u128 = super::ASSERT as u128;
+    pub const ASSERTEQ: u128 = super::ASSERTEQ as u128;
 
     // input ops
     pub const PUSH    : u128 = super::PUSH as u128;
@@ -68,6 +69,8 @@ pub mod f128 {
     pub const INV     : u128 = super::INV as u128;
     pub const NEG     : u128 = super::NEG as u128;
     pub const NOT     : u128 = super::NOT as u128;
+    pub const AND     : u128 = super::AND as u128;
+    pub const OR      : u128 = super::OR as u128;
 
     // comparison ops
     pub const EQ      : u128 = super::EQ as u128;

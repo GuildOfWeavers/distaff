@@ -1,4 +1,4 @@
-use distaff::{ Program, ProgramInputs, assembly, math::{ FiniteField, F128 }, crypto::HashFunction };
+use distaff::{ Program, ProgramInputs, assembly, math::field, crypto::HashFunction };
 use super::{ Example, utils::parse_args };
 
 pub fn get_example(args: &[String]) -> Example  {
@@ -52,7 +52,7 @@ fn compute_fibonacci(n: usize) -> u128 {
     let mut n2 = 1;
 
     for _ in 0..(n - 1) {
-        let n3 = F128::add(n1, n2);
+        let n3 = field::add(n1, n2);
         n1 = n2;
         n2 = n3;
     }

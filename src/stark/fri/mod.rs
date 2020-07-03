@@ -1,5 +1,4 @@
 use serde::{ Serialize, Deserialize };
-use crate::math::{ FiniteField };
 
 // RE-EXPORTS
 // ================================================================================================
@@ -16,16 +15,16 @@ const MAX_REMAINDER_LENGTH: usize = 256;
 // TYPES AND INTERFACES
 // ================================================================================================
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FriProof<T: FiniteField> {
-    pub layers      : Vec<FriLayer<T>>,
+pub struct FriProof {
+    pub layers      : Vec<FriLayer>,
     pub rem_root    : [u8; 32],
-    pub rem_values  : Vec<T>,
+    pub rem_values  : Vec<u128>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FriLayer<T: FiniteField> {
+pub struct FriLayer {
     pub root    : [u8; 32],
-    pub values  : Vec<[T; 4]>,
+    pub values  : Vec<[u128; 4]>,
     pub nodes   : Vec<Vec<[u8; 32]>>,
     pub depth   : u8,
 }
@@ -34,15 +33,15 @@ pub struct FriLayer<T: FiniteField> {
 // ================================================================================================
 #[cfg(test)]
 mod tests {
-    use crate::math::{ F64, FiniteField, polynom };
+    use crate::math::{ field, polynom };
     use crate::stark::{ ProofOptions, utils::compute_query_positions };
 
     #[test]
     fn prove_verify() {
         let degree: usize = 63;
         let domain_size: usize = 512;
-        let root = F64::get_root_of_unity(domain_size);
-        let domain = F64::get_power_series(root, domain_size);
+        let root = field::get_root_of_unity(domain_size);
+        let domain = field::get_power_series(root, domain_size);
         let options = ProofOptions::default();
 
         let evaluations = build_random_poly_evaluations(domain_size, degree);
@@ -53,7 +52,7 @@ mod tests {
         let proof = super::build_proof(fri_trees, fri_values, &positions);
 
         // verify proof
-        let sampled_evaluations = positions.iter().map(|&i| evaluations[i]).collect::<Vec<u64>>();
+        let sampled_evaluations = positions.iter().map(|&i| evaluations[i]).collect::<Vec<u128>>();
         let result = super::verify(&proof, &sampled_evaluations, &positions, degree, &options);
         assert_eq!(Ok(true), result);
     }
@@ -62,8 +61,8 @@ mod tests {
     fn verify_fail() {
         let degree: usize = 63;
         let domain_size: usize = 512;
-        let root = F64::get_root_of_unity(domain_size);
-        let domain = F64::get_power_series(root, domain_size);
+        let root = field::get_root_of_unity(domain_size);
+        let domain = field::get_power_series(root, domain_size);
         let options = ProofOptions::default();
 
         // degree too low 1
@@ -72,7 +71,7 @@ mod tests {
         let positions = compute_query_positions(fri_trees[fri_trees.len() - 1].root(), domain_size, &options);
         let proof = super::build_proof(fri_trees, fri_values, &positions);
 
-        let sampled_evaluations = positions.iter().map(|&i| evaluations[i]).collect::<Vec<u64>>();
+        let sampled_evaluations = positions.iter().map(|&i| evaluations[i]).collect::<Vec<u128>>();
         let result = super::verify(&proof, &sampled_evaluations, &positions, degree - 1, &options);
         let err_msg = format!("remainder is not a valid degree {} polynomial", 14);
         assert_eq!(Err(err_msg), result);
@@ -83,7 +82,7 @@ mod tests {
         let positions = compute_query_positions(fri_trees[fri_trees.len() - 1].root(), domain_size, &options);
         let proof = super::build_proof(fri_trees, fri_values, &positions);
 
-        let sampled_evaluations = positions.iter().map(|&i| evaluations[i]).collect::<Vec<u64>>();
+        let sampled_evaluations = positions.iter().map(|&i| evaluations[i]).collect::<Vec<u128>>();
         let result = super::verify(&proof, &sampled_evaluations, &positions, degree, &options);
         let err_msg = format!("remainder is not a valid degree {} polynomial", 15);
         assert_eq!(Err(err_msg), result);
@@ -97,8 +96,8 @@ mod tests {
 
     // TODO: add more tests
 
-    fn build_random_poly_evaluations(domain_size: usize, degree: usize) -> Vec<u64> {
-        let mut evaluations = F64::rand_vector(degree + 1);
+    fn build_random_poly_evaluations(domain_size: usize, degree: usize) -> Vec<u128> {
+        let mut evaluations = field::rand_vector(degree + 1);
         evaluations.resize(domain_size, 0);
         polynom::eval_fft(&mut evaluations, true);
         return evaluations;
