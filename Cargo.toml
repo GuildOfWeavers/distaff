@@ -1,6 +1,6 @@
 [package]
 name = "distaff"
-version = "0.4.1"
+version = "0.5.0"
 authors = ["Bobbin Threadbare <bobbinth@protonmail.com>"]
 edition = "2018"
 description="Zero-knowledge virtual machine written in Rust"
@@ -28,5 +28,5 @@ log = "0.4.8"
 env_logger = "0.7.1"
 
 [dev-dependencies]
-criterion = "0.3.2"
+criterion = "0.3.3"
 num-bigint = "0.3.0"
