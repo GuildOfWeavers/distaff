@@ -13,12 +13,22 @@ pub fn parse_noop(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<b
     return Ok(true);
 }
 
-/// Appends an ASSERT operations to the program.
+/// Appends either ASSERT or ASSERTEQ operations to the program.
 pub fn parse_assert(program: &mut Vec<u128>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
-    if op.len() > 1 {
+    if op.len() > 2 {
         return Err(AssemblyError::extra_param(op, step));
     }
-    program.push(opcodes::ASSERT);
+    else if op.len() == 1 {
+        program.push(opcodes::ASSERT);
+    }
+    else if op[1] == "eq" {
+        program.push(opcodes::ASSERTEQ);
+    }
+    else {
+        return Err(AssemblyError::invalid_param_reason(op, step,
+            format!("parameter {} is invalid; allowed values are: [eq]", op[1])));
+    }
+    
     return Ok(true);
 }
 

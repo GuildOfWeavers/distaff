@@ -36,6 +36,7 @@ A single instruction may take multiple VM cycles to execute. The number of cycle
 | --------- | -------------------------------------- | :----: |
 | noop      | Does nothing.                          | 1      |
 | assert    | Pops the top item from the stack and checks if it is equal to `1`. If it is not equal to `1`, the program fails. | 1 |
+| assert.eq | Pops top two items from the stack and checks if they are equal. If they are not equal, the operation will fail. | 1 |
 | if.true   | Marks the beginning of the *true* branch in the `if.true else endif` expression. If the value at the top of the stack is `1`, the *true* branch is executed. | 1 |
 | else      | Marks the beginning of the *false* branch in the `if.true else endif` expression. If the value at the top of the stack is `0`, the *false* branch is executed. | 2 |
 | endif     | Marks the end of the `if.true else endif` expression.  | 0 |
@@ -100,6 +101,8 @@ Distaff VM has two input tapes for supplying secret inputs to a program: tape `A
 | neg       | Pops the top item from the stack, computes its additive inverse, and pushes the result onto the stack. | 1      |
 | inv       | Pops the top item from the stack, computes its multiplicative inverse, and pushes the result onto the stack. If the value at the top of the stack is `0`, this operation will fail. | 1 |
 | not       | Pops the top item from the stack, subtracts it from value `1` and pushes the result onto the stack. In other words, `0` becomes `1`, and `1` becomes `0`. If the item at the top of the stack is not binary (i.e. not `0` or `1`), this operation will fail. | 1 |
+| and       | Pops top two items from the stack, multiplies them (which, for binary values, is identical to boolean `AND`), and pushes the result onto the stack. If either of the values is not binary, the operation will fail. | 1 |
+| or        | Pops top two items from the stack, computes an equivalent of their boolean `OR`, and pushes the result onto the stack. If either of the values is not binary, the operation will fail. | 1 |
 
 #### Finite field arithmetic
 All arithmetic operations in Distaff VM happen in a [prime field](https://en.wikipedia.org/wiki/Finite_field) with modulus `340282366920938463463374557953744961537` (which can also be written as 2<sup>128</sup> - 45 * 2<sup>40</sup> + 1). This means that overflow happens after a value exceeds field modulus. So, for example: `340282366920938463463374557953744961536 + 1 = 0`.
@@ -114,6 +117,7 @@ Divisions in prime fields are defined as inverse of multiplication. Specifically
 | gt.*n*    | Pops top two items from the stack, compares them, and if the 1st value is greater than the 2nd value, pushes `1` onto the stack; otherwise pushes `0` onto the stack. If either of the values is greater than 2<sup>*n*</sup>, the operation will fail. *n* can be any integer between 4 and 128. | *n + 15* |
 | lt.*n*    | Pops top two items from the stack, compares them, and if the 1st value is less than the 2nd value, pushes `1` onto the stack; otherwise pushes `0` onto the stack. If either of the values is greater than 2<sup>*n*</sup>, the operation will fail. *n* can be any integer between 4 and 128. | *n + 14* |
 | rc.*n*    | Pops the top item from the stack, checks if it is less than 2<sup>*n*</sup>, and if it is, pushes `1` onto the stack; otherwise pushes `0` onto the stack. *n* can be any integer between 4 and 128.| *n + 7* |
+| isodd.*n* | Pops the top item from the stack, and if its value is odd, pushes `1` onto the stack; otherwise pushes `0` onto the stack. If the value is greater than 2<sup>*n*</sup>, the operation will fail. *n* can be any integer between 4 and 128. | *n + 6* |
 
 ### Selection instructions
 
