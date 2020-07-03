@@ -4,7 +4,7 @@ use super::utils::{ agg_op_constraint, is_binary, are_equal, enforce_no_change }
 // CONSTRAINT EVALUATORS
 // ================================================================================================
 
-pub fn enforce_choose(evaluations: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) -> u128 {
+pub fn enforce_choose(evaluations: &mut [u128], aux: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
     
     let condition1 = current[2];
     let condition2 = field::sub(field::ONE, condition1);
@@ -14,10 +14,10 @@ pub fn enforce_choose(evaluations: &mut [u128], current: &[u128], next: &[u128],
     let n = next.len() - 2;
     enforce_no_change(&mut evaluations[1..n], &current[3..], &next[1..n], op_flag);
     
-    return field::mul(op_flag, is_binary(condition1));
+    aux[0] = agg_op_constraint(aux[0], op_flag, is_binary(condition1));
 }
 
-pub fn enforce_choose2(evaluations: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) -> u128 {
+pub fn enforce_choose2(evaluations: &mut [u128], aux: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
 
     let condition1 = current[4];
     let condition2 = field::sub(field::ONE, condition1);
@@ -29,5 +29,5 @@ pub fn enforce_choose2(evaluations: &mut [u128], current: &[u128], next: &[u128]
     let n = next.len() - 4;
     enforce_no_change(&mut evaluations[2..n], &current[6..], &next[2..n], op_flag);
 
-    return field::mul(op_flag, is_binary(condition1));
+    aux[0] = agg_op_constraint(aux[0], op_flag, is_binary(condition1));
 }

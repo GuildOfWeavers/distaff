@@ -349,6 +349,52 @@ fn not_fail() {
     stack.op_not(0);
 }
 
+#[test]
+fn and() {
+    let mut stack = init_stack(&[1, 1, 0], &[], &[], TRACE_LENGTH);
+    stack.op_and(0);
+    assert_eq!(vec![1, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+    assert_eq!(2, stack.depth);
+    assert_eq!(3, stack.max_depth);
+
+    stack.op_and(1);
+    assert_eq!(vec![0, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 2));
+
+    assert_eq!(1, stack.depth);
+    assert_eq!(3, stack.max_depth);
+}
+
+#[test]
+#[should_panic(expected = "cannot compute AND for a non-binary value at step 0")]
+fn and_fail() {
+    let mut stack = init_stack(&[1, 3], &[], &[], TRACE_LENGTH);
+    stack.op_and(0);
+}
+
+#[test]
+fn or() {
+    let mut stack = init_stack(&[0, 0, 1], &[], &[], TRACE_LENGTH);
+    stack.op_or(0);
+    assert_eq!(vec![0, 1, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
+
+    assert_eq!(2, stack.depth);
+    assert_eq!(3, stack.max_depth);
+
+    stack.op_or(1);
+    assert_eq!(vec![1, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 2));
+
+    assert_eq!(1, stack.depth);
+    assert_eq!(3, stack.max_depth);
+}
+
+#[test]
+#[should_panic(expected = "cannot compute OR for a non-binary value at step 0")]
+fn and_or() {
+    let mut stack = init_stack(&[1, 3], &[], &[], TRACE_LENGTH);
+    stack.op_or(0);
+}
+
 // CRYPTOGRAPHIC OPERATIONS
 // ================================================================================================
 

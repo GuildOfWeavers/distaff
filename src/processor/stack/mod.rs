@@ -100,6 +100,8 @@ impl Stack {
             opcodes::INV        => self.op_inv(step),
             opcodes::NEG        => self.op_neg(step),
             opcodes::NOT        => self.op_not(step),
+            opcodes::AND        => self.op_and(step),
+            opcodes::OR         => self.op_or(step),
 
             opcodes::EQ         => self.op_eq(step),
             opcodes::CMP        => self.op_cmp(step, hint),
@@ -122,7 +124,7 @@ impl Stack {
         return self.registers;
     }
 
-    // OPERATIONS
+    // FLOW CONTROL OPERATIONS
     // --------------------------------------------------------------------------------------------
     fn op_noop(&mut self, step: usize) {
         self.copy_state(step, 0);
@@ -143,6 +145,8 @@ impl Stack {
         self.shift_left(step, 2, 2);
     }
 
+    // INPUT OPERATIONS
+    // --------------------------------------------------------------------------------------------
     fn op_push(&mut self, step: usize, value: u128) {
         self.shift_right(step, 0, 1);
         self.registers[0][step + 1] = value;
@@ -185,6 +189,8 @@ impl Stack {
         self.registers[1][step + 1] = value_a;
     }
 
+    // STACK MANIPULATION OPERATIONS
+    // --------------------------------------------------------------------------------------------
     fn op_dup(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
         self.shift_right(step, 0, 1);
@@ -274,6 +280,8 @@ impl Stack {
         self.copy_state(step, 8);
     }
 
+    // SELECTION OPERATIONS
+    // --------------------------------------------------------------------------------------------
     fn op_choose(&mut self, step: usize) {
         assert!(self.depth >= 3, "stack underflow at step {}", step);
         let condition = self.registers[2][step];
@@ -306,6 +314,8 @@ impl Stack {
         self.shift_left(step, 6, 4);
     }
 
+    // ARITHMETIC AND BOOLEAN OPERATIONS
+    // --------------------------------------------------------------------------------------------
     fn op_add(&mut self, step: usize) {
         assert!(self.depth >= 2, "stack underflow at step {}", step);
         let x = self.registers[0][step];
@@ -340,11 +350,36 @@ impl Stack {
     fn op_not(&mut self, step: usize) {
         assert!(self.depth >= 1, "stack underflow at step {}", step);
         let x = self.registers[0][step];
-        assert!(x == field::ZERO || x == field::ONE, "cannot compute NOT of a non-binary value at step {}", step);
+        assert!(is_binary(x), "cannot compute NOT of a non-binary value at step {}", step);
         self.registers[0][step + 1] = field::sub(field::ONE, x);
         self.copy_state(step, 1);
     }
 
+    fn op_and(&mut self, step: usize) {
+        assert!(self.depth >= 2, "stack underflow at step {}", step);
+        let x = self.registers[0][step];
+        let y = self.registers[1][step];
+        assert!(is_binary(x), "cannot compute AND for a non-binary value at step {}", step);
+        assert!(is_binary(y), "cannot compute AND for a non-binary value at step {}", step);
+
+        self.registers[0][step + 1] = if x == field::ONE && y == field::ONE { 1 } else { 0 };
+        self.shift_left(step, 2, 1);
+    }
+
+    fn op_or(&mut self, step: usize) {
+        assert!(self.depth >= 2, "stack underflow at step {}", step);
+        let x = self.registers[0][step];
+        let y = self.registers[1][step];
+        assert!(is_binary(x), "cannot compute OR for a non-binary value at step {}", step);
+        assert!(is_binary(y), "cannot compute OR for a non-binary value at step {}", step);
+
+        self.registers[0][step + 1] = if x == field::ONE || y == field::ONE { 1 } else { 0 };
+        self.shift_left(step, 2, 1);
+    }
+
+
+    // COMPARISON OPERATIONS
+    // --------------------------------------------------------------------------------------------
     fn op_eq(&mut self, step: usize) {
         assert!(self.depth >= 3, "stack underflow at step {}", step);
         let aux = self.registers[0][step];
@@ -466,6 +501,8 @@ impl Stack {
         self.copy_state(step, 3);
     }
 
+    // CRYPTOGRAPHIC OPERATIONS
+    // --------------------------------------------------------------------------------------------
     fn op_rescr(&mut self, step: usize) {
         assert!(self.depth >= HASH_STATE_WIDTH, "stack underflow at step {}", step);
         let mut state = [
@@ -554,4 +591,10 @@ impl Stack {
             }
         }
     }
+}
+
+// HELPER FUNCTIONS
+// ================================================================================================
+fn is_binary(value: u128) -> bool {
+    return value == field::ZERO || value == field::ONE;
 }

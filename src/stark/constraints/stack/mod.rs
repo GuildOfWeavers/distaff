@@ -15,8 +15,8 @@ use utils::{ agg_op_constraint, enforce_no_change, are_equal, is_binary };
 
 // CONSTANTS
 // ================================================================================================
-const NUM_AUX_CONSTRAINTS: usize = 1;
-const AUX_CONSTRAINT_DEGREES: [usize; NUM_AUX_CONSTRAINTS] = [7];
+const NUM_AUX_CONSTRAINTS: usize = 2;
+const AUX_CONSTRAINT_DEGREES: [usize; NUM_AUX_CONSTRAINTS] = [7, 7];
 
 const STACK_HEAD_DEGREES: [usize; 7] = [
     8, 8, 8, 8, 8, 8, 7,    // constraints for the first 7 registers of user stack
@@ -91,18 +91,19 @@ impl Stack {
     /// are not tied to any repeating cycles in the execution trace.
     fn enforce_acyclic_ops(&self, current: &[u128], next: &[u128], op_flags: [u128; NUM_LD_OPS], next_op: u128, result: &mut [u128]) {
         
-        // initialize a vector to hold constraint evaluations; this is needed because constraint
-        // evaluator functions assume that the stack is at least 8 items deep; while it may
-        // actually be smaller than that
+        // split constraint evaluation result into aux constraints and stack constraints
+        let (aux, result) = result.split_at_mut(NUM_AUX_CONSTRAINTS);
+
+        // initialize a vector to hold stack constraint evaluations; this is needed because
+        // constraint evaluator functions assume that the stack is at least 8 items deep; while
+        // it may actually be smaller than that
         let mut evaluations = vec![field::ZERO; current.len()];
 
         // control flow operations
-        enforce_no_change(&mut evaluations,     current, next, op_flags[opcodes::BEGIN as usize]);
-        enforce_no_change(&mut evaluations,     current, next, op_flags[opcodes::NOOP as usize]);
-        result[0] = field::add(result[0],
-            enforce_assert(&mut evaluations,    current, next, op_flags[opcodes::ASSERT as usize]));
-        result[0] = field::add(result[0],
-            enforce_asserteq(&mut evaluations,  current, next, op_flags[opcodes::ASSERTEQ as usize]));
+        enforce_no_change(&mut evaluations,      current, next, op_flags[opcodes::BEGIN as usize]);
+        enforce_no_change(&mut evaluations,      current, next, op_flags[opcodes::NOOP as usize]);
+        enforce_assert   (&mut evaluations, aux, current, next, op_flags[opcodes::ASSERT as usize]);
+        enforce_asserteq (&mut evaluations, aux, current, next, op_flags[opcodes::ASSERTEQ as usize]);
 
         // input operations
         enforce_push(&mut evaluations,      current, next, next_op, op_flags[opcodes::PUSH as usize]);
@@ -130,24 +131,20 @@ impl Stack {
         enforce_mul(&mut evaluations,       current, next, op_flags[opcodes::MUL as usize]);
         enforce_inv(&mut evaluations,       current, next, op_flags[opcodes::INV as usize]);
         enforce_neg(&mut evaluations,       current, next, op_flags[opcodes::NEG as usize]);
-        result[0] = field::add(result[0],
-            enforce_not(&mut evaluations,   current, next, op_flags[opcodes::NOT as usize]));
+        enforce_not(&mut evaluations, aux,  current, next, op_flags[opcodes::NOT as usize]);
+        enforce_and(&mut evaluations, aux,  current, next, op_flags[opcodes::AND as usize]);
+        enforce_or (&mut evaluations, aux,  current, next, op_flags[opcodes::OR as usize]);
         
         // comparison operations
-        result[0] = field::add(result[0],
-            enforce_eq(&mut evaluations,    current, next, op_flags[opcodes::EQ as usize]));
+        enforce_eq(&mut evaluations,  aux,  current, next, op_flags[opcodes::EQ as usize]);
         enforce_cmp(&mut evaluations,       current, next, op_flags[opcodes::CMP as usize]);
         enforce_binacc(&mut evaluations,    current, next, op_flags[opcodes::BINACC as usize]);
 
         // conditional selection operations
-        result[0] = field::add(result[0],
-            enforce_choose(&mut evaluations,  current, next, op_flags[opcodes::CHOOSE as usize]));
-        result[0] = field::add(result[0],
-            enforce_choose2(&mut evaluations, current, next, op_flags[opcodes::CHOOSE2 as usize]));
+        enforce_choose(&mut evaluations,  aux,  current, next, op_flags[opcodes::CHOOSE as usize]);
+        enforce_choose2(&mut evaluations, aux,  current, next, op_flags[opcodes::CHOOSE2 as usize]);
 
-        // copy evaluations into the result while skipping the aux constraint because it
-        // is already updated in the result vector
-        let result = &mut result[NUM_AUX_CONSTRAINTS..];
+        // copy evaluations into the result
         for i in 0..result.len() {
             result[i] = field::add(result[i], evaluations[i]);
         }
@@ -159,18 +156,18 @@ impl Stack {
 
 /// Enforces constraints for ASSERT operation. The constraints are similar to DROP operation, but
 /// have an auxiliary constraint which enforces that 1 - x = 0, where x is the top of the stack.
-fn enforce_assert(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) -> u128 {
+fn enforce_assert(result: &mut [u128], aux: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
     let n = next.len() - 1;
     enforce_no_change(&mut result[0..n], &current[1..], &next[0..n], op_flag);
-    return field::mul(op_flag, are_equal(field::ONE, current[0]));
+    aux[0] = agg_op_constraint(aux[0], op_flag, are_equal(field::ONE, current[0]));
 }
 
 /// Enforces constraints for ASSERTEQ operation. The stack is shifted by 2 registers the left and
 /// an auxiliary constraint enforces that the first element of the stack is equal to the second.
-fn enforce_asserteq(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) -> u128 {
+fn enforce_asserteq(result: &mut [u128], aux: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
     let n = next.len() - 2;
     enforce_no_change(&mut result[0..n], &current[2..], &next[0..n], op_flag);
-    return field::mul(op_flag, are_equal(current[0], current[1]));
+    aux[0] = agg_op_constraint(aux[0], op_flag, are_equal(current[0], current[1]));
 }
 
 // INPUT OPERATIONS
@@ -364,7 +361,7 @@ fn enforce_neg(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u1
 /// Enforces constraints for NOT operation. The constraints are based on the first element of
 /// the stack, but also evaluates an auxiliary constraint which guarantees that the first
 /// element of the stack is binary.
-fn enforce_not(evaluations: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) -> u128 {
+fn enforce_not(evaluations: &mut [u128], aux: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
 
     // NOT operation is defined simply as: 1 - x; this means 0 becomes 1, and 1 becomes 0
     let x = current[0];
@@ -375,5 +372,45 @@ fn enforce_not(evaluations: &mut [u128], current: &[u128], next: &[u128], op_fla
     enforce_no_change(&mut evaluations[1..], &current[1..], &next[1..], op_flag);
 
     // we also need to make sure that the operand is binary (i.e. 0 or 1)
-    return field::mul(op_flag, is_binary(x));
+    aux[0] = agg_op_constraint(aux[0], op_flag, is_binary(x));
+}
+
+/// Enforces constraints for AND operation. The constraints are based on the first two elements
+/// of the stack, but also evaluates auxiliary constraints which guarantee that both elements
+/// are binary.
+fn enforce_and(result: &mut [u128], aux: &mut[u128], current: &[u128], next: &[u128], op_flag: u128) {
+
+    // AND operation is the same as: x * y
+    let x = current[0];
+    let y = current[1];
+    let op_result = field::mul(x, y);
+    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], op_result));
+
+    // ensure that the rest of the stack is shifted left by 1 element
+    let n = next.len() - 1;
+    enforce_no_change(&mut result[1..n], &current[2..], &next[1..n], op_flag);
+
+    // ensure that both operands are binary values
+    aux[0] = agg_op_constraint(aux[0], op_flag, is_binary(x));
+    aux[1] = agg_op_constraint(aux[1], op_flag, is_binary(y));
+}
+
+/// Enforces constraints for OR operation. The constraints are based on the first two elements
+/// of the stack, but also evaluates auxiliary constraints which guarantee that both elements
+/// are binary.
+fn enforce_or(result: &mut [u128], aux: &mut[u128], current: &[u128], next: &[u128], op_flag: u128) {
+
+    // OR operation is the same as: 1 - (1 - x) * (1 - y)
+    let x = current[0];
+    let y = current[1];
+    let op_result = field::sub(field::ONE, field::mul(field::sub(field::ONE, x), field::sub(field::ONE, y)));
+    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], op_result));
+
+    // ensure that the rest of the stack is shifted left by 1 element
+    let n = next.len() - 1;
+    enforce_no_change(&mut result[1..n], &current[2..], &next[1..n], op_flag);
+
+    // ensure that both operands are binary values
+    aux[0] = agg_op_constraint(aux[0], op_flag, is_binary(x));
+    aux[1] = agg_op_constraint(aux[1], op_flag, is_binary(y));
 }

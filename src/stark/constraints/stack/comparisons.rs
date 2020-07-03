@@ -18,7 +18,7 @@ const X_ACC_IDX     : usize = 7;
 
 /// Evaluates constraints for EQ operation. These enforce that when x == y, top of the stack at
 /// the next step is set to 1, otherwise top of the stack at the next step is set to 0.
-pub fn enforce_eq(evaluations: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) -> u128 {
+pub fn enforce_eq(evaluations: &mut [u128], aux: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
 
     // compute difference between top two values of the stack
     let x = current[1];
@@ -38,8 +38,7 @@ pub fn enforce_eq(evaluations: &mut [u128], current: &[u128], next: &[u128], op_
 
     // we also need to make sure that result * diff = 0; this ensures that when diff != 0
     // the result must be set to 0
-    let aux_constraint = field::mul(op_flag, field::mul(next[0], diff));
-    return aux_constraint;
+    aux[0] = agg_op_constraint(aux[0], op_flag, field::mul(next[0], diff));
 }
 
 /// Evaluates constraints for CMP operation.

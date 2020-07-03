@@ -157,6 +157,28 @@ fn math_operations() {
 }
 
 #[test]
+fn bool_operations() {
+    let program = Program::from_path(vec![
+        opcodes::BEGIN, opcodes::NOT,  opcodes::OR,   opcodes::OR,
+        opcodes::AND,   opcodes::AND,  opcodes::NOT,  opcodes::NOOP,
+        opcodes::NOOP,  opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
+        opcodes::NOOP,  opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
+    ]);
+
+    let options = ProofOptions::default();
+    let inputs = ProgramInputs::from_public(&[1, 0, 1, 1, 0]);
+    let num_outputs = 1;
+
+    let expected_result = vec![field::ONE];
+
+    let (outputs, proof) = super::execute(&program, &inputs, num_outputs, &options);
+    assert_eq!(expected_result, outputs);
+
+    let result = super::verify(program.hash(), inputs.get_public_inputs(), &outputs, &proof);
+    assert_eq!(Ok(true), result);
+}
+
+#[test]
 fn hash_operations() {
     // single hash
     let program = Program::from_path(vec![
