@@ -35,7 +35,7 @@ A single instruction may take multiple VM cycles to execute. The number of cycle
 | Operation | Description                            | Cycles |
 | --------- | -------------------------------------- | :----: |
 | noop      | Does nothing.                          | 1      |
-| assert    | Pops the top item from the stack and checks if it is equal to `1`. If it is not equal to `1`, the program fails. | 1 |
+| assert    | Pops the top item from the stack and checks if it is equal to `1`. If it is not equal to `1`, the operation will fail. | 1 |
 | assert.eq | Pops top two items from the stack and checks if they are equal. If they are not equal, the operation will fail. | 1 |
 | if.true   | Marks the beginning of the *true* branch in the `if.true else endif` expression. If the value at the top of the stack is `1`, the *true* branch is executed. | 1 |
 | else      | Marks the beginning of the *false* branch in the `if.true else endif` expression. If the value at the top of the stack is `0`, the *false* branch is executed. | 2 |
