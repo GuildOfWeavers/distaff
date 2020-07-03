@@ -101,7 +101,7 @@ Distaff VM has two input tapes for supplying secret inputs to a program: tape `A
 | neg       | Pops the top item from the stack, computes its additive inverse, and pushes the result onto the stack. | 1      |
 | inv       | Pops the top item from the stack, computes its multiplicative inverse, and pushes the result onto the stack. If the value at the top of the stack is `0`, this operation will fail. | 1 |
 | not       | Pops the top item from the stack, subtracts it from value `1` and pushes the result onto the stack. In other words, `0` becomes `1`, and `1` becomes `0`. If the item at the top of the stack is not binary (i.e. not `0` or `1`), this operation will fail. | 1 |
-| and       | Pops top two items from the stack, multiplies them (which, for binary values, is identical to boolean `AND`), and pushes the result onto the stack. If either of the values is not binary, the operation will fail. | 1 |
+| and       | Pops top two items from the stack, computes an equivalent of their boolean `AND` (which, for binary values, is just multiplication), and pushes the result onto the stack. If either of the values is not binary, the operation will fail. | 1 |
 | or        | Pops top two items from the stack, computes an equivalent of their boolean `OR`, and pushes the result onto the stack. If either of the values is not binary, the operation will fail. | 1 |
 
 #### Finite field arithmetic

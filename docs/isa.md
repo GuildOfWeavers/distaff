@@ -12,6 +12,7 @@ The tables below describe all currently available atomic instructions in Distaff
 | NOOP        | 00000000 | Does nothing. |
 | BEGIN       | 11111111 | Marks the beginning of a program. Every program must start with the `BEGIN` operation. |
 | ASSERT      | 00010000 | Pops the top item from the stack and checks if it is equal to `1`. If it is not equal to `1`, the program fails. |
+| ASSERTEQ    | 00001111 | Pops top two items from the stack and checks if they are equal. If they are not equal, the operation will fail. |
 
 ### Input instructions
 
@@ -46,14 +47,16 @@ The tables below describe all currently available atomic instructions in Distaff
 | INV         | 00000011 | Pops the top item from the stack, computes its multiplicative inverse, and pushes the result onto the stack. This can be used to emulate division with a sequence of two operations: `INV MUL`. If the value at the top of the stack is `0`, the operation will fail.
 | NEG         | 00000100 | Pops the top item from the stack, computes its additive inverse, and pushes the result onto the stack. This can be used to emulate subtraction with a sequence of two operations: `NEG ADD` |
 | NOT         | 00000101 | Pops the top item from the stack, subtracts it from value `1` and pushes the result onto the stack. In other words, `0` becomes `1`, and `1` becomes `0`. This is equivalent to `PUSH 1 SWAP NEG ADD` but also enforces that the top stack item is a binary value. |
+| AND         | 00000110 | Pops top two items from the stack, computes an equivalent of their boolean `AND` (which, for binary values, is just multiplication), and pushes the result onto the stack. If either of the values is not binary, the operation will fail. |
+| OR          | 00000111 | Pops top two items from the stack, computes an equivalent of their boolean `OR`, and pushes the result onto the stack. If either of the values is not binary, the operation will fail. |
 
 ### Comparison instructions
 
 | Instruction | Opcode   | Description                            |
 | ----------- | :------: | -------------------------------------- |
-| EQ          | 00010101 | Pops top two items from the stack, compares them, and if their values are equal, pushes `1` onto the stack; otherwise pushes `0` onto the stack. |
-| CMP         | 00000001 | Pops top 7 items from the top of the stack, performs a single round of binary comparison, and pushes the resulting 7 values onto the stack. This operation can be used as a building block for *less then* and *greater than* operations (see [here](#Checking-inequality)). |
-| BINACC      | 00000010 | Pops top 2 items from the top of the stack, performs a single round of binary aggregation, and pushes the resulting 2 values onto the stack. This operation can be used as a building block for range check operations (see [here](#Checking-binary-decomposition)). |
+| EQ          | 00010101 | Pops top 3 values from the stack, subtracts the 3rd value from the 2nd, then multiplies the result by the 1st value, and then subtracts the result from value `1`. The operation can be used to check whether two values are equal (see [here](#Checking-equality)). |
+| CMP         | 00000001 | Pops top 8 items from the top of the stack, performs a single round of binary comparison, and pushes the resulting 8 values onto the stack. This operation can be used as a building block for *less then* and *greater than* operations (see [here](#Checking-inequality)). |
+| BINACC      | 00000010 | Pops top 3 items from the top of the stack, performs a single round of binary aggregation, and pushes the resulting 3 values onto the stack. This operation can be used as a building block for range check operations (see [here](#Checking-binary-decomposition)). |
 
 ### Selection instructions
 
@@ -71,9 +74,23 @@ The tables below describe all currently available atomic instructions in Distaff
 ## Value comparison in Distaff VM
 There are 3 operations in Distaff VM which can be used to compare values: `EQ`, `CMP`, and `BINACC`. Using these operations you can check whether 2 values a equal, whether one value is greater or less than the other, and whether a value can be represented with a given number of bits.
 
-`EQ` operation is by far the simplest one out of the three. If the two values on the top of the stack are equal, it pushes `1` onto the stack. If they are not equal, it pushes `0` onto the stack. Both values are removed in the process.
+### Checking equality
+Using `EQ` operation you can determine whether two values are equal. Before executing this operation, you should position values on the stack in the appropriate order. Specifically, the stack should look like so:
+```
+[inv_dif, x, y]
+```
+where:
+* `x` and `y` are the values you want to compare;
+* `inv_dif` is equal to `inv(x - y)` when `x != y`, and to any value otherwise. If `inv_dif` value does not satisfy these conditions, the operation will fail.
 
-The other two operations are more complex and are described in detail below.
+Once the stack has been arranged as described above, executing `EQ` operation, will do the following:
+1. Pop top 3 values from the stack;
+2. Push `1` onto the stack if `x == y`, and push `0` onto the stack otherwise.
+
+`inv_dif` value should be computed beforehand and provided to the VM via input tape `A`. In this way, checking equality between the top two stack items can be accomplished by the following sequence of instructions:
+```
+READ EQ
+```
 
 ### Checking inequality
 Using repeated execution of `CMP` operation you can determine if one value is greater or less than another value. Executing this operation consumes a single input from each of the input tapes. It also assumes that you've positioned items on the stack in an appropriate order. If items on the stack are not positioned correctly, the result of the operation will be undefined.
@@ -81,7 +98,7 @@ Using repeated execution of `CMP` operation you can determine if one value is gr
 Supposed we wanted to compare 2 values: `a` and `b` (both are 128-bit field elements). To accomplish this, we'd need to position elements on the stack like so:
 
 ```
-[p, 0, 0, 0, 0, 0, 0, a, b]
+[p, 0, 0, 0, 0, 0, 0, 0, a, b]
 ```
 where `p` = 2<sup>n - 1</sup> for some `n` <= 128 such that 2<sup>n</sup> > `a`, `b`. For example, if `a` and `b` are unconstrained field elements, `p` should be set to 2<sup>127</sup>. Or, if `a` and `b` are know to be 64-bit numbers, `p` should be set to 2<sup>63</sup>.
 
@@ -89,7 +106,7 @@ Once the stack has been arranged in this way, we'll need to execute `CMP` operat
 
 After we execute `CMP` operation `n` number of times, the stack will have the following form:
 ```
-[x, x, x, gt, lt, b_acc, a_acc, a, b]
+[x, x, x, x, gt, lt, b_acc, a_acc, a, b]
 ```
 where:
 * `x` values are intermediate results of executing `CMP` operations and should be discarded.
@@ -102,10 +119,10 @@ To make sure that the comparison is valid, we need to check that `a` == `a_acc` 
 
 ```
 // performs the comparisons and leaves only the lt value on the stack
-DROP SWAP4 ROLL4 EQ ASSERT EQ ASSERT DROP DROP DROP
+DROP4 PAD2 SWAP4 ROLL4 ASSERTEQ ASSERTEQ DUP DROP4
 
 // performs the comparisons and leaves only the gt value on the stack
-DROP SWAP4 ROLL4 EQ ASSERT EQ ASSERT DROP DROP SWAP DROP
+DROP4 PAD2 SWAP4 ROLL4 ASSERTEQ ASSERTEQ ROLL4 DUP DROP4
 ```
 
 Overall, the number of operations needed to compare 2 values is proportional to the size of the values. Specifically:
@@ -124,7 +141,7 @@ Each execution of the operation consumes a single input from tape `A`. The tape 
 Also similar to `CMP` operation, `BINACC` operation expect items on the stack to be arranged in a certain order. If the items are not arranged as shown below, the result of the operation is undefined:
 
 ```
-[p, 0, a]
+[p, 0, 0, a]
 ```
 where:
   * `a` is the value we want to range-check,
@@ -132,7 +149,7 @@ where:
 
 Once items on the stack have been arranged as described above, we execute `BINACC` instruction `n` times. This will leave the stack in the following form:
 ```
-[x, a_acc, a]
+[x, x, a_acc, a]
 ```
 where:
 * `x` value is an intermediate results of executing `BINACC` operations and should be discarded.
@@ -140,14 +157,14 @@ where:
 
 To make sure that `a` can fit into `n` bits we need to check that `a_acc = a`. This can be done using the following sequence of operations:
 ```
-DROP EQ
+DROP DROP READ EQ
 ```
-The above sequence discards the first item, then checks the equality of the remaining two items placing `1` onto the stack if the values are equal, and `0` otherwise.
+The above sequence discards the first two items, then checks the equality of the remaining two items as described [here](#Checking-equality) placing `1` onto the stack if the values are equal, and `0` otherwise.
 
-Overall, the number of operations needed to determine whether a value can be represented by `n` bits is `n + 2` (assuming you already have the value positioned correctly on the stack). Specifically:
+Overall, the number of operations needed to determine whether a value can be represented by `n` bits is `n + 4` (assuming you already have the value positioned correctly on the stack). Specifically:
 
-* Checking if a value can be represented with 64 bits requires 66 operations,
-* Checking if a value can be represented with 32 bits requires 34 operations.
+* Checking if a value can be represented with 64 bits requires 68 operations,
+* Checking if a value can be represented with 32 bits requires 36 operations.
 
 ## Hashing in Distaff VM
 Distaff VM provides a `RESCR` instruction which can be used as a building block for computing cryptographic hashes. The `RESCR` instruction computes a single round of a modified [Rescue hash function](https://eprint.iacr.org/2019/426) over the top 6 items of the stack. Specifically, the top 6 stack items form the state of the sponge with the items at the top of the stack considered to be the inner part of the sponge, while the items at the bottom of the stack are considered to be the outer part of the sponge.
