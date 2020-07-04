@@ -11,6 +11,9 @@ pub use inputs::{ ProgramInputs };
 
 pub mod assembly;
 
+#[cfg(test)]
+mod program2;
+
 // TYPES AND INTERFACES
 // ================================================================================================
 type HashState = [u128; ACC_STATE_WIDTH];
