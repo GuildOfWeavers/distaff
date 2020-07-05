@@ -24,6 +24,28 @@ pub struct Loop {
     skip        : Vec<ProgramBlock>,
 }
 
+// PROGRAM BLOCK IMPLEMENTATION
+// ================================================================================================
+
+impl ProgramBlock {
+
+    pub fn is_span(&self) -> bool {
+        return match self {
+            ProgramBlock::Span(_) => true,
+            _ => false,
+        };
+    }
+
+    pub fn hash(&self, state: [u128; 4]) -> [u128; 4] {
+        return match self {
+            ProgramBlock::Span(block)   => block.hash(state),
+            ProgramBlock::Group(block)  => block.hash(state),
+            ProgramBlock::Switch(block) => block.hash(state),
+            ProgramBlock::Loop(block)   => block.hash(state),
+        };
+    }
+}
+
 // GROUP IMPLEMENTATION
 // ================================================================================================
 impl Group {
