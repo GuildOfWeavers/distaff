@@ -139,6 +139,26 @@ impl Loop {
         return Loop { body, skip };
     }
 
+    pub fn new_block(body: Vec<ProgramBlock>) -> ProgramBlock {
+        return ProgramBlock::Loop(Loop::new(body));
+    }
+
+    pub fn body(&self) -> &[ProgramBlock] {
+        return &self.body;
+    }
+
+    pub fn body_hash(&self) -> u128 {
+        return hash_seq(&self.body);
+    }
+
+    pub fn skip(&self) -> &[ProgramBlock] {
+        return &self.skip;
+    }
+
+    pub fn skip_hash(&self) -> u128 {
+        return hash_seq(&self.skip);
+    }
+
     pub fn hash(&self, state: [u128; 4]) -> [u128; 4] {
         let v0 = hash_seq(&self.body);
         let v1 = hash_seq(&self.skip);
