@@ -8,7 +8,7 @@ use crate::utils::accumulator::{ add_constants, apply_sbox, apply_mds, apply_inv
 
 #[test]
 fn single_block() {
-    let block = Span::new_block(vec![opcodes::NOOP; 16]);
+    let block = Span::new_block(vec![opcodes::NOOP; 15]);
 
     let program = Program::new(vec![block]);
     let (step, hash) = traverse_true_branch(program.body(), &mut vec![], 0, 0, 0);
@@ -21,10 +21,10 @@ fn single_block() {
 fn linear_blocks() {
     let block1 = Span::new_block(vec![opcodes::NOOP; 15]);
 
-    let inner_block1 = Span::new_block(vec![opcodes::ADD; 16]);
+    let inner_block1 = Span::new_block(vec![opcodes::ADD; 15]);
     let block2 = Group::new_block(vec![inner_block1]);
 
-    let inner_block2 = Span::new_block(vec![opcodes::MUL; 16]);
+    let inner_block2 = Span::new_block(vec![opcodes::MUL; 15]);
     let block3 = Group::new_block(vec![inner_block2]);
 
     // sequence of blocks ending with group block
@@ -35,7 +35,7 @@ fn linear_blocks() {
     assert_eq!(95, step);
 
     // sequence of blocks ending with span block
-    let block4 = Span::new_block(vec![opcodes::INV; 16]);
+    let block4 = Span::new_block(vec![opcodes::INV; 15]);
 
     let program = Program::new(vec![block1, block2, block3, block4]);
     let (step, hash) = traverse_true_branch(program.body(), &mut vec![], 0, 0, 0);
@@ -48,11 +48,11 @@ fn linear_blocks() {
 fn nested_blocks() {
     let block1 = Span::new_block(vec![opcodes::NOOP; 15]);
 
-    let inner_block1 = Span::new_block(vec![opcodes::ADD; 16]);
+    let inner_block1 = Span::new_block(vec![opcodes::ADD; 15]);
     let block2 = Group::new_block(vec![inner_block1]);
 
     let inner_block2 = Span::new_block(vec![opcodes::MUL; 15]);
-    let inner_inner_block1 = Span::new_block(vec![opcodes::INV; 16]);
+    let inner_inner_block1 = Span::new_block(vec![opcodes::INV; 15]);
     let inner_block3 = Group::new_block(vec![inner_inner_block1]);
     let block3 = Group::new_block(vec![inner_block2, inner_block3]);
 
@@ -72,13 +72,13 @@ fn conditional_program() {
         opcodes::ASSERT, opcodes::ADD, opcodes::ADD, opcodes::ADD,
         opcodes::ADD,    opcodes::ADD, opcodes::ADD, opcodes::ADD,
         opcodes::ADD,    opcodes::ADD, opcodes::ADD, opcodes::ADD,
-        opcodes::ADD,    opcodes::ADD, opcodes::ADD, opcodes::ADD,
+        opcodes::ADD,    opcodes::ADD, opcodes::ADD,
     ])];
     let f_branch = vec![Span::new_block(vec![
         opcodes::NOT, opcodes::ASSERT, opcodes::MUL, opcodes::MUL,
         opcodes::MUL, opcodes::MUL,    opcodes::MUL, opcodes::MUL,
         opcodes::MUL, opcodes::MUL,    opcodes::MUL, opcodes::MUL,
-        opcodes::MUL, opcodes::MUL,    opcodes::MUL, opcodes::MUL,
+        opcodes::MUL, opcodes::MUL,    opcodes::MUL,
     ])];
     let block2 = Switch::new_block(t_branch, f_branch);
     
@@ -224,17 +224,14 @@ fn traverse_true_branch(blocks: &[ProgramBlock], stack: &mut Vec<u128>, parent_h
     let mut state = [0, 0, 0, 0];
     for i in 0..blocks.len() {
         if i != 0 && blocks[i].is_span() {
-            println!("{}: {}!\t {:?}", step, opcodes::NOOP, state);
+            println!("{}: SKIP {:?}", step, state);
             step += 1;
         }
         step = traverse(&blocks[i], stack, &mut state, step);
     }
 
-    if !blocks.last().unwrap().is_span() {
-        println!("{}: {}!!\t {:?}", step, opcodes::NOOP, state);
-        hash_op(&mut state, opcodes::NOOP, 0, step);
-        step += 1;
-    }
+    println!("{}: SKIP {:?}", step, state);
+    step += 1;
 
     println!("{}: TEND {:?}", step, state);
     step += 1; // TEND
@@ -260,11 +257,8 @@ fn traverse_false_branch(blocks: &[ProgramBlock], stack: &mut Vec<u128>, parent_
         step = traverse(&blocks[i], stack, &mut state, step);
     }
 
-    if !blocks.last().unwrap().is_span() {
-        println!("{}: {} \t {:?}", step, opcodes::NOOP, state);
-        hash_op(&mut state, opcodes::NOOP, 0, step);
-        step += 1;
-    }
+    println!("{}: SKIP {:?}", step, state);
+    step += 1;
 
     println!("{}: FEND {:?}", step, state);
     step += 1; // FEND

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use crate::opcodes;
-use super::{ hash_op, ProgramBlock };
+use super::{ hash_op, ProgramBlock, BASE_CYCLE_LENGTH };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -25,7 +25,10 @@ pub struct Span {
 impl Span {
 
     pub fn new(instructions: Vec<u8>, hints: HashMap<usize, ExecutionHint>) -> Span {
-        assert!(instructions.len() > 0, "instruction span must contain at least one instruction");
+        let alignment = instructions.len() % BASE_CYCLE_LENGTH;
+        assert!(alignment == BASE_CYCLE_LENGTH - 1,
+            "invalid number of instructions: expected one less than a multiple of {}, but was {}",
+            BASE_CYCLE_LENGTH, instructions.len());
 
         // make sure all instructions are valid
         for i in 0..instructions.len() {
@@ -118,13 +121,13 @@ mod tests {
             opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
             opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
             opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-            opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
+            opcodes::NOOP, opcodes::NOOP, opcodes::NOOP
         ]);
 
         let hash = block.hash([0, 0, 0, 0]);
         assert_eq!([
-              8566242090173091583124763969325438871,  84636537995850117149368373965718083921,
-            222657086680323995003240724209962977581, 127833818698872133570493667966884100145,
+             52076011459971410147741803070378730890, 261452704326515948132660305632795635258,
+            285762266873668793859003219115592205922, 212039139700064235831954673028848881811,
         ], hash);
 
         // hash noops and a push operation
@@ -134,13 +137,13 @@ mod tests {
             opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
             opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
             opcodes::PUSH, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-            opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
+            opcodes::NOOP, opcodes::NOOP, opcodes::NOOP
         ], hints);
 
         let hash = block.hash([0, 0, 0, 0]);
         assert_eq!([
-             32513308417020917531759644844383344868, 186915976146641762336738218477661156954,
-              7535251945779765790057451912525515090, 278645454202396004240502843204252781361,
+            312507932535527141437397503257237214949, 280793603756331827274203760015152973193,
+            306066058282300678308026054798662934360, 230434793681125211251604762490912238982,
         ], hash);
 
         // hash noops and a push operation with a different value
@@ -150,13 +153,13 @@ mod tests {
             opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
             opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
             opcodes::PUSH, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-            opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
+            opcodes::NOOP, opcodes::NOOP, opcodes::NOOP
         ], hints);
 
         let hash = block.hash([0, 0, 0, 0]);
         assert_eq!([
-            149098942058300495948126997609343088395, 188197663390522895626516604937611702437,
-            270603084642029093008777372688579835346, 303512582809791735737080230816116187881,
+             86672797833154161666693060860109540914, 248770728298471452232553024868136109193,
+            336242130300957214807078973789700958518, 232316973172051396384789365363965735328,
         ], hash);
     }
 }

@@ -124,7 +124,7 @@ impl Loop {
             opcodes::NOT,  opcodes::ASSERT, opcodes::NOOP, opcodes::NOOP,
             opcodes::NOOP, opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
             opcodes::NOOP, opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
-            opcodes::NOOP, opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
+            opcodes::NOOP, opcodes::NOOP,   opcodes::NOOP
         ]);
 
         let skip = vec![ProgramBlock::Span(skip_block)];

@@ -1,6 +1,6 @@
 use crate::math::field;
 use crate::utils::accumulator::{ add_constants, apply_sbox, apply_mds, apply_inv_sbox };
-use crate::{ opcodes, ACC_STATE_WIDTH };
+use crate::{ ACC_STATE_WIDTH };
 use super::{ ProgramBlock };
 
 pub const STATE_WIDTH: usize = ACC_STATE_WIDTH;
@@ -48,10 +48,6 @@ pub fn hash_seq(blocks: &Vec<ProgramBlock>) -> u128 {
     let mut state = [0u128; STATE_WIDTH];
     for block in blocks {
         state = block.hash(state);
-    }
-
-    if !blocks.last().unwrap().is_span() {
-        hash_op(&mut state, opcodes::NOOP, 0, 15);
     }
 
     return state[0];

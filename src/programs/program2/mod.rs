@@ -10,6 +10,10 @@ pub use flow::{ ProgramBlock, Group, Switch, Loop };
 #[cfg(test)]
 mod tests;
 
+// CONSTANTS
+// ================================================================================================
+pub const BASE_CYCLE_LENGTH: usize = 16;    // TODO: move to global constants?
+
 // TYPES AND INTERFACES
 // ================================================================================================
 #[derive(Clone)]
