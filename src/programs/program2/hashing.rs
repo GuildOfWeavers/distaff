@@ -38,7 +38,13 @@ pub fn hash_acc(h: u128, v0: u128, v1: u128) -> [u128; STATE_WIDTH] {
 pub fn hash_seq(blocks: &Vec<ProgramBlock>, is_loop_body: bool) -> u128 {
 
     let mut state = [0u128; STATE_WIDTH];
-    for block in blocks {
+    state = blocks[0].hash(state);
+    
+    for i in 1..blocks.len() {
+        let block = &blocks[i];
+        if block.is_span() {
+            acc_hash_round(&mut state, CYCLE_LENGTH - 1);    
+        }
         state = block.hash(state);
     }
 

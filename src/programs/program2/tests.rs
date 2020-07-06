@@ -1,7 +1,6 @@
 use crate::{ opcodes };
 use super::{ Program, ProgramBlock, ExecutionHint, Span, Group, Switch, Loop, hash_op };
-use super::hashing::{ ACC_NUM_ROUNDS, CYCLE_LENGTH, STATE_WIDTH };
-use crate::utils::accumulator::{ add_constants, apply_sbox, apply_mds, apply_inv_sbox };
+use super::hashing::{ ACC_NUM_ROUNDS, acc_hash_round };
 
 // TESTS
 // ================================================================================================
@@ -204,34 +203,20 @@ fn traverse(block: &ProgramBlock, stack: &mut Vec<u128>, hash: &mut [u128; 4], m
     return step;
 }
 
-fn op_hacc(state: &mut [u128; 4], step: usize) {
-
-    let ark_idx = step % CYCLE_LENGTH;
-
-    // apply first half of Rescue round
-    add_constants(state, ark_idx, 0);
-    apply_sbox(state);
-    apply_mds(state);
-
-    // apply second half of Rescue round
-    add_constants(state, ark_idx, STATE_WIDTH);
-    apply_inv_sbox(state);
-    apply_mds(state);
-}
-
 fn traverse_true_branch(blocks: &[ProgramBlock], stack: &mut Vec<u128>, parent_hash: u128, sibling_hash: u128, mut step: usize) -> (usize, [u128; 4]) {
     
     let mut state = [0, 0, 0, 0];
     for i in 0..blocks.len() {
         if i != 0 && blocks[i].is_span() {
-            println!("{}: SKIP {:?}", step, state);
+            println!("{}: HACC {:?}", step, state);
+            acc_hash_round(&mut state, step);
             step += 1;
         }
         step = traverse(&blocks[i], stack, &mut state, step);
     }
 
     println!("{}: HACC {:?}", step, state);
-    op_hacc(&mut state, step);
+    acc_hash_round(&mut state, step);
     step += 1;
 
     println!("{}: TEND {:?}", step, state);
@@ -240,7 +225,7 @@ fn traverse_true_branch(blocks: &[ProgramBlock], stack: &mut Vec<u128>, parent_h
     state = [parent_hash, state[0], sibling_hash, 0];
     for _ in 0..ACC_NUM_ROUNDS {
         println!("{}: HACC {:?}", step, state);
-        op_hacc(&mut state, step);
+        acc_hash_round(&mut state, step);
         step += 1;
     }
 
@@ -252,14 +237,15 @@ fn traverse_false_branch(blocks: &[ProgramBlock], stack: &mut Vec<u128>, parent_
     let mut state = [0, 0, 0, 0];
     for i in 0..blocks.len() {
         if i != 0 && blocks[i].is_span() {
-            println!("{}: {}!\t {:?}", step, opcodes::NOOP, state);
+            println!("{}: HACC {:?}", step, state);
+            acc_hash_round(&mut state, step);
             step += 1;
         }
         step = traverse(&blocks[i], stack, &mut state, step);
     }
 
     println!("{}: HACC {:?}", step, state);
-    op_hacc(&mut state, step);
+    acc_hash_round(&mut state, step);
     step += 1;
 
     println!("{}: FEND {:?}", step, state);
@@ -268,7 +254,7 @@ fn traverse_false_branch(blocks: &[ProgramBlock], stack: &mut Vec<u128>, parent_
     state = [parent_hash, sibling_hash, state[0], 0];
     for _ in 0..ACC_NUM_ROUNDS {
         println!("{}: HACC {:?}", step, state);
-        op_hacc(&mut state, step);
+        acc_hash_round(&mut state, step);
         step += 1;
     }
 
@@ -282,7 +268,8 @@ fn traverse_loop_body(blocks: &[ProgramBlock], stack: &mut Vec<u128>, parent_has
 
         for i in 0..blocks.len() {
             if i != 0 && blocks[i].is_span() {
-                println!("{}: {}!\t {:?}", step, opcodes::NOOP, state);
+                println!("{}: HACC {:?}", step, state);
+                acc_hash_round(&mut state, step);
                 step += 1;
             }
             step = traverse(&blocks[i], stack, &mut state, step);
@@ -307,7 +294,7 @@ fn traverse_loop_body(blocks: &[ProgramBlock], stack: &mut Vec<u128>, parent_has
     state = [parent_hash, body_hash, skip_hash, 0];
     for _ in 0..ACC_NUM_ROUNDS {
         println!("{}: HACC {:?}", step, state);
-        op_hacc(&mut state, step);
+        acc_hash_round(&mut state, step);
         step += 1;
     }
 
