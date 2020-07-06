@@ -91,6 +91,26 @@ impl Switch {
         };
     }
 
+    pub fn new_block(true_branch: Vec<ProgramBlock>, false_branch: Vec<ProgramBlock>) -> ProgramBlock {
+        return ProgramBlock::Switch(Switch::new(true_branch, false_branch));
+    }
+
+    pub fn true_branch(&self) -> &[ProgramBlock] {
+        return &self.t_branch;
+    }
+
+    pub fn true_branch_hash(&self) -> u128 {
+        return hash_seq(&self.t_branch);
+    }
+
+    pub fn false_branch(&self) -> &[ProgramBlock] {
+        return &self.f_branch;
+    }
+
+    pub fn false_branch_hash(&self) -> u128 {
+        return hash_seq(&self.f_branch);
+    }
+
     pub fn hash(&self, state: [u128; 4]) -> [u128; 4] {
         let v0 = hash_seq(&self.t_branch);
         let v1 = hash_seq(&self.f_branch);
