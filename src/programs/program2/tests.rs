@@ -230,7 +230,8 @@ fn traverse_true_branch(blocks: &[ProgramBlock], stack: &mut Vec<u128>, parent_h
         step = traverse(&blocks[i], stack, &mut state, step);
     }
 
-    println!("{}: SKIP {:?}", step, state);
+    println!("{}: HACC {:?}", step, state);
+    op_hacc(&mut state, step);
     step += 1;
 
     println!("{}: TEND {:?}", step, state);
@@ -257,7 +258,8 @@ fn traverse_false_branch(blocks: &[ProgramBlock], stack: &mut Vec<u128>, parent_
         step = traverse(&blocks[i], stack, &mut state, step);
     }
 
-    println!("{}: SKIP {:?}", step, state);
+    println!("{}: HACC {:?}", step, state);
+    op_hacc(&mut state, step);
     step += 1;
 
     println!("{}: FEND {:?}", step, state);

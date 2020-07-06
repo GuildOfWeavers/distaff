@@ -86,15 +86,14 @@ impl Span {
 
     pub fn hash(&self, mut state: [u128; 4]) -> [u128; 4] {
         for (i, &op_code) in self.op_codes.iter().enumerate() {
-            if op_code == opcodes::PUSH {
+            let op_value = if op_code == opcodes::PUSH {
                 match self.get_hint(i) {
-                    ExecutionHint::PushValue(op_value) => hash_op(&mut state, op_code, op_value, i),
+                    ExecutionHint::PushValue(op_value) => op_value,
                     _ => panic!("value for PUSH operation is missing")
                 }
             }
-            else {
-                hash_op(&mut state, op_code, 0, i);
-            }
+            else { 0 };
+            hash_op(&mut state, op_code, op_value, i)
         }
         return state;
     }

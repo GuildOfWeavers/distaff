@@ -68,7 +68,7 @@ impl Group {
     }
 
     pub fn hash(&self, state: [u128; 4]) -> [u128; 4] {
-        let v0 = hash_seq(&self.blocks);
+        let v0 = hash_seq(&self.blocks, false);
         return hash_acc(state[0], v0, 0);
     }
 }
@@ -95,7 +95,7 @@ impl Switch {
     }
 
     pub fn true_branch_hash(&self) -> u128 {
-        return hash_seq(&self.t_branch);
+        return hash_seq(&self.t_branch, false);
     }
 
     pub fn false_branch(&self) -> &[ProgramBlock] {
@@ -103,12 +103,12 @@ impl Switch {
     }
 
     pub fn false_branch_hash(&self) -> u128 {
-        return hash_seq(&self.f_branch);
+        return hash_seq(&self.f_branch, false);
     }
 
     pub fn hash(&self, state: [u128; 4]) -> [u128; 4] {
-        let v0 = hash_seq(&self.t_branch);
-        let v1 = hash_seq(&self.f_branch);
+        let v0 = self.true_branch_hash();
+        let v1 = self.false_branch_hash();
         return hash_acc(state[0], v0, v1);
     }
 }
@@ -141,7 +141,7 @@ impl Loop {
     }
 
     pub fn body_hash(&self) -> u128 {
-        return hash_seq(&self.body);
+        return hash_seq(&self.body, true);
     }
 
     pub fn skip(&self) -> &[ProgramBlock] {
@@ -149,12 +149,12 @@ impl Loop {
     }
 
     pub fn skip_hash(&self) -> u128 {
-        return hash_seq(&self.skip);
+        return hash_seq(&self.skip, false);
     }
 
     pub fn hash(&self, state: [u128; 4]) -> [u128; 4] {
-        let v0 = hash_seq(&self.body);
-        let v1 = hash_seq(&self.skip);
+        let v0 = self.body_hash();
+        let v1 = self.skip_hash();
         return hash_acc(state[0], v0, v1);
     }
 }
