@@ -12,6 +12,7 @@ mod tests;
 
 // TYPES AND INTERFACES
 // ================================================================================================
+#[derive(Clone)]
 pub struct Program {
     root    : Group,
 }

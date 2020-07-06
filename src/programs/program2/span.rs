@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use crate::opcodes;
-use super::hash_op;
+use super::{ hash_op, ProgramBlock };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -14,6 +14,7 @@ pub enum ExecutionHint {
     None,
 }
 
+#[derive(Clone)]
 pub struct Span {
     op_codes    : Vec<u8>,
     op_hints    : HashMap<usize, ExecutionHint>,
@@ -51,6 +52,10 @@ impl Span {
             op_codes: instructions,
             op_hints: hints
         };
+    }
+
+    pub fn new_block(instructions: Vec<u8>) -> ProgramBlock {
+        return ProgramBlock::Span(Span::new(instructions, HashMap::new()));
     }
 
     pub fn from_instructions(instructions: Vec<u8>) -> Span {

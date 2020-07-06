@@ -8,44 +8,60 @@ use crate::utils::accumulator::{ add_constants, apply_sbox, apply_mds, apply_inv
 
 #[test]
 fn traverse_linear_path() {
-    let block = Span::from_instructions(vec![
-        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-    ]);
+    let block = Span::new_block(vec![opcodes::NOOP; 16]);
 
-    let program = Program::new(vec![ProgramBlock::Span(block)]);
-
+    let program = Program::new(vec![block]);
     let (step, hash) = traverse_true_branch(program.body(), 0, 0, 0);
 
     assert_eq!(program.hash(), hash);
+    assert_eq!(31, step);
 }
 
 #[test]
 fn traverse_linear_blocks() {
-    let block1 = ProgramBlock::Span(Span::from_instructions(vec![
-        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP
-    ]));
+    let block1 = Span::new_block(vec![opcodes::NOOP; 15]);
 
-    let block2 = ProgramBlock::Span(Span::from_instructions(vec![
-        opcodes::ADD,  opcodes::ADD,  opcodes::ADD,  opcodes::ADD,
-        opcodes::ADD,  opcodes::ADD,  opcodes::ADD,  opcodes::ADD,
-        opcodes::ADD,  opcodes::ADD,  opcodes::ADD,  opcodes::ADD,
-        opcodes::ADD,  opcodes::ADD,  opcodes::ADD,  opcodes::ADD,
-    ]));
+    let inner_block1 = Span::new_block(vec![opcodes::ADD; 16]);
+    let block2 = Group::new_block(vec![inner_block1]);
 
-    let block3 = ProgramBlock::Group(Group::new(vec![block2]));
+    let inner_block2 = Span::new_block(vec![opcodes::MUL; 16]);
+    let block3 = Group::new_block(vec![inner_block2]);
 
-    let program = Program::new(vec![block1, block3]);
-
+    // sequence of blocks ending with group block
+    let program = Program::new(vec![block1.clone(), block2.clone(), block3.clone()]);
     let (step, hash) = traverse_true_branch(program.body(), 0, 0, 0);
 
     assert_eq!(program.hash(), hash);
-    assert_eq!(0, 1);
+    assert_eq!(95, step);
+
+    // sequence of blocks ending with span block
+    let block4 = Span::new_block(vec![opcodes::INV; 16]);
+
+    let program = Program::new(vec![block1, block2, block3, block4]);
+    let (step, hash) = traverse_true_branch(program.body(), 0, 0, 0);
+
+    assert_eq!(program.hash(), hash);
+    assert_eq!(111, step);
+}
+
+#[test]
+fn traverse_nested_blocks() {
+    let block1 = Span::new_block(vec![opcodes::NOOP; 15]);
+
+    let inner_block1 = Span::new_block(vec![opcodes::ADD; 16]);
+    let block2 = Group::new_block(vec![inner_block1]);
+
+    let inner_block2 = Span::new_block(vec![opcodes::MUL; 15]);
+    let inner_inner_block1 = Span::new_block(vec![opcodes::INV; 16]);
+    let inner_block3 = Group::new_block(vec![inner_inner_block1]);
+    let block3 = Group::new_block(vec![inner_block2, inner_block3]);
+
+    // sequence of blocks ending with group block
+    let program = Program::new(vec![block1, block2, block3]);
+    let (step, hash) = traverse_true_branch(program.body(), 0, 0, 0);
+
+    assert_eq!(program.hash(), hash);
+    assert_eq!(127, step);
 }
 
 // HELPER FUNCTIONS
@@ -73,7 +89,8 @@ fn traverse(block: &ProgramBlock, hash: &mut [u128; 4], mut step: usize) -> usiz
             step = new_step;
         },
         ProgramBlock::Switch(block) => {
-            
+            println!("{}: BEGIN {:?}", step, hash);
+            step += 1; // BEGIN
         },
         ProgramBlock::Loop(block)   => {
             
@@ -102,6 +119,36 @@ fn traverse_true_branch(blocks: &[ProgramBlock], parent_hash: u128, sibling_hash
     
     let mut state = [0, 0, 0, 0];
     for i in 0..blocks.len() {
+        if i != 0 && blocks[i].is_span() {
+            println!("{}: {}!\t {:?}", step, opcodes::NOOP, state);
+            step += 1;
+        }
+        step = traverse(&blocks[i], &mut state, step);
+    }
+
+    if !blocks.last().unwrap().is_span() {
+        println!("{}: {}!!\t {:?}", step, opcodes::NOOP, state);
+        hash_op(&mut state, opcodes::NOOP, 0, step);
+        step += 1;
+    }
+
+    println!("{}: TEND {:?}", step, state);
+    step += 1; // TEND
+
+    state = [parent_hash, state[0], sibling_hash, 0];
+    for _ in 0..ACC_NUM_ROUNDS {
+        println!("{}: HACC {:?}", step, state);
+        op_hacc(&mut state, step);
+        step += 1;
+    }
+
+    return (step, state);
+}
+
+fn traverse_false_branch(blocks: &[ProgramBlock], parent_hash: u128, sibling_hash: u128, mut step: usize) -> (usize, [u128; 4]) {
+    
+    let mut state = [0, 0, 0, 0];
+    for i in 0..blocks.len() {
         step = traverse(&blocks[i], &mut state, step);
     }
 
@@ -111,7 +158,7 @@ fn traverse_true_branch(blocks: &[ProgramBlock], parent_hash: u128, sibling_hash
         step += 1;
     }
 
-    println!("{}: TEND {:?}", step, state);
+    println!("{}: FEND {:?}", step, state);
     step += 1; // TEND
 
     state = [parent_hash, state[0], sibling_hash, 0];

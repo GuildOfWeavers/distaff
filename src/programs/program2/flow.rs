@@ -3,6 +3,7 @@ use super::{ Span, hash_acc, hash_seq };
 
 // TYPES AND INTERFACES
 // ================================================================================================
+#[derive(Clone)]
 pub enum ProgramBlock {
     Span(Span),
     Group(Group),
@@ -10,15 +11,18 @@ pub enum ProgramBlock {
     Loop(Loop),
 }
 
+#[derive(Clone)]
 pub struct Group {
     blocks      : Vec<ProgramBlock>,
 }
 
+#[derive(Clone)]
 pub struct Switch {
     t_branch    : Vec<ProgramBlock>,
     f_branch    : Vec<ProgramBlock>,
 }
 
+#[derive(Clone)]
 pub struct Loop {
     body        : Vec<ProgramBlock>,
     skip        : Vec<ProgramBlock>,
@@ -56,6 +60,10 @@ impl Group {
         // TODO: number of instructions in instruction blocks must be valid
 
         return Group { blocks };
+    }
+
+    pub fn new_block(blocks: Vec<ProgramBlock>) -> ProgramBlock {
+        return ProgramBlock::Group(Group::new(blocks));
     }
 
     pub fn blocks(&self) -> &[ProgramBlock] {
