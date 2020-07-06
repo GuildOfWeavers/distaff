@@ -55,10 +55,7 @@ impl ProgramBlock {
 impl Group {
 
     pub fn new(blocks: Vec<ProgramBlock>) -> Group {
-        // TODO: first block is an instruction block
-        // TODO: instruction block is not followed by an instruction block
-        // TODO: number of instructions in instruction blocks must be valid
-
+        validate_block_list(&blocks, &[]);
         return Group { blocks };
     }
 
@@ -81,10 +78,8 @@ impl Group {
 impl Switch {
 
     pub fn new(true_branch: Vec<ProgramBlock>, false_branch: Vec<ProgramBlock>) -> Switch {
-        // TODO: first block is an instruction block
-        // TODO: instruction block is not followed by an instruction block
-        // TODO: number of instructions in instruction blocks must be valid
-
+        validate_block_list(&true_branch, &[opcodes::ASSERT]);
+        validate_block_list(&false_branch, &[opcodes::NOT, opcodes::ASSERT]);
         return Switch {
             t_branch    : true_branch,
             f_branch    : false_branch
@@ -123,9 +118,7 @@ impl Switch {
 impl Loop {
 
     pub fn new(body: Vec<ProgramBlock>) -> Loop {
-        // TODO: first block is an instruction block
-        // TODO: instruction block is not followed by an instruction block
-        // TODO: number of instructions in instruction blocks must be valid
+        validate_block_list(&body, &[opcodes::ASSERT]);
 
         let skip_block = Span::from_instructions(vec![
             opcodes::NOT,  opcodes::ASSERT, opcodes::NOOP, opcodes::NOOP,
@@ -163,5 +156,36 @@ impl Loop {
         let v0 = hash_seq(&self.body);
         let v1 = hash_seq(&self.skip);
         return hash_acc(state[0], v0, v1);
+    }
+}
+
+// HELPER FUNCTIONS
+// ================================================================================================
+
+fn validate_block_list(blocks: &Vec<ProgramBlock>, starts_with: &[u8]) {
+
+    assert!(blocks.len() > 0, "a sequence of blocks must contain at least one block");
+    
+    // first block must be a span block
+    match &blocks[0] {
+        ProgramBlock::Span(block) => {
+            // if the block must start with a specific sequence of instructions, make sure it does
+            if starts_with.len() > 0 {
+                assert!(block.starts_with(starts_with),
+                    "the first block does not start with a valid sequence of instructions");
+            }
+        },
+        _ => panic!("a sequence of blocks must start with a Span block"),
+    };
+
+    // span block cannot be followed by another span block
+    let mut was_span = true;
+    for i in 1..blocks.len() {
+        match &blocks[i] {
+            ProgramBlock::Span(_) => {
+                assert!(was_span == false, "a Span block cannot be followed by another Span block");
+            },
+            _ => was_span = false,
+        }
     }
 }

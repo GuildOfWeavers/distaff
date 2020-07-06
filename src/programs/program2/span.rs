@@ -66,6 +66,10 @@ impl Span {
         return self.op_codes.len();
     }
 
+    pub fn starts_with(&self, instructions: &[u8]) -> bool {
+        return self.op_codes.starts_with(instructions);
+    }
+
     pub fn get_op(&self, step: usize) -> (u8, ExecutionHint) {
         return (self.op_codes[step], self.get_hint(step));
     }

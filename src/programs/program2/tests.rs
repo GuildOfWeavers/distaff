@@ -68,8 +68,18 @@ fn nested_blocks() {
 fn conditional_program() {
     let block1 = Span::new_block(vec![opcodes::NOOP; 15]);
 
-    let t_branch = vec![Span::new_block(vec![opcodes::ADD; 16])];
-    let f_branch = vec![Span::new_block(vec![opcodes::MUL; 16])];
+    let t_branch = vec![Span::new_block(vec![
+        opcodes::ASSERT, opcodes::ADD, opcodes::ADD, opcodes::ADD,
+        opcodes::ADD,    opcodes::ADD, opcodes::ADD, opcodes::ADD,
+        opcodes::ADD,    opcodes::ADD, opcodes::ADD, opcodes::ADD,
+        opcodes::ADD,    opcodes::ADD, opcodes::ADD, opcodes::ADD,
+    ])];
+    let f_branch = vec![Span::new_block(vec![
+        opcodes::NOT, opcodes::ASSERT, opcodes::MUL, opcodes::MUL,
+        opcodes::MUL, opcodes::MUL,    opcodes::MUL, opcodes::MUL,
+        opcodes::MUL, opcodes::MUL,    opcodes::MUL, opcodes::MUL,
+        opcodes::MUL, opcodes::MUL,    opcodes::MUL, opcodes::MUL,
+    ])];
     let block2 = Switch::new_block(t_branch, f_branch);
     
     let program = Program::new(vec![block1, block2]);
@@ -89,7 +99,12 @@ fn conditional_program() {
 fn simple_loop() {
     let block1 = Span::new_block(vec![opcodes::NOOP; 15]);
 
-    let loop_body = vec![Span::new_block(vec![opcodes::ADD; 15])];
+    let loop_body = vec![Span::new_block(vec![
+        opcodes::ASSERT, opcodes::ADD, opcodes::ADD, opcodes::ADD,
+        opcodes::ADD,    opcodes::ADD, opcodes::ADD, opcodes::ADD,
+        opcodes::ADD,    opcodes::ADD, opcodes::ADD, opcodes::ADD,
+        opcodes::ADD,    opcodes::ADD, opcodes::ADD,
+    ])];
     let block2 = Loop::new_block(loop_body);
     
     let program = Program::new(vec![block1, block2]);
@@ -107,7 +122,7 @@ fn simple_loop() {
     // loop executed 3 times
     let (step, hash) = traverse_true_branch(program.body(), &mut vec![0, 1, 1, 1], 0, 0, 0);
     assert_eq!(program.hash(), hash);
-    assert_eq!(64, step);
+    assert_eq!(95, step);
 }
 
 // HELPER FUNCTIONS
@@ -252,7 +267,7 @@ fn traverse_false_branch(blocks: &[ProgramBlock], stack: &mut Vec<u128>, parent_
     }
 
     println!("{}: FEND {:?}", step, state);
-    step += 1; // TEND
+    step += 1; // FEND
 
     state = [parent_hash, sibling_hash, state[0], 0];
     for _ in 0..ACC_NUM_ROUNDS {
