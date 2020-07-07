@@ -1,11 +1,8 @@
-mod span;
-pub use span::{ Span, ExecutionHint };
+mod blocks;
+pub use blocks::{ ProgramBlock, Span, Group, Switch, Loop, ExecutionHint };
 
 mod hashing;
 use hashing::{ hash_op, hash_acc, hash_seq };
-
-mod flow;
-pub use flow::{ ProgramBlock, Group, Switch, Loop };
 
 #[cfg(test)]
 mod tests;
