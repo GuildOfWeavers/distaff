@@ -180,5 +180,6 @@ fn parse_op_token(op: Vec<&str>, op_codes: &mut Vec<u8>, op_hints: &mut HintMap,
         _ => return Err(AssemblyError::invalid_op(&op, step))
     }?;
 
+    // advance instruction pointer to the next step
     return Ok(step + 1);
 }

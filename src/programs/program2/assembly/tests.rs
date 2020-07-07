@@ -3,16 +3,11 @@ fn linear_assembly() {
     let source = "begin push.1 push.2 add end";
     let program = super::compile(source).unwrap();
 
-    match &program.body()[0] {
-        super::ProgramBlock::Span(block) => {
-            for i in 0..block.length() {
-                println!("{}: {:?}", i, block.get_op(i));
-            }
-        },
-        _ => ()
-    }
+    let expected = "begin \
+        push(1) noop noop noop noop noop noop noop \
+        push(2) add noop noop noop noop noop end";
 
-    assert_eq!(1, 1);
+    assert_eq!(expected, format!("{:?}", program));
 }
 
 #[test]
@@ -23,12 +18,21 @@ fn branching_assembly() {
         push.5
         read
         if.true
-            add
+            add dup mul
         else
-            mul
+            mul dup add
         end
     end";
-    let program = super::compile(source);
+    let program = super::compile(source).unwrap();
 
-    assert_eq!(1, 2);
+    let expected = "begin \
+        push(3) noop noop noop noop noop noop noop \
+        push(5) read noop noop noop noop noop if \
+        assert add dup mul noop noop noop noop \
+        noop noop noop noop noop noop noop else \
+        not assert mul dup add noop noop noop \
+        noop noop noop noop noop noop noop end \
+        end";
+
+    assert_eq!(expected, format!("{:?}", program));
 }

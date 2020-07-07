@@ -1,6 +1,10 @@
 use crate::{ opcodes, math::field };
 use super::{ AssemblyError, HintMap, ExecutionHint };
 
+// CONSTANTS
+// ================================================================================================
+const PUSH_OP_ALIGNMENT: usize = 8;
+
 // CONTROL FLOW OPERATIONS
 // ================================================================================================
 
@@ -37,12 +41,17 @@ pub fn parse_assert(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<b
 
 /// Extends the program by a PUSH operation followed by the value to be pushed onto the stack.
 pub fn parse_push(program: &mut Vec<u8>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
-    let value = read_value(op, step)?;
-
-    let pad_length = 8 - program.len() % 8; // TODO: use constants
+    
+    // pad the program with NOOPs to make sure PUSH happens on steps which are multiples of 8
+    let alignment = program.len() % PUSH_OP_ALIGNMENT;
+    let pad_length = (PUSH_OP_ALIGNMENT - alignment) % PUSH_OP_ALIGNMENT;
     program.resize(program.len() + pad_length, opcodes::NOOP);
-
+    
+    // read the value to be pushed onto the stack
+    let value = read_value(op, step)?;
     hints.insert(program.len(), ExecutionHint::PushValue(value));
+
+    // add PUSH opcode to the program
     program.push(opcodes::PUSH);
     return Ok(true);
 }

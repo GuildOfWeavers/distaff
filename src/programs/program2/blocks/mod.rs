@@ -2,6 +2,9 @@ use std::collections::HashMap;
 use crate::opcodes;
 use super::{ hash_seq, hash_op, BASE_CYCLE_LENGTH };
 
+mod opcode_map;
+use opcode_map::op_to_str;
+
 #[cfg(test)]
 mod tests;
 
@@ -60,6 +63,18 @@ impl ProgramBlock {
         };
     }
 
+}
+
+impl std::fmt::Debug for ProgramBlock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProgramBlock::Span(block)   => write!(f, "{:?}", block)?,
+            ProgramBlock::Group(block)  => write!(f, "{:?}", block)?,
+            ProgramBlock::Switch(block) => write!(f, "{:?}", block)?,
+            ProgramBlock::Loop(block)   => write!(f, "{:?}", block)?,
+        }
+        return Ok(());
+    }
 }
 
 // SPAN IMPLEMENTATION
@@ -141,6 +156,19 @@ impl Span {
     }
 }
 
+impl std::fmt::Debug for Span {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let (op_code, op_hint) = self.get_op(0);
+        write!(f, "{}", op_to_str(op_code, op_hint))?;
+
+        for i in 1..self.length() {
+            let (op_code, op_hint) = self.get_op(i);
+            write!(f, " {}", op_to_str(op_code, op_hint))?;
+        }
+        return Ok(());
+    }
+}
+
 // GROUP IMPLEMENTATION
 // ================================================================================================
 impl Group {
@@ -165,6 +193,16 @@ impl Group {
     pub fn get_hash(&self) -> (u128, u128) {
         let v0 = self.body_hash();
         return (v0, 0);
+    }
+}
+
+impl std::fmt::Debug for Group {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "block ")?;
+        for block in self.body.iter() {
+            write!(f, "{:?} ", block)?;
+        }
+        write!(f, "end")
     }
 }
 
@@ -205,6 +243,20 @@ impl Switch {
         let v0 = self.true_branch_hash();
         let v1 = self.false_branch_hash();
         return (v0, v1);
+    }
+}
+
+impl std::fmt::Debug for Switch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "if ")?;
+        for block in self.t_branch.iter() {
+            write!(f, "{:?} ", block)?;
+        }
+        write!(f, "else ")?;
+        for block in self.f_branch.iter() {
+            write!(f, "{:?} ", block)?;
+        }
+        write!(f, "end")
     }
 }
 
@@ -251,6 +303,16 @@ impl Loop {
         let v0 = self.body_hash();
         let v1 = self.skip_hash();
         return (v0, v1);
+    }
+}
+
+impl std::fmt::Debug for Loop {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "while ")?;
+        for block in self.body.iter() {
+            write!(f, "{:?} ", block)?;
+        }
+        write!(f, "end")
     }
 }
 

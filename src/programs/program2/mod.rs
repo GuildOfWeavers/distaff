@@ -40,3 +40,11 @@ impl Program {
         return hash_acc(0, v0, v1);
     }
 }
+
+impl std::fmt::Debug for Program {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut body_code = format!("{:?}", self.root);
+        body_code.replace_range(..5, "begin");
+        write!(f, "{}", body_code)
+    }
+}
