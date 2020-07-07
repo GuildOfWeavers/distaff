@@ -8,7 +8,7 @@ mod tests;
 // TYPES AND INTERFACES
 // ================================================================================================
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum ExecutionHint {
     EqStart,
     RcStart(u32),
