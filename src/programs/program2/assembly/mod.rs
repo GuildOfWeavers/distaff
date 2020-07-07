@@ -13,7 +13,7 @@ mod tests;
 
 type HintMap = HashMap<usize, ExecutionHint>;
 
-pub fn compile(source: &str) -> Program {
+pub fn compile(source: &str) -> Result<Program, AssemblyError> {
 
     // break assembly string into tokens
     let mut tokens: Vec<&str> = source.split_whitespace().collect();
@@ -22,29 +22,29 @@ pub fn compile(source: &str) -> Program {
     tokens[0] = "block";
 
     let mut body = Vec::new();
-    parse_branch(&mut body, &tokens, 0);
+    parse_branch(&mut body, &tokens, 0)?;
 
-    return Program::new(body);
+    return Ok(Program::new(body));
 }
 
-fn parse_block(parent: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) -> usize {
+fn parse_block(parent: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) -> Result<usize, AssemblyError> {
 
     let head: Vec<&str> = tokens[i].split(".").collect();
 
     match head[0] {
         "block" => {
             let mut body = Vec::new();
-            i = parse_branch(&mut body, tokens, i);
+            i = parse_branch(&mut body, tokens, i)?;
             parent.push(Group::new_block(body));
-            return i + 1;
+            return Ok(i + 1);
         },
         "if" => {
             let mut t_branch = Vec::new();
-            i = parse_branch(&mut t_branch, tokens, i);
+            i = parse_branch(&mut t_branch, tokens, i)?;
 
             let mut f_branch = Vec::new();
             if tokens[i] == "else" {
-                i = parse_branch(&mut f_branch, tokens, i);
+                i = parse_branch(&mut f_branch, tokens, i)?;
             }
             else {
                 f_branch.push(Span::new_block(vec![
@@ -56,69 +56,86 @@ fn parse_block(parent: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) ->
             }
 
             parent.push(Switch::new_block(t_branch, f_branch));
-            return i + 1;
+            return Ok(i + 1);
         },
         "while" => {
             let mut body = Vec::new();
-            i = parse_branch(&mut body, tokens, i);
+            i = parse_branch(&mut body, tokens, i)?;
             parent.push(Loop::new_block(body));
-            return i + 1;
+            return Ok(i + 1);
         },
-        _ => panic!("TODO: invalid block head")
+        _ => return Err(AssemblyError::invalid_block_head(&head, i)),
     }
 }
 
-fn parse_branch(body: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) -> usize {
+fn parse_branch(body: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) -> Result<usize, AssemblyError> {
 
-    // get the first instruction of the branch and advance instruction counter
-    let first_op: Vec<&str> = tokens[i].split(".").collect();
-    let mut op_codes: Vec<u8> = init_branch(first_op[0]);
+    // determine starting instructions of the branch based on branch head
+    let head: Vec<&str> = tokens[i].split(".").collect();
+    let mut op_codes: Vec<u8> = match head[0] {
+        "block" => vec![],
+        "if"    => vec![opcodes::ASSERT],
+        "else"  => vec![opcodes::NOT, opcodes::ASSERT],
+        "while" => vec![opcodes::ASSERT],
+        _ => return Err(AssemblyError::invalid_block_head(&head, i)),
+    };
     let mut op_hints: HintMap = HashMap::new();
+
+    // record first step for possible error reporting
+    let first_step = i;
     i += 1;
 
-    // iterate over tokens and parse them one by one until the next branch is encountered
+    // iterate over tokens and parse them one by one until the end of the block is reached;
+    // if a new block is encountered, parse it recursively
     while i < tokens.len() {
         let op: Vec<&str> = tokens[i].split(".").collect();
+
+        // TODO: check for empty branches
+        // TODO: make sure if and while have true as parameter
 
         i = match op[0] {
             "block" | "if" | "while" => {
                 add_span(body, &mut op_codes, &mut op_hints);
-                parse_block(body, tokens, i)
+                parse_block(body, tokens, i)?
             },
             "else" => {
-                assert!(first_op[0] == "if", "TODO");
+                if head[0] != "if" {
+                    return Err(AssemblyError::dangling_else(i));
+                }
                 add_span(body, &mut op_codes, &mut op_hints);
-                return i;
+                return Ok(i);
             },
             "end" => {
                 add_span(body, &mut op_codes, &mut op_hints);
-                return i;
+                return Ok(i);
             },
-            _ => parse_op_token(op, &mut op_codes, &mut op_hints, i).unwrap()
-        }
+            _ => parse_op_token(op, &mut op_codes, &mut op_hints, i)?
+        };
     }
 
-    panic!("TODO: parse_branch end");
-}
-
-fn init_branch(head: &str) -> Vec<u8> {
-    return match head {
-        "block" => vec![],
-        "if" | "while" => vec![opcodes::ASSERT],
-        "else" => vec![opcodes::NOT, opcodes::ASSERT],
-        _ => panic!("TODO: init branch")
+    return match head[0] {
+        "block" => Err(AssemblyError::unmatched_block(first_step)),
+        "if"    => Err(AssemblyError::unmatched_if(first_step)),
+        "else"  => Err(AssemblyError::unmatched_else(first_step)),
+        "while" => Err(AssemblyError::unmatched_while(first_step)),
+        _ => Err(AssemblyError::invalid_block_head(&head, first_step)),
     };
 }
 
-fn add_span(blocks: &mut Vec<ProgramBlock>, op_codes: &mut Vec<u8>, op_hints: &mut HintMap) {
+fn add_span(body: &mut Vec<ProgramBlock>, op_codes: &mut Vec<u8>, op_hints: &mut HintMap) {
 
+    // if there were no instructions in the current span, don't do anything
+    if op_codes.len() == 0 { return };
+
+    // pad the instructions to make ensure 16-cycle alignment
     let mut span_op_codes = op_codes.clone();
-    
     let pad_length = BASE_CYCLE_LENGTH - (span_op_codes.len() % BASE_CYCLE_LENGTH) - 1;
     span_op_codes.resize(span_op_codes.len() + pad_length, opcodes::NOOP);
 
-    blocks.push(ProgramBlock::Span(Span::new(span_op_codes, op_hints.clone())));
+    // add a new Span block to the body
+    body.push(ProgramBlock::Span(Span::new(span_op_codes, op_hints.clone())));
 
+    // clear op_codes and op_hints for the next Span block
     op_codes.clear();
     op_hints.clear();
 }

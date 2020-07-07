@@ -61,7 +61,15 @@ impl AssemblyError {
         };
     }
 
-    pub fn unmatched_else(step: usize) -> AssemblyError {
+    pub fn invalid_block_head(op: &[&str], step: usize) -> AssemblyError {
+        return AssemblyError {
+            message : format!("invalid block head '{}'", op[0]),
+            step    : step,
+            op      : op.join("."),
+        };
+    }
+
+    pub fn dangling_else(step: usize) -> AssemblyError {
         return AssemblyError {
             message : format!("else without matching if"),
             step    : step,
@@ -69,43 +77,43 @@ impl AssemblyError {
         };
     }
 
-    pub fn unmatched_endif(step: usize) -> AssemblyError {
+    pub fn dangling_end(step: usize) -> AssemblyError {
         return AssemblyError {
-            message : format!("endif without matching if/else"),
+            message : format!("end without matching block/if/while"),
             step    : step,
             op      : String::from("endif"),
         };
     }
 
-    pub fn dangling_if(step: usize) -> AssemblyError {
+    pub fn unmatched_block(step: usize) -> AssemblyError {
         return AssemblyError {
-            message : format!("if without matching else/endif"),
+            message : format!("block without matching end"),
+            step    : step,
+            op      : String::from("block"),
+        };
+    }
+
+    pub fn unmatched_if(step: usize) -> AssemblyError {
+        return AssemblyError {
+            message : format!("if without matching else/end"),
             step    : step,
             op      : String::from("if.true"),
         };
     }
 
-    pub fn dangling_else(step: usize) -> AssemblyError {
+    pub fn unmatched_while(step: usize) -> AssemblyError {
         return AssemblyError {
-            message : format!("else without matching endif"),
+            message : format!("while without matching end"),
+            step    : step,
+            op      : String::from("while.true"),
+        };
+    }
+
+    pub fn unmatched_else(step: usize) -> AssemblyError {
+        return AssemblyError {
+            message : format!("else without matching end"),
             step    : step,
             op      : String::from("else"),
-        };
-    }
-
-    pub fn missing_else(step: usize) -> AssemblyError {
-        return AssemblyError {
-            message : format!("if/endif without else"),
-            step    : step,
-            op      : String::from("endif"),
-        };
-    }
-
-    pub fn empty_branch(op: &str, step: usize) -> AssemblyError {
-        return AssemblyError {
-            message : format!("a branch must contain at least one operation"),
-            step    : step,
-            op      : String::from(op),
         };
     }
 
