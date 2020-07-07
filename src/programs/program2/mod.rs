@@ -33,10 +33,11 @@ impl Program {
     }
 
     pub fn body(&self) -> &[ProgramBlock] {
-        return &self.root.blocks();
+        return &self.root.body();
     }
 
     pub fn hash(&self) -> [u128; 4] {
-        return self.root.hash([0, 0, 0, 0]);
+        let (v0, v1) = self.root.get_hash();
+        return hash_acc(0, v0, v1);
     }
 }

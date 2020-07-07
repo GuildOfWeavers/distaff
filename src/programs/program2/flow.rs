@@ -1,5 +1,5 @@
 use crate::opcodes;
-use super::{ Span, hash_acc, hash_seq };
+use super::{ Span, hash_seq };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -13,7 +13,7 @@ pub enum ProgramBlock {
 
 #[derive(Clone)]
 pub struct Group {
-    blocks      : Vec<ProgramBlock>,
+    body        : Vec<ProgramBlock>,
 }
 
 #[derive(Clone)]
@@ -40,36 +40,32 @@ impl ProgramBlock {
         };
     }
 
-    pub fn hash(&self, state: [u128; 4]) -> [u128; 4] {
-        return match self {
-            ProgramBlock::Span(block)   => block.hash(state),
-            ProgramBlock::Group(block)  => block.hash(state),
-            ProgramBlock::Switch(block) => block.hash(state),
-            ProgramBlock::Loop(block)   => block.hash(state),
-        };
-    }
 }
 
 // GROUP IMPLEMENTATION
 // ================================================================================================
 impl Group {
 
-    pub fn new(blocks: Vec<ProgramBlock>) -> Group {
-        validate_block_list(&blocks, &[]);
-        return Group { blocks };
+    pub fn new(body: Vec<ProgramBlock>) -> Group {
+        validate_block_list(&body, &[]);
+        return Group { body };
     }
 
-    pub fn new_block(blocks: Vec<ProgramBlock>) -> ProgramBlock {
-        return ProgramBlock::Group(Group::new(blocks));
+    pub fn new_block(body: Vec<ProgramBlock>) -> ProgramBlock {
+        return ProgramBlock::Group(Group::new(body));
     }
 
-    pub fn blocks(&self) -> &[ProgramBlock] {
-        return &self.blocks;
+    pub fn body(&self) -> &[ProgramBlock] {
+        return &self.body;
     }
 
-    pub fn hash(&self, state: [u128; 4]) -> [u128; 4] {
-        let v0 = hash_seq(&self.blocks, false);
-        return hash_acc(state[0], v0, 0);
+    pub fn body_hash(&self) -> u128 {
+        return hash_seq(&self.body, false);
+    }
+
+    pub fn get_hash(&self) -> (u128, u128) {
+        let v0 = self.body_hash();
+        return (v0, 0);
     }
 }
 
@@ -106,10 +102,10 @@ impl Switch {
         return hash_seq(&self.f_branch, false);
     }
 
-    pub fn hash(&self, state: [u128; 4]) -> [u128; 4] {
+    pub fn get_hash(&self) -> (u128, u128) {
         let v0 = self.true_branch_hash();
         let v1 = self.false_branch_hash();
-        return hash_acc(state[0], v0, v1);
+        return (v0, v1);
     }
 }
 
@@ -152,10 +148,10 @@ impl Loop {
         return hash_seq(&self.skip, false);
     }
 
-    pub fn hash(&self, state: [u128; 4]) -> [u128; 4] {
+    pub fn get_hash(&self) -> (u128, u128) {
         let v0 = self.body_hash();
         let v1 = self.skip_hash();
-        return hash_acc(state[0], v0, v1);
+        return (v0, v1);
     }
 }
 

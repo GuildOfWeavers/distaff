@@ -144,7 +144,7 @@ fn traverse(block: &ProgramBlock, stack: &mut Vec<u128>, hash: &mut [u128; 4], m
         ProgramBlock::Group(block) => {
             println!("{}: BEGIN {:?}", step, hash);
             step += 1; // BEGIN
-            let (new_step, state) = traverse_true_branch(block.blocks(), stack, hash[0], 0, step);
+            let (new_step, state) = traverse_true_branch(block.body(), stack, hash[0], 0, step);
             hash.copy_from_slice(&state);
             step = new_step;
         },
