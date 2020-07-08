@@ -4,6 +4,7 @@ use super::{ AssemblyError, HintMap, ExecutionHint };
 // CONSTANTS
 // ================================================================================================
 const PUSH_OP_ALIGNMENT: usize = 8;
+const HASH_OP_ALIGNMENT: usize = 16;
 
 // CONTROL FLOW OPERATIONS
 // ================================================================================================
@@ -406,8 +407,9 @@ pub fn parse_hash(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<boo
     }
 
     // pad with NOOPs to make sure hashing starts on a step which is a multiple of 16
-    let m = 16 - (program.len() % 16);
-    program.resize(program.len() + m, opcodes::NOOP);
+    let alignment = program.len() % HASH_OP_ALIGNMENT;
+    let pad_length = (HASH_OP_ALIGNMENT - alignment) % HASH_OP_ALIGNMENT;
+    program.resize(program.len() + pad_length, opcodes::NOOP);
 
     // append operations to execute 10 rounds of Rescue
     program.extend_from_slice(&[
@@ -435,8 +437,9 @@ pub fn parse_mpath(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bo
     program.extend_from_slice(&[opcodes::READ2, opcodes::DUP4, opcodes::PAD2]);
 
     // pad with NOOPs to make sure hashing starts on a step which is a multiple of 16
-    let m = 16 - (program.len() % 16);
-    program.resize(program.len() + m, opcodes::NOOP);
+    let alignment = program.len() % HASH_OP_ALIGNMENT;
+    let pad_length = (HASH_OP_ALIGNMENT - alignment) % HASH_OP_ALIGNMENT;
+    program.resize(program.len() + pad_length, opcodes::NOOP);
 
     // repeat the following cycle of operations once for each remaining node:
     // 1. compute hash(p, v)

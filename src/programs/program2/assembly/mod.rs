@@ -92,7 +92,7 @@ fn parse_block(parent: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) ->
                     opcodes::NOT,  opcodes::ASSERT, opcodes::NOOP, opcodes::NOOP,
                     opcodes::NOOP, opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
                     opcodes::NOOP, opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
-                    opcodes::NOOP, opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
+                    opcodes::NOOP, opcodes::NOOP,   opcodes::NOOP,
                 ]));
             }
 
@@ -140,7 +140,8 @@ fn parse_branch(body: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) -> 
         let op: Vec<&str> = tokens[i].split(".").collect();
         i = match op[0] {
             "block" | "if" | "while" => {
-                add_span(body, &mut op_codes, &mut op_hints);
+                let force_span = body.len() == 0;
+                add_span(body, &mut op_codes, &mut op_hints, force_span);
                 parse_block(body, tokens, i)?
             },
             "else" => {
@@ -150,14 +151,14 @@ fn parse_branch(body: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) -> 
                 else if i - first_step < 2 {
                     return Err(AssemblyError::empty_block(&head, first_step));
                 }
-                add_span(body, &mut op_codes, &mut op_hints);
+                add_span(body, &mut op_codes, &mut op_hints, false);
                 return Ok(i);
             },
             "end" => {
                 if i - first_step < 2 {
                     return Err(AssemblyError::empty_block(&head, first_step));
                 }
-                add_span(body, &mut op_codes, &mut op_hints);
+                add_span(body, &mut op_codes, &mut op_hints, false);
                 return Ok(i);
             },
             _ => parse_op_token(op, &mut op_codes, &mut op_hints, i)?
@@ -175,10 +176,10 @@ fn parse_branch(body: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) -> 
 }
 
 /// Adds a new Span block to a program block body based on currently parsed instructions.
-fn add_span(body: &mut Vec<ProgramBlock>, op_codes: &mut Vec<u8>, op_hints: &mut HintMap) {
+fn add_span(body: &mut Vec<ProgramBlock>, op_codes: &mut Vec<u8>, op_hints: &mut HintMap, force: bool) {
 
     // if there were no instructions in the current span, don't do anything
-    if op_codes.len() == 0 { return };
+    if op_codes.len() == 0 && !force { return };
 
     // pad the instructions to make ensure 16-cycle alignment
     let mut span_op_codes = op_codes.clone();
