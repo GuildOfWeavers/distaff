@@ -154,6 +154,23 @@ impl Span {
         }
         return state;
     }
+
+    pub fn merge(span1: &Span, span2: &Span) -> Span {
+        // merge op codes
+        let mut new_op_codes = span1.op_codes.clone();
+        new_op_codes.push(opcodes::NOOP);
+        new_op_codes.extend_from_slice(&span2.op_codes);
+
+        // merge hints
+        let offset = span1.length() + 1;
+        let mut new_hints = span1.op_hints.clone();
+        for (step, &hint) in &span2.op_hints {
+            new_hints.insert(step + offset, hint);
+        }
+
+        // build and return a new Span
+        return Span::new(new_op_codes, new_hints);
+    }
 }
 
 impl std::fmt::Debug for Span {

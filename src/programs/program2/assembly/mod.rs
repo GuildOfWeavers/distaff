@@ -48,7 +48,7 @@ pub fn compile(source: &str) -> Result<Program, AssemblyError> {
     return Ok(Program::new(body));
 }
 
-// HELPER FUNCTIONS
+// PARSER FUNCTIONS
 // ================================================================================================
 
 /// Parses a single program block from the `token` stream, and appends this block to the `parent`
@@ -100,6 +100,24 @@ fn parse_block(parent: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) ->
             parent.push(Switch::new_block(t_branch, f_branch));
             return Ok(i + 1);
         },
+        "repeat" => {
+            // read and validate number of loop iterations
+            let num_iterations = read_param(&head, i)? as usize;
+            if num_iterations < 2 {
+                return Err(AssemblyError::invalid_num_iterations(&head, i));
+            }
+
+            // parse loop body
+            let mut body_template = Vec::new();
+            i = parse_branch(&mut body_template, tokens, i)?;
+
+            // duplicate loop body as many times as needed
+            let body = repeat_block_sequence(body_template, num_iterations);
+
+            // create a Group block with all iterations expanded, and return
+            parent.push(Group::new_block(body));
+            return Ok(i + 1);
+        },
         "while" => {
             // make sure block head is valid
             if head.len() == 1 || head[1] != "true" {
@@ -122,10 +140,11 @@ fn parse_branch(body: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) -> 
     // determine starting instructions of the branch based on branch head
     let head: Vec<&str> = tokens[i].split(".").collect();
     let mut op_codes: Vec<u8> = match head[0] {
-        "block" => vec![],
-        "if"    => vec![opcodes::ASSERT],
-        "else"  => vec![opcodes::NOT, opcodes::ASSERT],
-        "while" => vec![opcodes::ASSERT],
+        "block"  => vec![],
+        "if"     => vec![opcodes::ASSERT],
+        "else"   => vec![opcodes::NOT, opcodes::ASSERT],
+        "repeat" => vec![],
+        "while"  => vec![opcodes::ASSERT],
         _ => return Err(AssemblyError::invalid_block_head(&head, i)),
     };
     let mut op_hints: HintMap = HashMap::new();
@@ -139,7 +158,7 @@ fn parse_branch(body: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) -> 
     while i < tokens.len() {
         let op: Vec<&str> = tokens[i].split(".").collect();
         i = match op[0] {
-            "block" | "if" | "while" => {
+            "block" | "if" | "repeat" | "while" => {
                 let force_span = body.len() == 0;
                 add_span(body, &mut op_codes, &mut op_hints, force_span);
                 parse_block(body, tokens, i)?
@@ -167,31 +186,13 @@ fn parse_branch(body: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) -> 
 
     // if all tokens were consumed by block end was not found, return an error
     return match head[0] {
-        "block" => Err(AssemblyError::unmatched_block(first_step)),
-        "if"    => Err(AssemblyError::unmatched_if(first_step)),
-        "else"  => Err(AssemblyError::unmatched_else(first_step)),
-        "while" => Err(AssemblyError::unmatched_while(first_step)),
+        "block"  => Err(AssemblyError::unmatched_block(first_step)),
+        "if"     => Err(AssemblyError::unmatched_if(first_step)),
+        "else"   => Err(AssemblyError::unmatched_else(first_step)),
+        "repeat" => Err(AssemblyError::unmatched_repeat(first_step, &head)),
+        "while"  => Err(AssemblyError::unmatched_while(first_step)),
         _ => Err(AssemblyError::invalid_block_head(&head, first_step)),
     };
-}
-
-/// Adds a new Span block to a program block body based on currently parsed instructions.
-fn add_span(body: &mut Vec<ProgramBlock>, op_codes: &mut Vec<u8>, op_hints: &mut HintMap, force: bool) {
-
-    // if there were no instructions in the current span, don't do anything
-    if op_codes.len() == 0 && !force { return };
-
-    // pad the instructions to make ensure 16-cycle alignment
-    let mut span_op_codes = op_codes.clone();
-    let pad_length = BASE_CYCLE_LENGTH - (span_op_codes.len() % BASE_CYCLE_LENGTH) - 1;
-    span_op_codes.resize(span_op_codes.len() + pad_length, opcodes::NOOP);
-
-    // add a new Span block to the body
-    body.push(ProgramBlock::Span(Span::new(span_op_codes, op_hints.clone())));
-
-    // clear op_codes and op_hints for the next Span block
-    op_codes.clear();
-    op_hints.clear();
 }
 
 /// Transforms an assembly instruction into a sequence of one or more VM instructions.
@@ -238,4 +239,75 @@ fn parse_op_token(op: Vec<&str>, op_codes: &mut Vec<u8>, op_hints: &mut HintMap,
 
     // advance instruction pointer to the next step
     return Ok(step + 1);
+}
+
+// HELPER FUNCTIONS
+// ================================================================================================
+
+/// Adds a new Span block to a program block body based on currently parsed instructions.
+fn add_span(body: &mut Vec<ProgramBlock>, op_codes: &mut Vec<u8>, op_hints: &mut HintMap, force: bool) {
+
+    // if there were no instructions in the current span, don't do anything
+    if op_codes.len() == 0 && !force { return };
+
+    // pad the instructions to make ensure 16-cycle alignment
+    let mut span_op_codes = op_codes.clone();
+    let pad_length = BASE_CYCLE_LENGTH - (span_op_codes.len() % BASE_CYCLE_LENGTH) - 1;
+    span_op_codes.resize(span_op_codes.len() + pad_length, opcodes::NOOP);
+
+    // add a new Span block to the body
+    body.push(ProgramBlock::Span(Span::new(span_op_codes, op_hints.clone())));
+
+    // clear op_codes and op_hints for the next Span block
+    op_codes.clear();
+    op_hints.clear();
+}
+
+fn repeat_block_sequence(template: Vec<ProgramBlock>, num_iterations: usize) -> Vec<ProgramBlock> {
+    let mut body = Vec::with_capacity(template.len() * num_iterations);
+
+    let last_idx = template.len() - 1;
+    if !template[last_idx].is_span() {
+        for _ in 0..num_iterations {
+            body.extend_from_slice(&template);
+        }
+    }
+    else {
+        body.extend_from_slice(&template);
+        for _ in 1..num_iterations {
+            let last_idx = body.len() - 1;
+            body[last_idx] = merge_spans(&body[last_idx], &template[0]);
+            body.extend_from_slice(&template[1..]);
+        }
+    }
+
+    return body;
+}
+
+fn merge_spans(span1: &ProgramBlock, span2: &ProgramBlock) -> ProgramBlock {
+    return match span1 {
+        ProgramBlock::Span(first_span) => {
+            match span2 {
+                ProgramBlock::Span(last_span) => {
+                    ProgramBlock::Span(Span::merge(first_span, last_span))
+                },
+                _ => panic!("span1 is not a Span block")
+            }
+        },
+        _ => panic!("span2 is not a Span block")
+    };
+}
+
+fn read_param(op: &[&str], step: usize) -> Result<u32, AssemblyError> {
+    if op.len() > 2 {
+        return Err(AssemblyError::extra_param(op, step));
+    }
+
+    // try to parse the parameter value
+    let result = match op[1].parse::<u32>() {
+        Ok(i) => i,
+        Err(_) => return Err(AssemblyError::invalid_param(op, step))
+    };
+
+    return Ok(result);
 }

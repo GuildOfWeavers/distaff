@@ -230,3 +230,151 @@ fn loop_with_suffix_and_nested_if_else() {
 
     assert_eq!(expected, format!("{:?}", program));
 }
+
+// REPEAT BLOCKS
+// ================================================================================================
+
+#[test]
+fn repeat_2_spans() {
+    let source = "
+    begin
+        read read add read eq
+        repeat.2
+            push.3 add
+        end
+    end";
+    let program = super::compile(source).unwrap();
+
+    let expected = "begin \
+        read read add read read eq noop noop \
+        noop noop noop noop noop noop noop \
+        block \
+            push(3) add noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop noop \
+            push(3) add noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop \
+        end \
+    end";
+
+    assert_eq!(expected, format!("{:?}", program));
+}
+
+#[test]
+fn repeat_5_spans() {
+    let source = "
+    begin
+        read read add read eq
+        repeat.5
+            push.3 add
+        end
+    end";
+    let program = super::compile(source).unwrap();
+
+    let expected = "begin \
+        read read add read read eq noop noop \
+        noop noop noop noop noop noop noop \
+        block \
+            push(3) add noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop noop \
+            push(3) add noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop noop \
+            push(3) add noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop noop \
+            push(3) add noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop noop \
+            push(3) add noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop \
+        end \
+    end";
+
+    assert_eq!(expected, format!("{:?}", program));
+}
+
+#[test]
+fn repeat_2_blocks() {
+    let source = "
+    begin
+        read read add read eq
+        repeat.2
+            read
+            if.true
+                push.3 add mul
+            end
+        end
+    end";
+    let program = super::compile(source).unwrap();
+
+    let expected = "begin \
+        read read add read read eq noop noop \
+        noop noop noop noop noop noop noop \
+        block \
+            read noop noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop \
+            if \
+                assert noop noop noop noop noop noop noop \
+                push(3) add mul noop noop noop noop \
+            else \
+                not assert noop noop noop noop noop noop \
+                noop noop noop noop noop noop noop \
+            end \
+            read noop noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop \
+            if \
+                assert noop noop noop noop noop noop noop \
+                push(3) add mul noop noop noop noop \
+            else \
+                not assert noop noop noop noop noop noop \
+                noop noop noop noop noop noop noop \
+            end \
+        end \
+    end";
+
+    assert_eq!(expected, format!("{:?}", program));
+}
+
+#[test]
+fn repeat_2_blocks_with_suffix() {
+    let source = "
+    begin
+        read read add read eq
+        repeat.2
+            read
+            if.true
+                push.3 add mul
+            end
+            sub inv
+        end
+    end";
+    let program = super::compile(source).unwrap();
+
+    let expected = "begin \
+        read read add read read eq noop noop \
+        noop noop noop noop noop noop noop \
+        block \
+            read noop noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop \
+            if \
+                assert noop noop noop noop noop noop noop \
+                push(3) add mul noop noop noop noop \
+            else \
+                not assert noop noop noop noop noop noop \
+                noop noop noop noop noop noop noop \
+            end \
+            neg add inv noop noop noop noop noop \
+            noop noop noop noop noop noop noop noop \
+            read noop noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop \
+            if \
+                assert noop noop noop noop noop noop noop \
+                push(3) add mul noop noop noop noop \
+            else \
+                not assert noop noop noop noop noop noop \
+                noop noop noop noop noop noop noop \
+            end \
+            neg add inv noop noop noop noop noop \
+            noop noop noop noop noop noop noop \
+        end \
+    end";
+
+    assert_eq!(expected, format!("{:?}", program));
+}

@@ -101,6 +101,14 @@ impl AssemblyError {
         };
     }
 
+    pub fn invalid_num_iterations(op: &[&str], step: usize) -> AssemblyError {
+        return AssemblyError {
+            message : format!("invalid repeat statement '{}': 2 or more iterations must be specified", op.join(".")),
+            step    : step,
+            op      : op.join("."),
+        };
+    }
+
     pub fn dangling_else(step: usize) -> AssemblyError {
         return AssemblyError {
             message : format!("else without matching if"),
@@ -130,6 +138,14 @@ impl AssemblyError {
             message : format!("while without matching end"),
             step    : step,
             op      : String::from("while.true"),
+        };
+    }
+
+    pub fn unmatched_repeat(step: usize, op: &[&str]) -> AssemblyError {
+        return AssemblyError {
+            message : format!("repeat without matching end"),
+            step    : step,
+            op      : op.join("."),
         };
     }
 
