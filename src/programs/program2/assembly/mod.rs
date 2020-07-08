@@ -13,35 +13,76 @@ mod tests;
 
 type HintMap = HashMap<usize, ExecutionHint>;
 
+// ASSEMBLY COMPILER
+// ================================================================================================
+
 pub fn compile(source: &str) -> Result<Program, AssemblyError> {
 
     // break assembly string into tokens
     let mut tokens: Vec<&str> = source.split_whitespace().collect();
 
-    assert!(tokens[0] == "begin", "TODO: not begin");
+    // perform basic validation
+    if tokens.len() == 0 {
+        return Err(AssemblyError::empty_program());
+    }
+    else if tokens[0] != "begin" {
+        return Err(AssemblyError::invalid_program_start(tokens[0]));
+    }
+    else if tokens[tokens.len() - 1] != "end" {
+        return Err(AssemblyError::invalid_program_end(tokens[tokens.len() - 1]));
+    }
+
+    // replace `begin` with `block` for parsing purposes
     tokens[0] = "block";
 
+    // parse the token stream into program body
     let mut body = Vec::new();
-    parse_branch(&mut body, &tokens, 0)?;
+    let last_step = parse_branch(&mut body, &tokens, 0)?;
 
+    // make sure all tokens were consumed
+    if last_step < tokens.len() - 1 {
+        return Err(AssemblyError::unconsumed_tokens(last_step));
+    }
+
+    // build and return the program
     return Ok(Program::new(body));
 }
 
+// HELPER FUNCTIONS
+// ================================================================================================
+
+/// Parses a single program block from the `token` stream, and appends this block to the `parent`
+/// list of blocks.
 fn parse_block(parent: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) -> Result<usize, AssemblyError> {
 
+    // read the block header
     let head: Vec<&str> = tokens[i].split(".").collect();
 
+    // based on the block header, figure out what type of a block we are dealing with
     match head[0] {
         "block" => {
+            // make sure block head instruction is valid
+            if head.len() > 1 {
+                return Err(AssemblyError::invalid_block_head(&head, i));
+            }
+            // then parse the body of the block, add the new block to the parent, and return
             let mut body = Vec::new();
             i = parse_branch(&mut body, tokens, i)?;
             parent.push(Group::new_block(body));
             return Ok(i + 1);
         },
         "if" => {
+            // make sure block head is valid
+            if head.len() == 1 || head[1] != "true" {
+                return Err(AssemblyError::invalid_block_head(&head, i));
+            }
+
+            // parse the body of the true branch
             let mut t_branch = Vec::new();
             i = parse_branch(&mut t_branch, tokens, i)?;
 
+            // if the false branch is present, parse it as well; otherwise
+            // create an empty false branch
             let mut f_branch = Vec::new();
             if tokens[i] == "else" {
                 i = parse_branch(&mut f_branch, tokens, i)?;
@@ -55,10 +96,16 @@ fn parse_block(parent: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) ->
                 ]));
             }
 
+            // create a Switch block, add it to the parent, and return
             parent.push(Switch::new_block(t_branch, f_branch));
             return Ok(i + 1);
         },
         "while" => {
+            // make sure block head is valid
+            if head.len() == 1 || head[1] != "true" {
+                return Err(AssemblyError::invalid_block_head(&head, i));
+            }
+            // then parse the body of the block, add the new block to the parent, and return
             let mut body = Vec::new();
             i = parse_branch(&mut body, tokens, i)?;
             parent.push(Loop::new_block(body));
@@ -68,6 +115,8 @@ fn parse_block(parent: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) ->
     }
 }
 
+/// Builds a body of a program block by parsing tokens from the stream and transforming
+/// them into program blocks.
 fn parse_branch(body: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) -> Result<usize, AssemblyError> {
 
     // determine starting instructions of the branch based on branch head
@@ -81,7 +130,7 @@ fn parse_branch(body: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) -> 
     };
     let mut op_hints: HintMap = HashMap::new();
 
-    // record first step for possible error reporting
+    // save first step to check for empty branches
     let first_step = i;
     i += 1;
 
@@ -89,10 +138,6 @@ fn parse_branch(body: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) -> 
     // if a new block is encountered, parse it recursively
     while i < tokens.len() {
         let op: Vec<&str> = tokens[i].split(".").collect();
-
-        // TODO: check for empty branches
-        // TODO: make sure if and while have true as parameter
-
         i = match op[0] {
             "block" | "if" | "while" => {
                 add_span(body, &mut op_codes, &mut op_hints);
@@ -102,10 +147,16 @@ fn parse_branch(body: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) -> 
                 if head[0] != "if" {
                     return Err(AssemblyError::dangling_else(i));
                 }
+                else if i - first_step < 2 {
+                    return Err(AssemblyError::empty_block(&head, first_step));
+                }
                 add_span(body, &mut op_codes, &mut op_hints);
                 return Ok(i);
             },
             "end" => {
+                if i - first_step < 2 {
+                    return Err(AssemblyError::empty_block(&head, first_step));
+                }
                 add_span(body, &mut op_codes, &mut op_hints);
                 return Ok(i);
             },
@@ -113,6 +164,7 @@ fn parse_branch(body: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) -> 
         };
     }
 
+    // if all tokens were consumed by block end was not found, return an error
     return match head[0] {
         "block" => Err(AssemblyError::unmatched_block(first_step)),
         "if"    => Err(AssemblyError::unmatched_if(first_step)),
@@ -122,6 +174,7 @@ fn parse_branch(body: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) -> 
     };
 }
 
+/// Adds a new Span block to a program block body based on currently parsed instructions.
 fn add_span(body: &mut Vec<ProgramBlock>, op_codes: &mut Vec<u8>, op_hints: &mut HintMap) {
 
     // if there were no instructions in the current span, don't do anything
@@ -140,8 +193,10 @@ fn add_span(body: &mut Vec<ProgramBlock>, op_codes: &mut Vec<u8>, op_hints: &mut
     op_hints.clear();
 }
 
+/// Transforms an assembly instruction into a sequence of one or more VM instructions.
 fn parse_op_token(op: Vec<&str>, op_codes: &mut Vec<u8>, op_hints: &mut HintMap, step: usize) -> Result<usize, AssemblyError> {
 
+    // based on the instruction, invoke the correct parser for the operation
     match op[0] {
         "noop"   => parse_noop(op_codes, &op, step),
         "assert" => parse_assert(op_codes, &op, step),

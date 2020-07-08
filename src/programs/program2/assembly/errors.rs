@@ -15,15 +15,47 @@ impl AssemblyError {
 
     pub fn empty_program() -> AssemblyError {
         return AssemblyError {
-            message : String::from("a program must contain at least one operation"),
+            message : String::from("a program must contain at least one instruction"),
             step    : 0,
             op      : String::from("begin"),
         };
     }
 
+    pub fn empty_block(op: &[&str], step: usize) -> AssemblyError {
+        return AssemblyError {
+            message : String::from("a program block must contain at least one instruction"),
+            step    : step,
+            op      : op.join("."),
+        };
+    }
+
+    pub fn invalid_program_start(op: &str) -> AssemblyError {
+        return AssemblyError {
+            message : String::from("a program must start with a 'being' instruction"),
+            step    : 0,
+            op      : String::from(op),
+        };
+    }
+
+    pub fn invalid_program_end(op: &str) -> AssemblyError {
+        return AssemblyError {
+            message : String::from("a program must end with an 'end' instruction"),
+            step    : 0,
+            op      : String::from(op),
+        };
+    }
+
+    pub fn unconsumed_tokens(step: usize) -> AssemblyError {
+        return AssemblyError {
+            message : format!("unconsumed instructions after program end"),
+            step    : step,
+            op      : String::from("end"),
+        };
+    }
+
     pub fn invalid_op(op: &[&str], step: usize) -> AssemblyError {
         return AssemblyError {
-            message : format!("operation {} is invalid", op.join(".")),
+            message : format!("instruction {} is invalid", op.join(".")),
             step    : step,
             op      : op.join("."),
         };
@@ -31,7 +63,7 @@ impl AssemblyError {
 
     pub fn missing_param(op: &[&str], step: usize) -> AssemblyError {
         return AssemblyError {
-            message : format!("malformed operation {}: parameter is missing", op[0]),
+            message : format!("malformed instruction {}: parameter is missing", op[0]),
             step    : step,
             op      : op.join("."),
         };
@@ -39,7 +71,7 @@ impl AssemblyError {
 
     pub fn extra_param(op: &[&str], step: usize) -> AssemblyError {
         return AssemblyError {
-            message : format!("malformed operation {}: too many parameters provided", op[0]),
+            message : format!("malformed instruction {}: too many parameters provided", op[0]),
             step    : step,
             op      : op.join("."),
         };
@@ -47,7 +79,7 @@ impl AssemblyError {
 
     pub fn invalid_param(op: &[&str], step: usize) -> AssemblyError {
         return AssemblyError {
-            message : format!("malformed operation {}: parameter '{}' is invalid", op[0], op[1]),
+            message : format!("malformed instruction {}: parameter '{}' is invalid", op[0], op[1]),
             step    : step,
             op      : op.join("."),
         };
@@ -55,7 +87,7 @@ impl AssemblyError {
 
     pub fn invalid_param_reason(op: &[&str], step: usize, reason: String) -> AssemblyError {
         return AssemblyError {
-            message : format!("malformed operation {}: {}", op[0], reason),
+            message : format!("malformed instruction {}: {}", op[0], reason),
             step    : step,
             op      : op.join("."),
         };
@@ -63,7 +95,7 @@ impl AssemblyError {
 
     pub fn invalid_block_head(op: &[&str], step: usize) -> AssemblyError {
         return AssemblyError {
-            message : format!("invalid block head '{}'", op[0]),
+            message : format!("invalid block head '{}'", op.join(".")),
             step    : step,
             op      : op.join("."),
         };
@@ -74,14 +106,6 @@ impl AssemblyError {
             message : format!("else without matching if"),
             step    : step,
             op      : String::from("else"),
-        };
-    }
-
-    pub fn dangling_end(step: usize) -> AssemblyError {
-        return AssemblyError {
-            message : format!("end without matching block/if/while"),
-            step    : step,
-            op      : String::from("endif"),
         };
     }
 
