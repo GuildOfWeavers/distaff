@@ -39,21 +39,25 @@ pub fn parse_assert(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<b
 // INPUT OPERATIONS
 // ================================================================================================
 
-/// Extends the program by a PUSH operation followed by the value to be pushed onto the stack.
+/// Appends a PUSH operation to the program.
 pub fn parse_push(program: &mut Vec<u8>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
-    
+    let value = read_value(op, step)?;
+    append_push_op(program, hints, value);
+    return Ok(true);
+}
+
+/// Makes sure PUSH operation alignment is correct and appends PUSH opcode to the program.
+fn append_push_op(program: &mut Vec<u8>, hints: &mut HintMap, value: u128) {
     // pad the program with NOOPs to make sure PUSH happens on steps which are multiples of 8
     let alignment = program.len() % PUSH_OP_ALIGNMENT;
     let pad_length = (PUSH_OP_ALIGNMENT - alignment) % PUSH_OP_ALIGNMENT;
     program.resize(program.len() + pad_length, opcodes::NOOP);
     
     // read the value to be pushed onto the stack
-    let value = read_value(op, step)?;
     hints.insert(program.len(), ExecutionHint::PushValue(value));
 
     // add PUSH opcode to the program
     program.push(opcodes::PUSH);
-    return Ok(true);
 }
 
 /// Appends either READ or READ2 operation to the program.
@@ -264,10 +268,9 @@ pub fn parse_gt(program: &mut Vec<u8>, hints: &mut HintMap, op: &[&str], step: u
     }
 
     // prepare the stack
-    let power_of_two = u8::pow(2, n - 1);
-    program.extend_from_slice(&[
-        opcodes::PAD2, opcodes::PAD2, opcodes::PAD2, opcodes::DUP, opcodes::PUSH, power_of_two
-    ]);
+    program.extend_from_slice(&[opcodes::PAD2, opcodes::PAD2, opcodes::PAD2, opcodes::DUP]);
+    let power_of_two = u128::pow(2, n - 1);
+    append_push_op(program, hints, power_of_two);
 
     // add a hint indicating that value comparison is about to start
     hints.insert(program.len(), ExecutionHint::CmpStart(n));
@@ -297,10 +300,9 @@ pub fn parse_lt(program: &mut Vec<u8>, hints: &mut HintMap, op: &[&str], step: u
     }
 
     // prepare the stack
-    let power_of_two = u8::pow(2, n - 1);
-    program.extend_from_slice(&[
-        opcodes::PAD2, opcodes::PAD2, opcodes::PAD2, opcodes::DUP, opcodes::PUSH, power_of_two
-    ]);
+    program.extend_from_slice(&[opcodes::PAD2, opcodes::PAD2, opcodes::PAD2, opcodes::DUP]);
+    let power_of_two = u128::pow(2, n - 1);
+    append_push_op(program, hints, power_of_two);
 
     // add a hint indicating that value comparison is about to start
     hints.insert(program.len(), ExecutionHint::CmpStart(n));
@@ -328,8 +330,9 @@ pub fn parse_rc(program: &mut Vec<u8>, hints: &mut HintMap, op: &[&str], step: u
     }
 
     // prepare the stack
-    let power_of_two = u8::pow(2, n - 1);
-    program.extend_from_slice(&[opcodes::PAD2, opcodes::PUSH, power_of_two]);
+    program.push(opcodes::PAD2);
+    let power_of_two = u128::pow(2, n - 1);
+    append_push_op(program, hints, power_of_two);
 
     // add a hint indicating that range-checking is about to start
     hints.insert(program.len(), ExecutionHint::RcStart(n));
@@ -356,8 +359,9 @@ pub fn parse_isodd(program: &mut Vec<u8>, hints: &mut HintMap, op: &[&str], step
     }
 
     // prepare the stack
-    let power_of_two = u8::pow(2, n - 1);
-    program.extend_from_slice(&[opcodes::PAD2, opcodes::PUSH, power_of_two]);
+    program.extend_from_slice(&[opcodes::PAD2]);
+    let power_of_two = u128::pow(2, n - 1);
+    append_push_op(program, hints, power_of_two);
 
     // add a hint indicating that range-checking is about to start
     hints.insert(program.len(), ExecutionHint::RcStart(n));
