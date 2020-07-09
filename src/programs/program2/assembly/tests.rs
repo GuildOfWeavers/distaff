@@ -380,3 +380,26 @@ fn repeat_2_blocks_with_suffix() {
 
     assert_eq!(expected, format!("{:?}", program));
 }
+
+// MULTIPLE PROCEDURES
+// ================================================================================================
+#[test]
+fn multiple_procedures() {
+    let source = "
+        begin push.1 push.2 add end
+        begin push.3 push.4 mul end";
+
+    let program = super::compile(source, blake3).unwrap();
+    assert_eq!(2, program.proc_count());
+
+    let expected = "begin \
+            push(1) noop noop noop noop noop noop noop \
+            push(2) add noop noop noop noop noop \
+        end\n\
+        begin \
+            push(3) noop noop noop noop noop noop noop \
+            push(4) mul noop noop noop noop noop \
+        end";
+
+    assert_eq!(expected, format!("{:?}", program));
+}

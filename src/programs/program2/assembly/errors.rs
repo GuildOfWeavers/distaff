@@ -45,9 +45,9 @@ impl AssemblyError {
         };
     }
 
-    pub fn unconsumed_tokens(step: usize) -> AssemblyError {
+    pub fn dangling_instructions(step: usize) -> AssemblyError {
         return AssemblyError {
-            message : format!("unconsumed instructions after program end"),
+            message : format!("dangling instructions after procedure end"),
             step    : step,
             op      : String::from("end"),
         };

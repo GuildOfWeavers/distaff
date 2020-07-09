@@ -132,11 +132,18 @@ impl Program {
 
 impl std::fmt::Debug for Program {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for procedure in self.procedures.iter() {
-            let mut body_code = format!("{:?}", procedure);
+
+        for i in 0..self.procedures.len() {
+            let mut body_code = format!("{:?}", self.procedures[i]);
             body_code.replace_range(..5, "begin");
-            write!(f, "{}", body_code)?
+            if i == self.procedures.len() - 1 {
+                write!(f, "{}", body_code)?;
+            }
+            else {
+                write!(f, "{}\n", body_code)?;
+            }
         }
+
         return Ok(());
     }
 }

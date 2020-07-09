@@ -16,6 +16,7 @@ type HintMap = HashMap<usize, ExecutionHint>;
 // ASSEMBLY COMPILER
 // ================================================================================================
 
+/// Compiles provided assembly code into a program.
 pub fn compile(source: &str, hash_fn: HashFunction) -> Result<Program, AssemblyError> {
 
     // break assembly string into tokens
@@ -32,20 +33,28 @@ pub fn compile(source: &str, hash_fn: HashFunction) -> Result<Program, AssemblyE
         return Err(AssemblyError::invalid_program_end(tokens[tokens.len() - 1]));
     }
 
-    // replace `begin` with `block` for parsing purposes
-    tokens[0] = "block";
+    let mut i = 0;
+    let mut procedures = Vec::new();
 
-    // parse the token stream into program body
-    let mut body = Vec::new();
-    let last_step = parse_branch(&mut body, &tokens, 0)?;
+    // read procedures from the token stream
+    while i < tokens.len() {
+        // replace `begin` with `block` for parsing purposes
+        tokens[i] = "block";
 
-    // make sure all tokens were consumed
-    if last_step < tokens.len() - 1 {
-        return Err(AssemblyError::unconsumed_tokens(last_step));
+        // read a procedure from the token stream
+        let mut procedure = Vec::new();
+        i = parse_branch(&mut procedure, &tokens, i)?;
+        procedures.push(Group::new(procedure));
+
+        // if there is anything beyond the current step, make sure it starts with `begin`
+        i += 1;
+        if i < tokens.len() - 1 && tokens[i] != "begin" {
+            return Err(AssemblyError::dangling_instructions(i));
+        }
     }
 
     // build and return the program
-    return Ok(Program::new(vec![Group::new(body)], hash_fn));
+    return Ok(Program::new(procedures, hash_fn));
 }
 
 // PARSER FUNCTIONS
