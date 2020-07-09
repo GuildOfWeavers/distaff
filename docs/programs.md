@@ -15,8 +15,8 @@ At the high level, there are two types of program blocks: instruction blocks and
 An instruction block is just a sequence of instructions, where each instruction is a tuple *(op_code, op_value)*. For vast majority of instructions `op_value = 0`, but there are some instructions where it is not. For example, for a `PUSH` instruction, `op_value` is set to the value which is to be pushed onto the stack.
 
 Instruction blocks impose the following restrictions on their content:
-* There must be at least one instruction in the block.
-* An instruction block cannot contain any of the following the flow control instructions: `BEGIN`, `TEND`, `FEND`, `LOOP`, `CONTINUE`, `BREAK`, and `HACC` instructions.
+* Number of instructions in a block must be one less than a multiple of 16 (e.g. 15, 31, 47 etc.).
+* An instruction block cannot contain any of the following flow control instructions: `BEGIN`, `TEND`, `FEND`, `LOOP`, and `WRAP`.
 * An instruction which carries non-zero `op_value` must be located at a step which is a multiple of 8 (e.g. 8, 16, 32 etc.).
 
 Due to alignment rules within the VM, the first instruction of an instruction block is guaranteed to be executed on a step which is a multiple of 16.
@@ -28,27 +28,18 @@ Control blocks are used to specify flow control logic of a program. Currently, t
 A group block is used to group several blocks together, and has the following structure:
 ```
 Group {
-    blocks : Vector<ProgramBlock>,
+    body : Vector<ProgramBlock>,
 }
 ```
 where, `ProgramBlock` can be an instruction block or a control block.
 
 Execution semantics of a group block are as follows:
-* Each block in the `blocks` vector is executed one after the other. 
+* Each block in the `body` vector is executed one after the other. 
 
 Group blocks impose the following restrictions on their content:
-* There must be at least one block in the `blocks` vector.
-* The first block in the `blocks` vector must be an instruction block.
+* There must be at least one block in the `body` vector.
+* The first block in the `body` vector must be an instruction block.
 * An instruction block cannot be followed by another instructions block.
-* Number of instructions in an instruction block must be one less than a multiple of 16 (e.g. 15, 31, 47 etc.), unless it is the very last block in the `blocks` vector. In such a case, the number of instructions must be a multiple of 16 (e.g. 16, 32, 48 etc.).
-
-To illustrate these rules, assume our vector of blocks looks like so:
-```
-[b0, b1, b2]
-```
-* `b0` must be an instruction block; number of instructions in `b0` must be one less than a multiple of 16.
-* `b1` must be a control block because an instruction block cannot be followed by another instruction block.
-* If `b2` is an instruction block, number of instructions in `b2` must be a multiple of 16.
 
 #### Switch blocks
 A switch block is used to describe conditional branching (i.e. *if/else* statements), and has the following structure:
@@ -67,7 +58,6 @@ Switch blocks impose the following restrictions on their content:
 * The first block in the `true_branch` vector must be an instruction block which has `ASSERT` as its first operation. This guarantees that this branch can be executed only if the top of the stack is `1`.
 * The first block in the `false_branch` vector must be an instruction block which has `NOT ASSERT` as its first two instructions. This guarantees that this branch can be executed only if the top of the stack is `0`.
 * Within `true_branch` and `false_branch` vectors, an instruction block cannot be followed by another instructions block.
-* Number of instructions in an instruction block must be one less than a multiple of 16 (e.g. 15, 31, 47 etc.), unless it is the very last block in the `true_branch` or `false_branch` vectors. In such a case, the number of instructions must be a multiple of 16 (e.g. 16, 32, 48 etc.).
 
 #### Loop block
 A loop block is used to describe a sequence of instructions which is to be repeated zero or more times based on some condition (i.e. *while* statement). Structure of a loop block looks like so:
@@ -88,7 +78,6 @@ Execution semantics of a loop block are as follows:
 Loop blocks impose the following restrictions on their content:
 * The first block in the `body` vector must be an instruction block which has `ASSERT` as its first operation. This guarantees that a loop iteration can be entered only if the top of the stack is `1`.
 * Within the `body` vector, an instruction block cannot be followed by another instructions block.
-* Number of instructions in an instruction block must be one less than a multiple of 16 (e.g. 15, 31, 47 etc.).
 
 It is expected that at the end of executing all `body` block, the top of the stack will contain a binary value (i.e. `1` or `0`). However, this is not enforced at program construction time, and if the top of the stack is not binary, the program will fail at execution time.
 
@@ -130,7 +119,7 @@ A diagram for this program would look like so:
     <img src="assets/prog_tree2.dio.png">
 </p>
 
-Here we have bock B<sub>0</sub> which groups 3 other blocks together. The first one is an instruction block, the second one is a switch block describing the *if/else* statement, and the last one is another group block which contains a single instruction block with instructions d<sub>0</sub> . . . d<sub>n</sub>.
+Here we have block B<sub>0</sub> which groups 3 other blocks together. The first one is an instruction block, the second one is a switch block describing the *if/else* statement, and the last one is another group block which contains a single instruction block with instructions d<sub>0</sub> . . . d<sub>n</sub>.
 
 ### Programs with nested blocks
 Let's add nested control logic to our program. The program below is the same as the program from the previous example, except the *else* clause of the *if/else* statement now also contains a loop. This loop will keep executing instructions d<sub>0</sub> . . . d<sub>n</sub> as long as, right after d<sub>n</sub> is executed, the top of the stack is `1`. Once, the top of the stack becomes `0`, instructions e<sub>0</sub> . . . e<sub>m</sub> are executed, and then execution moves on to instructions f<sub>0</sub> . . . f<sub>l</sub>.
@@ -197,7 +186,7 @@ All of these are described below.
 ### Hashes of control blocks
 Hashes of control blocks are defined as tuples of two 128-bit elements *(v<sub>0</sub>, v<sub>1</sub>)*. These tuples are constructed as follows:
 
-For **group blocks**, it is just a hash of `blocks` contained within the group:
+For **group blocks**, it is just a hash of `body` blocks contained within the group:
 * *v<sub>0</sub> = hash_seq(blocks)*
 * *v<sub>1</sub> = 0*
 
@@ -240,7 +229,7 @@ The purpose of *hash_acc* procedure is to merge hash of a control block, which i
 Denoting *(v<sub>0</sub>, v<sub>1</sub>)* to be the hash of the control block, and *h* to be the 128-bit value, high-level pseudo-code for *hash_acc* procedure looks like so:
 ```
 with inputs: h, v0, v1:
-let state = [v0, v1, h, 0];
+let state = [h, v0, v1, 0];
 for 14 rounds do:
     state = add_round_constants(state);
     state = apply_sbox(state);
@@ -287,14 +276,14 @@ return state[0];
 
 For example, let's say we want to hash a sequence of blocks `[b0, b1, b2]`, where `b0` and `b2` are instruction blocks, and `b1` is a control block. Hashing of this sequence will work as follows:
 
-1. First we initialize the state as `s0 = [0, 0, 0, 0]`.
-2. Then, we merge `b0` into the state as `s1 = hash_ops(s0, b0)`;
-3. Then, we compute the hash of `b1` as `(v0, v1) = hash(b1)`, and merge it into the state as `s2 = hash_acc(s1, v0, v1)`.
-4. Then, we merge `b0` into the state as `s3 = hash_ops(s2, b2)`.
-5. Finally, we return `s3[0]` as the hash of the sequence.
+1. First we initialize the state as `state = [0, 0, 0, 0]`.
+2. Then, we merge `b0` into the state as `state = hash_ops(state, b0)`;
+3. Then, we compute the hash of `b1` as `(v0, v1) = hash(b1)`, and merge it into the state as `state = hash_acc(state[0], v0, v1)`.
+4. Then, we merge `b0` into the state as `state = hash_ops(state, b2)`.
+5. Finally, we return `state[0]` as the hash of the sequence.
 
 ## Hash computations in the VM
-Distaff VM computes program hash as the program is executed on the VM. Hash computations are structured so that even if a single instruction is added, removed, or replaced with a different instruction, the computed hash will not match the original hash of the program.
+Distaff VM computes program hash as the program is executed in the VM. Hash computations are structured so that even if a single instruction is added, removed, or replaced with a different instruction, the computed hash will not match the original hash of the program.
 
 There are several components in the VM which facilitate hash computations:
 
@@ -303,7 +292,7 @@ There are several components in the VM which facilitate hash computations:
 
 General intuition for hashing process is as follows:
 
-1. At the start of every control block, we push current hash of its outer block onto the `context stack`, and set hash of the new block to `0` (this is done be resetting `sponge state`).
+1. At the start of every control block, we push current hash of its parent block onto the `context stack`, and set hash of the new block to `0` (this is done be resetting `sponge state`).
 2. Then, as we read instructions contained in the block, we merge each instruction into the block's hash.
     1. If we encounter a new block, we process it recursively starting at step 1.
 3. Once the end of the block is reached, we pop hash of the parent block from the `context stack` and merge our block hash into it.
@@ -347,18 +336,18 @@ When the VM executes *true_branch* of a switch block, the block must be terminat
 ╒═══ sponge ═══╕  ╒══ context ═══╕
 [s0, s1, s2, s3], [c0            ]
                 🡣
-[s0, v1, c0,  0], [              ]
+[c0, s0, v1,  0], [              ]
 ```
-Note that by the time `TEND` instruction is reached, the first register of the sponge will contain hash of the *true_branch*. Thus, `s0 = v0`, and the result of executing `TEND(v1)` will be sponge state set to `[v0, v1, c0, 0]`, where `c0` is the hash of the parent block.
+Note that by the time `TEND` instruction is reached, the first register of the sponge will contain hash of the *true_branch*. Thus, `s0 = v0`, and the result of executing `TEND(v1)` will be sponge state set to `[c0, v0, v1, 0]`, where `c0` is the hash of the parent block.
 
 On the other hand, when the VM executes *false_branch* of a switch block, the block must terminate with `FEND(v0)` operation. A diagram of this operation looks like so:
 ```
 ╒═══ sponge ═══╕  ╒══ context ═══╕
 [s0, s1, s2, s3], [c0            ]
                 🡣
-[v0, s0, c0,  0], [              ]
+[c0, v0, s0, 0], [              ]
 ```
-Note again that by the time `FEND` instruction is reached, the first register of the sponge will contain hash of the *false_branch*. Thus, `s0 = v1`, and the result of executing `FEND(v0)` will be sponge state set to `[v0, v1, c0, 0]`.
+Note again that by the time `FEND` instruction is reached, the first register of the sponge will contain hash of the *false_branch*. Thus, `s0 = v1`, and the result of executing `FEND(v0)` will be sponge state set to `[c0, v0, v1, 0]`.
 
 The crucially important thing here is that by the time we exit the block, `sponge state` is the same, regardless of which branch was taken.
 
@@ -382,7 +371,7 @@ In cases when a control block is followed by an instruction block, the last oper
 ### Loops
 Ability to execute unbounded loops requires additional structures. Specifically, we need a `loop stack` to holds images of loop bodies for currently active loops. Loop stack takes up between 0 and 8 registers to support nested loops up to 8 levels deep.
 
-Loop execution proceeds as follows:
+Loop execution works as follows:
 
 First, we check if the top of the stack is `1` or `0`. If it is `0`, we don't need to enter the loop, and instead we execute the following sequence of operations (padding with `NOOP`s is skipped for brevity):
 ```
@@ -392,7 +381,7 @@ Recall that hash of a loop block is defined as a tuple *(v<sub>0</sub>, v<sub>1<
 * *v<sub>0</sub> = hash(body)*
 * *v<sub>1</sub> = hash(skip)*, where *skip* is `NOT ASSERT` sequence of instructions.
 
-So, executing `FEND(v0)` operation sets `sponge state` to the following: `[v0, v1, c0, 0]`, where `c0` is the hash of the parent block. Then, we executed 14 `HACC` operations and we are done.
+So, executing `FEND(v0)` operation puts `sponge state` to the following: `[c0, v0, v1, 0]`, where `c0` is the hash of the parent block. Then, we executed 14 `HACC` operations and we are done.
 
 If, however, the top of the stack is `1`, we do need to enter the loop. We do this by executing a `LOOP` operation. This operation is similar to the `BEGIN` operation but it also carries a value. This value is set to the loop's image (hash of loop body).
 
@@ -412,40 +401,34 @@ A diagram of `LOOP(i0)` operation is shown below:
 
 After the `LOOP` operation, the body of the loop is executed similar to any other block.
 
-If after executing the loop's body, the top of the stack is `1`, we execute a `CONTINUE` operation. `CONTINUE` operation does the following:
+If after executing the loop's body, the top of the stack is `1`, we execute a `WRAP` operation. `WRAP` operation does the following:
 
 1. Checks whether the first register of the `sponge` is equal to the value at the top of the `loop stack` (i.e. `s0 = i0`). If it is not, the program fails.
-2. Check whether the value on the top of the stack is `1`. If it is not, the program fails.
-3. Resets the `sponge state`.
+2. Check the value at the top of user stack: 
+    1. If the value is `1`, `sponge state` is reset.
+    2. If the value is `0`, top values from both the `loop stack` and user stack are removed.
 
-A diagram of `CONTINUE` operation is as follows:
+A diagram of `WRAP` operation, when top of user stack is `1`, is as follows:
 ```
-╒═══ sponge ═══╕  ╒══ context ═══╕ ╒═ loop stack ═╕
-[s0, s1, s2, s3], [c0            ] [i0            ]
-                         🡣
-[ 0,  0,  0,  0], [c0            ] [i0            ]
+╒═══ sponge ═══╕  ╒══ context ═══╕ ╒═ loop stack ═╕ ╒═ user stack ═╕
+[s0, s1, s2, s3], [c0            ] [i0            ] [ 1            ]
+                                  🡣
+[ 0,  0,  0,  0], [c0            ] [i0            ] [ 1            ]
 ```
-To summarize: the effect of `CONTINUE` operation is to make sure that the sequence of instructions executed in the last iteration of the loop was indeed the loop's body, and also to prepare the sponge for the next iteration of the loop.
+The above ensures that the sequence of instructions executed in the last iteration of the loop was indeed the loop's body, and prepares the sponge for the next iteration of the loop. At this point, loop body can be executed again.
 
-After we execute the `CONTINUE` operation, loop body can be executed again.
-
-If after executing the loop's body, the top of the stack is `0`, we execute `BREAK` operation. `BREAK` operation does the following:
-
-1. Pops the value from the `loop stack`, and checks whether it is equal to the first register of the `sponge state` (i.e. `s0 = i0`). If it is not, the program fails.
-2. Pops the value from the stack, and checks whether it is equal to `0`. If it is not, the program fails.
-
-Notice that unlike the `CONTINUE` operation, the `BREAK` operation removes top values from both, the `loop stack` and user stack.
-
-A diagram of `BREAK` operation is as follows:
+A diagram of `WRAP` operation, when top of user stack is `0`, is as follows:
 ```
-╒═══ sponge ═══╕  ╒══ context ═══╕ ╒═ loop stack ═╕
-[s0, s1, s2, s3], [c0            ] [i0            ]
-                         🡣
-[s0, s1, s2, s3], [c0            ] [              ]
+╒═══ sponge ═══╕  ╒══ context ═══╕ ╒═ loop stack ═╕ ╒═ user stack ═╕
+[s0, s1, s2, s3], [c0            ] [i0            ] [ 0            ]
+                                  🡣
+[s0, s1, s2, s3], [c0            ] [              ] [              ]
 ```
-After the `BREAK` operation is executed we execute `TEND(v1)` operation. This sets the `sponge state` to `[v0, v1, c0, 0]`. We, then, execute 14 `HACC` operations.
+The above ensures that the sequence of instructions executed in the last iteration of the loop was indeed the loop's body, and clears top values from the `loop stack` and user stack to indicate that the loop is complete. The state of the sponge is preserved.
 
-Again, it is important to note that regardless of whether we enter the loop or not, `sponge state` ends up set to  `[v0, v1, c0, 0]` before we start executing `HACC` operations.
+At this point, we execute `TEND(v1)` operation. This sets the `sponge state` to `[c0, v0, v1, 0]`. We, then, execute 14 `HACC` operations.
+
+Again, it is important to note that regardless of whether we enter the loop or not, `sponge state` ends up set to  `[c0, v0, v1, 0]` before we start executing `HACC` operations.
 
 #### Loop execution example
 To illustrate execution of a loop on a concrete example, let's say we have the following loop:
@@ -462,9 +445,9 @@ Let's also say that for a given input, the top of the stack is `1`, and it chang
 ```
 LOOP(v0)
   a0  a1  a2  a3  a4  a5  a6 a7
-  a8  a9 a10 a11 a12 a13 a14 CONTINUE
+  a8  a9 a10 a11 a12 a13 a14 WRAP
   a0  a1  a2  a3  a4  a5  a6 a7
-  a8  a9 a10 a11 a12 a13 a14 BREAK
+  a8  a9 a10 a11 a12 a13 a14 WRAP
 TEND(v1)
 ```
 
