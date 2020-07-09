@@ -1,9 +1,11 @@
+use crate::crypto::{ hash::blake3 };
+
 // GROUP BLOCKS
 // ================================================================================================
 #[test]
 fn single_block() {
     let source = "begin push.1 push.2 add end";
-    let program = super::compile(source).unwrap();
+    let program = super::compile(source, blake3).unwrap();
 
     let expected = "begin \
         push(1) noop noop noop noop noop noop noop \
@@ -15,7 +17,7 @@ fn single_block() {
 #[test]
 fn sequence_of_blocks() {
     let source = "begin block push.1 push.2 add end block push.3 push.4 add end end";
-    let program = super::compile(source).unwrap();
+    let program = super::compile(source, blake3).unwrap();
 
     let expected = "begin \
         noop noop noop noop noop noop noop noop \
@@ -32,7 +34,7 @@ fn sequence_of_blocks() {
 #[test]
 fn sequence_of_blocks_with_prefix() {
     let source = "begin read read add block push.1 push.2 add end block push.3 push.4 sub end end";
-    let program = super::compile(source).unwrap();
+    let program = super::compile(source, blake3).unwrap();
 
     let expected = "begin \
         read read add noop noop noop noop noop \
@@ -49,7 +51,7 @@ fn sequence_of_blocks_with_prefix() {
 #[test]
 fn sequence_of_blocks_with_prefix_and_suffix() {
     let source = "begin read read add block push.1 push.2 add end block push.3 push.4 sub end hash.2 end";
-    let program = super::compile(source).unwrap();
+    let program = super::compile(source, blake3).unwrap();
 
     let expected = "begin \
         read read add noop noop noop noop noop \
@@ -83,7 +85,7 @@ fn single_if_else() {
             mul dup add
         end
     end";
-    let program = super::compile(source).unwrap();
+    let program = super::compile(source, blake3).unwrap();
 
     let expected = "begin \
         push(3) noop noop noop noop noop noop noop \
@@ -111,7 +113,7 @@ fn single_if_else_with_suffix() {
         end
         rc.16
     end";
-    let program = super::compile(source).unwrap();
+    let program = super::compile(source, blake3).unwrap();
 
     let expected = "begin \
         push(3) noop noop noop noop noop noop noop \
@@ -144,7 +146,7 @@ fn nested_if_else() {
             mul dup add
         end
     end";
-    let program = super::compile(source).unwrap();
+    let program = super::compile(source, blake3).unwrap();
 
     let expected = "begin \
         push(3) noop noop noop noop noop noop noop \
@@ -181,7 +183,7 @@ fn single_loop() {
             add dup mul read.ab
         end
     end";
-    let program = super::compile(source).unwrap();
+    let program = super::compile(source, blake3).unwrap();
 
     let expected = "begin \
         push(3) noop noop noop noop noop noop noop \
@@ -208,7 +210,7 @@ fn loop_with_suffix_and_nested_if_else() {
             push.7 add
         end
     end";
-    let program = super::compile(source).unwrap();
+    let program = super::compile(source, blake3).unwrap();
 
     let expected = "begin \
         push(3) noop noop noop noop noop noop noop \
@@ -243,7 +245,7 @@ fn repeat_2_spans() {
             push.3 add
         end
     end";
-    let program = super::compile(source).unwrap();
+    let program = super::compile(source, blake3).unwrap();
 
     let expected = "begin \
         read read add read read eq noop noop \
@@ -268,7 +270,7 @@ fn repeat_5_spans() {
             push.3 add
         end
     end";
-    let program = super::compile(source).unwrap();
+    let program = super::compile(source, blake3).unwrap();
 
     let expected = "begin \
         read read add read read eq noop noop \
@@ -302,7 +304,7 @@ fn repeat_2_blocks() {
             end
         end
     end";
-    let program = super::compile(source).unwrap();
+    let program = super::compile(source, blake3).unwrap();
 
     let expected = "begin \
         read read add read read eq noop noop \
@@ -345,7 +347,7 @@ fn repeat_2_blocks_with_suffix() {
             sub inv
         end
     end";
-    let program = super::compile(source).unwrap();
+    let program = super::compile(source, blake3).unwrap();
 
     let expected = "begin \
         read read add read read eq noop noop \

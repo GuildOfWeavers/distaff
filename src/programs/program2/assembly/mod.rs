@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::{ opcodes };
+use crate::{ opcodes, crypto::HashFunction };
 use super::{ Program, ProgramBlock, Span, Group, Switch, Loop, ExecutionHint, BASE_CYCLE_LENGTH };
 
 mod parsers;
@@ -16,7 +16,7 @@ type HintMap = HashMap<usize, ExecutionHint>;
 // ASSEMBLY COMPILER
 // ================================================================================================
 
-pub fn compile(source: &str) -> Result<Program, AssemblyError> {
+pub fn compile(source: &str, hash_fn: HashFunction) -> Result<Program, AssemblyError> {
 
     // break assembly string into tokens
     let mut tokens: Vec<&str> = source.split_whitespace().collect();
@@ -45,7 +45,7 @@ pub fn compile(source: &str) -> Result<Program, AssemblyError> {
     }
 
     // build and return the program
-    return Ok(Program::new(body));
+    return Ok(Program::new(vec![Group::new(body)], hash_fn));
 }
 
 // PARSER FUNCTIONS
