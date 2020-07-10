@@ -2,6 +2,9 @@ use crate::{ ACC_STATE_WIDTH, NUM_OP_BITS};
 use crate::utils::{ accumulator };
 use super::{ opcodes::f128 as opcodes };
 
+#[cfg(test)]
+mod decoder2;
+
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct Decoder {
