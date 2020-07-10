@@ -185,7 +185,7 @@ impl Evaluator {
         let op_code = current.get_op_code();
         let val = field::sub(op_code, opcodes::BEGIN as u128);
         i_result = field::add(i_result, field::mul(val, cc[cc_idx]));
-        result_adj = field::add(result_adj, field::mul(val, cc[cc_idx]));
+        result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
 
         let op_bits = current.get_op_bits();
         for i in 0..op_bits.len() {
