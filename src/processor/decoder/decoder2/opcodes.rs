@@ -1,5 +1,6 @@
 #[derive(Copy, Clone, Debug)]
 pub enum UserOps {
+    Push    = 0b000_00_001,
     Noop    = 0b111_11_111,
 }
 

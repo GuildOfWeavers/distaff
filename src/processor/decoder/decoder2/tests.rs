@@ -23,6 +23,8 @@ fn start_loop() {
     for _ in 0..15 { decoder.decode_op(UserOps::Noop, 0); }
     decoder.start_loop(34133582271386177291348118006257970896);
     for _ in 0..15 { decoder.decode_op(UserOps::Noop, 0); }
+    decoder.wrap_loop();
+    for _ in 0..15 { decoder.decode_op(UserOps::Noop, 0); }
     decoder.break_loop();
     decoder.end_block(0, true);
     for _ in 0..14 { decoder.decode_op(UserOps::Noop, 0); }
