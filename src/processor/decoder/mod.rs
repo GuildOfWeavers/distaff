@@ -3,7 +3,7 @@ use crate::utils::{ accumulator };
 use super::{ opcodes::f128 as opcodes };
 
 #[cfg(test)]
-mod decoder2;
+pub mod decoder2;
 
 // TYPES AND INTERFACES
 // ================================================================================================

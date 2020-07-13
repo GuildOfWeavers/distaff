@@ -5,7 +5,11 @@ use crate::{ MIN_TRACE_LENGTH };
 // ================================================================================================
 pub mod opcodes;
 
+#[cfg(test)]
 pub mod opcodes2;
+
+#[cfg(test)]
+pub mod processor2;
 
 mod decoder;
 use decoder::Decoder;

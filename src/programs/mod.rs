@@ -12,7 +12,7 @@ pub use inputs::{ ProgramInputs };
 pub mod assembly;
 
 #[cfg(test)]
-mod program2;
+pub mod program2;
 
 // TYPES AND INTERFACES
 // ================================================================================================

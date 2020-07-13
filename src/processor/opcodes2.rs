@@ -115,8 +115,16 @@ pub enum OpHint {
     None,
 }
 
-impl std::fmt::Display for OpHint {
+impl OpHint {
+    pub fn value(&self) -> u128 {
+        return match self {
+            OpHint::PushValue(value) => *value,
+            _ => 0,
+        };
+    }
+}
 
+impl std::fmt::Display for OpHint {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         return match self {
             OpHint::EqStart          => write!(f, "::eq"),
