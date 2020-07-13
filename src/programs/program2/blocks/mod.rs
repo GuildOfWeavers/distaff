@@ -1,24 +1,12 @@
 use std::collections::HashMap;
-use crate::opcodes;
+use crate::processor::opcodes2::{ UserOps as Opcode, OpHint };
 use super::{ hash_seq, hash_op, BASE_CYCLE_LENGTH };
-
-mod opcode_map;
-use opcode_map::op_to_str;
 
 #[cfg(test)]
 mod tests;
 
 // TYPES AND INTERFACES
 // ================================================================================================
-
-#[derive(Copy, Clone, Debug)]
-pub enum ExecutionHint {
-    EqStart,
-    RcStart(u32),
-    CmpStart(u32),
-    PushValue(u128),
-    None,
-}
 
 #[derive(Clone)]
 pub enum ProgramBlock {
@@ -30,8 +18,8 @@ pub enum ProgramBlock {
 
 #[derive(Clone)]
 pub struct Span {
-    op_codes    : Vec<u8>,
-    op_hints    : HashMap<usize, ExecutionHint>,
+    op_codes    : Vec<Opcode>,
+    op_hints    : HashMap<usize, OpHint>,
 }
 
 #[derive(Clone)]
@@ -81,7 +69,7 @@ impl std::fmt::Debug for ProgramBlock {
 // ================================================================================================
 impl Span {
 
-    pub fn new(instructions: Vec<u8>, hints: HashMap<usize, ExecutionHint>) -> Span {
+    pub fn new(instructions: Vec<Opcode>, hints: HashMap<usize, OpHint>) -> Span {
         let alignment = instructions.len() % BASE_CYCLE_LENGTH;
         assert!(alignment == BASE_CYCLE_LENGTH - 1,
             "invalid number of instructions: expected one less than a multiple of {}, but was {}",
@@ -90,13 +78,12 @@ impl Span {
         // make sure all instructions are valid
         for i in 0..instructions.len() {
             let op_code = instructions[i];
-            assert!(is_valid_instruction(op_code), "invalid instruction opcode {} at step {}", op_code, i);
-            if op_code == opcodes::PUSH {
+            if op_code == Opcode::Push {
                 assert!(i % 8 == 0, "PUSH is not allowed on step {}, must be on step which is a multiple of 8", i);
                 let hint = hints.get(&i);
                 assert!(hint.is_some(), "invalid PUSH operation on step {}: operation value is missing", i);
                 match hint.unwrap() {
-                    ExecutionHint::PushValue(_) => (),
+                    OpHint::PushValue(_) => (),
                     _ => panic!("invalid PUSH operation on step {}: operation value is of wrong type", i)
                 }
             }
@@ -114,11 +101,11 @@ impl Span {
         };
     }
 
-    pub fn new_block(instructions: Vec<u8>) -> ProgramBlock {
+    pub fn new_block(instructions: Vec<Opcode>) -> ProgramBlock {
         return ProgramBlock::Span(Span::new(instructions, HashMap::new()));
     }
 
-    pub fn from_instructions(instructions: Vec<u8>) -> Span {
+    pub fn from_instructions(instructions: Vec<Opcode>) -> Span {
         return Span::new(instructions, HashMap::new());
     }
 
@@ -126,31 +113,31 @@ impl Span {
         return self.op_codes.len();
     }
 
-    pub fn starts_with(&self, instructions: &[u8]) -> bool {
+    pub fn starts_with(&self, instructions: &[Opcode]) -> bool {
         return self.op_codes.starts_with(instructions);
     }
 
-    pub fn get_op(&self, step: usize) -> (u8, ExecutionHint) {
+    pub fn get_op(&self, step: usize) -> (Opcode, OpHint) {
         return (self.op_codes[step], self.get_hint(step));
     }
 
-    pub fn get_hint(&self, op_index: usize) -> ExecutionHint {
+    pub fn get_hint(&self, op_index: usize) -> OpHint {
         return match self.op_hints.get(&op_index) {
             Some(&hint) => hint,
-            None => ExecutionHint::None
+            None => OpHint::None
         };
     }
 
     pub fn hash(&self, mut state: [u128; 4]) -> [u128; 4] {
         for (i, &op_code) in self.op_codes.iter().enumerate() {
-            let op_value = if op_code == opcodes::PUSH {
+            let op_value = if op_code == Opcode::Push {
                 match self.get_hint(i) {
-                    ExecutionHint::PushValue(op_value) => op_value,
+                    OpHint::PushValue(op_value) => op_value,
                     _ => panic!("value for PUSH operation is missing")
                 }
             }
             else { 0 };
-            hash_op(&mut state, op_code, op_value, i)
+            hash_op(&mut state, op_code as u8, op_value, i)
         }
         return state;
     }
@@ -158,7 +145,7 @@ impl Span {
     pub fn merge(span1: &Span, span2: &Span) -> Span {
         // merge op codes
         let mut new_op_codes = span1.op_codes.clone();
-        new_op_codes.push(opcodes::NOOP);
+        new_op_codes.push(Opcode::Noop);
         new_op_codes.extend_from_slice(&span2.op_codes);
 
         // merge hints
@@ -176,11 +163,11 @@ impl Span {
 impl std::fmt::Debug for Span {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let (op_code, op_hint) = self.get_op(0);
-        write!(f, "{}", op_to_str(op_code, op_hint))?;
+        write!(f, "{}{}", op_code, op_hint)?;
 
         for i in 1..self.length() {
             let (op_code, op_hint) = self.get_op(i);
-            write!(f, " {}", op_to_str(op_code, op_hint))?;
+            write!(f, " {}{}", op_code, op_hint)?;
         }
         return Ok(());
     }
@@ -228,8 +215,8 @@ impl std::fmt::Debug for Group {
 impl Switch {
 
     pub fn new(true_branch: Vec<ProgramBlock>, false_branch: Vec<ProgramBlock>) -> Switch {
-        validate_block_list(&true_branch, &[opcodes::ASSERT]);
-        validate_block_list(&false_branch, &[opcodes::NOT, opcodes::ASSERT]);
+        validate_block_list(&true_branch, &[Opcode::Assert]);
+        validate_block_list(&false_branch, &[Opcode::Not, Opcode::Assert]);
         return Switch {
             t_branch    : true_branch,
             f_branch    : false_branch
@@ -282,13 +269,13 @@ impl std::fmt::Debug for Switch {
 impl Loop {
 
     pub fn new(body: Vec<ProgramBlock>) -> Loop {
-        validate_block_list(&body, &[opcodes::ASSERT]);
+        validate_block_list(&body, &[Opcode::Assert]);
 
         let skip_block = Span::from_instructions(vec![
-            opcodes::NOT,  opcodes::ASSERT, opcodes::NOOP, opcodes::NOOP,
-            opcodes::NOOP, opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
-            opcodes::NOOP, opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
-            opcodes::NOOP, opcodes::NOOP,   opcodes::NOOP
+            Opcode::Not,  Opcode::Assert, Opcode::Noop, Opcode::Noop,
+            Opcode::Noop, Opcode::Noop,   Opcode::Noop, Opcode::Noop,
+            Opcode::Noop, Opcode::Noop,   Opcode::Noop, Opcode::Noop,
+            Opcode::Noop, Opcode::Noop,   Opcode::Noop
         ]);
 
         let skip = vec![ProgramBlock::Span(skip_block)];
@@ -335,13 +322,7 @@ impl std::fmt::Debug for Loop {
 
 // HELPER FUNCTIONS
 // ================================================================================================
-
-fn is_valid_instruction(op_code: u8) -> bool {
-    // TODO: implement
-    return true;
-}
-
-fn validate_block_list(blocks: &Vec<ProgramBlock>, starts_with: &[u8]) {
+fn validate_block_list(blocks: &Vec<ProgramBlock>, starts_with: &[Opcode]) {
 
     assert!(blocks.len() > 0, "a sequence of blocks must contain at least one block");
     

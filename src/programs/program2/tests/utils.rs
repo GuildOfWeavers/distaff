@@ -1,4 +1,4 @@
-use super::{ ProgramBlock, ExecutionHint };
+use super::{ ProgramBlock, OpHint };
 use super::super::hashing::{ hash_op, acc_hash_round, ACC_NUM_ROUNDS };
 
 pub fn traverse(block: &ProgramBlock, stack: &mut Vec<u128>, hash: &mut [u128; 4], mut step: usize) -> usize {
@@ -8,11 +8,11 @@ pub fn traverse(block: &ProgramBlock, stack: &mut Vec<u128>, hash: &mut [u128; 4
             for i in 0..block.length() {
                 let (op_code, op_hint) = block.get_op(i);
                 let op_value = match op_hint {
-                    ExecutionHint::PushValue(value) => value,
+                    OpHint::PushValue(value) => value,
                     _ => 0,
                 };
                 println!("{}: {} \t {:?}", step, op_code, hash);
-                hash_op(hash, op_code, op_value, step);
+                hash_op(hash, op_code as u8, op_value, step);
                 step += 1;
             }
         },

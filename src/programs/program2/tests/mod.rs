@@ -1,7 +1,7 @@
-use crate::{ opcodes };
 use crate::crypto::{ hash::blake3 };
 use crate::utils::{ as_bytes };
-use super::{ Program, ProgramBlock, ExecutionHint, Span, Group, Switch, Loop };
+use crate::processor::opcodes2::{ UserOps as Opcode, OpHint };
+use super::{ Program, ProgramBlock, Span, Group, Switch, Loop };
 
 mod utils;
 use utils::{ traverse_true_branch };
@@ -11,7 +11,7 @@ use utils::{ traverse_true_branch };
 
 #[test]
 fn single_block() {
-    let block = Span::new_block(vec![opcodes::NOOP; 15]);
+    let block = Span::new_block(vec![Opcode::Noop; 15]);
 
     let program = Program::from_proc(vec![block]);
     let procedure = program.get_proc(0);
@@ -23,12 +23,12 @@ fn single_block() {
 
 #[test]
 fn linear_blocks() {
-    let block1 = Span::new_block(vec![opcodes::NOOP; 15]);
+    let block1 = Span::new_block(vec![Opcode::Noop; 15]);
 
-    let inner_block1 = Span::new_block(vec![opcodes::ADD; 15]);
+    let inner_block1 = Span::new_block(vec![Opcode::Add; 15]);
     let block2 = Group::new_block(vec![inner_block1]);
 
-    let inner_block2 = Span::new_block(vec![opcodes::MUL; 15]);
+    let inner_block2 = Span::new_block(vec![Opcode::Mul; 15]);
     let block3 = Group::new_block(vec![inner_block2]);
 
     // sequence of blocks ending with group block
@@ -40,7 +40,7 @@ fn linear_blocks() {
     assert_eq!(95, step);
 
     // sequence of blocks ending with span block
-    let block4 = Span::new_block(vec![opcodes::INV; 15]);
+    let block4 = Span::new_block(vec![Opcode::Inv; 15]);
 
     let program = Program::from_proc(vec![block1, block2, block3, block4]);
     let procedure = program.get_proc(0);
@@ -52,13 +52,13 @@ fn linear_blocks() {
 
 #[test]
 fn nested_blocks() {
-    let block1 = Span::new_block(vec![opcodes::NOOP; 15]);
+    let block1 = Span::new_block(vec![Opcode::Noop; 15]);
 
-    let inner_block1 = Span::new_block(vec![opcodes::ADD; 15]);
+    let inner_block1 = Span::new_block(vec![Opcode::Add; 15]);
     let block2 = Group::new_block(vec![inner_block1]);
 
-    let inner_block2 = Span::new_block(vec![opcodes::MUL; 15]);
-    let inner_inner_block1 = Span::new_block(vec![opcodes::INV; 15]);
+    let inner_block2 = Span::new_block(vec![Opcode::Mul; 15]);
+    let inner_inner_block1 = Span::new_block(vec![Opcode::Inv; 15]);
     let inner_block3 = Group::new_block(vec![inner_inner_block1]);
     let block3 = Group::new_block(vec![inner_block2, inner_block3]);
 
@@ -73,19 +73,19 @@ fn nested_blocks() {
 
 #[test]
 fn conditional_program() {
-    let block1 = Span::new_block(vec![opcodes::NOOP; 15]);
+    let block1 = Span::new_block(vec![Opcode::Noop; 15]);
 
     let t_branch = vec![Span::new_block(vec![
-        opcodes::ASSERT, opcodes::ADD, opcodes::ADD, opcodes::ADD,
-        opcodes::ADD,    opcodes::ADD, opcodes::ADD, opcodes::ADD,
-        opcodes::ADD,    opcodes::ADD, opcodes::ADD, opcodes::ADD,
-        opcodes::ADD,    opcodes::ADD, opcodes::ADD,
+        Opcode::Assert, Opcode::Add, Opcode::Add, Opcode::Add,
+        Opcode::Add,    Opcode::Add, Opcode::Add, Opcode::Add,
+        Opcode::Add,    Opcode::Add, Opcode::Add, Opcode::Add,
+        Opcode::Add,    Opcode::Add, Opcode::Add,
     ])];
     let f_branch = vec![Span::new_block(vec![
-        opcodes::NOT, opcodes::ASSERT, opcodes::MUL, opcodes::MUL,
-        opcodes::MUL, opcodes::MUL,    opcodes::MUL, opcodes::MUL,
-        opcodes::MUL, opcodes::MUL,    opcodes::MUL, opcodes::MUL,
-        opcodes::MUL, opcodes::MUL,    opcodes::MUL,
+        Opcode::Not, Opcode::Assert, Opcode::Mul, Opcode::Mul,
+        Opcode::Mul, Opcode::Mul,    Opcode::Mul, Opcode::Mul,
+        Opcode::Mul, Opcode::Mul,    Opcode::Mul, Opcode::Mul,
+        Opcode::Mul, Opcode::Mul,    Opcode::Mul,
     ])];
     let block2 = Switch::new_block(t_branch, f_branch);
     
@@ -105,13 +105,13 @@ fn conditional_program() {
 
 #[test]
 fn simple_loop() {
-    let block1 = Span::new_block(vec![opcodes::NOOP; 15]);
+    let block1 = Span::new_block(vec![Opcode::Noop; 15]);
 
     let loop_body = vec![Span::new_block(vec![
-        opcodes::ASSERT, opcodes::ADD, opcodes::ADD, opcodes::ADD,
-        opcodes::ADD,    opcodes::ADD, opcodes::ADD, opcodes::ADD,
-        opcodes::ADD,    opcodes::ADD, opcodes::ADD, opcodes::ADD,
-        opcodes::ADD,    opcodes::ADD, opcodes::ADD,
+        Opcode::Assert, Opcode::Add, Opcode::Add, Opcode::Add,
+        Opcode::Add,    Opcode::Add, Opcode::Add, Opcode::Add,
+        Opcode::Add,    Opcode::Add, Opcode::Add, Opcode::Add,
+        Opcode::Add,    Opcode::Add, Opcode::Add,
     ])];
     let block2 = Loop::new_block(loop_body);
     
@@ -137,8 +137,8 @@ fn simple_loop() {
 #[test]
 fn program_with_two_procedures() {
     
-    let block1 = Group::new(vec![Span::new_block(vec![opcodes::ADD; 15])]);
-    let block2 = Group::new(vec![Span::new_block(vec![opcodes::MUL; 15])]);
+    let block1 = Group::new(vec![Span::new_block(vec![Opcode::Add; 15])]);
+    let block2 = Group::new(vec![Span::new_block(vec![Opcode::Mul; 15])]);
     
     let program = Program::new(vec![block1.clone(), block2.clone()], blake3);
     
@@ -155,8 +155,8 @@ fn program_with_two_procedures() {
 #[test]
 fn procedure_authentication() {
     
-    let block1 = Group::new(vec![Span::new_block(vec![opcodes::ADD; 15])]);
-    let block2 = Group::new(vec![Span::new_block(vec![opcodes::MUL; 15])]);
+    let block1 = Group::new(vec![Span::new_block(vec![Opcode::Add; 15])]);
+    let block2 = Group::new(vec![Span::new_block(vec![Opcode::Mul; 15])]);
     
     let program = Program::new(vec![block1.clone(), block2.clone()], blake3);
     

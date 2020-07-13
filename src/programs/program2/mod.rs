@@ -2,7 +2,7 @@ use crate::crypto::{ HashFunction, build_merkle_nodes };
 use crate::utils::{ as_bytes };
 
 mod blocks;
-pub use blocks::{ ProgramBlock, Span, Group, Switch, Loop, ExecutionHint };
+pub use blocks::{ ProgramBlock, Span, Group, Switch, Loop };
 
 mod hashing;
 use hashing::{ hash_op, hash_acc, hash_seq };

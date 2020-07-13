@@ -2,8 +2,7 @@ use std::ops::Range;
 use crate::math::{ field };
 use crate::utils::accumulator::{ add_constants, apply_sbox, apply_mds, apply_inv_sbox };
 
-mod opcodes;
-use opcodes::{ FlowOps, UserOps };
+use super::super::opcodes2::{ FlowOps, UserOps };
 
 #[cfg(test)]
 mod tests;

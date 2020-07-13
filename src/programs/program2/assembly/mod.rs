@@ -1,6 +1,7 @@
 use std::collections::HashMap;
-use crate::{ opcodes, crypto::HashFunction };
-use super::{ Program, ProgramBlock, Span, Group, Switch, Loop, ExecutionHint, BASE_CYCLE_LENGTH };
+use crate::{ crypto::HashFunction };
+use crate::processor::opcodes2::{ UserOps as Opcode, OpHint };
+use super::{ Program, ProgramBlock, Span, Group, Switch, Loop, BASE_CYCLE_LENGTH };
 
 mod parsers;
 use parsers::*;
@@ -11,7 +12,7 @@ use errors::{ AssemblyError };
 #[cfg(test)]
 mod tests;
 
-type HintMap = HashMap<usize, ExecutionHint>;
+type HintMap = HashMap<usize, OpHint>;
 
 // ASSEMBLY COMPILER
 // ================================================================================================
@@ -98,10 +99,10 @@ fn parse_block(parent: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) ->
             }
             else {
                 f_branch.push(Span::new_block(vec![
-                    opcodes::NOT,  opcodes::ASSERT, opcodes::NOOP, opcodes::NOOP,
-                    opcodes::NOOP, opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
-                    opcodes::NOOP, opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
-                    opcodes::NOOP, opcodes::NOOP,   opcodes::NOOP,
+                    Opcode::Not,  Opcode::Assert, Opcode::Noop, Opcode::Noop,
+                    Opcode::Noop, Opcode::Noop,   Opcode::Noop, Opcode::Noop,
+                    Opcode::Noop, Opcode::Noop,   Opcode::Noop, Opcode::Noop,
+                    Opcode::Noop, Opcode::Noop,   Opcode::Noop,
                 ]));
             }
 
@@ -148,12 +149,12 @@ fn parse_branch(body: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) -> 
 
     // determine starting instructions of the branch based on branch head
     let head: Vec<&str> = tokens[i].split(".").collect();
-    let mut op_codes: Vec<u8> = match head[0] {
+    let mut op_codes: Vec<Opcode> = match head[0] {
         "block"  => vec![],
-        "if"     => vec![opcodes::ASSERT],
-        "else"   => vec![opcodes::NOT, opcodes::ASSERT],
+        "if"     => vec![Opcode::Assert],
+        "else"   => vec![Opcode::Not, Opcode::Assert],
         "repeat" => vec![],
-        "while"  => vec![opcodes::ASSERT],
+        "while"  => vec![Opcode::Assert],
         _ => return Err(AssemblyError::invalid_block_head(&head, i)),
     };
     let mut op_hints: HintMap = HashMap::new();
@@ -205,7 +206,7 @@ fn parse_branch(body: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) -> 
 }
 
 /// Transforms an assembly instruction into a sequence of one or more VM instructions.
-fn parse_op_token(op: Vec<&str>, op_codes: &mut Vec<u8>, op_hints: &mut HintMap, step: usize) -> Result<usize, AssemblyError> {
+fn parse_op_token(op: Vec<&str>, op_codes: &mut Vec<Opcode>, op_hints: &mut HintMap, step: usize) -> Result<usize, AssemblyError> {
 
     // based on the instruction, invoke the correct parser for the operation
     match op[0] {
@@ -254,7 +255,7 @@ fn parse_op_token(op: Vec<&str>, op_codes: &mut Vec<u8>, op_hints: &mut HintMap,
 // ================================================================================================
 
 /// Adds a new Span block to a program block body based on currently parsed instructions.
-fn add_span(body: &mut Vec<ProgramBlock>, op_codes: &mut Vec<u8>, op_hints: &mut HintMap, force: bool) {
+fn add_span(body: &mut Vec<ProgramBlock>, op_codes: &mut Vec<Opcode>, op_hints: &mut HintMap, force: bool) {
 
     // if there were no instructions in the current span, don't do anything
     if op_codes.len() == 0 && !force { return };
@@ -262,7 +263,7 @@ fn add_span(body: &mut Vec<ProgramBlock>, op_codes: &mut Vec<u8>, op_hints: &mut
     // pad the instructions to make ensure 16-cycle alignment
     let mut span_op_codes = op_codes.clone();
     let pad_length = BASE_CYCLE_LENGTH - (span_op_codes.len() % BASE_CYCLE_LENGTH) - 1;
-    span_op_codes.resize(span_op_codes.len() + pad_length, opcodes::NOOP);
+    span_op_codes.resize(span_op_codes.len() + pad_length, Opcode::Noop);
 
     // add a new Span block to the body
     body.push(ProgramBlock::Span(Span::new(span_op_codes, op_hints.clone())));

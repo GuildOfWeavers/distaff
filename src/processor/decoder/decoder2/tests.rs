@@ -1,4 +1,4 @@
-use super::opcodes::{ UserOps };
+use super::{ UserOps };
 
 #[test]
 fn start_block() {

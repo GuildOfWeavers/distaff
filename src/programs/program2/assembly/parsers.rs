@@ -1,5 +1,6 @@
-use crate::{ opcodes, math::field };
-use super::{ AssemblyError, HintMap, ExecutionHint };
+use crate::{ math::field };
+use crate::processor::opcodes2::{ UserOps as Opcode };
+use super::{ AssemblyError, HintMap, OpHint };
 
 // CONSTANTS
 // ================================================================================================
@@ -10,24 +11,24 @@ const HASH_OP_ALIGNMENT: usize = 16;
 // ================================================================================================
 
 /// Appends a NOOP operations to the program.
-pub fn parse_noop(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_noop(program: &mut Vec<Opcode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     if op.len() > 1 {
         return Err(AssemblyError::extra_param(op, step));
     }
-    program.push(opcodes::NOOP);
+    program.push(Opcode::Noop);
     return Ok(true);
 }
 
 /// Appends either ASSERT or ASSERTEQ operations to the program.
-pub fn parse_assert(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_assert(program: &mut Vec<Opcode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     if op.len() > 2 {
         return Err(AssemblyError::extra_param(op, step));
     }
     else if op.len() == 1 {
-        program.push(opcodes::ASSERT);
+        program.push(Opcode::Assert);
     }
     else if op[1] == "eq" {
-        program.push(opcodes::ASSERTEQ);
+        program.push(Opcode::AssertEq);
     }
     else {
         return Err(AssemblyError::invalid_param_reason(op, step,
@@ -41,36 +42,36 @@ pub fn parse_assert(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<b
 // ================================================================================================
 
 /// Appends a PUSH operation to the program.
-pub fn parse_push(program: &mut Vec<u8>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_push(program: &mut Vec<Opcode>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     let value = read_value(op, step)?;
     append_push_op(program, hints, value);
     return Ok(true);
 }
 
 /// Makes sure PUSH operation alignment is correct and appends PUSH opcode to the program.
-fn append_push_op(program: &mut Vec<u8>, hints: &mut HintMap, value: u128) {
+fn append_push_op(program: &mut Vec<Opcode>, hints: &mut HintMap, value: u128) {
     // pad the program with NOOPs to make sure PUSH happens on steps which are multiples of 8
     let alignment = program.len() % PUSH_OP_ALIGNMENT;
     let pad_length = (PUSH_OP_ALIGNMENT - alignment) % PUSH_OP_ALIGNMENT;
-    program.resize(program.len() + pad_length, opcodes::NOOP);
+    program.resize(program.len() + pad_length, Opcode::Noop);
     
     // read the value to be pushed onto the stack
-    hints.insert(program.len(), ExecutionHint::PushValue(value));
+    hints.insert(program.len(), OpHint::PushValue(value));
 
     // add PUSH opcode to the program
-    program.push(opcodes::PUSH);
+    program.push(Opcode::Push);
 }
 
 /// Appends either READ or READ2 operation to the program.
-pub fn parse_read(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_read(program: &mut Vec<Opcode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     if op.len() > 2 {
         return Err(AssemblyError::extra_param(op, step));
     }
     else if op.len() == 1 || op[1] == "a" {
-        program.push(opcodes::READ);
+        program.push(Opcode::Read);
     }
     else if op[1] == "ab" {
-        program.push(opcodes::READ2);
+        program.push(Opcode::Read2);
     }
     else {
         return Err(AssemblyError::invalid_param_reason(op, step,
@@ -84,13 +85,13 @@ pub fn parse_read(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<boo
 // ================================================================================================
 
 /// Appends a sequence of operations to the program to duplicate top n values of the stack.
-pub fn parse_dup(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_dup(program: &mut Vec<Opcode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     let n = read_param(op, step)?;
     match n {
-        1 => program.push(opcodes::DUP),
-        2 => program.push(opcodes::DUP2),
-        3 => program.extend_from_slice(&[opcodes::DUP4, opcodes::ROLL4, opcodes::DROP]),
-        4 => program.push(opcodes::DUP4),
+        1 => program.push(Opcode::Dup),
+        2 => program.push(Opcode::Dup2),
+        3 => program.extend_from_slice(&[Opcode::Dup4, Opcode::Roll4, Opcode::Drop]),
+        4 => program.push(Opcode::Dup4),
         _ => return Err(AssemblyError::invalid_param_reason(op, step,
             format!("parameter {} is invalid; allowed values are: [1, 2, 3, 4]", n)))
     };
@@ -99,17 +100,17 @@ pub fn parse_dup(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool
 }
 
 /// Appends a sequence of operations to the program to pad the stack with n zeros.
-pub fn parse_pad(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_pad(program: &mut Vec<Opcode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     let n = read_param(op, step)?;
     match n {
-        1 => program.extend_from_slice(&[opcodes::PAD2, opcodes::DROP]),
-        2 => program.push(opcodes::PAD2),
-        3 => program.extend_from_slice(&[opcodes::PAD2, opcodes::PAD2, opcodes::DROP]),
-        4 => program.extend_from_slice(&[opcodes::PAD2, opcodes::PAD2]),
-        5 => program.extend_from_slice(&[opcodes::PAD2, opcodes::PAD2, opcodes::PAD2, opcodes::DROP]),
-        6 => program.extend_from_slice(&[opcodes::PAD2, opcodes::PAD2, opcodes::PAD2]),
-        7 => program.extend_from_slice(&[opcodes::PAD2, opcodes::PAD2, opcodes::DUP4, opcodes::DROP]),
-        8 => program.extend_from_slice(&[opcodes::PAD2, opcodes::PAD2, opcodes::DUP4]),
+        1 => program.extend_from_slice(&[Opcode::Pad2, Opcode::Drop]),
+        2 => program.push(Opcode::Pad2),
+        3 => program.extend_from_slice(&[Opcode::Pad2, Opcode::Pad2, Opcode::Drop]),
+        4 => program.extend_from_slice(&[Opcode::Pad2, Opcode::Pad2]),
+        5 => program.extend_from_slice(&[Opcode::Pad2, Opcode::Pad2, Opcode::Pad2, Opcode::Drop]),
+        6 => program.extend_from_slice(&[Opcode::Pad2, Opcode::Pad2, Opcode::Pad2]),
+        7 => program.extend_from_slice(&[Opcode::Pad2, Opcode::Pad2, Opcode::Dup4, Opcode::Drop]),
+        8 => program.extend_from_slice(&[Opcode::Pad2, Opcode::Pad2, Opcode::Dup4]),
         _ => return Err(AssemblyError::invalid_param_reason(op, step,
             format!("parameter {} is invalid; allowed values are: [1, 2, 3, 4, 5, 6, 7, 8]", n)))
     }
@@ -118,14 +119,14 @@ pub fn parse_pad(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool
 }
 
 /// Appends a sequence of operations to the program to copy n-th item to the top of the stack.
-pub fn parse_pick(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_pick(program: &mut Vec<Opcode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     let n = read_param(op, step)?;
     match n {
-        1 => program.extend_from_slice(&[opcodes::DUP2, opcodes::DROP]),
+        1 => program.extend_from_slice(&[Opcode::Dup2, Opcode::Drop]),
         2 => program.extend_from_slice(&[
-            opcodes::DUP4, opcodes::ROLL4, opcodes::DROP, opcodes::DROP, opcodes::DROP
+            Opcode::Dup4, Opcode::Roll4, Opcode::Drop, Opcode::Drop, Opcode::Drop
         ]),
-        3 => program.extend_from_slice(&[opcodes::DUP4, opcodes::DROP, opcodes::DROP, opcodes::DROP]),
+        3 => program.extend_from_slice(&[Opcode::Dup4, Opcode::Drop, Opcode::Drop, Opcode::Drop]),
         _ => return Err(AssemblyError::invalid_param_reason(op, step,
             format!("parameter {} is invalid; allowed values are: [1, 2, 3]", n)))
     };
@@ -134,17 +135,17 @@ pub fn parse_pick(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<boo
 }
 
 /// Appends a sequence of operations to the program to remove top n values from the stack.
-pub fn parse_drop(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_drop(program: &mut Vec<Opcode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     let n = read_param(op, step)?;
     match n {
-        1 => program.push(opcodes::DROP),
-        2 => program.extend_from_slice(&[opcodes::DROP, opcodes::DROP]),
-        3 => program.extend_from_slice(&[opcodes::DUP, opcodes::DROP4]),
-        4 => program.push(opcodes::DROP4),
-        5 => program.extend_from_slice(&[opcodes::DROP, opcodes::DROP4]),
-        6 => program.extend_from_slice(&[opcodes::DROP, opcodes::DROP, opcodes::DROP4]),
-        7 => program.extend_from_slice(&[opcodes::DUP, opcodes::DROP4, opcodes::DROP4]),
-        8 => program.extend_from_slice(&[opcodes::DROP4, opcodes::DROP4]),
+        1 => program.push(Opcode::Drop),
+        2 => program.extend_from_slice(&[Opcode::Drop, Opcode::Drop]),
+        3 => program.extend_from_slice(&[Opcode::Dup, Opcode::Drop4]),
+        4 => program.push(Opcode::Drop4),
+        5 => program.extend_from_slice(&[Opcode::Drop, Opcode::Drop4]),
+        6 => program.extend_from_slice(&[Opcode::Drop, Opcode::Drop, Opcode::Drop4]),
+        7 => program.extend_from_slice(&[Opcode::Dup, Opcode::Drop4, Opcode::Drop4]),
+        8 => program.extend_from_slice(&[Opcode::Drop4, Opcode::Drop4]),
         _ => return Err(AssemblyError::invalid_param_reason(op, step,
             format!("parameter {} is invalid; allowed values are: [1, 2, 3, 4, 5, 6, 7, 8]", n)))
     }
@@ -154,12 +155,12 @@ pub fn parse_drop(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<boo
 
 /// Appends a sequence of operations to the program to swap n values at the top of the stack
 /// with the following n values.
-pub fn parse_swap(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_swap(program: &mut Vec<Opcode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     let n = read_param(op, step)?;
     match n {
-        1 => program.push(opcodes::SWAP),
-        2 => program.push(opcodes::SWAP2),
-        4 => program.push(opcodes::SWAP4),
+        1 => program.push(Opcode::Swap),
+        2 => program.push(Opcode::Swap2),
+        4 => program.push(Opcode::Swap4),
         _ => return Err(AssemblyError::invalid_param_reason(op, step,
             format!("parameter {} is invalid; allowed values are: [1, 2, 4]", n)))
     }
@@ -168,11 +169,11 @@ pub fn parse_swap(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<boo
 }
 
 /// Appends either ROLL4 or ROLL8 operation to the program.
-pub fn parse_roll(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_roll(program: &mut Vec<Opcode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     let n = read_param(op, step)?;
     match n {
-        4 => program.push(opcodes::ROLL4),
-        8 => program.push(opcodes::ROLL8),
+        4 => program.push(Opcode::Roll4),
+        8 => program.push(Opcode::Roll8),
         _ => return Err(AssemblyError::invalid_param_reason(op, step,
             format!("parameter {} is invalid; allowed values are: [4, 8]", n)))
     }
@@ -184,65 +185,65 @@ pub fn parse_roll(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<boo
 // ================================================================================================
 
 /// Appends ADD operation to the program.
-pub fn parse_add(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_add(program: &mut Vec<Opcode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     if op.len() > 1 { return Err(AssemblyError::extra_param(op, step)); }
-    program.push(opcodes::ADD);
+    program.push(Opcode::Add);
     return Ok(true);
 }
 
 /// Appends NEG ADD operations to the program.
-pub fn parse_sub(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_sub(program: &mut Vec<Opcode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     if op.len() > 1 { return Err(AssemblyError::extra_param(op, step)); }
-    program.extend_from_slice(&[opcodes::NEG, opcodes::ADD]);
+    program.extend_from_slice(&[Opcode::Neg, Opcode::Add]);
     return Ok(true);
 }
 
 /// Appends MUL operation to the program.
-pub fn parse_mul(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_mul(program: &mut Vec<Opcode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     if op.len() > 1 { return Err(AssemblyError::extra_param(op, step)); }
-    program.push(opcodes::MUL);
+    program.push(Opcode::Mul);
     return Ok(true);
 }
 
 /// Appends INV MUL operations to the program.
-pub fn parse_div(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_div(program: &mut Vec<Opcode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     if op.len() > 1 { return Err(AssemblyError::extra_param(op, step)); }
-    program.extend_from_slice(&[opcodes::INV, opcodes::MUL]);
+    program.extend_from_slice(&[Opcode::Inv, Opcode::Mul]);
     return Ok(true);
 }
 
 /// Appends NEG operation to the program.
-pub fn parse_neg(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_neg(program: &mut Vec<Opcode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     if op.len() > 1 { return Err(AssemblyError::extra_param(op, step)); }
-    program.push(opcodes::NEG);
+    program.push(Opcode::Neg);
     return Ok(true);
 }
 
 /// Appends INV operation to the program.
-pub fn parse_inv(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_inv(program: &mut Vec<Opcode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     if op.len() > 1 { return Err(AssemblyError::extra_param(op, step)); }
-    program.push(opcodes::INV);
+    program.push(Opcode::Inv);
     return Ok(true);
 }
 
 /// Appends NOT operation to the program.
-pub fn parse_not(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_not(program: &mut Vec<Opcode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     if op.len() > 1 { return Err(AssemblyError::extra_param(op, step)); }
-    program.push(opcodes::NOT);
+    program.push(Opcode::Not);
     return Ok(true);
 }
 
 /// Appends AND operation to the program.
-pub fn parse_and(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_and(program: &mut Vec<Opcode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     if op.len() > 1 { return Err(AssemblyError::extra_param(op, step)); }
-    program.push(opcodes::AND);
+    program.push(Opcode::And);
     return Ok(true);
 }
 
 /// Appends OR operation to the program.
-pub fn parse_or(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_or(program: &mut Vec<Opcode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     if op.len() > 1 { return Err(AssemblyError::extra_param(op, step)); }
-    program.push(opcodes::OR);
+    program.push(Opcode::Or);
     return Ok(true);
 }
 
@@ -250,16 +251,16 @@ pub fn parse_or(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool,
 // ================================================================================================
 
 /// Appends EQ operation to the program.
-pub fn parse_eq(program: &mut Vec<u8>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_eq(program: &mut Vec<Opcode>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     if op.len() > 1 { return Err(AssemblyError::extra_param(op, step)); }
-    hints.insert(program.len(), ExecutionHint::EqStart);
-    program.extend_from_slice(&[opcodes::READ, opcodes::EQ]);
+    hints.insert(program.len(), OpHint::EqStart);
+    program.extend_from_slice(&[Opcode::Read, Opcode::Eq]);
     return Ok(true);
 }
 
 /// Appends a sequence of operations to the program to determine whether the top value on the 
 /// stack is greater than the following value.
-pub fn parse_gt(program: &mut Vec<u8>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_gt(program: &mut Vec<Opcode>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     // n is the number of bits sufficient to represent each value; if either of the
     // values does not fit into n bits, the operation fill fail.
     let n = read_param(op, step)?;
@@ -269,29 +270,29 @@ pub fn parse_gt(program: &mut Vec<u8>, hints: &mut HintMap, op: &[&str], step: u
     }
 
     // prepare the stack
-    program.extend_from_slice(&[opcodes::PAD2, opcodes::PAD2, opcodes::PAD2, opcodes::DUP]);
+    program.extend_from_slice(&[Opcode::Pad2, Opcode::Pad2, Opcode::Pad2, Opcode::Dup]);
     let power_of_two = u128::pow(2, n - 1);
     append_push_op(program, hints, power_of_two);
 
     // add a hint indicating that value comparison is about to start
-    hints.insert(program.len(), ExecutionHint::CmpStart(n));
+    hints.insert(program.len(), OpHint::CmpStart(n));
 
     // append CMP operations
-    program.resize(program.len() + (n as usize), opcodes::CMP);
+    program.resize(program.len() + (n as usize), Opcode::Cmp);
 
     // compare binary aggregation values with the original values, and drop everything
     // but the GT value from the stack
     program.extend_from_slice(&[
-        opcodes::DROP4,    opcodes::PAD2,     opcodes::SWAP4, opcodes::ROLL4,
-        opcodes::ASSERTEQ, opcodes::ASSERTEQ, opcodes::ROLL4, opcodes::DUP,
-        opcodes::DROP4
+        Opcode::Drop4,    Opcode::Pad2,     Opcode::Swap4, Opcode::Roll4,
+        Opcode::AssertEq, Opcode::AssertEq, Opcode::Roll4, Opcode::Dup,
+        Opcode::Drop4
     ]);
     return Ok(true);
 }
 
 /// Appends a sequence of operations to the program to determine whether the top value on the 
 /// stack is less than the following value.
-pub fn parse_lt(program: &mut Vec<u8>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_lt(program: &mut Vec<Opcode>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     // n is the number of bits sufficient to represent each value; if either of the
     // values does not fit into n bits, the operation fill fail.
     let n = read_param(op, step)?;
@@ -301,28 +302,28 @@ pub fn parse_lt(program: &mut Vec<u8>, hints: &mut HintMap, op: &[&str], step: u
     }
 
     // prepare the stack
-    program.extend_from_slice(&[opcodes::PAD2, opcodes::PAD2, opcodes::PAD2, opcodes::DUP]);
+    program.extend_from_slice(&[Opcode::Pad2, Opcode::Pad2, Opcode::Pad2, Opcode::Dup]);
     let power_of_two = u128::pow(2, n - 1);
     append_push_op(program, hints, power_of_two);
 
     // add a hint indicating that value comparison is about to start
-    hints.insert(program.len(), ExecutionHint::CmpStart(n));
+    hints.insert(program.len(), OpHint::CmpStart(n));
 
     // append CMP operations
-    program.resize(program.len() + (n as usize), opcodes::CMP);
+    program.resize(program.len() + (n as usize), Opcode::Cmp);
 
     // compare binary aggregation values with the original values, and drop everything
     // but the LT value from the stack
     program.extend_from_slice(&[
-        opcodes::DROP4,    opcodes::PAD2,     opcodes::SWAP4, opcodes::ROLL4,
-        opcodes::ASSERTEQ, opcodes::ASSERTEQ, opcodes::DUP,   opcodes::DROP4
+        Opcode::Drop4,    Opcode::Pad2,     Opcode::Swap4, Opcode::Roll4,
+        Opcode::AssertEq, Opcode::AssertEq, Opcode::Dup,   Opcode::Drop4
     ]);
     return Ok(true);
 }
 
 /// Appends a sequence of operations to the program to determine whether the top value on the 
 /// stack can be represented with n bits.
-pub fn parse_rc(program: &mut Vec<u8>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_rc(program: &mut Vec<Opcode>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     // n is the number of bits against which to test the binary decomposition
     let n = read_param(op, step)?;
     if n < 4 || n > 128 {
@@ -331,26 +332,26 @@ pub fn parse_rc(program: &mut Vec<u8>, hints: &mut HintMap, op: &[&str], step: u
     }
 
     // prepare the stack
-    program.push(opcodes::PAD2);
+    program.push(Opcode::Pad2);
     let power_of_two = u128::pow(2, n - 1);
     append_push_op(program, hints, power_of_two);
 
     // add a hint indicating that range-checking is about to start
-    hints.insert(program.len(), ExecutionHint::RcStart(n));
+    hints.insert(program.len(), OpHint::RcStart(n));
 
     // append BINACC operations
-    program.resize(program.len() + (n as usize), opcodes::BINACC);
+    program.resize(program.len() + (n as usize), Opcode::BinAcc);
 
     // compare binary aggregation value with the original value
-    program.extend_from_slice(&[opcodes::DROP, opcodes::DROP]);
-    hints.insert(program.len(), ExecutionHint::EqStart);
-    program.extend_from_slice(&[opcodes::READ, opcodes::EQ]);
+    program.extend_from_slice(&[Opcode::Drop, Opcode::Drop]);
+    hints.insert(program.len(), OpHint::EqStart);
+    program.extend_from_slice(&[Opcode::Read, Opcode::Eq]);
     return Ok(true);
 }
 
 /// Appends a sequence of operations to the program to determine whether the top value on the 
 /// stack is odd.
-pub fn parse_isodd(program: &mut Vec<u8>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_isodd(program: &mut Vec<Opcode>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     // n is the number of bits sufficient to represent top stack value;
     // if the values does not fit into n bits, the operation fill fail.
     let n = read_param(op, step)?;
@@ -360,19 +361,19 @@ pub fn parse_isodd(program: &mut Vec<u8>, hints: &mut HintMap, op: &[&str], step
     }
 
     // prepare the stack
-    program.extend_from_slice(&[opcodes::PAD2]);
+    program.extend_from_slice(&[Opcode::Pad2]);
     let power_of_two = u128::pow(2, n - 1);
     append_push_op(program, hints, power_of_two);
 
     // add a hint indicating that range-checking is about to start
-    hints.insert(program.len(), ExecutionHint::RcStart(n));
+    hints.insert(program.len(), OpHint::RcStart(n));
 
     // append BINACC operations
-    program.resize(program.len() + (n as usize), opcodes::BINACC);
+    program.resize(program.len() + (n as usize), Opcode::BinAcc);
 
     // compare binary aggregation value with the original value and drop all
     // values used in computations except for the least significant bit of the value
-    program.extend_from_slice(&[opcodes::SWAP2, opcodes::ASSERTEQ, opcodes::DROP]);
+    program.extend_from_slice(&[Opcode::Swap2, Opcode::AssertEq, Opcode::Drop]);
     return Ok(true);
 }
 
@@ -380,11 +381,11 @@ pub fn parse_isodd(program: &mut Vec<u8>, hints: &mut HintMap, op: &[&str], step
 // ================================================================================================
 
 /// Appends either CHOOSE or CHOOSE2 operation to the program.
-pub fn parse_choose(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_choose(program: &mut Vec<Opcode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     let n = read_param(op, step)?;
     match n {
-        1 => program.push(opcodes::CHOOSE),
-        2 => program.push(opcodes::CHOOSE2),
+        1 => program.push(Opcode::Choose),
+        2 => program.push(Opcode::Choose2),
         _ => return Err(AssemblyError::invalid_param_reason(op, step,
             format!("parameter {} is invalid; allowed values are: [1, 2]", n)))
     }
@@ -395,13 +396,13 @@ pub fn parse_choose(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<b
 // ================================================================================================
 
 /// Appends a sequence of operations to the program to hash top n values of the stack.
-pub fn parse_hash(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_hash(program: &mut Vec<Opcode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     let n = read_param(op, step)?;
     match n {
-        1 => program.extend_from_slice(&[opcodes::PAD2, opcodes::PAD2, opcodes::PAD2, opcodes::DROP]),
-        2 => program.extend_from_slice(&[opcodes::PAD2, opcodes::PAD2]),
-        3 => program.extend_from_slice(&[opcodes::PAD2, opcodes::PAD2, opcodes::DROP]),
-        4 => program.push(opcodes::PAD2),
+        1 => program.extend_from_slice(&[Opcode::Pad2, Opcode::Pad2, Opcode::Pad2, Opcode::Drop]),
+        2 => program.extend_from_slice(&[Opcode::Pad2, Opcode::Pad2]),
+        3 => program.extend_from_slice(&[Opcode::Pad2, Opcode::Pad2, Opcode::Drop]),
+        4 => program.push(Opcode::Pad2),
         _ => return Err(AssemblyError::invalid_param_reason(op, step,
             format!("parameter {} is invalid; allowed values are: [1, 2, 3, 4]", n)))
     }
@@ -409,23 +410,23 @@ pub fn parse_hash(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<boo
     // pad with NOOPs to make sure hashing starts on a step which is a multiple of 16
     let alignment = program.len() % HASH_OP_ALIGNMENT;
     let pad_length = (HASH_OP_ALIGNMENT - alignment) % HASH_OP_ALIGNMENT;
-    program.resize(program.len() + pad_length, opcodes::NOOP);
+    program.resize(program.len() + pad_length, Opcode::Noop);
 
     // append operations to execute 10 rounds of Rescue
     program.extend_from_slice(&[
-        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
-        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR
+        Opcode::RescR, Opcode::RescR, Opcode::RescR, Opcode::RescR, Opcode::RescR,
+        Opcode::RescR, Opcode::RescR, Opcode::RescR, Opcode::RescR, Opcode::RescR
     ]);
 
     // truncate the state
-    program.push(opcodes::DROP4);
+    program.push(Opcode::Drop4);
 
     return Ok(true);
 }
 
 /// Appends a sequence of operations to the program to compute the root of Merkle
 /// authentication path for a tree of depth n.
-pub fn parse_mpath(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_mpath(program: &mut Vec<Opcode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     let n = read_param(op, step)?;
     if n < 2 || n > 256 {
         return Err(AssemblyError::invalid_param_reason(op, step,
@@ -434,12 +435,12 @@ pub fn parse_mpath(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bo
 
     // read the first node in the Merkle path and push it onto the stack;
     // also pad the stack to prepare it for hashing.
-    program.extend_from_slice(&[opcodes::READ2, opcodes::DUP4, opcodes::PAD2]);
+    program.extend_from_slice(&[Opcode::Read2, Opcode::Dup4, Opcode::Pad2]);
 
     // pad with NOOPs to make sure hashing starts on a step which is a multiple of 16
     let alignment = program.len() % HASH_OP_ALIGNMENT;
     let pad_length = (HASH_OP_ALIGNMENT - alignment) % HASH_OP_ALIGNMENT;
-    program.resize(program.len() + pad_length, opcodes::NOOP);
+    program.resize(program.len() + pad_length, Opcode::Noop);
 
     // repeat the following cycle of operations once for each remaining node:
     // 1. compute hash(p, v)
@@ -447,15 +448,15 @@ pub fn parse_mpath(program: &mut Vec<u8>, op: &[&str], step: usize) -> Result<bo
     // 3. compute hash(v, p)
     // 4. base on position index bit, choses either hash(p, v) or hash(v, p)
     // 5. reads the next nodes and pushes it onto the stack
-    const SUB_CYCLE: [u8; 32] = [
-        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
-        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
-        opcodes::RESCR, opcodes::RESCR, opcodes::DROP4, opcodes::READ2,
-        opcodes::SWAP2, opcodes::SWAP4, opcodes::SWAP2, opcodes::PAD2,
-        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
-        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
-        opcodes::RESCR, opcodes::RESCR, opcodes::DROP4, opcodes::CHOOSE2,
-        opcodes::READ2, opcodes::DUP4,  opcodes::PAD2,  opcodes::NOOP
+    const SUB_CYCLE: [Opcode; 32] = [
+        Opcode::RescR, Opcode::RescR, Opcode::RescR, Opcode::RescR,
+        Opcode::RescR, Opcode::RescR, Opcode::RescR, Opcode::RescR,
+        Opcode::RescR, Opcode::RescR, Opcode::Drop4, Opcode::Read2,
+        Opcode::Swap2, Opcode::Swap4, Opcode::Swap2, Opcode::Pad2,
+        Opcode::RescR, Opcode::RescR, Opcode::RescR, Opcode::RescR,
+        Opcode::RescR, Opcode::RescR, Opcode::RescR, Opcode::RescR,
+        Opcode::RescR, Opcode::RescR, Opcode::Drop4, Opcode::Choose2,
+        Opcode::Read2, Opcode::Dup4,  Opcode::Pad2,  Opcode::Noop
     ];
 
     for _ in 0..(n - 2) {

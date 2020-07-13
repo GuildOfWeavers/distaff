@@ -1,50 +1,50 @@
-use super::{ opcodes, Span, HashMap, ExecutionHint };
+use super::{ Opcode, Span, HashMap, OpHint };
 
 #[test]
 fn span_hash() {
     // hash noop operations
     let block = Span::from_instructions(vec![
-        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP
+        Opcode::Noop, Opcode::Noop, Opcode::Noop, Opcode::Noop,
+        Opcode::Noop, Opcode::Noop, Opcode::Noop, Opcode::Noop,
+        Opcode::Noop, Opcode::Noop, Opcode::Noop, Opcode::Noop,
+        Opcode::Noop, Opcode::Noop, Opcode::Noop
     ]);
 
     let hash = block.hash([0, 0, 0, 0]);
     assert_eq!([
-        157316262623033666713538203058938064692, 80197455177734037203720349496951896931,
-            68421092599366047480951655047179627665, 80949210058808928588856268130226361227,
+         34133582271386177291348118006257970896, 181876936253440791628125120546105003666,
+        103931834153883155212634799354704742091, 117276145941972134574935124009307864736,
     ], hash);
 
     // hash noops and a push operation
     let mut hints = HashMap::new();
-    hints.insert(8, ExecutionHint::PushValue(1));
+    hints.insert(8, OpHint::PushValue(1));
     let block = Span::new(vec![
-        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-        opcodes::PUSH, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP
+        Opcode::Noop, Opcode::Noop, Opcode::Noop, Opcode::Noop,
+        Opcode::Noop, Opcode::Noop, Opcode::Noop, Opcode::Noop,
+        Opcode::Push, Opcode::Noop, Opcode::Noop, Opcode::Noop,
+        Opcode::Noop, Opcode::Noop, Opcode::Noop
     ], hints);
 
     let hash = block.hash([0, 0, 0, 0]);
     assert_eq!([
-        85369190300427710998622643733359886806, 215794304827495802485341382487907232249,
-        70401873096594455076423121418488093540, 172342600926520679431223305032484622923,
+        118844146892083470514455294601677965871, 224872343428836366240517714625610433477,
+         88452912995157535200154835609809700641, 299350722679819457778461266425341779937,
     ], hash);
 
     // hash noops and a push operation with a different value
     let mut hints = HashMap::new();
-    hints.insert(8, ExecutionHint::PushValue(2));
+    hints.insert(8, OpHint::PushValue(2));
     let block = Span::new(vec![
-        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-        opcodes::PUSH, opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-        opcodes::NOOP, opcodes::NOOP, opcodes::NOOP
+        Opcode::Noop, Opcode::Noop, Opcode::Noop, Opcode::Noop,
+        Opcode::Noop, Opcode::Noop, Opcode::Noop, Opcode::Noop,
+        Opcode::Push, Opcode::Noop, Opcode::Noop, Opcode::Noop,
+        Opcode::Noop, Opcode::Noop, Opcode::Noop
     ], hints);
 
     let hash = block.hash([0, 0, 0, 0]);
     assert_eq!([
-            24020747447884318572054407156629291452,   8692602976904114086461881490969072192,
-        274663519746421350445504800760290377716, 338505076190505971725325594571505821280,
+        202376941217984595534656725660487737949, 230597638008266299255765775743759397082,
+         97603442173678867660521049421511291867, 258944901987071318964394217303782133754,
     ], hash);
 }
