@@ -6,6 +6,9 @@ use super::{ ProgramInputs, opcodes, ExecutionHint };
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+pub mod stack2;
+
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct Stack {
