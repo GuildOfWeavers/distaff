@@ -5,8 +5,8 @@ use super::{ ProgramBlock, BASE_CYCLE_LENGTH };
 
 pub const STATE_WIDTH: usize = ACC_STATE_WIDTH;
 pub const CYCLE_LENGTH: usize = BASE_CYCLE_LENGTH;
-pub const ACC_NUM_ROUNDS: usize = 14;
-pub const ACC_ROUND_OFFSET: usize = 1;
+pub const ACC_NUM_ROUNDS: usize = 14;   // TODO: move to global constants
+pub const ACC_ROUND_OFFSET: usize = 1;  // TODO: move to global constants
 
 /// Returns a hash of a sequence of program blocks.
 pub fn hash_seq(blocks: &Vec<ProgramBlock>, is_loop_body: bool) -> u128 {
@@ -91,6 +91,9 @@ pub fn acc_hash_round(state: &mut [u128; STATE_WIDTH], step: usize) {
     add_constants(state, ark_idx, 0);
     apply_sbox(state);
     apply_mds(state);
+
+    // this is equivalent to adding NOOP opcode
+    state[0] = field::add(state[0], u8::max_value() as u128);
 
     // apply second half of Rescue round
     add_constants(state, ark_idx, STATE_WIDTH);

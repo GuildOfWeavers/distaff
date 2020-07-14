@@ -180,6 +180,7 @@ mod tests {
 
     use crate::crypto::{ hash::blake3 };
     use crate::programs::program2::assembly;
+    use crate::utils::{ as_bytes };
     use super::{ ProgramInputs };
 
     #[test]
@@ -188,9 +189,12 @@ mod tests {
         let inputs = ProgramInputs::from_public(&[1, 2]);
 
         let trace = super::execute(&program, 0, &inputs);
+        // TODO: add checks
         print_trace(&trace);
 
-        assert_eq!(1, 2);
+        let program_hash = [*trace[0].last().unwrap(), *trace[1].last().unwrap()];
+
+        assert_eq!(program.hash(), as_bytes(&program_hash));
     }
 
     fn print_trace(trace: &Vec<Vec<u128>>) {

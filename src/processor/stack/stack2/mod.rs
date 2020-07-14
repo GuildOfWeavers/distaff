@@ -122,13 +122,17 @@ impl Stack {
         return self.registers[0][self.step];
     }
 
-    /// TODO: add description
+    /// Populate all register traces with values for steps between the current step
+    /// and the end of the trace.
     pub fn finalize_trace(&mut self) {
         let trace_length = self.trace_length();
         for register in self.registers.iter_mut() {
             register.resize(self.step + 1, field::ZERO);
             register.resize(trace_length, register[self.step]);
         }
+
+        // update the step pointer to point to the last step
+        self.step = self.trace_length() - 1;
     }
 
     /// Merges all register traces into a single vector of traces.

@@ -273,6 +273,9 @@ impl Decoder {
         for register in self.op_acc.iter_mut()     { fill_register(register, self.step + 1, register[self.step]); }
         for register in self.ctx_stack.iter_mut()  { fill_register(register, self.step + 1, register[self.step]); }
         for register in self.loop_stack.iter_mut() { fill_register(register, self.step + 1, register[self.step]); }
+
+        // update the step pointer to point to the last step
+        self.step = self.trace_length() - 1;
     }
 
     // HELPER METHODS
