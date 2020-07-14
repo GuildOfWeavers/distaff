@@ -9,7 +9,7 @@ pub const ACC_NUM_ROUNDS: usize = 14;   // TODO: move to global constants
 pub const ACC_ROUND_OFFSET: usize = 1;  // TODO: move to global constants
 
 /// Returns a hash of a sequence of program blocks.
-pub fn hash_seq(blocks: &Vec<ProgramBlock>, is_loop_body: bool) -> u128 {
+pub fn hash_seq(blocks: &Vec<ProgramBlock>, suffix: &[u8], suffix_offset: usize) -> u128 {
 
     // initialize the state to all zeros
     let mut state = [0u128; STATE_WIDTH];
@@ -46,10 +46,11 @@ pub fn hash_seq(blocks: &Vec<ProgramBlock>, is_loop_body: bool) -> u128 {
         };
     }
 
-    // if the current sequence is not a body of a loop, we need to do an extra round
-    // of acc_hash to ensure block alignment on a 16 cycle boundary
-    if !is_loop_body {
-        acc_hash_round(&mut state, CYCLE_LENGTH - 1);
+    // apply sequence suffix to ensure alignment on 16-cycle boundary;
+    // for non-loop sequences, suffix will be just a single NOOP;
+    // for loop bodies, suffix will be NOT ASSERT followed by 14 NOOPs;
+    for i in 0..suffix.len() {
+        hash_op(&mut state, suffix[i], 0, suffix_offset + i);
     }
 
     return state[0];

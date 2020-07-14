@@ -1,4 +1,4 @@
-use super::{ ProgramBlock, OpHint };
+use super::{ ProgramBlock, Opcode, Loop, OpHint };
 use super::super::hashing::{ hash_op, acc_hash_round, ACC_NUM_ROUNDS };
 
 pub fn traverse(block: &ProgramBlock, stack: &mut Vec<u128>, hash: &mut [u128; 4], mut step: usize) -> usize {
@@ -63,10 +63,7 @@ pub fn traverse(block: &ProgramBlock, stack: &mut Vec<u128>, hash: &mut [u128; 4
                     println!("{}: LOOP {:?}", step, hash);
                     step += 1; // LOOP
 
-                    let body = block.body();
-                    let body_hash = block.body_hash();
-                    let skip_hash = block.skip_hash();
-                    let (new_step, state) = traverse_loop_body(body, stack, hash[0], body_hash, skip_hash, step);
+                    let (new_step, state) = traverse_loop_body(block, stack, hash[0], step);
                     hash.copy_from_slice(&state);
                     step = new_step;
                 },
@@ -136,21 +133,21 @@ fn traverse_false_branch(blocks: &[ProgramBlock], stack: &mut Vec<u128>, parent_
     return (step, state);
 }
 
-fn traverse_loop_body(blocks: &[ProgramBlock], stack: &mut Vec<u128>, parent_hash: u128, body_hash: u128, skip_hash: u128, mut step: usize) -> (usize, [u128; 4]) {
+fn traverse_loop_body(block: &Loop, stack: &mut Vec<u128>, parent_hash: u128, mut step: usize) -> (usize, [u128; 4]) {
     
     let mut state = [0, 0, 0, 0];
     loop {
 
-        for i in 0..blocks.len() {
-            if i != 0 && blocks[i].is_span() {
+        for i in 0..block.body().len() {
+            if i != 0 && block.body()[i].is_span() {
                 println!("{}: HACC {:?}", step, state);
                 acc_hash_round(&mut state, step);
                 step += 1;
             }
-            step = traverse(&blocks[i], stack, &mut state, step);
+            step = traverse(&block.body()[i], stack, &mut state, step);
         }
 
-        assert!(state[0] == body_hash, "loop image didn't match loop body hash");
+        assert!(state[0] == block.image(), "loop image didn't match loop body hash");
 
         println!("{}: WRAP {:?}", step, state);
         step += 1; // WRAP
@@ -163,10 +160,19 @@ fn traverse_loop_body(blocks: &[ProgramBlock], stack: &mut Vec<u128>, parent_has
         };
     }
 
+    hash_op(&mut state, Opcode::Not as u8, 0, step);
+    step += 1;
+    hash_op(&mut state, Opcode::Assert as u8, 0, step);
+    step += 1;
+    for _ in 0..14 {
+        hash_op(&mut state, Opcode::Noop as u8, 0, step);
+        step += 1;
+    }
+
     println!("{}: TEND {:?}", step, state);
     step += 1; // TEND
 
-    state = [parent_hash, body_hash, skip_hash, 0];
+    state = [parent_hash, state[0], block.skip_hash(), 0];
     for _ in 0..ACC_NUM_ROUNDS {
         println!("{}: HACC {:?}", step, state);
         acc_hash_round(&mut state, step);

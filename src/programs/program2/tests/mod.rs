@@ -126,12 +126,12 @@ fn simple_loop() {
     // loop executed once
     let (step, hash) = traverse_true_branch(procedure.body(), &mut vec![0, 1], 0, 0, 0);
     assert_eq!(*program.hash(), hash_to_bytes(&hash));
-    assert_eq!(63, step);
+    assert_eq!(79, step);
 
     // loop executed 3 times
     let (step, hash) = traverse_true_branch(procedure.body(), &mut vec![0, 1, 1, 1], 0, 0, 0);
     assert_eq!(*program.hash(), hash_to_bytes(&hash));
-    assert_eq!(95, step);
+    assert_eq!(111, step);
 }
 
 #[test]

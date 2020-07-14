@@ -117,9 +117,9 @@ fn start_block(decoder: &mut Decoder, stack: &mut Stack)
 /// Closes the currently executing program block.
 fn close_block(decoder: &mut Decoder, stack: &mut Stack, sibling_hash: u128, is_true_branch: bool)
 {
-    // a sequence of non-loop blocks always ends on a step which is one less than a
-    // multiple of 16; so, we need to pad it with a NOOP to make sure block end
-    // aligns with a multiple of 16
+    // a sequence of blocks always ends on a step which is one less than a multiple of 16;
+    // all sequences end one operation short of multiple of 16 - so, we need to pad them
+    // with a single NOOP ensure proper alignment
     decoder.decode_op(OpCode::Noop, field::ZERO);
     stack.execute(OpCode::Noop, OpHint::None);
 
@@ -135,11 +135,11 @@ fn close_block(decoder: &mut Decoder, stack: &mut Stack, sibling_hash: u128, is_
     }
 }
 
-/// TODO
+/// Executes the specified loop.
 fn execute_loop(block: &Loop, decoder: &mut Decoder, stack: &mut Stack)
 {
     // mark the beginning of the loop block
-    decoder.start_loop(block.body_hash());
+    decoder.start_loop(block.image());
     stack.execute(OpCode::Noop, OpHint::None);
 
     // execute blocks in loop body until top of the stack becomes 0
@@ -161,11 +161,13 @@ fn execute_loop(block: &Loop, decoder: &mut Decoder, stack: &mut Stack)
         };
     }
 
+    // execute the contents of the skip block to make sure the loop was exited correctly
     match &block.skip()[0] {
         ProgramBlock::Span(block) => execute_span(block, decoder, stack, true),
-        _ => panic!("TODO")
+        _ => panic!("invalid skip block content: content must be a Span block"),
     }
 
+    // close block
     close_block(decoder, stack, block.skip_hash(), true);
 }
 

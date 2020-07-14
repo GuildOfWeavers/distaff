@@ -5,6 +5,25 @@ use super::{ hash_seq, hash_op, BASE_CYCLE_LENGTH };
 #[cfg(test)]
 mod tests;
 
+// CONSTANTS
+// ================================================================================================
+const BLOCK_SUFFIX: [u8; 1] = [Opcode::Noop as u8];
+const BLOCK_SUFFIX_OFFSET: usize = BASE_CYCLE_LENGTH - 1;
+
+const LOOP_SKIP_BLOCK: [Opcode; 15] = [
+    Opcode::Not,  Opcode::Assert, Opcode::Noop, Opcode::Noop,
+    Opcode::Noop, Opcode::Noop,   Opcode::Noop, Opcode::Noop,
+    Opcode::Noop, Opcode::Noop,   Opcode::Noop, Opcode::Noop,
+    Opcode::Noop, Opcode::Noop,   Opcode::Noop
+];
+
+const LOOP_BLOCK_SUFFIX: [u8; 16] = [
+    Opcode::Not  as u8, Opcode::Assert as u8, Opcode::Noop as u8, Opcode::Noop as u8,
+    Opcode::Noop as u8, Opcode::Noop   as u8, Opcode::Noop as u8, Opcode::Noop as u8,
+    Opcode::Noop as u8, Opcode::Noop   as u8, Opcode::Noop as u8, Opcode::Noop as u8,
+    Opcode::Noop as u8, Opcode::Noop   as u8, Opcode::Noop as u8, Opcode::Noop as u8,
+];
+
 // TYPES AND INTERFACES
 // ================================================================================================
 
@@ -191,7 +210,7 @@ impl Group {
     }
 
     pub fn body_hash(&self) -> u128 {
-        return hash_seq(&self.body, false);
+        return hash_seq(&self.body, &BLOCK_SUFFIX, BLOCK_SUFFIX_OFFSET);
     }
 
     pub fn get_hash(&self) -> (u128, u128) {
@@ -232,7 +251,7 @@ impl Switch {
     }
 
     pub fn true_branch_hash(&self) -> u128 {
-        return hash_seq(&self.t_branch, false);
+        return hash_seq(&self.t_branch, &BLOCK_SUFFIX, BLOCK_SUFFIX_OFFSET);
     }
 
     pub fn false_branch(&self) -> &[ProgramBlock] {
@@ -240,7 +259,7 @@ impl Switch {
     }
 
     pub fn false_branch_hash(&self) -> u128 {
-        return hash_seq(&self.f_branch, false);
+        return hash_seq(&self.f_branch, &BLOCK_SUFFIX, BLOCK_SUFFIX_OFFSET);
     }
 
     pub fn get_hash(&self) -> (u128, u128) {
@@ -271,13 +290,7 @@ impl Loop {
     pub fn new(body: Vec<ProgramBlock>) -> Loop {
         validate_block_list(&body, &[Opcode::Assert]);
 
-        let skip_block = Span::from_instructions(vec![
-            Opcode::Not,  Opcode::Assert, Opcode::Noop, Opcode::Noop,
-            Opcode::Noop, Opcode::Noop,   Opcode::Noop, Opcode::Noop,
-            Opcode::Noop, Opcode::Noop,   Opcode::Noop, Opcode::Noop,
-            Opcode::Noop, Opcode::Noop,   Opcode::Noop
-        ]);
-
+        let skip_block = Span::from_instructions(LOOP_SKIP_BLOCK.to_vec());
         let skip = vec![ProgramBlock::Span(skip_block)];
 
         return Loop { body, skip };
@@ -292,11 +305,11 @@ impl Loop {
     }
 
     pub fn image(&self) -> u128 {
-        return hash_seq(&self.body, true);
+        return hash_seq(&self.body, &[], 0);
     }
 
     pub fn body_hash(&self) -> u128 {
-        return hash_seq(&self.body, true);
+        return hash_seq(&self.body, &LOOP_BLOCK_SUFFIX, 0);
     }
 
     pub fn skip(&self) -> &[ProgramBlock] {
@@ -304,7 +317,7 @@ impl Loop {
     }
 
     pub fn skip_hash(&self) -> u128 {
-        return hash_seq(&self.skip, false);
+        return hash_seq(&self.skip, &BLOCK_SUFFIX, BLOCK_SUFFIX_OFFSET);
     }
 
     pub fn get_hash(&self) -> (u128, u128) {
