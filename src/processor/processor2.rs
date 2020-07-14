@@ -135,6 +135,7 @@ fn close_block(decoder: &mut Decoder, stack: &mut Stack, sibling_hash: u128, is_
     }
 }
 
+/// TODO
 fn execute_loop(block: &Loop, decoder: &mut Decoder, stack: &mut Stack)
 {
     // mark the beginning of the loop block
@@ -160,16 +161,12 @@ fn execute_loop(block: &Loop, decoder: &mut Decoder, stack: &mut Stack)
         };
     }
 
-    // end the block, this prepares decoder registers for merging block hash into
-    // program hash
-    decoder.end_block(block.skip_hash(), true);
-    stack.execute(OpCode::Noop, OpHint::None);
-
-    // execute NOOPs to merge block hash into the program hash
-    for _ in 0..HACC_NUM_ROUNDS {
-        decoder.decode_op(OpCode::Noop, field::ZERO);
-        stack.execute(OpCode::Noop, OpHint::None);
+    match &block.skip()[0] {
+        ProgramBlock::Span(block) => execute_span(block, decoder, stack, true),
+        _ => panic!("TODO")
     }
+
+    close_block(decoder, stack, block.skip_hash(), true);
 }
 
 // TESTS
@@ -184,27 +181,178 @@ mod tests {
     use super::{ ProgramInputs };
 
     #[test]
-    fn execute() {
+    fn execute_span() {
         let program = assembly::compile("begin add push.5 mul push.7 end", blake3).unwrap();
         let inputs = ProgramInputs::from_public(&[1, 2]);
 
         let trace = super::execute(&program, 0, &inputs);
-        // TODO: add checks
-        print_trace(&trace);
+        let trace_length = trace[0].len();
+        let i = trace_length - 1;
 
-        let program_hash = [*trace[0].last().unwrap(), *trace[1].last().unwrap()];
+        let program_hash = [trace[0][i], trace[1][i]];
+        let op_bits = [
+            trace[4][i], trace[5][i], trace[6][i], trace[7][i], trace[8][i],
+            trace[9][i], trace[10][i], trace[11][i], trace[12][i], trace[13][i]
+        ];
+        let ctx_stack = [trace[14][i]];
+        let user_stack = [trace[15][i], trace[16][i]];
 
+        assert_eq!(64, trace_length);
         assert_eq!(program.hash(), as_bytes(&program_hash));
+        assert_eq!([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], op_bits);
+        assert_eq!([0], ctx_stack);
+        assert_eq!([7, 15], user_stack);
     }
 
-    fn print_trace(trace: &Vec<Vec<u128>>) {
+    #[test]
+    fn execute_block() {
+        let program = assembly::compile("begin add block push.5 mul push.7 end end", blake3).unwrap();
+        let inputs = ProgramInputs::from_public(&[1, 2]);
+
+        let trace = super::execute(&program, 0, &inputs);
+        let trace_length = trace[0].len();
+        let i = trace_length - 1;
+
+        let program_hash = [trace[0][i], trace[1][i]];
+        let op_bits = [
+            trace[4][i], trace[5][i], trace[6][i], trace[7][i], trace[8][i],
+            trace[9][i], trace[10][i], trace[11][i], trace[12][i], trace[13][i]
+        ];
+        let ctx_stack = [trace[14][i], trace[15][i]];
+        let user_stack = [trace[16][i], trace[17][i]];
+
+        assert_eq!(64, trace_length);
+        assert_eq!(program.hash(), as_bytes(&program_hash));
+        assert_eq!([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], op_bits);
+        assert_eq!([0, 0], ctx_stack);
+        assert_eq!([7, 15], user_stack);
+    }
+
+    #[test]
+    fn execute_if_else() {
+        let program = assembly::compile(
+            "begin read if.true add push.3 else push.7 add push.8 end mul end",
+            blake3).unwrap();
+        
+        // execute true branch
+        let inputs = ProgramInputs::new(&[5, 3], &[1], &[]);
+        let trace = super::execute(&program, 0, &inputs);
+        let trace_length = trace[0].len();
+        let i = trace_length - 1;
+
+        let program_hash = [trace[0][i], trace[1][i]];
+        let op_bits = [
+            trace[4][i], trace[5][i], trace[6][i], trace[7][i], trace[8][i],
+            trace[9][i], trace[10][i], trace[11][i], trace[12][i], trace[13][i]
+        ];
+        let ctx_stack = [trace[14][i], trace[15][i]];
+        let user_stack = [trace[16][i], trace[17][i], trace[18][i]];
+
+        assert_eq!(128, trace_length);
+        assert_eq!(program.hash(), as_bytes(&program_hash));
+        assert_eq!([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], op_bits);
+        assert_eq!([0, 0], ctx_stack);
+        assert_eq!([24, 0, 0], user_stack);
+
+        // execute false branch
+        let inputs = ProgramInputs::new(&[5, 3], &[0], &[]);
+        let trace = super::execute(&program, 0, &inputs);
+        let trace_length = trace[0].len();
+        let i = trace_length - 1;
+
+        let program_hash = [trace[0][i], trace[1][i]];
+        let op_bits = [
+            trace[4][i], trace[5][i], trace[6][i], trace[7][i], trace[8][i],
+            trace[9][i], trace[10][i], trace[11][i], trace[12][i], trace[13][i]
+        ];
+        let ctx_stack = [trace[14][i], trace[15][i]];
+        let user_stack = [trace[16][i], trace[17][i], trace[18][i]];
+
+        assert_eq!(128, trace_length);
+        assert_eq!(program.hash(), as_bytes(&program_hash));
+        assert_eq!([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], op_bits);
+        assert_eq!([0, 0], ctx_stack);
+        assert_eq!([96, 3, 0], user_stack);
+    }
+
+    #[test]
+    fn execute_loop() {
+        let program = assembly::compile(
+            "begin mul read while.true dup mul read end end",
+            blake3).unwrap();
+
+        // don't enter the loop
+        let inputs = ProgramInputs::new(&[5, 3], &[0], &[]);
+        let trace = super::execute(&program, 0, &inputs);
+        let trace_length = trace[0].len();
+        let i = trace_length - 1;
+
+        let program_hash = [trace[0][i], trace[1][i]];
+        let op_bits = [
+            trace[4][i], trace[5][i], trace[6][i], trace[7][i], trace[8][i],
+            trace[9][i], trace[10][i], trace[11][i], trace[12][i], trace[13][i]
+        ];
+        let ctx_stack = [trace[14][i], trace[15][i]];
+        let user_stack = [trace[16][i], trace[17][i]];
+
+        assert_eq!(64, trace_length);
+        assert_eq!(program.hash(), as_bytes(&program_hash));
+        assert_eq!([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], op_bits);
+        assert_eq!([0, 0], ctx_stack);
+        assert_eq!([15, 0], user_stack);
+
+        // execute one iteration
+        let inputs = ProgramInputs::new(&[5, 3], &[1, 0], &[]);
+        let trace = super::execute(&program, 0, &inputs);
+        let trace_length = trace[0].len();
+        let i = trace_length - 1;
+
+        let program_hash = [trace[0][i], trace[1][i]];
+        let op_bits = [
+            trace[4][i], trace[5][i], trace[6][i], trace[7][i], trace[8][i],
+            trace[9][i], trace[10][i], trace[11][i], trace[12][i], trace[13][i]
+        ];
+        let ctx_stack = [trace[14][i], trace[15][i]];
+        let loop_stack = [trace[16][i]];
+        let user_stack = [trace[17][i], trace[18][i]];
+
+        assert_eq!(128, trace_length);
+        assert_eq!(program.hash(), as_bytes(&program_hash));
+        assert_eq!([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], op_bits);
+        assert_eq!([0, 0], ctx_stack);
+        assert_eq!([0], loop_stack);
+        assert_eq!([225, 0], user_stack);
+
+        // execute five iteration
+        let inputs = ProgramInputs::new(&[5, 3], &[1, 1, 1, 1, 1, 0], &[]);
+        let trace = super::execute(&program, 0, &inputs);
+        print_trace(&trace, 2, 1);
+        let trace_length = trace[0].len();
+        let i = trace_length - 1;
+
+        let program_hash = [trace[0][i], trace[1][i]];
+        let op_bits = [
+            trace[4][i], trace[5][i], trace[6][i], trace[7][i], trace[8][i],
+            trace[9][i], trace[10][i], trace[11][i], trace[12][i], trace[13][i]
+        ];
+        let ctx_stack = [trace[14][i], trace[15][i]];
+        let loop_stack = [trace[16][i]];
+        let user_stack = [trace[17][i], trace[18][i]];
+
+        assert_eq!(256, trace_length);
+        assert_eq!(program.hash(), as_bytes(&program_hash));
+        assert_eq!([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], op_bits);
+        assert_eq!([0, 0], ctx_stack);
+        assert_eq!([0], loop_stack);
+        assert_eq!([43143988327398919500410556793212890625, 0], user_stack);
+    }
+
+    fn print_trace(trace: &Vec<Vec<u128>>, ctx_stack_depth: usize, loop_stack_depth: usize) {
 
         let width = trace.len();
         let length = trace[0].len();
 
-        let ctx_stack_depth = 1;
         let ctx_stack_end = 14 + ctx_stack_depth;
-        let loop_stack_depth = 0;
         let loop_stack_end = ctx_stack_end + loop_stack_depth;
 
         for i in 0..length {

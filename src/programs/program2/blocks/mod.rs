@@ -291,6 +291,10 @@ impl Loop {
         return &self.body;
     }
 
+    pub fn image(&self) -> u128 {
+        return hash_seq(&self.body, true);
+    }
+
     pub fn body_hash(&self) -> u128 {
         return hash_seq(&self.body, true);
     }
