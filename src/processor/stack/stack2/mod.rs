@@ -117,9 +117,18 @@ impl Stack {
         return self.step;
     }
 
-    /// Returns the value at the top of the stack at specified `step`.
-    pub fn get_stack_top(&self, step: usize) -> u128 {
-        return self.registers[0][step];
+    /// Returns the value at the top of the stack at the current step.
+    pub fn get_stack_top(&self) -> u128 {
+        return self.registers[0][self.step];
+    }
+
+    /// TODO: add description
+    pub fn finalize_trace(&mut self) {
+        let trace_length = self.trace_length();
+        for register in self.registers.iter_mut() {
+            register.resize(self.step + 1, field::ZERO);
+            register.resize(trace_length, register[self.step]);
+        }
     }
 
     /// Merges all register traces into a single vector of traces.

@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::{ ops::Range };
 use crate::math::{ field };
 use crate::utils::accumulator::{ add_constants, apply_sbox, apply_mds, apply_inv_sbox };
 
@@ -132,6 +132,38 @@ impl Decoder {
             &state[LD_OP_BITS_RANGE], &state[HD_OP_BITS_RANGE],
             &state[ctx_stack_start..ctx_stack_end], &state[ctx_stack_end..],
         );
+    }
+
+    /// Merges all register traces into a single vector of traces.
+    pub fn into_register_traces(mut self) -> Vec<Vec<u128>> {
+        let mut registers: Vec<Vec<u128>> = Vec::new();
+
+        let [r0, r1, r2, r3] = self.op_acc;
+        registers.push(r0);
+        registers.push(r1);
+        registers.push(r2);
+        registers.push(r3);
+
+        let [r0, r1, r2] = self.cf_op_bits;
+        registers.push(r0);
+        registers.push(r1);
+        registers.push(r2);
+
+        let [r0, r1, r2, r3, r4] = self.ld_op_bits;
+        registers.push(r0);
+        registers.push(r1);
+        registers.push(r2);
+        registers.push(r3);
+        registers.push(r4);
+
+        let [r0, r1] = self.hd_op_bits;
+        registers.push(r0);
+        registers.push(r1);
+
+        registers.append(&mut self.ctx_stack);
+        registers.append(&mut self.loop_stack);
+
+        return registers;
     }
 
     // OPERATION DECODERS
