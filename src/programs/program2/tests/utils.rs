@@ -1,183 +1,141 @@
-use super::{ ProgramBlock, Opcode, Loop, OpHint };
-use super::super::hashing::{ hash_op, acc_hash_round, ACC_NUM_ROUNDS };
+use super::{ ProgramBlock, Opcode, Span, Loop };
+use super::super::hashing::{ hash_op, ACC_NUM_ROUNDS };
 
-pub fn traverse(block: &ProgramBlock, stack: &mut Vec<u128>, hash: &mut [u128; 4], mut step: usize) -> usize {
+pub fn traverse(blocks: &[ProgramBlock], stack: &mut Vec<u128>, hash: &mut [u128; 4], mut step: usize) -> usize
+{
+    // execute first block in the sequence, which mast be a Span block
+    step = match &blocks[0] {
+        ProgramBlock::Span(block) => traverse_span(block, hash, true, step),
+        _ => panic!("first block in a sequence must be a Span block"),
+    };
 
-    match block {
-        ProgramBlock::Span(block) => {
-            for i in 0..block.length() {
-                let (op_code, op_hint) = block.get_op(i);
-                let op_value = match op_hint {
-                    OpHint::PushValue(value) => value,
-                    _ => 0,
-                };
-                println!("{}: {} \t {:?}", step, op_code, hash);
-                hash_op(hash, op_code as u8, op_value, step);
-                step += 1;
-            }
-        },
-        ProgramBlock::Group(block) => {
-            println!("{}: BEGIN {:?}", step, hash);
-            step += 1; // BEGIN
-            let (new_step, state) = traverse_true_branch(block.body(), stack, hash[0], 0, step);
-            hash.copy_from_slice(&state);
-            step = new_step;
-        },
-        ProgramBlock::Switch(block) => {
-            println!("{}: BEGIN {:?}", step, hash);
-            step += 1; // BEGIN
-
-            let condition = stack.pop().unwrap();
-            match condition {
-                0 => {
-                    let blocks = block.false_branch();
-                    let sibling_hash = block.true_branch_hash();
-                    let (new_step, state) = traverse_false_branch(blocks, stack, hash[0], sibling_hash, step);
-                    hash.copy_from_slice(&state);
-                    step = new_step;
-                },
-                1 => {
-                    let blocks = block.true_branch();
-                    let sibling_hash = block.false_branch_hash();
-                    let (new_step, state) = traverse_true_branch(blocks, stack, hash[0], sibling_hash, step);
-                    hash.copy_from_slice(&state);
-                    step = new_step;
-                },
-                _ => panic!("cannot select a branch based on a non-binary condition {}", condition)
-            };
-        },
-        ProgramBlock::Loop(block) => {
-            let condition = stack.pop().unwrap();
-            match condition {
-                0 => {
-                    println!("{}: BEGIN {:?}", step, hash);
-                    step += 1; // BEGIN
-
-                    let blocks = block.skip();
-                    let body_hash = block.body_hash();
-                    let (new_step, state) = traverse_false_branch(blocks, stack, hash[0], body_hash, step);
-                    hash.copy_from_slice(&state);
-                    step = new_step;
-                },
-                1 => {
-                    println!("{}: LOOP {:?}", step, hash);
-                    step += 1; // LOOP
-
-                    let (new_step, state) = traverse_loop_body(block, stack, hash[0], step);
-                    hash.copy_from_slice(&state);
-                    step = new_step;
-                },
-                _ => panic!("cannot enter loop based on a non-binary condition {}", condition)
-            };
-        },
+    // execute all other blocks in the sequence one after another
+    for block in blocks.iter().skip(1) {
+        step = match block {
+            ProgramBlock::Span(block) => traverse_span(block, hash, false, step),
+            ProgramBlock::Group(block) => {
+                step += 1; // BEGIN
+                let mut state = [0, 0, 0, 0];
+                step = traverse(block.body(), stack, &mut state, step);
+                step = close_block(&mut state, hash[0], 0, true, step);
+                hash.copy_from_slice(&state);
+                step
+            },
+            ProgramBlock::Switch(block) => {
+                step += 1; // BEGIN
+                let mut state = [0, 0, 0, 0];
+                let condition = stack.pop().unwrap();
+                match condition {
+                    0 => {
+                        step = traverse(block.false_branch(), stack, &mut state, step);
+                        step = close_block(&mut state, hash[0], block.true_branch_hash(), false, step);
+                        hash.copy_from_slice(&state);
+                        step
+                    },
+                    1 => {
+                        step = traverse(block.true_branch(), stack, &mut state, step);
+                        step = close_block(&mut state, hash[0], block.false_branch_hash(), true, step);
+                        hash.copy_from_slice(&state);
+                        step
+                    },
+                    _ => panic!("cannot select a branch based on a non-binary condition {}", condition)
+                }
+            },
+            ProgramBlock::Loop(block) => {
+                let condition = stack.pop().unwrap();
+                match condition {
+                    0 => {
+                        step += 1; // BEGIN
+                        let mut state = [0, 0, 0, 0];
+                        step = traverse(block.skip(), stack, &mut state, step);
+                        step = close_block(&mut state, hash[0], block.body_hash(), false, step);
+                        hash.copy_from_slice(&state);
+                        step
+                    },
+                    1 => traverse_loop(block, hash, stack, step),
+                    _ => panic!("cannot enter loop based on a non-binary condition {}", condition)
+                }
+            },
+        };
     }
 
     return step;
 }
 
-pub fn traverse_true_branch(blocks: &[ProgramBlock], stack: &mut Vec<u128>, parent_hash: u128, sibling_hash: u128, mut step: usize) -> (usize, [u128; 4]) {
-    
-    let mut state = [0, 0, 0, 0];
-    for i in 0..blocks.len() {
-        if i != 0 && blocks[i].is_span() {
-            println!("{}: HACC {:?}", step, state);
-            acc_hash_round(&mut state, step);
-            step += 1;
-        }
-        step = traverse(&blocks[i], stack, &mut state, step);
+fn traverse_span(block: &Span, hash: &mut [u128; 4], is_first: bool, mut step: usize) -> usize
+{
+    if !is_first {
+        hash_op(hash, Opcode::Noop as u8, 0, step);
+        step += 1;
     }
 
-    println!("{}: HACC {:?}", step, state);
-    acc_hash_round(&mut state, step);
+    for i in 0..block.length() {
+        let (op_code, op_hint) = block.get_op(i);
+        hash_op(hash, op_code as u8, op_hint.value(), step);
+        step += 1;
+    }
+
+    return step;
+}
+
+pub fn close_block(hash: &mut [u128; 4], parent_hash: u128, sibling_hash: u128, is_true_branch: bool, mut step: usize) -> usize
+{
+    hash_op(hash, Opcode::Noop as u8, 0, step);
     step += 1;
 
-    println!("{}: TEND {:?}", step, state);
     step += 1; // TEND
 
-    state = [parent_hash, state[0], sibling_hash, 0];
+    if is_true_branch {
+        hash[1] = hash[0];
+        hash[0] = parent_hash;
+        hash[2] = sibling_hash;
+        hash[3] = 0;
+    }
+    else {
+        hash[2] = hash[0];
+        hash[0] = parent_hash;
+        hash[1] = sibling_hash;
+        hash[3] = 0;
+    }
+
     for _ in 0..ACC_NUM_ROUNDS {
-        println!("{}: HACC {:?}", step, state);
-        acc_hash_round(&mut state, step);
+        hash_op(hash, Opcode::Noop as u8, 0, step);
         step += 1;
     }
 
-    return (step, state);
+    return step;
 }
 
-fn traverse_false_branch(blocks: &[ProgramBlock], stack: &mut Vec<u128>, parent_hash: u128, sibling_hash: u128, mut step: usize) -> (usize, [u128; 4]) {
-    
+fn traverse_loop(block: &Loop, hash: &mut [u128; 4], stack: &mut Vec<u128>, mut step: usize) -> usize
+{
+    step += 1; // LOOP
     let mut state = [0, 0, 0, 0];
-    for i in 0..blocks.len() {
-        if i != 0 && blocks[i].is_span() {
-            println!("{}: HACC {:?}", step, state);
-            acc_hash_round(&mut state, step);
-            step += 1;
-        }
-        step = traverse(&blocks[i], stack, &mut state, step);
-    }
 
-    println!("{}: HACC {:?}", step, state);
-    acc_hash_round(&mut state, step);
-    step += 1;
-
-    println!("{}: FEND {:?}", step, state);
-    step += 1; // FEND
-
-    state = [parent_hash, sibling_hash, state[0], 0];
-    for _ in 0..ACC_NUM_ROUNDS {
-        println!("{}: HACC {:?}", step, state);
-        acc_hash_round(&mut state, step);
-        step += 1;
-    }
-
-    return (step, state);
-}
-
-fn traverse_loop_body(block: &Loop, stack: &mut Vec<u128>, parent_hash: u128, mut step: usize) -> (usize, [u128; 4]) {
-    
-    let mut state = [0, 0, 0, 0];
     loop {
-
-        for i in 0..block.body().len() {
-            if i != 0 && block.body()[i].is_span() {
-                println!("{}: HACC {:?}", step, state);
-                acc_hash_round(&mut state, step);
-                step += 1;
-            }
-            step = traverse(&block.body()[i], stack, &mut state, step);
-        }
-
-        assert!(state[0] == block.image(), "loop image didn't match loop body hash");
-
-        println!("{}: WRAP {:?}", step, state);
-        step += 1; // WRAP
+        step = traverse(block.body(), stack, &mut state, step);
 
         let condition = stack.pop().unwrap();
         match condition {
-            0 => break,
-            1 => state = [0, 0, 0, 0],
+            0 => {
+                assert!(state[0] == block.image(), "loop image didn't match loop body hash");
+                step += 1; // BREAK
+                break;
+            },
+            1 => {
+                assert!(state[0] == block.image(), "loop image didn't match loop body hash");
+                state = [0, 0, 0, 0];
+                step += 1; // WRAP
+            },
             _ => panic!("cannot exit loop based on a non-binary condition {}", condition)
         };
     }
 
-    hash_op(&mut state, Opcode::Not as u8, 0, step);
-    step += 1;
-    hash_op(&mut state, Opcode::Assert as u8, 0, step);
-    step += 1;
-    for _ in 0..14 {
-        hash_op(&mut state, Opcode::Noop as u8, 0, step);
-        step += 1;
-    }
+    step = match &block.skip()[0] {
+        ProgramBlock::Span(block) => traverse_span(block, &mut state, true, step),
+        _ => panic!("invalid skip block content: content must be a Span block"),
+    };
 
-    println!("{}: TEND {:?}", step, state);
-    step += 1; // TEND
-
-    state = [parent_hash, state[0], block.skip_hash(), 0];
-    for _ in 0..ACC_NUM_ROUNDS {
-        println!("{}: HACC {:?}", step, state);
-        acc_hash_round(&mut state, step);
-        step += 1;
-    }
-
-    return (step, state);
+    step = close_block(&mut state, hash[0], block.skip_hash(), true, step);
+    hash.copy_from_slice(&state);
+    return step;
 }

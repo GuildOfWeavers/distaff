@@ -3,10 +3,17 @@ use crate::utils::accumulator::{ add_constants, apply_sbox, apply_mds, apply_inv
 use crate::{ ACC_STATE_WIDTH };
 use super::{ ProgramBlock, BASE_CYCLE_LENGTH };
 
+// CONSTANTS
+// ================================================================================================
 pub const STATE_WIDTH: usize = ACC_STATE_WIDTH;
 pub const CYCLE_LENGTH: usize = BASE_CYCLE_LENGTH;
 pub const ACC_NUM_ROUNDS: usize = 14;   // TODO: move to global constants
 pub const ACC_ROUND_OFFSET: usize = 1;  // TODO: move to global constants
+
+pub const NOOP_VALUE: u8 = u8::max_value();
+
+// PUBLIC FUNCTIONS
+// ================================================================================================
 
 /// Returns a hash of a sequence of program blocks.
 pub fn hash_seq(blocks: &Vec<ProgramBlock>, suffix: &[u8], suffix_offset: usize) -> u128 {
@@ -26,7 +33,7 @@ pub fn hash_seq(blocks: &Vec<ProgramBlock>, suffix: &[u8], suffix_offset: usize)
             ProgramBlock::Span(block) => {
                 // for Span blocks, first do an extra round of acc_hash to ensure block
                 // alignment on a 16 cycle boundary
-                acc_hash_round(&mut state, CYCLE_LENGTH - 1);
+                hash_op(&mut state, NOOP_VALUE, 0, CYCLE_LENGTH - 1);
 
                 // then, update the state with the hash of the block
                 state = block.hash(state);
@@ -76,28 +83,11 @@ pub fn hash_op(state: &mut [u128; STATE_WIDTH], op_code: u8, op_value: u128, ste
     apply_mds(state);
 }
 
+/// Merges hash of a control block (v0, v1) into the hash of the parent block.
 pub fn hash_acc(parent_hash: u128, v0: u128, v1: u128) -> [u128; STATE_WIDTH] {
     let mut state = [parent_hash, v0, v1, 0];
     for i in ACC_ROUND_OFFSET..(ACC_ROUND_OFFSET + ACC_NUM_ROUNDS) {
-        acc_hash_round(&mut state, i);
+        hash_op(&mut state, NOOP_VALUE, 0, i);
     }
     return state;
-}
-
-pub fn acc_hash_round(state: &mut [u128; STATE_WIDTH], step: usize) {
-    
-    let ark_idx = step % CYCLE_LENGTH;
-
-    // apply first half of Rescue round
-    add_constants(state, ark_idx, 0);
-    apply_sbox(state);
-    apply_mds(state);
-
-    // this is equivalent to adding NOOP opcode
-    state[0] = field::add(state[0], u8::max_value() as u128);
-
-    // apply second half of Rescue round
-    add_constants(state, ark_idx, STATE_WIDTH);
-    apply_inv_sbox(state);
-    apply_mds(state);
 }

@@ -1,10 +1,10 @@
 use crate::crypto::{ hash::blake3 };
 use crate::utils::{ as_bytes };
-use crate::processor::opcodes2::{ UserOps as Opcode, OpHint };
+use crate::processor::opcodes2::{ UserOps as Opcode };
 use super::{ Program, ProgramBlock, Span, Group, Switch, Loop };
 
 mod utils;
-use utils::{ traverse_true_branch };
+use utils::{ traverse, close_block };
 
 // TESTS
 // ================================================================================================
@@ -15,9 +15,11 @@ fn single_block() {
 
     let program = Program::from_proc(vec![block]);
     let procedure = program.get_proc(0);
-    let (step, hash) = traverse_true_branch(procedure.body(), &mut vec![], 0, 0, 0);
+    let mut program_hash = [0, 0, 0, 0];
+    let step = traverse(procedure.body(), &mut vec![], &mut program_hash, 0);
+    let step = close_block(&mut program_hash, 0, 0, true, step);
 
-    assert_eq!(*program.hash(), hash_to_bytes(&hash));
+    assert_eq!(*program.hash(), hash_to_bytes(&program_hash));
     assert_eq!(31, step);
 }
 
@@ -34,9 +36,11 @@ fn linear_blocks() {
     // sequence of blocks ending with group block
     let program = Program::from_proc(vec![block1.clone(), block2.clone(), block3.clone()]);
     let procedure = program.get_proc(0);
-    let (step, hash) = traverse_true_branch(procedure.body(), &mut vec![], 0, 0, 0);
+    let mut program_hash = [0, 0, 0, 0];
+    let step = traverse(procedure.body(), &mut vec![], &mut program_hash, 0);
+    let step = close_block(&mut program_hash, 0, 0, true, step);
 
-    assert_eq!(*program.hash(), hash_to_bytes(&hash));
+    assert_eq!(*program.hash(), hash_to_bytes(&program_hash));
     assert_eq!(95, step);
 
     // sequence of blocks ending with span block
@@ -44,9 +48,11 @@ fn linear_blocks() {
 
     let program = Program::from_proc(vec![block1, block2, block3, block4]);
     let procedure = program.get_proc(0);
-    let (step, hash) = traverse_true_branch(procedure.body(), &mut vec![], 0, 0, 0);
+    let mut program_hash = [0, 0, 0, 0];
+    let step = traverse(procedure.body(), &mut vec![], &mut program_hash, 0);
+    let step = close_block(&mut program_hash, 0, 0, true, step);
 
-    assert_eq!(*program.hash(), hash_to_bytes(&hash));
+    assert_eq!(*program.hash(), hash_to_bytes(&program_hash));
     assert_eq!(111, step);
 }
 
@@ -65,9 +71,11 @@ fn nested_blocks() {
     // sequence of blocks ending with group block
     let program = Program::from_proc(vec![block1, block2, block3]);
     let procedure = program.get_proc(0);
-    let (step, hash) = traverse_true_branch(procedure.body(), &mut vec![], 0, 0, 0);
+    let mut program_hash = [0, 0, 0, 0];
+    let step = traverse(procedure.body(), &mut vec![], &mut program_hash, 0);
+    let step = close_block(&mut program_hash, 0, 0, true, step);
 
-    assert_eq!(*program.hash(), hash_to_bytes(&hash));
+    assert_eq!(*program.hash(), hash_to_bytes(&program_hash));
     assert_eq!(127, step);
 }
 
@@ -93,13 +101,17 @@ fn conditional_program() {
     let procedure = program.get_proc(0);
 
     // true branch execution
-    let (step, hash) = traverse_true_branch(procedure.body(), &mut vec![1], 0, 0, 0);
-    assert_eq!(*program.hash(), hash_to_bytes(&hash));
+    let mut program_hash = [0, 0, 0, 0];
+    let step = traverse(procedure.body(), &mut vec![1], &mut program_hash, 0);
+    let step = close_block(&mut program_hash, 0, 0, true, step);
+    assert_eq!(*program.hash(), hash_to_bytes(&program_hash));
     assert_eq!(63, step);
 
     // false branch execution
-    let (step, hash) = traverse_true_branch(procedure.body(), &mut vec![0], 0, 0, 0);
-    assert_eq!(*program.hash(), hash_to_bytes(&hash));
+    let mut program_hash = [0, 0, 0, 0];
+    let step = traverse(procedure.body(), &mut vec![0], &mut program_hash, 0);
+    let step = close_block(&mut program_hash, 0, 0, true, step);
+    assert_eq!(*program.hash(), hash_to_bytes(&program_hash));
     assert_eq!(63, step);
 }
 
@@ -119,18 +131,24 @@ fn simple_loop() {
     let procedure = program.get_proc(0);
 
     // loop not entered
-    let (step, hash) = traverse_true_branch(procedure.body(), &mut vec![0], 0, 0, 0);
-    assert_eq!(*program.hash(), hash_to_bytes(&hash));
+    let mut program_hash = [0, 0, 0, 0];
+    let step = traverse(procedure.body(), &mut vec![0], &mut program_hash, 0);
+    let step = close_block(&mut program_hash, 0, 0, true, step);
+    assert_eq!(*program.hash(), hash_to_bytes(&program_hash));
     assert_eq!(63, step);
 
     // loop executed once
-    let (step, hash) = traverse_true_branch(procedure.body(), &mut vec![0, 1], 0, 0, 0);
-    assert_eq!(*program.hash(), hash_to_bytes(&hash));
+    let mut program_hash = [0, 0, 0, 0];
+    let step = traverse(procedure.body(), &mut vec![0, 1], &mut program_hash, 0);
+    let step = close_block(&mut program_hash, 0, 0, true, step);
+    assert_eq!(*program.hash(), hash_to_bytes(&program_hash));
     assert_eq!(79, step);
 
     // loop executed 3 times
-    let (step, hash) = traverse_true_branch(procedure.body(), &mut vec![0, 1, 1, 1], 0, 0, 0);
-    assert_eq!(*program.hash(), hash_to_bytes(&hash));
+    let mut program_hash = [0, 0, 0, 0];
+    let step = traverse(procedure.body(), &mut vec![0, 1, 1, 1], &mut program_hash, 0);
+    let step = close_block(&mut program_hash, 0, 0, true, step);
+    assert_eq!(*program.hash(), hash_to_bytes(&program_hash));
     assert_eq!(111, step);
 }
 
@@ -142,8 +160,13 @@ fn program_with_two_procedures() {
     
     let program = Program::new(vec![block1.clone(), block2.clone()], blake3);
     
-    let (_, hash1) = traverse_true_branch(block1.body(), &mut vec![], 0, 0, 0);
-    let (_, hash2) = traverse_true_branch(block2.body(), &mut vec![], 0, 0, 0);
+    let mut hash1 = [0, 0, 0, 0];
+    let step = traverse(block1.body(), &mut vec![], &mut hash1, 0);
+    close_block(&mut hash1, 0, 0, true, step);
+
+    let mut hash2 = [0, 0, 0, 0];
+    let step = traverse(block2.body(), &mut vec![], &mut hash2, 0);
+    close_block(&mut hash2, 0, 0, true, step);
     
     let buf = [as_bytes(&hash1[..2]), as_bytes(&hash2[..2])].concat();
     let mut program_hash = [0u8; 32];
@@ -160,9 +183,14 @@ fn procedure_authentication() {
     
     let program = Program::new(vec![block1.clone(), block2.clone()], blake3);
     
-    let (_, hash1) = traverse_true_branch(block1.body(), &mut vec![], 0, 0, 0);
+    let mut hash1 = [0, 0, 0, 0];
+    let step = traverse(block1.body(), &mut vec![], &mut hash1, 0);
+    close_block(&mut hash1, 0, 0, true, step);
     let hash1 = hash_to_bytes(&hash1);
-    let (_, hash2) = traverse_true_branch(block2.body(), &mut vec![], 0, 0, 0);
+
+    let mut hash2 = [0, 0, 0, 0];
+    let step = traverse(block2.body(), &mut vec![], &mut hash2, 0);
+    close_block(&mut hash2, 0, 0, true, step);
     let hash2 = hash_to_bytes(&hash2);
     
     let path1 = program.get_proc_path(0);

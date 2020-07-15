@@ -90,7 +90,8 @@ fn execute_blocks(blocks: &[ProgramBlock], decoder: &mut Decoder, stack: &mut St
 }
 
 /// Executes all instructions in a Span block.
-fn execute_span(block: &Span, decoder: &mut Decoder, stack: &mut Stack, is_first: bool) {
+fn execute_span(block: &Span, decoder: &mut Decoder, stack: &mut Stack, is_first: bool)
+{
     // if this is the first Span block in a sequence of blocks, it needs to be
     // pre-padded with a NOOP to make sure the first instruction in the block
     // starts executing on a step which is a multiple of 16
