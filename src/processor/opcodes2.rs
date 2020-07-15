@@ -19,41 +19,48 @@ pub enum FlowOps {
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum UserOps {
     
-    Assert      = 0b000_00_001,
-    AssertEq    = 0b000_00_010,
-    Eq          = 0b000_00_011,
-    Cmp         = 0b000_00_100,
-    BinAcc      = 0b000_00_101,
-    Choose      = 0b000_00_110,
-    Choose2     = 0b000_00_111,
+    // low-degree operations
+    Assert      = 0b0_11_00000,         // left shift: 1
+    AssertEq    = 0b0_11_00001,         // left shift: 2
+    Eq          = 0b0_11_00010,         // left shift: 2
+    Drop        = 0b0_11_00011,         // left shift: 1
+    Drop4       = 0b0_11_00100,         // left shift: 4
+    Choose      = 0b0_11_00101,         // left shift: 2
+    Choose2     = 0b0_11_00110,         // left shift: 4
+    //???       = 0b0_11_00111,
 
-    Add         = 0b000_01_000,
-    Mul         = 0b000_01_001,
-    Inv         = 0b000_01_010,
-    Neg         = 0b000_01_011,
-    Not         = 0b000_01_100,
-    And         = 0b000_01_101,
-    Or          = 0b000_01_110,
-    //???       = 0b000_01_111,
+    Add         = 0b0_11_01000,         // left shift: 1
+    Mul         = 0b0_11_01001,         // left shift: 1
+    And         = 0b0_11_01010,         // left shift: 1
+    Or          = 0b0_11_01011,         // left shift: 1
+    Inv         = 0b0_11_01100,         // no shift
+    Neg         = 0b0_11_01101,         // no shift
+    Not         = 0b0_11_01110,         // no shift
+    //???       = 0b0_11_01111,
 
-    Dup         = 0b000_10_000,
-    Dup2        = 0b000_10_001,
-    Dup4        = 0b000_10_010,
-    Pad2        = 0b000_10_011,
-    Drop        = 0b000_10_100,
-    Drop4       = 0b000_10_101,
-    Swap        = 0b000_10_110,
-    Swap2       = 0b000_10_111,
+    Read        = 0b0_11_10000,         // right shift: 1
+    Read2       = 0b0_11_10001,         // right shift: 2
+    Dup         = 0b0_11_10010,         // right shift: 1
+    Dup2        = 0b0_11_10011,         // right shift: 2
+    Dup4        = 0b0_11_10100,         // right shift: 4
+    Pad2        = 0b0_11_10101,         // right shift: 2
+    //???       = 0b0_11_10110,
+    //???       = 0b0_11_10111,
 
-    Swap4       = 0b000_11_000,
-    Roll4       = 0b000_11_001,
-    Roll8       = 0b000_11_010,
-    Push        = 0b000_11_011,
-    Read        = 0b000_11_100,
-    Read2       = 0b000_11_101,
-    RescR       = 0b000_11_110,
+    Swap        = 0b0_11_11000,         // no shift
+    Swap2       = 0b0_11_11001,         // no shift
+    Swap4       = 0b0_11_11010,         // no shift
+    Roll4       = 0b0_11_11011,         // no shift
+    Roll8       = 0b0_11_11100,         // no shift
+    BinAcc      = 0b0_11_11101,         // no shift
+    //???       = 0b0_11_11110,
     
-    Noop        = 0b111_11_111,
+    Noop        = 0b1_11_11111,         // no shift
+
+    // high-degree operations
+    Push        = 0b0_00_11111,         // right shift: 1
+    Cmp         = 0b0_01_11111,         // no shift
+    RescR       = 0b0_10_11111,         // no shift
 }
 
 impl std::fmt::Display for UserOps {
