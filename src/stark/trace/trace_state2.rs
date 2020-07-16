@@ -20,7 +20,7 @@ const HD_OP_BITS_RANGE  : Range<usize> = Range { start: 12, end: 14 };
 
 // TYPES AND INTERFACES
 // ================================================================================================
-#[derive(Debug, PartialEq)]
+#[derive(PartialEq)]
 pub struct TraceState {
     op_acc      : [u128; SPONGE_WIDTH],
     cf_op_bits  : [u128; NUM_CF_OP_BITS],
@@ -261,6 +261,34 @@ impl TraceState {
 
         // mark flags as set
         self.op_flags_set = true;
+    }
+}
+
+impl fmt::Debug for TraceState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:>32?} {:?} {:?} {:?} {:>32?} {:>32?} {:?}",
+            self.op_acc, 
+            self.cf_op_bits,
+            self.ld_op_bits,
+            self.hd_op_bits,
+            self.ctx_stack,
+            self.loop_stack,
+            self.user_stack
+        )
+    }
+}
+
+impl fmt::Display for TraceState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:>16?} {:?} {:?} {:?} {:>16?} {:>16?} {:?}",
+            self.op_acc.iter().map(|x| x >> 64).collect::<Vec<u128>>(),
+            self.cf_op_bits,
+            self.ld_op_bits,
+            self.hd_op_bits,
+            self.ctx_stack.iter().map(|x| x >> 64).collect::<Vec<u128>>(),
+            self.loop_stack.iter().map(|x| x >> 64).collect::<Vec<u128>>(),
+            &self.user_stack[..self.stack_depth]
+        )
     }
 }
 
