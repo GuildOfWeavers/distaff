@@ -9,12 +9,13 @@ const SPONGE_WIDTH: usize = 4;
 const NUM_CF_OP_BITS: usize = 3;
 const NUM_LD_OP_BITS: usize = 5;
 const NUM_HD_OP_BITS: usize = 2;
+const NUM_OP_BITS: usize = NUM_CF_OP_BITS + NUM_LD_OP_BITS + NUM_HD_OP_BITS;
 
 const NUM_CF_OPS: usize = 8;
 const NUM_LD_OPS: usize = 32;
 const NUM_HD_OPS: usize = 4;
 
-const OP_ACC_RANGE      : Range<usize> = Range { start:  0, end:  4 };
+const SPONGE_RANGE      : Range<usize> = Range { start:  0, end:  4 };
 const CF_OP_BITS_RANGE  : Range<usize> = Range { start:  4, end:  7 };
 const LD_OP_BITS_RANGE  : Range<usize> = Range { start:  7, end: 12 };
 const HD_OP_BITS_RANGE  : Range<usize> = Range { start: 12, end: 14 };
@@ -23,7 +24,7 @@ const HD_OP_BITS_RANGE  : Range<usize> = Range { start: 12, end: 14 };
 // ================================================================================================
 #[derive(PartialEq)]
 pub struct TraceState {
-    op_acc      : [u128; SPONGE_WIDTH],
+    sponge      : [u128; SPONGE_WIDTH],
     cf_op_bits  : [u128; NUM_CF_OP_BITS],
     ld_op_bits  : [u128; NUM_LD_OP_BITS],
     hd_op_bits  : [u128; NUM_HD_OP_BITS],
@@ -45,7 +46,7 @@ impl TraceState {
     pub fn new(ctx_depth: usize, loop_depth: usize, stack_depth: usize) -> TraceState {
         
         return TraceState {
-            op_acc      : [0; SPONGE_WIDTH],
+            sponge      : [0; SPONGE_WIDTH],
             cf_op_bits  : [0; NUM_CF_OP_BITS],
             ld_op_bits  : [0; NUM_LD_OP_BITS],
             hd_op_bits  : [0; NUM_HD_OP_BITS],
@@ -62,8 +63,8 @@ impl TraceState {
 
     pub fn from_vec(ctx_depth: usize, loop_depth: usize, stack_depth: usize, state: &Vec<u128>) -> TraceState {
 
-        let mut op_acc = [0; SPONGE_WIDTH];
-        op_acc.copy_from_slice(&state[OP_ACC_RANGE]);
+        let mut sponge = [0; SPONGE_WIDTH];
+        sponge.copy_from_slice(&state[SPONGE_RANGE]);
 
         let mut cf_op_bits = [0; NUM_CF_OP_BITS];
         cf_op_bits.copy_from_slice(&state[CF_OP_BITS_RANGE]);
@@ -86,7 +87,7 @@ impl TraceState {
         user_stack[..stack_depth].copy_from_slice(&state[loop_stack_end..]);
 
         return TraceState {
-            op_acc,
+            sponge,
             cf_op_bits, ld_op_bits, hd_op_bits,
             ctx_stack, loop_stack, user_stack, stack_depth,
             cf_op_flags : [0; NUM_CF_OPS],
@@ -108,8 +109,8 @@ impl TraceState {
 
     // OP ACCC
     // --------------------------------------------------------------------------------------------
-    pub fn op_acc(&self) -> &[u128] {
-        return &self.op_acc;
+    pub fn sponge(&self) -> &[u128] {
+        return &self.sponge;
     }
 
     // OP BITS
@@ -135,6 +136,12 @@ impl TraceState {
         result = field::add(result, field::mul(self.hd_op_bits[0], 32));
         result = field::add(result, field::mul(self.hd_op_bits[1], 64));
         return result;
+    }
+
+    pub fn set_op_bits(&mut self, bits: [u128; NUM_OP_BITS]) {
+        self.cf_op_bits.copy_from_slice(&bits[..3]);
+        self.ld_op_bits.copy_from_slice(&bits[3..8]);
+        self.hd_op_bits.copy_from_slice(&bits[8..]);
     }
 
     // OP FLAGS
@@ -187,7 +194,7 @@ impl TraceState {
     // --------------------------------------------------------------------------------------------
     pub fn to_vec(&self) -> Vec<u128> {
         let mut result = Vec::with_capacity(self.width());
-        result.extend_from_slice(&self.op_acc);
+        result.extend_from_slice(&self.sponge);
         result.extend_from_slice(&self.cf_op_bits);
         result.extend_from_slice(&self.ld_op_bits);
         result.extend_from_slice(&self.hd_op_bits);
@@ -199,7 +206,7 @@ impl TraceState {
 
     pub fn update_from_trace(&mut self, trace: &Vec<Vec<u128>>, step: usize) {
 
-        for (i, j) in OP_ACC_RANGE.enumerate() { self.op_acc[i] = trace[j][step]; }
+        for (i, j) in SPONGE_RANGE.enumerate() { self.sponge[i] = trace[j][step]; }
         for (i, j) in CF_OP_BITS_RANGE.enumerate() { self.cf_op_bits[i] = trace[j][step]; }
         for (i, j) in LD_OP_BITS_RANGE.enumerate() { self.ld_op_bits[i] = trace[j][step]; }
         for (i, j) in HD_OP_BITS_RANGE.enumerate() { self.hd_op_bits[i] = trace[j][step]; }
@@ -279,7 +286,7 @@ impl TraceState {
 impl fmt::Debug for TraceState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:>32?} {:?} {:?} {:?} {:>32?} {:>32?} {:?}",
-            self.op_acc, 
+            self.sponge, 
             self.cf_op_bits,
             self.ld_op_bits,
             self.hd_op_bits,
@@ -293,7 +300,7 @@ impl fmt::Debug for TraceState {
 impl fmt::Display for TraceState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:>16?} {:?} {:?} {:?} {:>16?} {:>16?} {:?}",
-            self.op_acc.iter().map(|x| x >> 64).collect::<Vec<u128>>(),
+            self.sponge.iter().map(|x| x >> 64).collect::<Vec<u128>>(),
             self.cf_op_bits,
             self.ld_op_bits,
             self.hd_op_bits,
@@ -327,7 +334,7 @@ mod tests {
         ]);
 
         let empty_loop_stack: [u128; 0] = [];
-        assert_eq!([1, 2, 3, 4], state.op_acc());
+        assert_eq!([1, 2, 3, 4], state.sponge());
         assert_eq!([5, 6, 7], state.cf_op_bits());
         assert_eq!([8, 9, 10, 11, 12], state.ld_op_bits());
         assert_eq!([13, 14], state.hd_op_bits());
@@ -346,7 +353,7 @@ mod tests {
             18, 19, 20, 21, 22, 23, 24, 25, 26,
         ]);
 
-        assert_eq!([1, 2, 3, 4], state.op_acc());
+        assert_eq!([1, 2, 3, 4], state.sponge());
         assert_eq!([5, 6, 7], state.cf_op_bits());
         assert_eq!([8, 9, 10, 11, 12], state.ld_op_bits());
         assert_eq!([13, 14], state.hd_op_bits());
@@ -373,7 +380,7 @@ mod tests {
         let mut state = TraceState::new(2, 1, 3);
         state.update_from_trace(&trace, 0);
 
-        assert_eq!([0, 0, 0, 0], state.op_acc());
+        assert_eq!([0, 0, 0, 0], state.sponge());
         assert_eq!([0, 0, 0], state.cf_op_bits());
         assert_eq!([0, 0, 0, 0, 0], state.ld_op_bits());
         assert_eq!([0, 0], state.hd_op_bits());
@@ -386,7 +393,7 @@ mod tests {
         // second row
         state.update_from_trace(&trace, 1);
 
-        assert_eq!([1, 2, 3, 4], state.op_acc());
+        assert_eq!([1, 2, 3, 4], state.sponge());
         assert_eq!([5, 6, 7], state.cf_op_bits());
         assert_eq!([8, 9, 10, 11, 12], state.ld_op_bits());
         assert_eq!([13, 14], state.hd_op_bits());
