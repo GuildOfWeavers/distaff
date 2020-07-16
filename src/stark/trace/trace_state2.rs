@@ -4,6 +4,7 @@ use crate::{
     MIN_STACK_DEPTH,
 };
 
+// TODO: move to global constants
 const SPONGE_WIDTH: usize = 4;
 const NUM_CF_OP_BITS: usize = 3;
 const NUM_LD_OP_BITS: usize = 5;
@@ -123,6 +124,17 @@ impl TraceState {
 
     pub fn hd_op_bits(&self) -> &[u128] {
         return &self.hd_op_bits;
+    }
+
+    pub fn op_code(&self) -> u128 {
+        let mut result = self.ld_op_bits[0];
+        result = field::add(result, field::mul(self.ld_op_bits[1], 2));
+        result = field::add(result, field::mul(self.ld_op_bits[2], 4));
+        result = field::add(result, field::mul(self.ld_op_bits[3], 8));
+        result = field::add(result, field::mul(self.ld_op_bits[4], 16));
+        result = field::add(result, field::mul(self.hd_op_bits[0], 32));
+        result = field::add(result, field::mul(self.hd_op_bits[1], 64));
+        return result;
     }
 
     // OP FLAGS
@@ -386,7 +398,7 @@ mod tests {
     }
 
     #[test]
-    fn get_op_flags() {
+    fn op_flags() {
         // all ones
         let state = TraceState::from_vec(1, 0, 2, &vec![
             1, 2, 3, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 15, 16, 17
@@ -434,5 +446,28 @@ mod tests {
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ], state.ld_op_flags());
         assert_eq!([0, 0, 1, 0], state.hd_op_flags());
+    }
+
+    #[test]
+    fn op_code() {
+        let state = TraceState::from_vec(1, 0, 2, &vec![
+            1, 2, 3, 4, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 15, 16, 17
+        ]);
+        assert_eq!(0, state.op_code());
+
+        let state = TraceState::from_vec(1, 0, 2, &vec![
+            1, 2, 3, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 15, 16, 17
+        ]);
+        assert_eq!(127, state.op_code());
+
+        let state = TraceState::from_vec(1, 0, 2, &vec![
+            1, 2, 3, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 15, 16, 17
+        ]);
+        assert_eq!(63, state.op_code());
+
+        let state = TraceState::from_vec(1, 0, 2, &vec![
+            1, 2, 3, 4, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 15, 16, 17
+        ]);
+        assert_eq!(97, state.op_code());
     }
 }
