@@ -63,6 +63,31 @@ pub enum UserOps {
     RescR       = 0b0_10_11111,         // no shift
 }
 
+impl UserOps {
+
+    pub fn ld_index(&self) -> usize {
+        return match self {
+            UserOps::Push | UserOps::Cmp | UserOps::RescR => {
+                panic!("{} is not a low-degree operation", self);
+            },
+            _ => {
+                (*self as usize) & 0b11111
+            }
+        };
+    }
+
+    pub fn hd_index(&self) -> usize {
+        return match self {
+            UserOps::Push | UserOps::Cmp | UserOps::RescR | UserOps::Noop => {
+                ((*self as usize) >> 5) & 0b11
+            },
+            _ => {
+                panic!("{} is not a high-degree operation", self);
+            }
+        };
+    }
+}
+
 impl std::fmt::Display for UserOps {
 
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
