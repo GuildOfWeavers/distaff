@@ -1,7 +1,7 @@
-use crate::math::{ field, polynom };
+use crate::math::{ field, polynom, fft };
 use crate::processor::opcodes2::{ FlowOps, UserOps };
 use crate::stark::trace::{ trace_state2::TraceState };
-use crate::utils::accumulator::{ get_extended_constants };
+use crate::utils::{ filled_vector, accumulator::ARK };
 use super::utils::{ are_equal, is_zero, is_binary, binary_not, EvaluationResult };
 
 mod op_bits;
@@ -27,17 +27,21 @@ mod tests;
 // TODO: move to global constants
 const SPONGE_WIDTH: usize = 4;
 const SPONGE_CYCLE_LENGTH: usize = 16;
+const BASE_CYCLE_LENGTH: usize = 16;
+
+const CYCLE_MASK_IDX: usize = 0;
+const PREFIX_MASK_IDX: usize = 1;
+const PUSH_MASK_IDX: usize = 2;
 
 // CONSTANTS
 // ================================================================================================
-const NUM_OP_CONSTRAINTS: usize = 20;
+const NUM_OP_CONSTRAINTS: usize = 14;
 const OP_CONSTRAINT_DEGREES: [usize; NUM_OP_CONSTRAINTS] = [
     2, 2, 2, 2, 2, 2, 2, 2, 2, 2,   // all op bits are binary
     7,                              // ld_ops and hd_ops cannot be all 0s
     8,                              // when cf_ops are not all 0s, ld_ops and hd_ops must be all 1s
-    3,                              // PUSH is allowed only on multiples of 8
     2,                              // VOID can be followed only by VOID
-    4, 4, 4, 4, 4, 4,               // cf_ops are aligned correctly
+    4,                              // operations happen on allowed step multiples
 ];
 
 const NUM_SPONGE_CONSTRAINTS: usize = 4;
@@ -53,9 +57,11 @@ pub struct Decoder {
     ctx_depth           : usize,
     loop_depth          : usize,
     trace_length        : usize,
-    ark_cycle_length    : usize,
+    cycle_length        : usize,
     ark_values          : Vec<[u128; 2 * SPONGE_WIDTH]>,
     ark_polys           : Vec<Vec<u128>>,
+    mask_values         : Vec<[u128; 3]>,
+    mask_polys          : Vec<Vec<u128>>,
     constraint_degrees  : Vec<usize>,
 }
 
@@ -63,21 +69,29 @@ pub struct Decoder {
 // ================================================================================================
 impl Decoder {
 
-    fn new(trace_length: usize, extension_factor: usize, ctx_depth: usize, loop_depth: usize) -> Decoder {
-
+    fn new(trace_length: usize, extension_factor: usize, ctx_depth: usize, loop_depth: usize) -> Decoder 
+    {
+        // build an array of constraint degrees for the decoder
         let mut degrees = Vec::from(&OP_CONSTRAINT_DEGREES[..]);
         degrees.extend_from_slice(&SPONGE_CONSTRAINT_DEGREES[..]);
         degrees.resize(degrees.len() + ctx_depth + loop_depth, STACK_CONSTRAINT_DEGREE);
 
+        // determine extended cycle length
+        let cycle_length = BASE_CYCLE_LENGTH * extension_factor;
+
         // extend rounds constants by the specified extension factor
-        let (ark_polys, ark_evaluations) = get_extended_constants(extension_factor);
-        let ark_cycle_length = SPONGE_CYCLE_LENGTH * extension_factor;
-        let ark_values = transpose_constants(ark_evaluations, ark_cycle_length);
+        let (ark_polys, ark_evaluations) = extend_constants(&ARK, extension_factor);
+        let ark_values = transpose_ark_constants(ark_evaluations, cycle_length);
+
+        // extend mask constants by the specified extension factor
+        let (mask_polys, mask_evaluations) = extend_constants(&MASKS, extension_factor);
+        let mask_values = transpose_mask_constants(mask_evaluations, cycle_length);
 
         return Decoder {
             ctx_depth, loop_depth,
-            trace_length,
-            ark_cycle_length, ark_values, ark_polys,
+            trace_length, cycle_length,
+            ark_values, ark_polys,
+            mask_values, mask_polys,
             constraint_degrees: degrees,
         };
     }
@@ -97,13 +111,14 @@ impl Decoder {
     // EVALUATOR FUNCTIONS
     // --------------------------------------------------------------------------------------------
 
-    pub fn evaluate(&self, current: &TraceState, next: &TraceState, step: usize, result: &mut [u128]) {
-
-        // determine round constants at the specified x coordinate
-        let ark = self.ark_values[step % self.ark_cycle_length];
+    pub fn evaluate(&self, current: &TraceState, next: &TraceState, step: usize, result: &mut [u128])
+    {
+        // determine round and mask constants at the specified step
+        let ark = self.ark_values[step % self.cycle_length];
+        let masks = self.mask_values[step % self.cycle_length];
 
         // evaluate constraints for decoding op codes
-        enforce_op_bits(&mut result[..NUM_OP_CONSTRAINTS], current, next);
+        enforce_op_bits(&mut result[..NUM_OP_CONSTRAINTS], current, next, &masks);
 
         // evaluate constraints for flow control operations
         let result = &mut result[NUM_OP_CONSTRAINTS..];
@@ -120,18 +135,26 @@ impl Decoder {
 
     }
 
-    pub fn evaluate_at(&self, current: &TraceState, next: &TraceState, x: u128, result: &mut [u128]) {
+    pub fn evaluate_at(&self, current: &TraceState, next: &TraceState, x: u128, result: &mut [u128])
+    {
+        // map x to the corresponding coordinate in constant cycles
+        let num_cycles = (self.trace_length / BASE_CYCLE_LENGTH) as u128;
+        let x = field::exp(x, num_cycles);
 
         // determine round constants at the specified x coordinate
-        let num_cycles = (self.trace_length / SPONGE_CYCLE_LENGTH) as u128;
-        let x = field::exp(x, num_cycles);
         let mut ark = [field::ZERO; 2 * SPONGE_WIDTH];
         for i in 0..ark.len() {
             ark[i] = polynom::eval(&self.ark_polys[i], x);
         }
 
+        // determine mask constants at the specified x coordinate
+        let mut masks = [field::ZERO; 3];
+        for i in 0..masks.len() {
+            masks[i] = polynom::eval(&self.mask_polys[i], x);
+        }
+
         // evaluate constraints for decoding op codes
-        enforce_op_bits(&mut result[..NUM_OP_CONSTRAINTS], current, next);
+        enforce_op_bits(&mut result[..NUM_OP_CONSTRAINTS], current, next, &masks);
 
         // evaluate constraints for flow control operations
         let result = &mut result[NUM_OP_CONSTRAINTS..];
@@ -150,13 +173,62 @@ impl Decoder {
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn transpose_constants(ark: Vec<Vec<u128>>, cycle_length: usize) -> Vec<[u128; 2 * SPONGE_WIDTH]> {
-    let mut ark_values = Vec::new();
+fn extend_constants(constants: &[[u128; BASE_CYCLE_LENGTH]], extension_factor: usize) -> (Vec<Vec<u128>>, Vec<Vec<u128>>)
+{
+    let root = field::get_root_of_unity(BASE_CYCLE_LENGTH);
+    let inv_twiddles = fft::get_inv_twiddles(root, BASE_CYCLE_LENGTH);
+
+    let domain_size = BASE_CYCLE_LENGTH * extension_factor;
+    let domain_root = field::get_root_of_unity(domain_size);
+    let twiddles = fft::get_twiddles(domain_root, domain_size);
+
+    let mut polys = Vec::with_capacity(constants.len());
+    let mut evaluations = Vec::with_capacity(constants.len());
+
+    for constant in constants.iter() {
+        let mut extended_constant = filled_vector(BASE_CYCLE_LENGTH, domain_size, field::ZERO);
+        extended_constant.copy_from_slice(constant);
+
+        polynom::interpolate_fft_twiddles(&mut extended_constant, &inv_twiddles, true);
+        polys.push(extended_constant.clone());
+
+        unsafe { extended_constant.set_len(extended_constant.capacity()); }
+        polynom::eval_fft_twiddles(&mut extended_constant, &twiddles, true);
+
+        evaluations.push(extended_constant);
+    }
+
+    return (polys, evaluations);
+}
+
+fn transpose_ark_constants(constants: Vec<Vec<u128>>, cycle_length: usize) -> Vec<[u128; 2 * SPONGE_WIDTH]>
+{
+    let mut values = Vec::new();
     for i in 0..cycle_length {
-        ark_values.push([field::ZERO; 2 * SPONGE_WIDTH]);
+        values.push([field::ZERO; 2 * SPONGE_WIDTH]);
         for j in 0..(2 * SPONGE_WIDTH) {
-            ark_values[i][j] = ark[j][i];
+            values[i][j] = constants[j][i];
         }
     }
-    return ark_values;
+    return values;
 }
+
+fn transpose_mask_constants(constants: Vec<Vec<u128>>, cycle_length: usize) -> Vec<[u128; 3]>
+{
+    let mut values = Vec::new();
+    for i in 0..cycle_length {
+        values.push([field::ZERO; 3]);
+        for j in 0..3 {
+            values[i][j] = constants[j][i];
+        }
+    }
+    return values;
+}
+
+// CYCLE MASKS
+// ================================================================================================
+const MASKS: [[u128; BASE_CYCLE_LENGTH]; 3] = [
+    [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],   // multiples of 16
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0],   // one less than multiple of 16
+    [0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1],   // multiples of 8
+];

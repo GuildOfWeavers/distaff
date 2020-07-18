@@ -13,6 +13,32 @@ pub enum FlowOps {
     Void    = 0b111,
 }
 
+impl FlowOps {
+    pub fn op_index(&self) -> usize {
+        return (*self as usize) & 0b111;
+    }
+}
+
+impl std::fmt::Display for FlowOps {
+
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        return match self {
+
+            FlowOps::Hacc   => write!(f, "hacc"),
+
+            FlowOps::Begin  => write!(f, "begin"),
+            FlowOps::Tend   => write!(f, "tend"),
+            FlowOps::Fend   => write!(f, "fend"),
+
+            FlowOps::Loop   => write!(f, "loop"),
+            FlowOps::Wrap   => write!(f, "wrap"),
+            FlowOps::Break  => write!(f, "break"),
+
+            FlowOps::Void   => write!(f, "void"),
+        };
+    }
+}
+
 // USER OPERATIONS
 // ================================================================================================
 #[repr(u8)]

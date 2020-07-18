@@ -124,6 +124,7 @@ pub fn apply_inv_mds(state: &mut[u128]) {
     state.copy_from_slice(&result);
 }
 
+// TODO: remove
 pub fn get_extended_constants(extension_factor: usize) -> (Vec<Vec<u128>>, Vec<Vec<u128>>) {
     let root = field::get_root_of_unity(NUM_ROUNDS);
     let inv_twiddles = fft::get_inv_twiddles(root, NUM_ROUNDS);

@@ -1,10 +1,13 @@
 use crate::math::field::{ mul };
-use super::{ TraceState, is_binary, binary_not };
+use super::{
+    TraceState, FlowOps, UserOps, is_binary, binary_not, EvaluationResult,
+    CYCLE_MASK_IDX, PREFIX_MASK_IDX, PUSH_MASK_IDX,
+};
 
 // CONSTRAINT EVALUATOR
 // ================================================================================================
 
-pub fn enforce_op_bits(result: &mut [u128], current: &TraceState, next: &TraceState)
+pub fn enforce_op_bits(result: &mut [u128], current: &TraceState, next: &TraceState, masks: &[u128; 3])
 {
     let mut i = 0;
 
@@ -37,10 +40,32 @@ pub fn enforce_op_bits(result: &mut [u128], current: &TraceState, next: &TraceSt
     // when cf_ops are not all 0s, ld_ops and hd_ops must be all 1s
     result[i] = mul(cf_bit_prod, binary_not(mul(ld_bit_prod, hd_bit_prod)));
     i += 1;
+    
+    let cf_op_flags = current.cf_op_flags();
 
-    // TODO: PUSH is allowed only on multiples of 8
-    // TODO: BEGIN, LOOP, BREAK, and WRAP are allowed only on one less than multiple of 16
-    // TODO: TEND and FEND is allowed only on multiples of 16
+    // VOID can be followed only by VOID
+    let current_void_flag = cf_op_flags[FlowOps::Void.op_index()];
+    let next_void_flag = next.cf_op_flags()[FlowOps::Void.op_index()];
+    result[i] = mul(current_void_flag, binary_not(next_void_flag));
+    i += 1;
+
+    let hd_op_flags = current.hd_op_flags();
+
+    // BEGIN, LOOP, BREAK, and WRAP are allowed only on one less than multiple of 16
+    let prefix_mask = masks[PREFIX_MASK_IDX];
+    result.agg_constraint(i, cf_op_flags[FlowOps::Begin.op_index()], prefix_mask);
+    result.agg_constraint(i, cf_op_flags[FlowOps::Loop.op_index()],  prefix_mask);
+    result.agg_constraint(i, cf_op_flags[FlowOps::Wrap.op_index()],  prefix_mask);
+    result.agg_constraint(i, cf_op_flags[FlowOps::Break.op_index()], prefix_mask);
+
+    // TEND and FEND is allowed only on multiples of 16
+    let base_cycle_mask = masks[CYCLE_MASK_IDX];
+    result.agg_constraint(i, cf_op_flags[FlowOps::Tend.op_index()], base_cycle_mask);
+    result.agg_constraint(i, cf_op_flags[FlowOps::Fend.op_index()], base_cycle_mask);
+
+    // PUSH is allowed only on multiples of 8
+    let push_cycle_mask = masks[PUSH_MASK_IDX];
+    result.agg_constraint(i, hd_op_flags[UserOps::Push.hd_index()], push_cycle_mask);
 }
 
 // TESTS
@@ -57,17 +82,17 @@ mod tests {
         let mut state1 = TraceState::new(1, 0, 1);
         let state2 = TraceState::new(1, 0, 1);
 
-        let mut result = vec![0; 12];
+        let mut result = vec![0; 14];
 
         state1.set_op_bits([0, 0, 0, 1, 1, 1, 1, 1, 1, 1]);
-        super::enforce_op_bits(&mut result, &state1, &state2);
-        assert_eq!(vec![0; 12], result);
+        super::enforce_op_bits(&mut result, &state1, &state2, &[0, 0, 0]);
+        assert_eq!(vec![0; 14], result);
 
         state1.set_op_bits([2, 0, 0, 1, 1, 1, 1, 1, 1, 1]);
         let t = catch_unwind(|| {
-            let mut result = vec![0; 12];
-            super::enforce_op_bits(&mut result, &state1, &state2);
-            assert_eq!(vec![0; 12], result);
+            let mut result = vec![0; 14];
+            super::enforce_op_bits(&mut result, &state1, &state2, &[0, 0, 0]);
+            assert_eq!(vec![0; 14], result);
         });
         assert_eq!(t.is_ok(), false);
     }
