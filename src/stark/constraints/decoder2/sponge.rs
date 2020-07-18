@@ -45,8 +45,7 @@ pub fn enforce_hacc(result: &mut [u128], current: &TraceState, next: &TraceState
 #[cfg(test)]
 mod tests {
     
-    use crate::math::{ field };
-    use crate::utils::accumulator::{ apply_sbox, apply_inv_sbox, apply_mds, add_constants, ARK };
+    use crate::utils::accumulator::{ apply_round2 as apply_hacc_round, ARK };
     use super::{ TraceState, SPONGE_WIDTH, super::{ transpose_constants, SPONGE_CYCLE_LENGTH } };
 
     #[test]
@@ -111,24 +110,5 @@ mod tests {
             sponge[0], sponge[1], sponge[2], sponge[3],  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  0,  push_value
         ];
         return TraceState::from_vec(1, 0, 1, &state);
-    }
-
-    fn apply_hacc_round(sponge: &mut [u128], op_code: u128, op_value: u128, step: usize) {
-
-        let ark_idx = step % SPONGE_CYCLE_LENGTH;
-    
-        // apply first half of Rescue round
-        add_constants(sponge, ark_idx, 0);
-        apply_sbox(sponge);
-        apply_mds(sponge);
-    
-        // inject value into the state
-        sponge[0] = field::add(sponge[0], op_code as u128);
-        sponge[1] = field::add(sponge[1], op_value);
-    
-        // apply second half of Rescue round
-        add_constants(sponge, ark_idx, SPONGE_WIDTH);
-        apply_inv_sbox(sponge);
-        apply_mds(sponge);
     }
 }

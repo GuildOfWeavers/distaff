@@ -55,6 +55,26 @@ pub fn apply_round(state: &mut [u128], value: u128, step: usize) {
     apply_mds(state);
 }
 
+/// TODO: rename to apply_round
+pub fn apply_round2(state: &mut [u128], op_code: u128, op_value: u128, step: usize)
+{
+    let ark_idx = step % NUM_ROUNDS;
+    
+    // apply first half of Rescue round
+    add_constants(state, ark_idx, 0);
+    apply_sbox(state);
+    apply_mds(state);
+
+    // inject value into the state
+    state[0] = field::add(state[0], op_code as u128);
+    state[1] = field::add(state[1], op_value);
+
+    // apply second half of Rescue round
+    add_constants(state, ark_idx, STATE_WIDTH);
+    apply_inv_sbox(state);
+    apply_mds(state);
+}
+
 pub fn add_constants(state: &mut[u128], idx: usize, offset: usize) {
     for i in 0..STATE_WIDTH {
         state[i] = field::add(state[i], ARK[offset + i][idx]);

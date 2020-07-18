@@ -11,7 +11,15 @@ mod sponge;
 use sponge::{ enforce_hacc };
 
 mod flow_ops;
-use flow_ops::{ enforce_begin, enforce_tend, enforce_fend, enforce_void };
+use flow_ops::{
+    enforce_begin,
+    enforce_tend,
+    enforce_fend,
+    enforce_loop,
+    enforce_wrap,
+    enforce_break,
+    enforce_void
+};
 
 #[cfg(test)]
 mod tests;
@@ -42,6 +50,8 @@ const STACK_CONSTRAINT_DEGREE: usize = 4;
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct Decoder {
+    ctx_depth           : usize,
+    loop_depth          : usize,
     trace_length        : usize,
     ark_cycle_length    : usize,
     ark_values          : Vec<[u128; 2 * SPONGE_WIDTH]>,
@@ -65,10 +75,19 @@ impl Decoder {
         let ark_values = transpose_constants(ark_evaluations, ark_cycle_length);
 
         return Decoder {
+            ctx_depth, loop_depth,
             trace_length,
             ark_cycle_length, ark_values, ark_polys,
             constraint_degrees: degrees,
         };
+    }
+
+    pub fn ctx_depth(&self) -> usize {
+        return self.ctx_depth;
+    }
+
+    pub fn loop_depth(&self) -> usize {
+        return self.loop_depth;
     }
 
     pub fn constraint_degrees(&self) -> &[usize] {
@@ -94,6 +113,9 @@ impl Decoder {
         enforce_begin(result, current, next, op_flags[FlowOps::Begin as usize]);
         enforce_tend (result, current, next, op_flags[FlowOps::Tend as usize]);
         enforce_fend (result, current, next, op_flags[FlowOps::Fend as usize]);
+        enforce_loop (result, current, next, op_flags[FlowOps::Loop as usize]);
+        enforce_wrap (result, current, next, op_flags[FlowOps::Wrap as usize]);
+        enforce_break(result, current, next, op_flags[FlowOps::Break as usize]);
         enforce_void (result, current, next, op_flags[FlowOps::Void as usize]);
 
     }
@@ -119,6 +141,9 @@ impl Decoder {
         enforce_begin(result, current, next, op_flags[FlowOps::Begin as usize]);
         enforce_tend (result, current, next, op_flags[FlowOps::Tend as usize]);
         enforce_fend (result, current, next, op_flags[FlowOps::Fend as usize]);
+        enforce_loop (result, current, next, op_flags[FlowOps::Loop as usize]);
+        enforce_wrap (result, current, next, op_flags[FlowOps::Wrap as usize]);
+        enforce_break(result, current, next, op_flags[FlowOps::Break as usize]);
         enforce_void (result, current, next, op_flags[FlowOps::Void as usize]);
     }
 }

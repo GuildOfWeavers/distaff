@@ -65,6 +65,21 @@ pub fn enforce_fend(result: &mut [u128], current: &TraceState, next: &TraceState
     enforce_stack_copy(loop_result, current.loop_stack(), next.loop_stack(), op_flag);
 }
 
+pub fn enforce_loop(result: &mut [u128], current: &TraceState, next: &TraceState, op_flag: u128)
+{
+    // TODO
+}
+
+pub fn enforce_wrap(result: &mut [u128], current: &TraceState, next: &TraceState, op_flag: u128)
+{
+    // TODO
+}
+
+pub fn enforce_break(result: &mut [u128], current: &TraceState, next: &TraceState, op_flag: u128)
+{
+    // TODO
+}
+
 pub fn enforce_void(result: &mut [u128], current: &TraceState, next: &TraceState, op_flag: u128)
 {
     // make sure sponge state didn't change
