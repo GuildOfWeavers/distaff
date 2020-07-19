@@ -1,5 +1,8 @@
-use super::{ ProgramBlock, Opcode, Span, Loop };
+use super::{ ProgramBlock, OpCode, Span, Loop };
 use super::super::hashing::{ hash_op, ACC_NUM_ROUNDS };
+
+// PUBLIC FUNCTIONS
+// ================================================================================================
 
 pub fn traverse(blocks: &[ProgramBlock], stack: &mut Vec<u128>, hash: &mut [u128; 4], mut step: usize) -> usize
 {
@@ -62,10 +65,13 @@ pub fn traverse(blocks: &[ProgramBlock], stack: &mut Vec<u128>, hash: &mut [u128
     return step;
 }
 
+// HELPER FUNCTIONS
+// ================================================================================================
+
 fn traverse_span(block: &Span, hash: &mut [u128; 4], is_first: bool, mut step: usize) -> usize
 {
     if !is_first {
-        hash_op(hash, Opcode::Noop as u8, 0, step);
+        hash_op(hash, OpCode::Noop as u8, 0, step);
         step += 1;
     }
 
@@ -80,7 +86,7 @@ fn traverse_span(block: &Span, hash: &mut [u128; 4], is_first: bool, mut step: u
 
 pub fn close_block(hash: &mut [u128; 4], parent_hash: u128, sibling_hash: u128, is_true_branch: bool, mut step: usize) -> usize
 {
-    hash_op(hash, Opcode::Noop as u8, 0, step);
+    hash_op(hash, OpCode::Noop as u8, 0, step);
     step += 1;
 
     step += 1; // TEND
@@ -99,7 +105,7 @@ pub fn close_block(hash: &mut [u128; 4], parent_hash: u128, sibling_hash: u128, 
     }
 
     for _ in 0..ACC_NUM_ROUNDS {
-        hash_op(hash, Opcode::Noop as u8, 0, step);
+        hash_op(hash, OpCode::Noop as u8, 0, step);
         step += 1;
     }
 

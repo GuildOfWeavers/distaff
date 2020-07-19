@@ -27,12 +27,12 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u128], outputs: &[u128], proof:
     let t_positions = utils::compute_query_positions(&seed, proof.domain_size(), options);
     let c_positions = utils::map_trace_to_constraint_positions(&t_positions);
 
-    // 2 ----- Verify program execution path ------------------------------------------------------
-    let auth_path = proof.auth_path();
-    if !Program::verify_auth_path(program_hash, proof.auth_path_index(), auth_path, hash_fn) {
+    // 2 ----- Verify procedure authentication path -----------------------------------------------
+    let proc_path = proof.proc_path();
+    if !Program::verify_proc_path(program_hash, proof.proc_path_index(), proc_path, hash_fn) {
         return Err(String::from("verification of program execution path failed"));
     }
-    let execution_path_hash = auth_path[0];
+    let procedure_hash = proc_path[0];
 
     // 3 ----- Verify trace and constraint Merkle proofs ------------------------------------------
     if !MerkleTree::verify_batch(proof.trace_root(), &t_positions, &proof.trace_proof(), hash_fn) {
@@ -49,7 +49,7 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u128], outputs: &[u128], proof:
 
     // evaluate constraints at z
     let constraint_evaluation_at_z = evaluate_constraints(
-        ConstraintEvaluator::from_proof(proof, &execution_path_hash, inputs, outputs),
+        ConstraintEvaluator::from_proof(proof, &procedure_hash, inputs, outputs),
         proof.get_state_at_z1(),
         proof.get_state_at_z2(),
         z
@@ -99,8 +99,8 @@ fn compose_registers(proof: &StarkProof, positions: &[usize], z: u128, cc: &Comp
     let trace_root = field::get_root_of_unity(proof.trace_length());
     let next_z = field::mul(z, trace_root);
 
-    let trace_at_z1 = proof.get_state_at_z1().registers().to_vec();
-    let trace_at_z2 = proof.get_state_at_z2().registers().to_vec();
+    let trace_at_z1 = proof.get_state_at_z1().to_vec();
+    let trace_at_z2 = proof.get_state_at_z2().to_vec();
     let evaluations = proof.trace_evaluations();
 
     let incremental_degree = utils::get_incremental_trace_degree(proof.trace_length()) as u128;

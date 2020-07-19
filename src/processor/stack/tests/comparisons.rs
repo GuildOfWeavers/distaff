@@ -1,5 +1,5 @@
 use crate::math::{ field };
-use super::{ init_stack, get_stack_state, ExecutionHint, TRACE_LENGTH };
+use super::{ init_stack, get_stack_state, OpCode, OpHint, TRACE_LENGTH };
 use super::super::Stack;
 
 // EQUALITY OPERATION
@@ -10,15 +10,15 @@ fn eq() {
     let inv_diff = field::inv(field::sub(1, 4));
     let mut stack = init_stack(&[3, 3, 4, 5], &[0, inv_diff], &[], TRACE_LENGTH);
 
-    stack.op_read(0, ExecutionHint::None);
-    stack.op_eq(1);
+    stack.execute(OpCode::Read, OpHint::None);
+    stack.execute(OpCode::Eq, OpHint::None);
     assert_eq!(vec![1, 4, 5, 0, 0, 0, 0, 0], get_stack_state(&stack, 2));
 
     assert_eq!(3, stack.depth);
     assert_eq!(5, stack.max_depth);
 
-    stack.op_read(2, ExecutionHint::None);
-    stack.op_eq(3);
+    stack.execute(OpCode::Read, OpHint::None);
+    stack.execute(OpCode::Eq, OpHint::None);
     assert_eq!(vec![0, 5, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 4));
 
     assert_eq!(2, stack.depth);
@@ -29,15 +29,15 @@ fn eq() {
 fn eq_with_hint() {
     let mut stack = init_stack(&[3, 3, 4, 5], &[], &[], TRACE_LENGTH);
 
-    stack.op_read(0, ExecutionHint::EqStart);
-    stack.op_eq(1);
+    stack.execute(OpCode::Read, OpHint::EqStart);
+    stack.execute(OpCode::Eq, OpHint::None);
     assert_eq!(vec![1, 4, 5, 0, 0, 0, 0, 0], get_stack_state(&stack, 2));
 
     assert_eq!(3, stack.depth);
     assert_eq!(5, stack.max_depth);
 
-    stack.op_read(2, ExecutionHint::EqStart);
-    stack.op_eq(3);
+    stack.execute(OpCode::Read, OpHint::EqStart);
+    stack.execute(OpCode::Eq, OpHint::None);
     assert_eq!(vec![0, 5, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 4));
 
     assert_eq!(2, stack.depth);
@@ -57,12 +57,12 @@ fn cmp_128() {
     // initialize the stack
     let (inputs_a, inputs_b) = build_inputs_for_cmp(a, b, 128);
     let mut stack = init_stack(&[0, 0, 0, 0, 0, a, b], &inputs_a, &inputs_b, 256);
-    stack.op_pad2(0);
-    stack.op_push(1, p127);
+    stack.execute(OpCode::Pad2, OpHint::None);
+    stack.execute(OpCode::Push, OpHint::PushValue(p127));
 
     // execute CMP operations
     for i in 2..130 {
-        stack.op_cmp(i, ExecutionHint::None);
+        stack.execute(OpCode::Cmp, OpHint::None);
 
         let state = get_stack_state(&stack, i);
         let next  = get_stack_state(&stack, i + 1);
@@ -91,12 +91,12 @@ fn cmp_64() {
     // initialize the stack
     let (inputs_a, inputs_b) = build_inputs_for_cmp(a, b, 64);
     let mut stack = init_stack(&[0, 0, 0, 0, 0, a, b], &inputs_a, &inputs_b, 256);
-    stack.op_pad2(0);
-    stack.op_push(1, p63);
+    stack.execute(OpCode::Pad2, OpHint::None);
+    stack.execute(OpCode::Push, OpHint::PushValue(p63));
 
     // execute CMP operations
     for i in 2..66 {
-        stack.op_cmp(i, ExecutionHint::None);
+        stack.execute(OpCode::Cmp, OpHint::None);
 
         let state = get_stack_state(&stack, i);
         let next  = get_stack_state(&stack, i + 1);
@@ -128,18 +128,18 @@ fn lt() {
     // initialize the stack
     let (inputs_a, inputs_b) = build_inputs_for_cmp(a, b, 128);
     let mut stack = init_stack(&[0, 0, 0, a, b, 7, 11], &inputs_a, &inputs_b, 256);
-    stack.op_pad2(0);
-    stack.op_pad2(1);
-    stack.op_push(2, p127);
+    stack.execute(OpCode::Pad2, OpHint::None);
+    stack.execute(OpCode::Pad2, OpHint::None);
+    stack.execute(OpCode::Push, OpHint::PushValue(p127));
 
     // execute CMP operations
-    for i in 3..131 { stack.op_cmp(i, ExecutionHint::None); }
+    for _ in 3..131 { stack.execute(OpCode::Cmp, OpHint::None); }
 
     // execute program finale
-    let step = lt_finale(&mut stack, 131);
+    lt_finale(&mut stack);
 
     // check the result
-    let state = get_stack_state(&stack, step);
+    let state = get_stack_state(&stack, stack.current_step());
     let expected = if a < b { field::ONE }  else { field::ZERO };
     assert_eq!(vec![expected, 7, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0], state);
 }
@@ -154,18 +154,18 @@ fn gt() {
     // initialize the stack
     let (inputs_a, inputs_b) = build_inputs_for_cmp(a, b, 128);
     let mut stack = init_stack(&[0, 0, 0, a, b, 7, 11], &inputs_a, &inputs_b, 256);
-    stack.op_pad2(0);
-    stack.op_pad2(1);
-    stack.op_push(2, p127);
+    stack.execute(OpCode::Pad2, OpHint::None);
+    stack.execute(OpCode::Pad2, OpHint::None);
+    stack.execute(OpCode::Push, OpHint::PushValue(p127));
 
     // execute CMP operations
-    for i in 3..131 { stack.op_cmp(i, ExecutionHint::None); }
+    for _ in 3..131 { stack.execute(OpCode::Cmp, OpHint::None); }
 
     // execute program finale
-    let step = gt_finale(&mut stack, 131);
+    gt_finale(&mut stack);
 
     // check the result
-    let state = get_stack_state(&stack, step);
+    let state = get_stack_state(&stack, stack.current_step());
     let expected = if a > b { field::ONE }  else { field::ZERO };
     assert_eq!(vec![expected, 7, 11, 0, 0, 0, 0, 0, 0, 0, 0, 0], state);
 }
@@ -187,11 +187,11 @@ fn binacc_128() {
     let mut stack = init_stack(&[p127, 0, 0, x, 7, 11], &inputs_a, &[], 256);
 
     // execute binary aggregation operations
-    for i in 0..128 { stack.op_binacc(i, ExecutionHint::None); }
+    for _ in 0..128 { stack.execute(OpCode::BinAcc, OpHint::None); }
 
     // check the result
-    stack.op_drop(128);
-    stack.op_drop(129);
+    stack.execute(OpCode::Drop, OpHint::None);
+    stack.execute(OpCode::Drop, OpHint::None);
     let state = get_stack_state(&stack, 130);
     assert_eq!(vec![x, x, 7, 11, 0, 0, 0, 0], state);
 }
@@ -210,11 +210,11 @@ fn binacc_64() {
     let mut stack = init_stack(&[p127, 0, 0, x, 7, 11], &inputs_a, &[], 256);
 
     // execute binary aggregation operations
-    for i in 0..64 { stack.op_binacc(i, ExecutionHint::None); }
+    for _ in 0..64 { stack.execute(OpCode::BinAcc, OpHint::None); }
 
     // check the result
-    stack.op_drop(64);
-    stack.op_drop(65);
+    stack.execute(OpCode::Drop, OpHint::None);
+    stack.execute(OpCode::Drop, OpHint::None);
     let state = get_stack_state(&stack, 66);
     assert_eq!(vec![x, x, 7, 11, 0, 0, 0, 0], state);
 }
@@ -234,12 +234,12 @@ fn isodd_128() {
     let mut stack = init_stack(&[p127, 0, 0, x, 7, 11], &inputs_a, &[], 256);
 
     // execute binary aggregation operations
-    for i in 0..128 { stack.op_binacc(i, ExecutionHint::None); }
+    for _ in 0..128 { stack.execute(OpCode::BinAcc, OpHint::None); }
 
     // check the result
-    stack.op_swap2(128);
-    stack.op_asserteq(129);
-    stack.op_drop(130);
+    stack.execute(OpCode::Swap2, OpHint::None);
+    stack.execute(OpCode::AssertEq, OpHint::None);
+    stack.execute(OpCode::Drop, OpHint::None);
     let state = get_stack_state(&stack, 131);
     assert_eq!(vec![is_odd, 7, 11, 0, 0, 0, 0, 0], state);
 }
@@ -260,27 +260,25 @@ fn build_inputs_for_cmp(a: u128, b: u128, size: usize) -> (Vec<u128>, Vec<u128>)
     return (inputs_a, inputs_b);
 }
 
-fn lt_finale(stack: &mut Stack, step: usize) -> usize {
-    stack.op_drop4(step + 0);
-    stack.op_pad2(step + 1);
-    stack.op_swap4(step + 2);
-    stack.op_roll4(step + 3);
-    stack.op_asserteq(step + 4);
-    stack.op_asserteq(step + 5);
-    stack.op_dup(step + 6);
-    stack.op_drop4(step + 7);
-    return step + 8;
+fn lt_finale(stack: &mut Stack) {
+    stack.execute(OpCode::Drop4, OpHint::None);
+    stack.execute(OpCode::Pad2, OpHint::None);
+    stack.execute(OpCode::Swap4, OpHint::None);
+    stack.execute(OpCode::Roll4, OpHint::None);
+    stack.execute(OpCode::AssertEq, OpHint::None);
+    stack.execute(OpCode::AssertEq, OpHint::None);
+    stack.execute(OpCode::Dup, OpHint::None);
+    stack.execute(OpCode::Drop4, OpHint::None);
 }
 
-fn gt_finale(stack: &mut Stack, step: usize) -> usize {
-    stack.op_drop4(step + 0);
-    stack.op_pad2(step + 1);
-    stack.op_swap4(step + 2);
-    stack.op_roll4(step + 3);
-    stack.op_asserteq(step + 4);
-    stack.op_asserteq(step + 5);
-    stack.op_roll4(step + 6);
-    stack.op_dup(step + 7);
-    stack.op_drop4(step + 8);
-    return step + 9;
+fn gt_finale(stack: &mut Stack) {
+    stack.execute(OpCode::Drop4, OpHint::None);
+    stack.execute(OpCode::Pad2, OpHint::None);
+    stack.execute(OpCode::Swap4, OpHint::None);
+    stack.execute(OpCode::Roll4, OpHint::None);
+    stack.execute(OpCode::AssertEq, OpHint::None);
+    stack.execute(OpCode::AssertEq, OpHint::None);
+    stack.execute(OpCode::Roll4, OpHint::None);
+    stack.execute(OpCode::Dup, OpHint::None);
+    stack.execute(OpCode::Drop4, OpHint::None);
 }

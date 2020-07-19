@@ -1,17 +1,27 @@
 use crate::math::{ field };
-use crate::processor::{ opcodes };
+use crate::processor::{ OpCode };
 use crate::stark::{ TraceState };
-use crate::{ NUM_LD_OPS };
+use crate::{ NUM_LD_OPS, NUM_HD_OPS };
+use super::utils::{ are_equal, is_zero, is_binary, binary_not, EvaluationResult };
 
-mod comparisons;
+mod arithmetic;
+use arithmetic::{ enforce_add, enforce_mul, enforce_inv, enforce_neg };
+
+mod boolean;
+use boolean::{ enforce_not, enforce_and, enforce_or };
+
+mod comparison;
+use comparison::{ enforce_eq, enforce_cmp, enforce_binacc };
+
+mod selection;
+use selection::{ enforce_choose, enforce_choose2 };
+
 mod hashing;
-mod selections;
-mod utils;
 
 use hashing::HashEvaluator;
-use comparisons::{ enforce_eq, enforce_cmp, enforce_binacc };
-use selections::{ enforce_choose, enforce_choose2 };
-use utils::{ agg_op_constraint, enforce_no_change, are_equal, is_binary };
+
+mod utils;
+use utils::{ enforce_no_change };
 
 // CONSTANTS
 // ================================================================================================
@@ -56,40 +66,39 @@ impl Stack {
     /// saves the evaluations into `result`.
     pub fn evaluate(&self, current: &TraceState, next: &TraceState, step: usize, result: &mut [u128]) {
 
-        let op_flags = current.get_op_flags();
-        let current_stack = current.get_stack();
-        let next_stack = next.get_stack();
+        let old_stack = current.user_stack();
+        let new_stack = next.user_stack();
 
         // evaluate constraints for simple operations
-        let next_op = next.get_op_code();
-        self.enforce_acyclic_ops(current_stack, next_stack, op_flags, next_op, result);
+        let op_flags = current.ld_op_flags();
+        self.enforce_low_degree_ops(old_stack, new_stack, op_flags, result);
 
         // evaluate constraints for hash operation
-        let hash_flag = op_flags[opcodes::RESCR as usize];
-        self.hash_evaluator.evaluate(current_stack, next_stack, step, hash_flag, result);
+        let op_flags = current.hd_op_flags();
+        self.enforce_high_degree_ops(old_stack, new_stack, op_flags, result);
     }
 
     /// Evaluates stack transition constraints at the specified x coordinate and saves the
     /// evaluations into `result`. Unlike the function above, this function can evaluate constraints
     /// at any out-of-domain point, but it is much slower than the previous function.
     pub fn evaluate_at(&self, current: &TraceState, next: &TraceState, x: u128, result: &mut [u128]) {
-        let op_flags = current.get_op_flags();
-        let current_stack = current.get_stack();
-        let next_stack = next.get_stack();
+        
+        let old_stack = current.user_stack();
+        let new_stack = next.user_stack();
 
-        // evaluate constraints for simple operations
-        let next_op = next.get_op_code();
-        self.enforce_acyclic_ops(current_stack, next_stack, op_flags, next_op, result);
+        // evaluate constraints for low_degree operations
+        let op_flags = current.ld_op_flags();
+        self.enforce_low_degree_ops(old_stack, new_stack, op_flags, result);
 
         // evaluate constraints for hash operation
-        let hash_flag = op_flags[opcodes::RESCR as usize];
-        self.hash_evaluator.evaluate_at(current_stack, next_stack, x, hash_flag, result);
+        let op_flags = current.hd_op_flags();
+        self.enforce_high_degree_ops(old_stack, new_stack, op_flags, result);
     }
 
     /// Evaluates transition constraints for all operations where the operation result does not
     /// depend on the where in the execution trace it is executed. In other words, these operations
     /// are not tied to any repeating cycles in the execution trace.
-    fn enforce_acyclic_ops(&self, current: &[u128], next: &[u128], op_flags: [u128; NUM_LD_OPS], next_op: u128, result: &mut [u128]) {
+    fn enforce_low_degree_ops(&self, current: &[u128], next: &[u128], op_flags: [u128; NUM_LD_OPS], result: &mut [u128]) {
         
         // split constraint evaluation result into aux constraints and stack constraints
         let (aux, result) = result.split_at_mut(NUM_AUX_CONSTRAINTS);
@@ -100,49 +109,67 @@ impl Stack {
         let mut evaluations = vec![field::ZERO; current.len()];
 
         // control flow operations
-        enforce_no_change(&mut evaluations,      current, next, op_flags[opcodes::BEGIN as usize]);
-        enforce_no_change(&mut evaluations,      current, next, op_flags[opcodes::NOOP as usize]);
-        enforce_assert   (&mut evaluations, aux, current, next, op_flags[opcodes::ASSERT as usize]);
-        enforce_asserteq (&mut evaluations, aux, current, next, op_flags[opcodes::ASSERTEQ as usize]);
+        enforce_no_change(&mut evaluations,      current, next, op_flags[OpCode::Noop.ld_index()]);
+        enforce_assert  (&mut evaluations, aux, current, next, op_flags[OpCode::Assert.ld_index()]);
+        enforce_asserteq(&mut evaluations, aux, current, next, op_flags[OpCode::AssertEq.ld_index()]);
 
         // input operations
-        enforce_push(&mut evaluations,      current, next, next_op, op_flags[opcodes::PUSH as usize]);
-        enforce_read(&mut evaluations,      current, next, op_flags[opcodes::READ as usize]);
-        enforce_read2(&mut evaluations,     current, next, op_flags[opcodes::READ2 as usize]);
+        enforce_read    (&mut evaluations,      current, next, op_flags[OpCode::Read.ld_index()]);
+        enforce_read2   (&mut evaluations,      current, next, op_flags[OpCode::Read2.ld_index()]);
     
         // stack manipulation operations
-        enforce_dup(&mut evaluations,       current, next, op_flags[opcodes::DUP as usize]);
-        enforce_dup2(&mut evaluations,      current, next, op_flags[opcodes::DUP2 as usize]);
-        enforce_dup4(&mut evaluations,      current, next, op_flags[opcodes::DUP4 as usize]);
-        enforce_pad2(&mut evaluations,      current, next, op_flags[opcodes::PAD2 as usize]);
+        enforce_dup     (&mut evaluations,      current, next, op_flags[OpCode::Dup.ld_index()]);
+        enforce_dup2    (&mut evaluations,      current, next, op_flags[OpCode::Dup2.ld_index()]);
+        enforce_dup4    (&mut evaluations,      current, next, op_flags[OpCode::Dup4.ld_index()]);
+        enforce_pad2    (&mut evaluations,      current, next, op_flags[OpCode::Pad2.ld_index()]);
 
-        enforce_drop(&mut evaluations,      current, next, op_flags[opcodes::DROP as usize]);
-        enforce_drop4(&mut evaluations,     current, next, op_flags[opcodes::DROP4 as usize]);
+        enforce_drop    (&mut evaluations,      current, next, op_flags[OpCode::Drop.ld_index()]);
+        enforce_drop4   (&mut evaluations,      current, next, op_flags[OpCode::Drop4.ld_index()]);
         
-        enforce_swap(&mut evaluations,      current, next, op_flags[opcodes::SWAP as usize]);
-        enforce_swap2(&mut evaluations,     current, next, op_flags[opcodes::SWAP2 as usize]);
-        enforce_swap4(&mut evaluations,     current, next, op_flags[opcodes::SWAP4 as usize]);
+        enforce_swap    (&mut evaluations,      current, next, op_flags[OpCode::Swap.ld_index()]);
+        enforce_swap2   (&mut evaluations,      current, next, op_flags[OpCode::Swap2.ld_index()]);
+        enforce_swap4   (&mut evaluations,      current, next, op_flags[OpCode::Swap4.ld_index()]);
     
-        enforce_roll4(&mut evaluations,     current, next, op_flags[opcodes::ROLL4 as usize]);
-        enforce_roll8(&mut evaluations,     current, next, op_flags[opcodes::ROLL8 as usize]);
+        enforce_roll4   (&mut evaluations,      current, next, op_flags[OpCode::Roll4.ld_index()]);
+        enforce_roll8   (&mut evaluations,      current, next, op_flags[OpCode::Roll8.ld_index()]);
     
         // arithmetic and boolean operations
-        enforce_add(&mut evaluations,       current, next, op_flags[opcodes::ADD as usize]);
-        enforce_mul(&mut evaluations,       current, next, op_flags[opcodes::MUL as usize]);
-        enforce_inv(&mut evaluations,       current, next, op_flags[opcodes::INV as usize]);
-        enforce_neg(&mut evaluations,       current, next, op_flags[opcodes::NEG as usize]);
-        enforce_not(&mut evaluations, aux,  current, next, op_flags[opcodes::NOT as usize]);
-        enforce_and(&mut evaluations, aux,  current, next, op_flags[opcodes::AND as usize]);
-        enforce_or (&mut evaluations, aux,  current, next, op_flags[opcodes::OR as usize]);
+        enforce_add     (&mut evaluations,      current, next, op_flags[OpCode::Add.ld_index()]);
+        enforce_mul     (&mut evaluations,      current, next, op_flags[OpCode::Mul.ld_index()]);
+        enforce_inv     (&mut evaluations,      current, next, op_flags[OpCode::Inv.ld_index()]);
+        enforce_neg     (&mut evaluations,      current, next, op_flags[OpCode::Neg.ld_index()]);
+        enforce_not     (&mut evaluations, aux, current, next, op_flags[OpCode::Not.ld_index()]);
+        enforce_and     (&mut evaluations, aux, current, next, op_flags[OpCode::And.ld_index()]);
+        enforce_or      (&mut evaluations, aux, current, next, op_flags[OpCode::Or.ld_index()]);
         
         // comparison operations
-        enforce_eq(&mut evaluations,  aux,  current, next, op_flags[opcodes::EQ as usize]);
-        enforce_cmp(&mut evaluations,       current, next, op_flags[opcodes::CMP as usize]);
-        enforce_binacc(&mut evaluations,    current, next, op_flags[opcodes::BINACC as usize]);
+        enforce_eq      (&mut evaluations, aux, current, next, op_flags[OpCode::Eq.ld_index()]);
+        enforce_binacc  (&mut evaluations,      current, next, op_flags[OpCode::BinAcc.ld_index()]);
 
         // conditional selection operations
-        enforce_choose(&mut evaluations,  aux,  current, next, op_flags[opcodes::CHOOSE as usize]);
-        enforce_choose2(&mut evaluations, aux,  current, next, op_flags[opcodes::CHOOSE2 as usize]);
+        enforce_choose  (&mut evaluations, aux, current, next, op_flags[OpCode::Choose.ld_index()]);
+        enforce_choose2 (&mut evaluations, aux, current, next, op_flags[OpCode::Choose2.ld_index()]);
+
+        // copy evaluations into the result
+        for i in 0..result.len() {
+            result[i] = field::add(result[i], evaluations[i]);
+        }
+    }
+
+    fn enforce_high_degree_ops(&self, current: &[u128], next: &[u128], op_flags: [u128; NUM_HD_OPS], result: &mut [u128]) {
+
+        // split constraint evaluation result into aux constraints and stack constraints
+        let (aux, result) = result.split_at_mut(NUM_AUX_CONSTRAINTS);
+
+        // initialize a vector to hold stack constraint evaluations; this is needed because
+        // constraint evaluator functions assume that the stack is at least 8 items deep; while
+        // it may actually be smaller than that
+        let mut evaluations = vec![field::ZERO; current.len()];
+
+        //enforce_no_change(&mut evaluations,      current, next, op_flags[OpCode::Noop.hd_index()]);
+        //enforce_push     (&mut evaluations,      current, next, op_flags[OpCode::Push.hd_index()]);
+        //enforce_cmp      (&mut evaluations,      current, next, op_flags[OpCode::Cmp.hd_index()]);
+        // TODO: add hash instruction
 
         // copy evaluations into the result
         for i in 0..result.len() {
@@ -159,7 +186,7 @@ impl Stack {
 fn enforce_assert(result: &mut [u128], aux: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
     let n = next.len() - 1;
     enforce_no_change(&mut result[0..n], &current[1..], &next[0..n], op_flag);
-    aux[0] = agg_op_constraint(aux[0], op_flag, are_equal(field::ONE, current[0]));
+    aux.agg_constraint(0, op_flag, are_equal(field::ONE, current[0]));
 }
 
 /// Enforces constraints for ASSERTEQ operation. The stack is shifted by 2 registers the left and
@@ -167,7 +194,7 @@ fn enforce_assert(result: &mut [u128], aux: &mut [u128], current: &[u128], next:
 fn enforce_asserteq(result: &mut [u128], aux: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
     let n = next.len() - 2;
     enforce_no_change(&mut result[0..n], &current[2..], &next[0..n], op_flag);
-    aux[0] = agg_op_constraint(aux[0], op_flag, are_equal(current[0], current[1]));
+    aux.agg_constraint(0, op_flag, are_equal(current[0], current[1]));
 }
 
 // INPUT OPERATIONS
@@ -175,10 +202,7 @@ fn enforce_asserteq(result: &mut [u128], aux: &mut [u128], current: &[u128], nex
 
 /// Enforces constraints for PUSH operation. The constraints are based on the first element of the 
 /// stack; the old stack is shifted right by 1 element.
-fn enforce_push(result: &mut [u128], current: &[u128], next: &[u128], op_code: u128, op_flag: u128) {
-
-    // op_code becomes the first element on the stack
-    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], op_code));
+fn enforce_push(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
 
     // ensure that the rest of the stack is shifted right by 1 element
     enforce_no_change(&mut result[1..], &current[0..], &next[1..], op_flag);
@@ -202,33 +226,33 @@ fn enforce_read2(result: &mut [u128], current: &[u128], next: &[u128], op_flag: 
 /// Enforces constraints for DUP operation. The constraints are based on the first element
 /// of the stack; the old stack is shifted right by 1 element.
 fn enforce_dup(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
-    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[0]));
+    result.agg_constraint(0, op_flag, are_equal(next[0], current[0]));
     enforce_no_change(&mut result[1..], &current[0..], &next[1..], op_flag);
 }
 
 /// Enforces constraints for DUP2 operation. The constraints are based on the first 2 element
 /// of the stack; the old stack is shifted right by 2 element.
 fn enforce_dup2(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
-    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[0]));
-    result[1] = agg_op_constraint(result[1], op_flag, are_equal(next[1], current[1]));
+    result.agg_constraint(0, op_flag, are_equal(next[0], current[0]));
+    result.agg_constraint(1, op_flag, are_equal(next[1], current[1]));
     enforce_no_change(&mut result[2..], &current[0..], &next[2..], op_flag);
 }
 
 /// Enforces constraints for DUP4 operation. The constraints are based on the first 4 element
 /// of the stack; the old stack is shifted right by 4 element.
 fn enforce_dup4(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
-    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[0]));
-    result[1] = agg_op_constraint(result[1], op_flag, are_equal(next[1], current[1]));
-    result[2] = agg_op_constraint(result[2], op_flag, are_equal(next[2], current[2]));
-    result[3] = agg_op_constraint(result[3], op_flag, are_equal(next[3], current[3]));
+    result.agg_constraint(0, op_flag, are_equal(next[0], current[0]));
+    result.agg_constraint(1, op_flag, are_equal(next[1], current[1]));
+    result.agg_constraint(2, op_flag, are_equal(next[2], current[2]));
+    result.agg_constraint(3, op_flag, are_equal(next[3], current[3]));
     enforce_no_change(&mut result[4..], &current[0..], &next[4..], op_flag);
 }
 
 /// Enforces constraints for PAD2 operation. The constraints are based on the first 2 element
 /// of the stack; the old stack is shifted right by 2 element.
 fn enforce_pad2(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
-    result[0] = agg_op_constraint(result[0], op_flag, next[0]);
-    result[1] = agg_op_constraint(result[1], op_flag, next[1]);
+    result.agg_constraint(0, op_flag, next[0]);
+    result.agg_constraint(1, op_flag, next[1]);
     enforce_no_change(&mut result[2..], &current[0..], &next[2..], op_flag);
 }
 
@@ -247,170 +271,55 @@ fn enforce_drop4(result: &mut [u128], current: &[u128], next: &[u128], op_flag: 
 /// Enforces constraints for SWAP operation. The constraints are based on the first 2 element
 /// of the stack; the rest of the stack is unaffected.
 fn enforce_swap(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
-    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[1]));
-    result[1] = agg_op_constraint(result[0], op_flag, are_equal(next[1], current[0]));
+    result.agg_constraint(0, op_flag, are_equal(next[0], current[1]));
+    result.agg_constraint(0, op_flag, are_equal(next[1], current[0]));
     enforce_no_change(&mut result[2..], &current[2..], &next[2..], op_flag);
 }
 
 /// Enforces constraints for SWAP2 operation. The constraints are based on the first 4 element
 /// of the stack; the rest of the stack is unaffected.
 fn enforce_swap2(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
-    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[2]));
-    result[1] = agg_op_constraint(result[1], op_flag, are_equal(next[1], current[3]));
-    result[2] = agg_op_constraint(result[2], op_flag, are_equal(next[2], current[0]));
-    result[3] = agg_op_constraint(result[3], op_flag, are_equal(next[3], current[1]));
+    result.agg_constraint(0, op_flag, are_equal(next[0], current[2]));
+    result.agg_constraint(1, op_flag, are_equal(next[1], current[3]));
+    result.agg_constraint(2, op_flag, are_equal(next[2], current[0]));
+    result.agg_constraint(3, op_flag, are_equal(next[3], current[1]));
     enforce_no_change(&mut result[4..], &current[4..], &next[4..], op_flag);
 }
 
 /// Enforces constraints for SWAP4 operation. The constraints are based on the first 8 element
 /// of the stack; the rest of the stack is unaffected.
 fn enforce_swap4(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
-    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[4]));
-    result[1] = agg_op_constraint(result[1], op_flag, are_equal(next[1], current[5]));
-    result[2] = agg_op_constraint(result[2], op_flag, are_equal(next[2], current[6]));
-    result[3] = agg_op_constraint(result[3], op_flag, are_equal(next[3], current[7]));
-    result[4] = agg_op_constraint(result[4], op_flag, are_equal(next[4], current[0]));
-    result[5] = agg_op_constraint(result[5], op_flag, are_equal(next[5], current[1]));
-    result[6] = agg_op_constraint(result[6], op_flag, are_equal(next[6], current[2]));
-    result[7] = agg_op_constraint(result[7], op_flag, are_equal(next[7], current[3]));
+    result.agg_constraint(0, op_flag, are_equal(next[0], current[4]));
+    result.agg_constraint(1, op_flag, are_equal(next[1], current[5]));
+    result.agg_constraint(2, op_flag, are_equal(next[2], current[6]));
+    result.agg_constraint(3, op_flag, are_equal(next[3], current[7]));
+    result.agg_constraint(4, op_flag, are_equal(next[4], current[0]));
+    result.agg_constraint(5, op_flag, are_equal(next[5], current[1]));
+    result.agg_constraint(6, op_flag, are_equal(next[6], current[2]));
+    result.agg_constraint(7, op_flag, are_equal(next[7], current[3]));
     enforce_no_change(&mut result[8..], &current[8..], &next[8..], op_flag);
 }
 
 /// Enforces constraints for ROLL4 operation. The constraints are based on the first 4 element
 /// of the stack; the rest of the stack is unaffected.
 fn enforce_roll4(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
-    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[3]));
-    result[1] = agg_op_constraint(result[1], op_flag, are_equal(next[1], current[0]));
-    result[2] = agg_op_constraint(result[2], op_flag, are_equal(next[2], current[1]));
-    result[3] = agg_op_constraint(result[3], op_flag, are_equal(next[3], current[2]));
+    result.agg_constraint(0, op_flag, are_equal(next[0], current[3]));
+    result.agg_constraint(1, op_flag, are_equal(next[1], current[0]));
+    result.agg_constraint(2, op_flag, are_equal(next[2], current[1]));
+    result.agg_constraint(3, op_flag, are_equal(next[3], current[2]));
     enforce_no_change(&mut result[4..], &current[4..], &next[4..], op_flag);
 }
 
 /// Enforces constraints for ROLL8 operation. The constraints are based on the first 8 element
 /// of the stack; the rest of the stack is unaffected.
 fn enforce_roll8(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
-    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], current[7]));
-    result[1] = agg_op_constraint(result[1], op_flag, are_equal(next[1], current[0]));
-    result[2] = agg_op_constraint(result[2], op_flag, are_equal(next[2], current[1]));
-    result[3] = agg_op_constraint(result[3], op_flag, are_equal(next[3], current[2]));
-    result[4] = agg_op_constraint(result[4], op_flag, are_equal(next[4], current[3]));
-    result[5] = agg_op_constraint(result[5], op_flag, are_equal(next[5], current[4]));
-    result[6] = agg_op_constraint(result[6], op_flag, are_equal(next[6], current[5]));
-    result[7] = agg_op_constraint(result[7], op_flag, are_equal(next[7], current[6]));
+    result.agg_constraint(0, op_flag, are_equal(next[0], current[7]));
+    result.agg_constraint(1, op_flag, are_equal(next[1], current[0]));
+    result.agg_constraint(2, op_flag, are_equal(next[2], current[1]));
+    result.agg_constraint(3, op_flag, are_equal(next[3], current[2]));
+    result.agg_constraint(4, op_flag, are_equal(next[4], current[3]));
+    result.agg_constraint(5, op_flag, are_equal(next[5], current[4]));
+    result.agg_constraint(6, op_flag, are_equal(next[6], current[5]));
+    result.agg_constraint(7, op_flag, are_equal(next[7], current[6]));
     enforce_no_change(&mut result[8..], &current[8..], &next[8..], op_flag);
-}
-
-// ARITHMETIC and BOOLEAN OPERATION
-// ================================================================================================
-
-/// Enforces constraints for ADD operation. The constraints are based on the first 2 elements of
-/// the stack; the rest of the stack is shifted left by 1 element.
-fn enforce_add(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
-
-    let x = current[0];
-    let y = current[1];
-    let op_result = field::add(x, y);
-    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], op_result));
-
-    // ensure that the rest of the stack is shifted left by 1 element
-    let n = next.len() - 1;
-    enforce_no_change(&mut result[1..n], &current[2..], &next[1..n], op_flag);
-}
-
-/// Enforces constraints for MUL operation. The constraints are based on the first 2 elements of
-/// the stack; the rest of the stack is shifted left by 1 element.
-fn enforce_mul(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
-
-    let x = current[0];
-    let y = current[1];
-    let op_result = field::mul(x, y);
-    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], op_result));
-
-    // ensure that the rest of the stack is shifted left by 1 element
-    let n = next.len() - 1;
-    enforce_no_change(&mut result[1..n], &current[2..], &next[1..n], op_flag);
-}
-
-/// Enforces constraints for INV operation. The constraints are based on the first element of
-/// the stack; the rest of the stack is unaffected.
-fn enforce_inv(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
-
-    // Constraints for INV operation is defined as: x * inv(x) = 1; this also means
-    // that if x = 0, the constraint will not be satisfied
-    let x = current[0];
-    let inv_x = next[0];
-    result[0] = agg_op_constraint(result[0], op_flag, are_equal(field::ONE, field::mul(inv_x, x)));
-
-    // ensure nothing changed beyond the first item of the stack 
-    enforce_no_change(&mut result[1..], &current[1..], &next[1..], op_flag);
-}
-
-/// Enforces constraints for NEG operation. The constraints are based on the first element of
-/// the stack; the rest of the stack is unaffected.
-fn enforce_neg(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
-
-    // Constraint for NEG operation is defined as: x + neg(x) = 0
-    let x = current[0];
-    let neg_x = next[0];
-    result[0] = agg_op_constraint(result[0], op_flag, field::add(neg_x, x));
-
-    // ensure nothing changed beyond the first item of the stack 
-    enforce_no_change(&mut result[1..], &current[1..], &next[1..], op_flag);
-}
-
-/// Enforces constraints for NOT operation. The constraints are based on the first element of
-/// the stack, but also evaluates an auxiliary constraint which guarantees that the first
-/// element of the stack is binary.
-fn enforce_not(evaluations: &mut [u128], aux: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
-
-    // NOT operation is defined simply as: 1 - x; this means 0 becomes 1, and 1 becomes 0
-    let x = current[0];
-    let op_result = field::sub(field::ONE, x);
-    evaluations[0] = agg_op_constraint(evaluations[0], op_flag, are_equal(next[0], op_result));
-
-    // ensure nothing changed beyond the first item of the stack 
-    enforce_no_change(&mut evaluations[1..], &current[1..], &next[1..], op_flag);
-
-    // we also need to make sure that the operand is binary (i.e. 0 or 1)
-    aux[0] = agg_op_constraint(aux[0], op_flag, is_binary(x));
-}
-
-/// Enforces constraints for AND operation. The constraints are based on the first two elements
-/// of the stack, but also evaluates auxiliary constraints which guarantee that both elements
-/// are binary.
-fn enforce_and(result: &mut [u128], aux: &mut[u128], current: &[u128], next: &[u128], op_flag: u128) {
-
-    // AND operation is the same as: x * y
-    let x = current[0];
-    let y = current[1];
-    let op_result = field::mul(x, y);
-    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], op_result));
-
-    // ensure that the rest of the stack is shifted left by 1 element
-    let n = next.len() - 1;
-    enforce_no_change(&mut result[1..n], &current[2..], &next[1..n], op_flag);
-
-    // ensure that both operands are binary values
-    aux[0] = agg_op_constraint(aux[0], op_flag, is_binary(x));
-    aux[1] = agg_op_constraint(aux[1], op_flag, is_binary(y));
-}
-
-/// Enforces constraints for OR operation. The constraints are based on the first two elements
-/// of the stack, but also evaluates auxiliary constraints which guarantee that both elements
-/// are binary.
-fn enforce_or(result: &mut [u128], aux: &mut[u128], current: &[u128], next: &[u128], op_flag: u128) {
-
-    // OR operation is the same as: 1 - (1 - x) * (1 - y)
-    let x = current[0];
-    let y = current[1];
-    let op_result = field::sub(field::ONE, field::mul(field::sub(field::ONE, x), field::sub(field::ONE, y)));
-    result[0] = agg_op_constraint(result[0], op_flag, are_equal(next[0], op_result));
-
-    // ensure that the rest of the stack is shifted left by 1 element
-    let n = next.len() - 1;
-    enforce_no_change(&mut result[1..n], &current[2..], &next[1..n], op_flag);
-
-    // ensure that both operands are binary values
-    aux[0] = agg_op_constraint(aux[0], op_flag, is_binary(x));
-    aux[1] = agg_op_constraint(aux[1], op_flag, is_binary(y));
 }

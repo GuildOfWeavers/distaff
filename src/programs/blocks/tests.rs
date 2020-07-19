@@ -1,13 +1,13 @@
-use super::{ Opcode, Span, HashMap, OpHint };
+use super::{ OpCode, Span, HashMap, OpHint };
 
 #[test]
 fn span_hash() {
     // hash noop operations
     let block = Span::from_instructions(vec![
-        Opcode::Noop, Opcode::Noop, Opcode::Noop, Opcode::Noop,
-        Opcode::Noop, Opcode::Noop, Opcode::Noop, Opcode::Noop,
-        Opcode::Noop, Opcode::Noop, Opcode::Noop, Opcode::Noop,
-        Opcode::Noop, Opcode::Noop, Opcode::Noop
+        OpCode::Noop, OpCode::Noop, OpCode::Noop, OpCode::Noop,
+        OpCode::Noop, OpCode::Noop, OpCode::Noop, OpCode::Noop,
+        OpCode::Noop, OpCode::Noop, OpCode::Noop, OpCode::Noop,
+        OpCode::Noop, OpCode::Noop, OpCode::Noop
     ]);
 
     let hash = block.hash([0, 0, 0, 0]);
@@ -20,10 +20,10 @@ fn span_hash() {
     let mut hints = HashMap::new();
     hints.insert(8, OpHint::PushValue(1));
     let block = Span::new(vec![
-        Opcode::Noop, Opcode::Noop, Opcode::Noop, Opcode::Noop,
-        Opcode::Noop, Opcode::Noop, Opcode::Noop, Opcode::Noop,
-        Opcode::Push, Opcode::Noop, Opcode::Noop, Opcode::Noop,
-        Opcode::Noop, Opcode::Noop, Opcode::Noop
+        OpCode::Noop, OpCode::Noop, OpCode::Noop, OpCode::Noop,
+        OpCode::Noop, OpCode::Noop, OpCode::Noop, OpCode::Noop,
+        OpCode::Push, OpCode::Noop, OpCode::Noop, OpCode::Noop,
+        OpCode::Noop, OpCode::Noop, OpCode::Noop
     ], hints);
 
     let hash = block.hash([0, 0, 0, 0]);
@@ -36,10 +36,10 @@ fn span_hash() {
     let mut hints = HashMap::new();
     hints.insert(8, OpHint::PushValue(2));
     let block = Span::new(vec![
-        Opcode::Noop, Opcode::Noop, Opcode::Noop, Opcode::Noop,
-        Opcode::Noop, Opcode::Noop, Opcode::Noop, Opcode::Noop,
-        Opcode::Push, Opcode::Noop, Opcode::Noop, Opcode::Noop,
-        Opcode::Noop, Opcode::Noop, Opcode::Noop
+        OpCode::Noop, OpCode::Noop, OpCode::Noop, OpCode::Noop,
+        OpCode::Noop, OpCode::Noop, OpCode::Noop, OpCode::Noop,
+        OpCode::Push, OpCode::Noop, OpCode::Noop, OpCode::Noop,
+        OpCode::Noop, OpCode::Noop, OpCode::Noop
     ], hints);
 
     let hash = block.hash([0, 0, 0, 0]);

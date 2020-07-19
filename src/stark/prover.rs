@@ -38,8 +38,8 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u128], outputs: &[u128], options:
     let mut constraints = ConstraintTable::new(&trace, trace_tree.root(), inputs, outputs);
     
     // allocate space to hold current and next states for constraint evaluations
-    let mut current = TraceState::new(trace.max_stack_depth());
-    let mut next = TraceState::new(trace.max_stack_depth());
+    let mut current = TraceState::new(trace.ctx_depth(), trace.loop_depth(), trace.stack_depth());
+    let mut next = TraceState::new(trace.ctx_depth(), trace.loop_depth(), trace.stack_depth());
 
     // we don't need to evaluate constraints over the entire extended execution trace; we need
     // to evaluate them over the domain extended to match max constraint degree - thus, we can
@@ -153,6 +153,9 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u128], outputs: &[u128], options:
         deep_values,
         fri_proof,
         pow_nonce,
+        trace.ctx_depth(),
+        trace.loop_depth(),
+        trace.stack_depth(),
         &options);
 
     debug!("Built proof object in {} ms", now.elapsed().as_millis());

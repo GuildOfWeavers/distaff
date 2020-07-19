@@ -2,7 +2,6 @@ use crate::math::{ field, fft, polynom, parallel };
 use crate::crypto::{ MerkleTree, HashFunction };
 use crate::stark::{ CompositionCoefficients, utils };
 use crate::utils::{ uninit_vector, filled_vector, as_bytes };
-use crate::{ MAX_REGISTER_COUNT, DECODER_WIDTH, PROG_HASH_RANGE, MIN_EXTENSION_FACTOR };
 use super::{ TraceState };
 
 // TYPES AND INTERFACES
@@ -10,6 +9,9 @@ use super::{ TraceState };
 pub struct TraceTable {
     registers       : Vec<Vec<u128>>,
     polys           : Vec<Vec<u128>>,
+    ctx_depth       : usize,
+    loop_depth      : usize,
+    stack_depth     : usize,
     trace_length    : usize,
     extension_factor: usize,
 }
@@ -18,16 +20,30 @@ pub struct TraceTable {
 // ================================================================================================
 impl TraceTable {
     /// Returns a trace table constructed from the specified register traces.
-    pub fn new(registers: Vec<Vec<u128>>, extension_factor: usize) -> TraceTable {
-
+    pub fn new(registers: Vec<Vec<u128>>, ctx_depth: usize, loop_depth: usize, extension_factor: usize) -> TraceTable
+    {
         // validate extension factor
         assert!(extension_factor.is_power_of_two(), "trace extension factor must be a power of 2");
-        assert!(extension_factor >= MIN_EXTENSION_FACTOR,
-            "extension factor must be at least {}", MIN_EXTENSION_FACTOR);
+        assert!(extension_factor >= crate::MIN_EXTENSION_FACTOR,
+            "extension factor must be at least {}", crate::MIN_EXTENSION_FACTOR);
+
+        // validate context depth
+        assert!(ctx_depth > 0, "context depth must be greater than 0");
+        assert!(ctx_depth <= crate::MAX_CONTEXT_DEPTH,
+            "context depth cannot be greater than {}", crate::MAX_CONTEXT_DEPTH);
+
+        // validate loop depth
+        assert!(loop_depth <= crate::MAX_LOOP_DEPTH,
+            "loop depth cannot be greater than {}", crate::MAX_LOOP_DEPTH);
+
+        // compute stack depth
+        let decoder_width = TraceState::compute_decoder_width(ctx_depth, loop_depth);
+        assert!(registers.len() > decoder_width, "user stack must consist of at least one register");
+        let stack_depth = registers.len() - decoder_width;
 
         // validate register traces
-        assert!(registers.len() < MAX_REGISTER_COUNT,
-            "execution trace cannot have more than {} registers", MAX_REGISTER_COUNT);
+        assert!(registers.len() < crate::MAX_REGISTER_COUNT,
+            "execution trace cannot have more than {} registers", crate::MAX_REGISTER_COUNT);
         let trace_length = registers[0].len();
         assert!(trace_length.is_power_of_two(), "execution trace length must be a power of 2");
         for register in registers.iter() {
@@ -35,10 +51,14 @@ impl TraceTable {
         }
 
         let polys = Vec::with_capacity(registers.len());
-        return TraceTable { registers, polys, trace_length, extension_factor };
+        return TraceTable {
+            registers, polys,
+            ctx_depth, loop_depth, stack_depth,
+            trace_length, extension_factor
+        };
     }
 
-    /// Returns hash value of the executed program.
+    /// Returns hash value of the executed program. TODO: replace with get_last_state?
     pub fn get_program_hash(&self) -> Vec<u128> {
         let last_step = if self.is_extended() {
             self.domain_size() - self.extension_factor()
@@ -47,25 +67,20 @@ impl TraceTable {
             self.unextended_length() - 1
         };
 
-        let mut result = vec![field::ZERO; PROG_HASH_RANGE.end - PROG_HASH_RANGE.start];
-        for (i, j) in PROG_HASH_RANGE.enumerate() {
-            result[i] = self.registers[j][last_step];
-        }
-        return result;
+        let state = self.get_state(last_step);
+        return state.program_hash().to_vec();
     }
 
     /// Returns state of the trace table at the specified `step`.
     pub fn get_state(&self, step: usize) -> TraceState {
-        let mut result = TraceState::new(self.max_stack_depth());
+        let mut result = TraceState::new(self.ctx_depth, self.loop_depth, self.stack_depth);
         self.fill_state(&mut result, step);
         return result;
     }
 
     /// Copies trace table state at the specified `step` to the passed in `state` object.
     pub fn fill_state(&self, state: &mut TraceState, step: usize) {
-        for i in 0..self.registers.len() {
-            state.set_register(i, self.registers[i][step]);
-        }
+        state.update_from_trace(&self.registers, step);
     }
 
     /// Returns the number of states in the un-extended trace table.
@@ -88,9 +103,19 @@ impl TraceTable {
         return self.registers.len();
     }
 
-    /// Returns the number of registers used by the stack.
-    pub fn max_stack_depth(&self) -> usize {
-        return self.registers.len() - DECODER_WIDTH;
+    /// Returns the number of registers used by context stack.
+    pub fn ctx_depth(&self) -> usize {
+        return self.ctx_depth;
+    }
+
+    /// Returns the number of registers used by loop stack.
+    pub fn loop_depth(&self) -> usize {
+        return self.loop_depth;
+    }
+
+    /// Returns the number of registers used by user stack.
+    pub fn stack_depth(&self) -> usize {
+        return self.stack_depth;
     }
 
     /// Returns polynomial of the register at the specified `index`; can be called only
@@ -241,6 +266,8 @@ impl TraceTable {
 
 // TESTS
 // ================================================================================================
+/*
+TODO: re-enable
 #[cfg(test)]
 mod tests {
 
@@ -262,11 +289,11 @@ mod tests {
 
         let v1 = trace.eval_polys_at(g);
         let s1 = trace.get_state(1 * EXT_FACTOR);
-        assert_eq!(v1, s1.registers());
+        assert_eq!(v1, s1.to_vec());
 
         let v2 = trace.eval_polys_at(field::exp(g, 2));
         let s2 = trace.get_state(2 * EXT_FACTOR);
-        assert_eq!(v2, s2.registers());
+        assert_eq!(v2, s2.to_vec());
     }
 
     #[test]
@@ -348,3 +375,4 @@ mod tests {
         return TraceTable::new(registers, EXT_FACTOR);
     }
 }
+*/

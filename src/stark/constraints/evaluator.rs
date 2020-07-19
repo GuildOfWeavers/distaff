@@ -1,5 +1,4 @@
 use crate::math::{ field };
-use crate::processor::{ opcodes };
 use crate::stark::{ StarkProof, TraceTable, TraceState, ConstraintCoefficients };
 use crate::utils::{ uninit_vector };
 use super::{ decoder::Decoder, stack::Stack, MAX_CONSTRAINT_DEGREE };
@@ -29,15 +28,15 @@ pub struct Evaluator {
 // ================================================================================================
 impl Evaluator {
 
-    pub fn from_trace(trace: &TraceTable, trace_root: &[u8; 32], inputs: &[u128], outputs: &[u128]) -> Evaluator {
-
-        let stack_depth = trace.max_stack_depth();
+    pub fn from_trace(trace: &TraceTable, trace_root: &[u8; 32], inputs: &[u128], outputs: &[u128]) -> Evaluator
+    {
+        let stack_depth = trace.stack_depth();
         let program_hash = trace.get_program_hash();
         let trace_length = trace.unextended_length();
         let extension_factor = MAX_CONSTRAINT_DEGREE;
 
         // instantiate decoder and stack constraint evaluators 
-        let decoder = Decoder::new(trace_length, extension_factor);
+        let decoder = Decoder::new(trace_length, extension_factor, trace.ctx_depth(), trace.loop_depth());
         let stack = Stack::new(trace_length, extension_factor, stack_depth);
 
         // build a list of transition constraint degrees
@@ -72,14 +71,14 @@ impl Evaluator {
         };
     }
 
-    pub fn from_proof(proof: &StarkProof, program_hash: &[u8; 32], inputs: &[u128], outputs: &[u128]) -> Evaluator {
-        
+    pub fn from_proof(proof: &StarkProof, program_hash: &[u8; 32], inputs: &[u128], outputs: &[u128]) -> Evaluator
+    {    
         let stack_depth = proof.stack_depth();
         let trace_length = proof.trace_length();
         let extension_factor = proof.options().extension_factor();
         
         // instantiate decoder and stack constraint evaluators 
-        let decoder = Decoder::new(trace_length, extension_factor);
+        let decoder = Decoder::new(trace_length, extension_factor, proof.ctx_depth(), proof.loop_depth());
         let stack = Stack::new(trace_length, extension_factor, stack_depth);
 
         // build a list of transition constraint degrees
@@ -181,35 +180,21 @@ impl Evaluator {
         let cc = self.coefficients.i_boundary;
         let mut cc_idx = 0;
 
-        // make sure op_code and ob_bits are set to BEGIN
-        let op_code = current.get_op_code();
-        let val = field::sub(op_code, opcodes::BEGIN as u128);
-        i_result = field::add(i_result, field::mul(val, cc[cc_idx]));
-        result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
-
-        let op_bits = current.get_op_bits();
-        for i in 0..op_bits.len() {
-            cc_idx += 2;
-            let val = field::sub(op_bits[i], field::ONE);
-            i_result = field::add(i_result, field::mul(val, cc[cc_idx]));
-            result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
-        }
-
-        // make sure operation accumulator registers are set to zeros 
-        let op_acc = current.get_op_acc();
+        // make sure operation sponge registers are set to zeros 
+        let op_acc = current.sponge();
         for i in 0..op_acc.len() {
-            cc_idx += 2;
             i_result = field::add(i_result, field::mul(op_acc[i], cc[cc_idx]));
             result_adj = field::add(result_adj, field::mul(op_acc[i], cc[cc_idx + 1]));
+            cc_idx += 2;
         }
 
         // make sure stack registers are set to inputs
-        let user_stack = current.get_stack();
+        let user_stack = current.user_stack();
         for i in 0..self.inputs.len() {
-            cc_idx += 2;
             let val = field::sub(user_stack[i], self.inputs[i]);
             i_result = field::add(i_result, field::mul(val, cc[cc_idx]));
             result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
+            cc_idx += 2;
         }
 
         // raise the degree of adjusted terms and sum all the terms together
@@ -222,20 +207,35 @@ impl Evaluator {
         let cc = self.coefficients.f_boundary;
         let mut cc_idx = 0;
 
-        // make sure op_code and op_bits are set to NOOP
-        let op_code = current.get_op_code();
-        f_result = field::add(f_result, field::mul(op_code, cc[cc_idx]));
-        result_adj = field::add(result_adj, field::mul(op_code, cc[cc_idx + 1]));
-
-        let op_bits = current.get_op_bits();
+        // make sure control flow op_bits are set VOID (111)
+        let op_bits = current.cf_op_bits();
         for i in 0..op_bits.len() {
+            let val = field::sub(op_bits[i], field::ONE);
+            i_result = field::add(i_result, field::mul(val, cc[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
             cc_idx += 2;
-            f_result = field::add(f_result, field::mul(op_bits[i], cc[cc_idx]));
-            result_adj = field::add(result_adj, field::mul(op_bits[i], cc[cc_idx + 1]));
         }
 
-        // make sure operation accumulator contains program hash
-        let program_hash = current.get_program_hash();
+        // make sure low-degree op_bits are set to NOOP (11111)
+        let op_bits = current.ld_op_bits();
+        for i in 0..op_bits.len() {
+            let val = field::sub(op_bits[i], field::ONE);
+            i_result = field::add(i_result, field::mul(val, cc[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
+            cc_idx += 2;
+        }
+
+        // make sure high-degree op_bits are set to NOOP (11)
+        let op_bits = current.ld_op_bits();
+        for i in 0..op_bits.len() {
+            let val = field::sub(op_bits[i], field::ONE);
+            i_result = field::add(i_result, field::mul(val, cc[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
+            cc_idx += 2;
+        }
+
+        // make sure operation sponge contains program hash
+        let program_hash = current.program_hash();
         for i in 0..self.program_hash.len() {
             cc_idx += 2;
             let val = field::sub(program_hash[i], self.program_hash[i]);

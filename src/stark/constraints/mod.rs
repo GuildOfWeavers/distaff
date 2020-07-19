@@ -11,6 +11,3 @@ pub use constraint_poly::{ ConstraintPoly };
 
 pub const MAX_TRANSITION_CONSTRAINTS: usize = 128;
 pub const MAX_CONSTRAINT_DEGREE     : usize = 8;
-
-#[cfg(test)]
-pub mod decoder2;

@@ -1,5 +1,5 @@
 use crate::math::{ field };
-use super::utils::{ agg_op_constraint, is_binary, are_equal, enforce_no_change };
+use super::{ is_binary, are_equal, enforce_no_change, EvaluationResult };
 
 // CONSTANTS
 // ================================================================================================
@@ -18,7 +18,7 @@ const X_ACC_IDX     : usize = 7;
 
 /// Evaluates constraints for EQ operation. These enforce that when x == y, top of the stack at
 /// the next step is set to 1, otherwise top of the stack at the next step is set to 0.
-pub fn enforce_eq(evaluations: &mut [u128], aux: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
+pub fn enforce_eq(result: &mut [u128], aux: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
 
     // compute difference between top two values of the stack
     let x = current[1];
@@ -30,19 +30,19 @@ pub fn enforce_eq(evaluations: &mut [u128], aux: &mut [u128], current: &[u128], 
 
     // the operation is defined as 1 - diff * inv(diff)
     let op_result = field::sub(field::ONE, field::mul(diff, inv_diff));
-    evaluations[0] = agg_op_constraint(evaluations[0], op_flag, are_equal(next[0], op_result));
+    result.agg_constraint(0, op_flag, are_equal(next[0], op_result));
 
     // stack items beyond 3nd item are shifted the the left by 2
     let n = next.len() - 2;
-    enforce_no_change(&mut evaluations[1..n], &current[3..], &next[1..n], op_flag);
+    enforce_no_change(&mut result[1..n], &current[3..], &next[1..n], op_flag);
 
     // we also need to make sure that result * diff = 0; this ensures that when diff != 0
     // the result must be set to 0
-    aux[0] = agg_op_constraint(aux[0], op_flag, field::mul(next[0], diff));
+    aux.agg_constraint(0, op_flag, field::mul(next[0], diff));
 }
 
 /// Evaluates constraints for CMP operation.
-pub fn enforce_cmp(evaluations: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
+pub fn enforce_cmp(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
 
     // layout of first 8 registers
     // [pow, bit_a, bit_b, not_set, gt, lt, acc_b, acc_a]
@@ -50,8 +50,8 @@ pub fn enforce_cmp(evaluations: &mut [u128], current: &[u128], next: &[u128], op
     // x and y bits are binary
     let x_bit = next[X_BIT_IDX];
     let y_bit = next[Y_BIT_IDX];
-    evaluations[0] = agg_op_constraint(evaluations[0], op_flag, is_binary(x_bit));
-    evaluations[1] = agg_op_constraint(evaluations[1], op_flag, is_binary(y_bit));
+    result.agg_constraint(0, op_flag, is_binary(x_bit));
+    result.agg_constraint(1, op_flag, is_binary(y_bit));
 
     // comparison trackers were updated correctly
     let not_set = next[NOT_SET_IDX];
@@ -60,29 +60,29 @@ pub fn enforce_cmp(evaluations: &mut [u128], current: &[u128], next: &[u128], op
 
     let gt = field::add(current[GT_IDX], field::mul(bit_gt, not_set));
     let lt = field::add(current[LT_IDX], field::mul(bit_lt, not_set));
-    evaluations[2] = agg_op_constraint(evaluations[2], op_flag, are_equal(next[GT_IDX], gt));
-    evaluations[3] = agg_op_constraint(evaluations[3], op_flag, are_equal(next[LT_IDX], lt));
+    result.agg_constraint(2, op_flag, are_equal(next[GT_IDX], gt));
+    result.agg_constraint(3, op_flag, are_equal(next[LT_IDX], lt));
 
     // binary representation accumulators were updated correctly
     let power_of_two = current[POW2_IDX];
     let x_acc = field::add(current[X_ACC_IDX], field::mul(x_bit, power_of_two));
     let y_acc = field::add(current[Y_ACC_IDX], field::mul(y_bit, power_of_two));
-    evaluations[4] = agg_op_constraint(evaluations[4], op_flag, are_equal(next[Y_ACC_IDX], y_acc));
-    evaluations[5] = agg_op_constraint(evaluations[5], op_flag, are_equal(next[X_ACC_IDX], x_acc));
+    result.agg_constraint(4, op_flag, are_equal(next[Y_ACC_IDX], y_acc));
+    result.agg_constraint(5, op_flag, are_equal(next[X_ACC_IDX], x_acc));
 
     // when GT or LT register is set to 1, not_set flag is cleared
     let not_set_check = field::mul(field::sub(field::ONE, current[LT_IDX]), field::sub(field::ONE, current[GT_IDX]));
-    evaluations[6] = agg_op_constraint(evaluations[6], op_flag, are_equal(not_set, not_set_check));
+    result.agg_constraint(6, op_flag, are_equal(not_set, not_set_check));
 
     // power of 2 register was updated correctly
     let power_of_two_constraint = are_equal(field::mul(next[POW2_IDX], 2), power_of_two);
-    evaluations[7] = agg_op_constraint(evaluations[7], op_flag, power_of_two_constraint);
+    result.agg_constraint(7, op_flag, power_of_two_constraint);
 
     // registers beyond the 7th register were not affected
-    enforce_no_change(&mut evaluations[8..], &current[8..], &next[8..], op_flag);
+    enforce_no_change(&mut result[8..], &current[8..], &next[8..], op_flag);
 }
 
-pub fn enforce_binacc(evaluations: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
+pub fn enforce_binacc(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
 
     // layout of first 3 registers:
     // [power of two, value bit, accumulated value]
@@ -91,16 +91,16 @@ pub fn enforce_binacc(evaluations: &mut [u128], current: &[u128], next: &[u128],
     // power of 2 register was updated correctly
     let power_of_two = current[0];
     let power_of_two_constraint = are_equal(field::mul(next[0], 2), power_of_two);
-    evaluations[0] = agg_op_constraint(evaluations[0], op_flag, power_of_two_constraint);
+    result.agg_constraint(0, op_flag, power_of_two_constraint);
 
     // the bit was a binary value
     let bit = next[1];
-    evaluations[1] = agg_op_constraint(evaluations[1], op_flag, is_binary(bit));
+    result.agg_constraint(1, op_flag, is_binary(bit));
 
     // binary representation accumulator was updated correctly
     let acc = field::add(current[2], field::mul(bit, power_of_two));
-    evaluations[2] = agg_op_constraint(evaluations[2], op_flag, are_equal(next[2], acc));
+    result.agg_constraint(2, op_flag, are_equal(next[2], acc));
 
     // registers beyond 2nd register remained the same
-    enforce_no_change(&mut evaluations[3..], &current[3..], &next[3..], op_flag);
+    enforce_no_change(&mut result[3..], &current[3..], &next[3..], op_flag);
 }

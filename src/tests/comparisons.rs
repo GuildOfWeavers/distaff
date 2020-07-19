@@ -1,3 +1,5 @@
+/*
+TODO: re-enable
 use crate::{ ProofOptions, opcodes::f128 as opcodes, math::field };
 use super::super::{ execute, verify, Program, ProgramInputs };
 
@@ -109,3 +111,4 @@ fn build_inputs_for_cmp(a: u128, b: u128, size: usize) -> (Vec<u128>, Vec<u128>)
 
     return (inputs_a, inputs_b);
 }
+*/

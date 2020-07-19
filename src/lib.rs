@@ -15,10 +15,10 @@ mod stark;
 pub use stark::{ StarkProof, ProofOptions };
 
 mod processor;
-pub use processor::{ opcodes };
+pub use processor::{ OpCode, OpHint };
 
 mod programs;
-pub use programs::{ Program, ProgramInputs, ExecutionGraph, ExecutionHint, assembly };
+pub use programs::{ Program, ProgramInputs, assembly, blocks };
 
 // EXECUTOR
 // ================================================================================================
@@ -33,10 +33,12 @@ pub fn execute(program: &Program, inputs: &ProgramInputs, num_outputs: usize, op
     assert!(num_outputs <= MAX_OUTPUTS, 
         "cannot produce more than {} outputs, but requested {}", MAX_OUTPUTS, num_outputs);
 
+    let proc_index = 0; // TODO
+
     // execute the program to create an execution trace
     let now = Instant::now();
-    let register_traces = processor::execute(program, inputs);
-    let mut trace = stark::TraceTable::new(register_traces, options.extension_factor());
+    let (trace, ctx_depth, loop_depth) = processor::execute(program, proc_index, inputs);
+    let mut trace = stark::TraceTable::new(trace, ctx_depth, loop_depth, options.extension_factor());
     debug!("Generated execution trace of {} registers and {} steps in {} ms",
         trace.register_count(),
         trace.unextended_length(),
@@ -44,16 +46,16 @@ pub fn execute(program: &Program, inputs: &ProgramInputs, num_outputs: usize, op
 
     // copy the user stack state the the last step to return as output
     let last_state = trace.get_state(trace.unextended_length() - 1);
-    let outputs = last_state.get_stack()[..num_outputs].to_vec();
+    let outputs = last_state.user_stack()[..num_outputs].to_vec();
 
     // generate STARK proof
     let mut proof = stark::prove(&mut trace, inputs.get_public_inputs(), &outputs, options);
 
-    // build Merkle authentication path for the program execution path and attach it to the proof
+    // build Merkle authentication path for procedure within the program and attach it to the proof
     let mut execution_path_hash = [0u128; ACC_STATE_RATE];
     execution_path_hash.copy_from_slice(&trace.get_program_hash());
-    let (auth_path_index, auth_path) = program.get_auth_path(&execution_path_hash);
-    proof.set_auth_path(auth_path, auth_path_index);
+    let proc_path = program.get_proc_path(proc_index);
+    proof.set_proc_path(proc_path, proc_index);
 
     return (outputs, proof);
 }
@@ -73,6 +75,8 @@ pub fn verify(program_hash: &[u8; 32], public_inputs: &[u128], outputs: &[u128],
 
 const MIN_TRACE_LENGTH      : usize = 16;
 const MAX_REGISTER_COUNT    : usize = 128;
+const MAX_CONTEXT_DEPTH     : usize = 16;
+const MAX_LOOP_DEPTH        : usize = 8;
 const MIN_EXTENSION_FACTOR  : usize = 16;
 
 // HASH OPERATION
@@ -96,19 +100,22 @@ const ACC_DIGEST_SIZE       : usize = 2;
 // DECODER LAYOUT
 // ------------------------------------------------------------------------------------------------
 //
-//   op  ╒═════════ op_bits ═══════════╕╒══════ op_acc ════════╕
-//    0      1    2     3     4     5     6     7     8     9
-// ├─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┤
+// ╒═════ sponge ══════╕╒═══ cf_ops ══╕╒═══════ ld_ops ═══════╕╒═ hd_ops ╕╒═ ctx ══╕╒═ loop ═╕
+//   0    1    2    3    4    5    6    7    8    9    10   11   12   13   14   ..   ..   ..
+// ├────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┤
 
-const NUM_OP_BITS           : usize = 5;
+const NUM_CF_OP_BITS        : usize = 3;
+const NUM_LD_OP_BITS        : usize = 5;
+const NUM_HD_OP_BITS        : usize = 2;
+
+const NUM_CF_OPS            : usize = 8;
 const NUM_LD_OPS            : usize = 32;
+const NUM_HD_OPS            : usize = 4;
 
-const DECODER_WIDTH         : usize = 1 + NUM_OP_BITS + ACC_STATE_WIDTH;
-
-const OP_CODE_INDEX         : usize = 0;
-const OP_BITS_RANGE         : Range<usize> = Range { start: 1, end: 6 };
-const OP_ACC_RANGE          : Range<usize> = Range { start: 6, end: 6 + ACC_STATE_WIDTH };
-const PROG_HASH_RANGE       : Range<usize> = Range { start: 6, end: 6 + ACC_STATE_RATE  };
+const SPONGE_RANGE          : Range<usize> = Range { start:  0, end:  4 };
+const CF_OP_BITS_RANGE      : Range<usize> = Range { start:  4, end:  7 };
+const LD_OP_BITS_RANGE      : Range<usize> = Range { start:  7, end: 12 };
+const HD_OP_BITS_RANGE      : Range<usize> = Range { start: 12, end: 14 };
 
 // STACK LAYOUT
 // ------------------------------------------------------------------------------------------------

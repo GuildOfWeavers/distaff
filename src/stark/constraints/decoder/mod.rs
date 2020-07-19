@@ -1,6 +1,6 @@
 use crate::math::{ field, polynom, fft };
-use crate::processor::opcodes2::{ FlowOps, UserOps };
-use crate::stark::trace::{ trace_state2::TraceState };
+use crate::processor::opcodes::{ FlowOps, UserOps };
+use crate::stark::trace::{ TraceState };
 use crate::utils::{ filled_vector, accumulator::ARK };
 use super::utils::{ are_equal, is_zero, is_binary, binary_not, EvaluationResult };
 
@@ -69,7 +69,7 @@ pub struct Decoder {
 // ================================================================================================
 impl Decoder {
 
-    fn new(trace_length: usize, extension_factor: usize, ctx_depth: usize, loop_depth: usize) -> Decoder 
+    pub fn new(trace_length: usize, extension_factor: usize, ctx_depth: usize, loop_depth: usize) -> Decoder 
     {
         // build an array of constraint degrees for the decoder
         let mut degrees = Vec::from(&OP_CONSTRAINT_DEGREES[..]);
@@ -104,6 +104,10 @@ impl Decoder {
         return self.loop_depth;
     }
 
+    pub fn constraint_count(&self) -> usize {
+        return self.constraint_degrees.len();
+    }
+
     pub fn constraint_degrees(&self) -> &[usize] {
         return &self.constraint_degrees;
     }
@@ -111,6 +115,8 @@ impl Decoder {
     // EVALUATOR FUNCTIONS
     // --------------------------------------------------------------------------------------------
 
+    /// Evaluates decoder transition constraints at the specified step of the evaluation domain and
+    /// saves the evaluations into `result`.
     pub fn evaluate(&self, current: &TraceState, next: &TraceState, step: usize, result: &mut [u128])
     {
         // determine round and mask constants at the specified step
@@ -132,9 +138,11 @@ impl Decoder {
         enforce_wrap (result, current, next, op_flags[FlowOps::Wrap as usize]);
         enforce_break(result, current, next, op_flags[FlowOps::Break as usize]);
         enforce_void (result, current, next, op_flags[FlowOps::Void as usize]);
-
     }
 
+    /// Evaluates decoder transition constraints at the specified x coordinate and saves the
+    /// evaluations into `result`. Unlike the function above, this function can evaluate constraints
+    /// at any out-of-domain point, but it is much slower than the previous function.
     pub fn evaluate_at(&self, current: &TraceState, next: &TraceState, x: u128, result: &mut [u128])
     {
         // map x to the corresponding coordinate in constant cycles

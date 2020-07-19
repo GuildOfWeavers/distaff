@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::processor::opcodes2::{ UserOps as Opcode, OpHint };
+use crate::processor::{ OpCode, OpHint };
 use super::{ hash_seq, hash_op, BASE_CYCLE_LENGTH };
 
 #[cfg(test)]
@@ -7,21 +7,21 @@ mod tests;
 
 // CONSTANTS
 // ================================================================================================
-const BLOCK_SUFFIX: [u8; 1] = [Opcode::Noop as u8];
+const BLOCK_SUFFIX: [u8; 1] = [OpCode::Noop as u8];
 const BLOCK_SUFFIX_OFFSET: usize = BASE_CYCLE_LENGTH - 1;
 
-const LOOP_SKIP_BLOCK: [Opcode; 15] = [
-    Opcode::Not,  Opcode::Assert, Opcode::Noop, Opcode::Noop,
-    Opcode::Noop, Opcode::Noop,   Opcode::Noop, Opcode::Noop,
-    Opcode::Noop, Opcode::Noop,   Opcode::Noop, Opcode::Noop,
-    Opcode::Noop, Opcode::Noop,   Opcode::Noop
+const LOOP_SKIP_BLOCK: [OpCode; 15] = [
+    OpCode::Not,  OpCode::Assert, OpCode::Noop, OpCode::Noop,
+    OpCode::Noop, OpCode::Noop,   OpCode::Noop, OpCode::Noop,
+    OpCode::Noop, OpCode::Noop,   OpCode::Noop, OpCode::Noop,
+    OpCode::Noop, OpCode::Noop,   OpCode::Noop
 ];
 
 const LOOP_BLOCK_SUFFIX: [u8; 16] = [
-    Opcode::Not  as u8, Opcode::Assert as u8, Opcode::Noop as u8, Opcode::Noop as u8,
-    Opcode::Noop as u8, Opcode::Noop   as u8, Opcode::Noop as u8, Opcode::Noop as u8,
-    Opcode::Noop as u8, Opcode::Noop   as u8, Opcode::Noop as u8, Opcode::Noop as u8,
-    Opcode::Noop as u8, Opcode::Noop   as u8, Opcode::Noop as u8, Opcode::Noop as u8,
+    OpCode::Not  as u8, OpCode::Assert as u8, OpCode::Noop as u8, OpCode::Noop as u8,
+    OpCode::Noop as u8, OpCode::Noop   as u8, OpCode::Noop as u8, OpCode::Noop as u8,
+    OpCode::Noop as u8, OpCode::Noop   as u8, OpCode::Noop as u8, OpCode::Noop as u8,
+    OpCode::Noop as u8, OpCode::Noop   as u8, OpCode::Noop as u8, OpCode::Noop as u8,
 ];
 
 // TYPES AND INTERFACES
@@ -37,7 +37,7 @@ pub enum ProgramBlock {
 
 #[derive(Clone)]
 pub struct Span {
-    op_codes    : Vec<Opcode>,
+    op_codes    : Vec<OpCode>,
     op_hints    : HashMap<usize, OpHint>,
 }
 
@@ -88,7 +88,7 @@ impl std::fmt::Debug for ProgramBlock {
 // ================================================================================================
 impl Span {
 
-    pub fn new(instructions: Vec<Opcode>, hints: HashMap<usize, OpHint>) -> Span {
+    pub fn new(instructions: Vec<OpCode>, hints: HashMap<usize, OpHint>) -> Span {
         let alignment = instructions.len() % BASE_CYCLE_LENGTH;
         assert!(alignment == BASE_CYCLE_LENGTH - 1,
             "invalid number of instructions: expected one less than a multiple of {}, but was {}",
@@ -97,7 +97,7 @@ impl Span {
         // make sure all instructions are valid
         for i in 0..instructions.len() {
             let op_code = instructions[i];
-            if op_code == Opcode::Push {
+            if op_code == OpCode::Push {
                 assert!(i % 8 == 0, "PUSH is not allowed on step {}, must be on step which is a multiple of 8", i);
                 let hint = hints.get(&i);
                 assert!(hint.is_some(), "invalid PUSH operation on step {}: operation value is missing", i);
@@ -120,11 +120,11 @@ impl Span {
         };
     }
 
-    pub fn new_block(instructions: Vec<Opcode>) -> ProgramBlock {
+    pub fn new_block(instructions: Vec<OpCode>) -> ProgramBlock {
         return ProgramBlock::Span(Span::new(instructions, HashMap::new()));
     }
 
-    pub fn from_instructions(instructions: Vec<Opcode>) -> Span {
+    pub fn from_instructions(instructions: Vec<OpCode>) -> Span {
         return Span::new(instructions, HashMap::new());
     }
 
@@ -132,11 +132,11 @@ impl Span {
         return self.op_codes.len();
     }
 
-    pub fn starts_with(&self, instructions: &[Opcode]) -> bool {
+    pub fn starts_with(&self, instructions: &[OpCode]) -> bool {
         return self.op_codes.starts_with(instructions);
     }
 
-    pub fn get_op(&self, step: usize) -> (Opcode, OpHint) {
+    pub fn get_op(&self, step: usize) -> (OpCode, OpHint) {
         return (self.op_codes[step], self.get_hint(step));
     }
 
@@ -149,7 +149,7 @@ impl Span {
 
     pub fn hash(&self, mut state: [u128; 4]) -> [u128; 4] {
         for (i, &op_code) in self.op_codes.iter().enumerate() {
-            let op_value = if op_code == Opcode::Push {
+            let op_value = if op_code == OpCode::Push {
                 match self.get_hint(i) {
                     OpHint::PushValue(op_value) => op_value,
                     _ => panic!("value for PUSH operation is missing")
@@ -164,7 +164,7 @@ impl Span {
     pub fn merge(span1: &Span, span2: &Span) -> Span {
         // merge op codes
         let mut new_op_codes = span1.op_codes.clone();
-        new_op_codes.push(Opcode::Noop);
+        new_op_codes.push(OpCode::Noop);
         new_op_codes.extend_from_slice(&span2.op_codes);
 
         // merge hints
@@ -234,8 +234,8 @@ impl std::fmt::Debug for Group {
 impl Switch {
 
     pub fn new(true_branch: Vec<ProgramBlock>, false_branch: Vec<ProgramBlock>) -> Switch {
-        validate_block_list(&true_branch, &[Opcode::Assert]);
-        validate_block_list(&false_branch, &[Opcode::Not, Opcode::Assert]);
+        validate_block_list(&true_branch, &[OpCode::Assert]);
+        validate_block_list(&false_branch, &[OpCode::Not, OpCode::Assert]);
         return Switch {
             t_branch    : true_branch,
             f_branch    : false_branch
@@ -288,7 +288,7 @@ impl std::fmt::Debug for Switch {
 impl Loop {
 
     pub fn new(body: Vec<ProgramBlock>) -> Loop {
-        validate_block_list(&body, &[Opcode::Assert]);
+        validate_block_list(&body, &[OpCode::Assert]);
 
         let skip_block = Span::from_instructions(LOOP_SKIP_BLOCK.to_vec());
         let skip = vec![ProgramBlock::Span(skip_block)];
@@ -339,7 +339,7 @@ impl std::fmt::Debug for Loop {
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn validate_block_list(blocks: &Vec<ProgramBlock>, starts_with: &[Opcode]) {
+fn validate_block_list(blocks: &Vec<ProgramBlock>, starts_with: &[OpCode]) {
 
     assert!(blocks.len() > 0, "a sequence of blocks must contain at least one block");
     
