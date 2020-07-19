@@ -211,7 +211,7 @@ impl Evaluator {
         let op_bits = current.cf_op_bits();
         for i in 0..op_bits.len() {
             let val = field::sub(op_bits[i], field::ONE);
-            i_result = field::add(i_result, field::mul(val, cc[cc_idx]));
+            f_result = field::add(f_result, field::mul(val, cc[cc_idx]));
             result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
             cc_idx += 2;
         }
@@ -220,7 +220,7 @@ impl Evaluator {
         let op_bits = current.ld_op_bits();
         for i in 0..op_bits.len() {
             let val = field::sub(op_bits[i], field::ONE);
-            i_result = field::add(i_result, field::mul(val, cc[cc_idx]));
+            f_result = field::add(f_result, field::mul(val, cc[cc_idx]));
             result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
             cc_idx += 2;
         }
@@ -229,7 +229,7 @@ impl Evaluator {
         let op_bits = current.ld_op_bits();
         for i in 0..op_bits.len() {
             let val = field::sub(op_bits[i], field::ONE);
-            i_result = field::add(i_result, field::mul(val, cc[cc_idx]));
+            f_result = field::add(f_result, field::mul(val, cc[cc_idx]));
             result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
             cc_idx += 2;
         }
@@ -297,6 +297,18 @@ impl Evaluator {
                 mutable_self.t_evaluations[i][step] = evaluations[i];
             }
         }
+    }
+
+    #[cfg(debug_assertions)]
+    pub fn get_transition_evaluations(&self) -> &Vec<Vec<u128>> {
+        return &self.t_evaluations;
+    }
+
+    #[cfg(debug_assertions)]
+    pub fn get_transition_degrees(&self) -> Vec<usize> {
+        return [
+            self.decoder.constraint_degrees(), self.stack.constraint_degrees()
+        ].concat();
     }
 }
 

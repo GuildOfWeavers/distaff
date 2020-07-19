@@ -51,10 +51,13 @@ impl ConstraintTable {
 
     /// Interpolates all constraint evaluations into polynomials and combines all these 
     /// polynomials into a single polynomial using pseudo-random linear combination.
-    pub fn combine_polys(mut self) -> ConstraintPoly {
-
+    pub fn combine_polys(mut self) -> ConstraintPoly
+    {
         let combination_root = field::get_root_of_unity(self.evaluation_domain_size());
         let inv_twiddles = fft::get_inv_twiddles(combination_root, self.evaluation_domain_size());
+     
+        #[cfg(debug_assertions)]
+        self.validate_transition_degrees();
         
         let mut combined_poly = uninit_vector(self.evaluation_domain_size());
         
@@ -84,4 +87,23 @@ impl ConstraintTable {
         return ConstraintPoly::new(combined_poly);
     }
 
+    #[cfg(debug_assertions)]
+    fn validate_transition_degrees(&self) {
+        let trace_degree = self.evaluator.trace_length() - 1;
+        let mut expected_degrees = self.evaluator.get_transition_degrees();
+        for i in 0..expected_degrees.len() {
+            expected_degrees[i] = expected_degrees[i] * trace_degree;
+        }
+
+        let mut actual_degrees = Vec::new();
+        let transition_evaluations = self.evaluator.get_transition_evaluations();
+        for i in 0..transition_evaluations.len() {
+            let degree = crate::math::polynom::infer_degree(&transition_evaluations[i]);
+            actual_degrees.push(degree);
+        }
+
+        // TODO: replace with assert
+        println!("expected: {:>3?}", expected_degrees);
+        println!("actual:   {:>3?}", actual_degrees);
+    }
 }

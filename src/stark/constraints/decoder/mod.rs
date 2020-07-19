@@ -39,7 +39,7 @@ const OP_CONSTRAINT_DEGREES: [usize; NUM_OP_CONSTRAINTS] = [
     2, 2, 2, 2, 2, 2, 2, 2, 2, 2,   // all op bits are binary
     7,                              // ld_ops and hd_ops cannot be all 0s
     8,                              // when cf_ops are not all 0s, ld_ops and hd_ops must be all 1s
-    2,                              // VOID can be followed only by VOID
+    6,                              // VOID can be followed only by VOID
     4,                              // operations happen on allowed step multiples
 ];
 
