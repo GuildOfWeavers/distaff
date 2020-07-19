@@ -88,14 +88,11 @@ const HASH_CYCLE_LENGTH     : usize = 16;
 const HASH_NUM_ROUNDS       : usize = 10;
 const HASH_DIGEST_SIZE      : usize = 2;
 
-// HASH ACCUMULATOR
+// OPERATION SPONGE
 // ------------------------------------------------------------------------------------------------
 const ACC_STATE_RATE        : usize = 2;
-const ACC_STATE_CAPACITY    : usize = 2;
-const ACC_STATE_WIDTH       : usize = ACC_STATE_RATE + ACC_STATE_CAPACITY;
-const ACC_CYCLE_LENGTH      : usize = 16;
-const ACC_NUM_ROUNDS        : usize = 16;
-const ACC_DIGEST_SIZE       : usize = 2;
+const SPONGE_WIDTH          : usize = 4;
+const SPONGE_CYCLE_LENGTH   : usize = 16;
 
 // DECODER LAYOUT
 // ------------------------------------------------------------------------------------------------
@@ -120,7 +117,7 @@ const HD_OP_BITS_RANGE      : Range<usize> = Range { start: 12, end: 14 };
 // STACK LAYOUT
 // ------------------------------------------------------------------------------------------------
 //
-//   aux ╒════════════════ user registers ═════════════════════╕
+// ╒═══════════════════ user registers ════════════════════════╕
 //    0      1    2    .................................    31
 // ├─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┤
 

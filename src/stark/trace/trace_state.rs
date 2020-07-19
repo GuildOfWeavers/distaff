@@ -2,14 +2,14 @@ use std::{ fmt, cmp };
 use crate::math::field;
 use crate::{
     MIN_STACK_DEPTH,
+    SPONGE_WIDTH, SPONGE_RANGE,
     NUM_CF_OPS, NUM_LD_OPS, NUM_HD_OPS,
     NUM_CF_OP_BITS, NUM_LD_OP_BITS, NUM_HD_OP_BITS,
-    SPONGE_RANGE, CF_OP_BITS_RANGE, LD_OP_BITS_RANGE, HD_OP_BITS_RANGE,
+    CF_OP_BITS_RANGE, LD_OP_BITS_RANGE, HD_OP_BITS_RANGE,
 };
 
-// TYPES AND INTERFACES
+// CONSTANTS
 // ================================================================================================
-const SPONGE_WIDTH: usize = 4; // TODO: move to global constants
 const NUM_OP_BITS: usize = NUM_CF_OP_BITS + NUM_LD_OP_BITS + NUM_HD_OP_BITS;
 const NUM_STATIC_DECODER_REGISTERS: usize = SPONGE_WIDTH + NUM_OP_BITS;
 

@@ -1,11 +1,11 @@
 use crate::math::field;
 use crate::utils::accumulator::{ add_constants, apply_sbox, apply_mds, apply_inv_sbox };
-use crate::{ ACC_STATE_WIDTH };
+use crate::{ SPONGE_WIDTH };
 use super::{ ProgramBlock, BASE_CYCLE_LENGTH };
 
 // CONSTANTS
 // ================================================================================================
-pub const STATE_WIDTH: usize = ACC_STATE_WIDTH;
+pub const STATE_WIDTH: usize = SPONGE_WIDTH;
 pub const CYCLE_LENGTH: usize = BASE_CYCLE_LENGTH;
 pub const ACC_NUM_ROUNDS: usize = 14;   // TODO: move to global constants
 pub const ACC_ROUND_OFFSET: usize = 1;  // TODO: move to global constants

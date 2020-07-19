@@ -26,7 +26,6 @@ mod tests;
 
 // TODO: move to global constants
 const SPONGE_WIDTH: usize = 4;
-const SPONGE_CYCLE_LENGTH: usize = 16;
 const BASE_CYCLE_LENGTH: usize = 16;
 
 const CYCLE_MASK_IDX: usize = 0;

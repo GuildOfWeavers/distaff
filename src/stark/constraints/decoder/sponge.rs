@@ -45,8 +45,9 @@ pub fn enforce_hacc(result: &mut [u128], current: &TraceState, next: &TraceState
 #[cfg(test)]
 mod tests {
     
-    use crate::utils::accumulator::{ apply_round2 as apply_hacc_round, ARK };
-    use super::{ TraceState, SPONGE_WIDTH, super::{ transpose_ark_constants, SPONGE_CYCLE_LENGTH } };
+    use crate::{ SPONGE_WIDTH, SPONGE_CYCLE_LENGTH };
+    use crate::utils::accumulator::{ apply_round as apply_hacc_round, ARK };
+    use super::{ TraceState, super::transpose_ark_constants };
 
     #[test]
     fn op_hacc() {
