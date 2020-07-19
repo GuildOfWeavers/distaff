@@ -1,16 +1,13 @@
-use crate::math::field;
+use crate::math::{ field };
 use crate::utils::accumulator::{ add_constants, apply_sbox, apply_mds, apply_inv_sbox };
-use crate::{ SPONGE_WIDTH };
-use super::{ ProgramBlock, BASE_CYCLE_LENGTH };
+use super::{ ProgramBlock, OpCode, CYCLE_LENGTH, SPONGE_WIDTH as STATE_WIDTH };
 
 // CONSTANTS
 // ================================================================================================
-pub const STATE_WIDTH: usize = SPONGE_WIDTH;
-pub const CYCLE_LENGTH: usize = BASE_CYCLE_LENGTH;
 pub const ACC_NUM_ROUNDS: usize = 14;   // TODO: move to global constants
 pub const ACC_ROUND_OFFSET: usize = 1;  // TODO: move to global constants
 
-pub const NOOP_VALUE: u8 = u8::max_value();
+pub const NOOP_VALUE: u8 = OpCode::Noop as u8;
 
 // PUBLIC FUNCTIONS
 // ================================================================================================

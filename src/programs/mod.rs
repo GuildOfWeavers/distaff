@@ -1,4 +1,5 @@
 use crate::crypto::{ HashFunction, build_merkle_nodes };
+use crate::processor::{ OpCode, OpHint };
 use crate::utils::{ as_bytes };
 
 pub mod assembly;
@@ -17,7 +18,10 @@ mod tests;
 
 // CONSTANTS
 // ================================================================================================
-pub const BASE_CYCLE_LENGTH: usize = 16;    // TODO: move to global constants?
+use crate::{
+    SPONGE_WIDTH,
+    PROGRAM_DIGEST_SIZE,
+    SPONGE_CYCLE_LENGTH as CYCLE_LENGTH };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -162,7 +166,7 @@ fn hash_procedures(procedures: &Vec<Group>) -> Vec<[u8; 32]> {
         let (v0, v1) = procedure.get_hash();
         let hash = hash_acc(0, v0, v1);
         let mut hash_bytes = [0u8; 32];
-        hash_bytes.copy_from_slice(as_bytes(&hash[..2]));
+        hash_bytes.copy_from_slice(as_bytes(&hash[..PROGRAM_DIGEST_SIZE]));
         hashes.push(hash_bytes);
     }
 

@@ -1,6 +1,5 @@
 use std::collections::HashMap;
-use crate::processor::{ OpCode, OpHint };
-use super::{ hash_seq, hash_op, BASE_CYCLE_LENGTH };
+use super::{ OpCode, OpHint, hash_seq, hash_op, CYCLE_LENGTH };
 
 #[cfg(test)]
 mod tests;
@@ -8,7 +7,7 @@ mod tests;
 // CONSTANTS
 // ================================================================================================
 const BLOCK_SUFFIX: [u8; 1] = [OpCode::Noop as u8];
-const BLOCK_SUFFIX_OFFSET: usize = BASE_CYCLE_LENGTH - 1;
+const BLOCK_SUFFIX_OFFSET: usize = CYCLE_LENGTH - 1;
 
 const LOOP_SKIP_BLOCK: [OpCode; 15] = [
     OpCode::Not,  OpCode::Assert, OpCode::Noop, OpCode::Noop,
@@ -89,10 +88,10 @@ impl std::fmt::Debug for ProgramBlock {
 impl Span {
 
     pub fn new(instructions: Vec<OpCode>, hints: HashMap<usize, OpHint>) -> Span {
-        let alignment = instructions.len() % BASE_CYCLE_LENGTH;
-        assert!(alignment == BASE_CYCLE_LENGTH - 1,
+        let alignment = instructions.len() % CYCLE_LENGTH;
+        assert!(alignment == CYCLE_LENGTH - 1,
             "invalid number of instructions: expected one less than a multiple of {}, but was {}",
-            BASE_CYCLE_LENGTH, instructions.len());
+            CYCLE_LENGTH, instructions.len());
 
         // make sure all instructions are valid
         for i in 0..instructions.len() {

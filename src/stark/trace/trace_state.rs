@@ -2,6 +2,7 @@ use std::{ fmt, cmp };
 use crate::math::field;
 use crate::{
     MIN_STACK_DEPTH,
+    PROGRAM_DIGEST_SIZE,
     SPONGE_WIDTH, SPONGE_RANGE,
     NUM_CF_OPS, NUM_LD_OPS, NUM_HD_OPS,
     NUM_CF_OP_BITS, NUM_LD_OP_BITS, NUM_HD_OP_BITS,
@@ -116,7 +117,7 @@ impl TraceState {
     }
 
     pub fn program_hash(&self) -> &[u128] {
-        return &self.sponge[..2]; // TODO: use constant
+        return &self.sponge[..PROGRAM_DIGEST_SIZE];
     }
 
     // OP BITS

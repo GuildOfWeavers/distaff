@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use crate::{ OpCode, OpHint, crypto::HashFunction };
-use super::{ Program, ProgramBlock, Span, Group, Switch, Loop, BASE_CYCLE_LENGTH }; // TODO
+use crate::{ crypto::HashFunction };
+use super::{ Program, ProgramBlock, Span, Group, Switch, Loop, OpCode, OpHint, CYCLE_LENGTH };
 
 mod parsers;
 use parsers::*;
@@ -261,7 +261,7 @@ fn add_span(body: &mut Vec<ProgramBlock>, op_codes: &mut Vec<OpCode>, op_hints: 
 
     // pad the instructions to make ensure 16-cycle alignment
     let mut span_op_codes = op_codes.clone();
-    let pad_length = BASE_CYCLE_LENGTH - (span_op_codes.len() % BASE_CYCLE_LENGTH) - 1;
+    let pad_length = CYCLE_LENGTH - (span_op_codes.len() % CYCLE_LENGTH) - 1;
     span_op_codes.resize(span_op_codes.len() + pad_length, OpCode::Noop);
 
     // add a new Span block to the body

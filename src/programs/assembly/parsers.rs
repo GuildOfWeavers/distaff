@@ -1,6 +1,5 @@
 use crate::{ math::field };
-use crate::processor::{ OpCode };
-use super::{ AssemblyError, HintMap, OpHint };
+use super::{ AssemblyError, HintMap, OpCode, OpHint };
 
 // CONSTANTS
 // ================================================================================================

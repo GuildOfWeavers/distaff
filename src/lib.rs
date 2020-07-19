@@ -52,9 +52,12 @@ pub fn execute(program: &Program, inputs: &ProgramInputs, num_outputs: usize, op
     let mut proof = stark::prove(&mut trace, inputs.get_public_inputs(), &outputs, options);
 
     // build Merkle authentication path for procedure within the program and attach it to the proof
-    let mut execution_path_hash = [0u128; ACC_STATE_RATE];
-    execution_path_hash.copy_from_slice(&trace.get_program_hash());
+    let procedure_hash = utils::as_bytes(last_state.program_hash());
     let proc_path = program.get_proc_path(proc_index);
+    assert!(proc_path[0] == procedure_hash,
+        "expected procedure hash {} does not match trace hash {}",
+        hex::encode(proc_path[0]),
+        hex::encode(procedure_hash));
     proof.set_proc_path(proc_path, proc_index);
 
     return (outputs, proof);
@@ -90,9 +93,9 @@ const HASH_DIGEST_SIZE      : usize = 2;
 
 // OPERATION SPONGE
 // ------------------------------------------------------------------------------------------------
-const ACC_STATE_RATE        : usize = 2;
 const SPONGE_WIDTH          : usize = 4;
 const SPONGE_CYCLE_LENGTH   : usize = 16;
+const PROGRAM_DIGEST_SIZE   : usize = 2;
 
 // DECODER LAYOUT
 // ------------------------------------------------------------------------------------------------
