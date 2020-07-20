@@ -5,7 +5,10 @@ use crate::{
     utils::hasher::ARK,
     NUM_LD_OPS, NUM_HD_OPS, BASE_CYCLE_LENGTH, HASH_STATE_WIDTH
 };
-use super::utils::{ are_equal, is_binary, binary_not, extend_constants, EvaluationResult };
+use super::utils::{
+    are_equal, is_binary, binary_not, extend_constants, EvaluationResult,
+    enforce_stack_copy, enforce_left_shift, enforce_right_shift,
+};
 
 mod input;
 use input::{ enforce_push, enforce_read, enforce_read2 };
@@ -30,9 +33,6 @@ use selection::{ enforce_choose, enforce_choose2 };
 
 mod hash;
 use hash::{ enforce_rescr };
-
-mod utils;
-use utils::{ enforce_no_change };
 
 // CONSTANTS
 // ================================================================================================
@@ -137,8 +137,8 @@ impl Stack {
     /// Evaluates transition constraints for all operations where the operation result does not
     /// depend on the where in the execution trace it is executed. In other words, these operations
     /// are not tied to any repeating cycles in the execution trace.
-    fn enforce_low_degree_ops(&self, current: &[u128], next: &[u128], op_flags: [u128; NUM_LD_OPS], result: &mut [u128]) {
-        
+    fn enforce_low_degree_ops(&self, current: &[u128], next: &[u128], op_flags: [u128; NUM_LD_OPS], result: &mut [u128])
+    {    
         // split constraint evaluation result into aux constraints and stack constraints
         let (aux, result) = result.split_at_mut(NUM_AUX_CONSTRAINTS);
 
