@@ -62,27 +62,31 @@ fn execute_verify_fail() {
 }
 
 #[test]
-fn stack_operations() {
+fn stack_manipulation() {
     let program = build_program(vec![
-        OpCode::Swap, OpCode::Swap2, OpCode::Swap4,  OpCode::Choose,
-        OpCode::Push, OpCode::Roll4, OpCode::Dup,    OpCode::Choose2,
-        OpCode::Dup4, OpCode::Roll8, OpCode::Drop,   OpCode::Drop,
-        OpCode::Dup2, OpCode::Noop,  OpCode::Noop
-    ], &[11]);
+        OpCode::Swap,  OpCode::Swap2, OpCode::Swap4, OpCode::Roll4,
+        OpCode::Roll8, OpCode::Dup,   OpCode::Add,   OpCode::Pad2,
+        OpCode::Push,  OpCode::Swap4, OpCode::Drop4, OpCode::Dup2,
+        OpCode::Swap4, OpCode::Add,   OpCode::Add,   OpCode::Dup4,
+        OpCode::Push,  OpCode::Add,   OpCode::Add,   OpCode::Add,
+        OpCode::Add,   OpCode::Noop,  OpCode::Noop,  OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,  OpCode::Noop,  OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,  OpCode::Noop,
+    ], &[11, 12]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::from_public(&[7, 6, 5, 4, 3, 2, 1, 0]);
     let num_outputs = 8;
 
     let (outputs, proof) = super::execute(&program, &inputs, num_outputs, &options);
-    assert_eq!(outputs, [3, 6, 3, 6, 7, 11, 3, 6]);
+    assert_eq!(outputs, [46, 19, 4, 11, 0, 11, 0, 6]);
 
     let result = super::verify(program.hash(), inputs.get_public_inputs(), &outputs, &proof);
     assert_eq!(Ok(true), result);
 }
 
 #[test]
-fn logic_operations() {
+fn selection_operations() {
     // CHOOSE
     let program = build_program(vec![
         OpCode::Choose,  OpCode::Choose, OpCode::Noop, OpCode::Noop,
@@ -103,10 +107,10 @@ fn logic_operations() {
 
     // CHOOSE2
     let program = build_program(vec![
-        OpCode::Push, OpCode::Push, OpCode::Choose2, OpCode::Choose2,
-        OpCode::Noop, OpCode::Noop, OpCode::Noop,    OpCode::Noop,
-        OpCode::Noop, OpCode::Noop, OpCode::Noop,    OpCode::Noop,
-        OpCode::Noop, OpCode::Noop, OpCode::Noop,
+        OpCode::Push, OpCode::Noop,    OpCode::Noop,    OpCode::Noop,
+        OpCode::Noop, OpCode::Noop,    OpCode::Noop,    OpCode::Noop,
+        OpCode::Push, OpCode::Choose2, OpCode::Choose2, OpCode::Noop,
+        OpCode::Noop, OpCode::Noop,    OpCode::Noop,
     ], &[3, 4]);
 
     let options = ProofOptions::default();
@@ -122,7 +126,7 @@ fn logic_operations() {
 
 #[test]
 #[should_panic]
-fn logic_operations_panic() {
+fn selection_operations_panic() {
     let program = build_program(vec![
         OpCode::Choose, OpCode::Choose, OpCode::Noop, OpCode::Noop,
         OpCode::Noop,   OpCode::Noop,   OpCode::Noop, OpCode::Noop,
@@ -236,9 +240,9 @@ fn hash_operations() {
 #[test]
 fn read_operations() {
     let program = build_program(vec![
-        OpCode::Read, OpCode::Read2, OpCode::Noop,  OpCode::Push,
+        OpCode::Read, OpCode::Read2, OpCode::Noop,  OpCode::Noop,
         OpCode::Noop, OpCode::Noop,  OpCode::Noop,  OpCode::Noop,
-        OpCode::Noop, OpCode::Noop,  OpCode::Noop,  OpCode::Noop,
+        OpCode::Push, OpCode::Noop,  OpCode::Noop,  OpCode::Noop,
         OpCode::Noop, OpCode::Noop,  OpCode::Noop,
     ], &[5]);
 

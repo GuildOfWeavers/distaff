@@ -4,7 +4,7 @@ use crate::stark::MAX_TRANSITION_CONSTRAINTS;
 
 // CONSTANTS
 // ================================================================================================
-const DECODER_WIDTH: usize = 10;
+const DECODER_WIDTH: usize = 20; // TODO: revisit
 const NUM_CONSTRAINTS: usize = MAX_PUBLIC_INPUTS + MAX_OUTPUTS + MAX_TRANSITION_CONSTRAINTS + 2 * DECODER_WIDTH;
 
 // TYPES AND INTERFACES
