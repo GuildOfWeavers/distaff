@@ -266,16 +266,18 @@ impl TraceTable {
 
 // TESTS
 // ================================================================================================
-/*
-TODO: re-enable
+
 #[cfg(test)]
 mod tests {
 
-    use crate::math::{ field, polynom, parallel, fft };
-    use crate::{ crypto::hash::blake3, processor::opcodes::f128 as opcodes };
-    use crate::programs::{ Program, ProgramInputs };
-    use crate::processor::{ execute };
-    use crate::stark::{ TraceTable, CompositionCoefficients, MAX_CONSTRAINT_DEGREE };
+    use std::collections::HashMap;
+    use crate::{
+        math::{ field, polynom, parallel, fft },
+        crypto::hash::blake3,
+        programs::{ Program, ProgramInputs, blocks::{ ProgramBlock, Span } },
+        processor::{ execute, OpCode },
+        stark::{ TraceTable, CompositionCoefficients, MAX_CONSTRAINT_DEGREE }
+    };
     
     const EXT_FACTOR: usize = 32;
 
@@ -364,15 +366,17 @@ mod tests {
     }
 
     fn build_trace_table() -> TraceTable {
-        let program = Program::from_path(vec![
-            opcodes::BEGIN, opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
-            opcodes::ADD,   opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
-            opcodes::ADD,   opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
-            opcodes::ADD,   opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
+        let instructions = vec![
+            OpCode::Swap, OpCode::Dup2, OpCode::Drop, OpCode::Add,
+            OpCode::Swap, OpCode::Dup2, OpCode::Drop, OpCode::Add,
+            OpCode::Swap, OpCode::Dup2, OpCode::Drop, OpCode::Add,
+            OpCode::Noop, OpCode::Noop, OpCode::Noop,
+        ];
+        let program = Program::from_proc(vec![
+            ProgramBlock::Span(Span::new(instructions, HashMap::new()))
         ]);
         let inputs = ProgramInputs::from_public(&[1, 0]);
-        let registers = execute(&program, &inputs);
-        return TraceTable::new(registers, EXT_FACTOR);
+        let (trace, ctx_depth, loop_depth) = execute(&program, 0, &inputs);
+        return TraceTable::new(trace, ctx_depth, loop_depth, EXT_FACTOR);
     }
 }
-*/

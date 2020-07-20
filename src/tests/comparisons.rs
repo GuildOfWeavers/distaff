@@ -1,16 +1,17 @@
-/*
-TODO: re-enable
-use crate::{ ProofOptions, opcodes::f128 as opcodes, math::field };
-use super::super::{ execute, verify, Program, ProgramInputs };
+use crate::{ ProofOptions, math::field };
+use super::{
+    build_program, OpCode,
+    super::{ execute, verify, ProgramInputs }
+};
 
 #[test]
 fn eq_operations() {
-    let program = Program::from_path(vec![
-        opcodes::BEGIN, opcodes::READ,  opcodes::EQ,    opcodes::SWAP2,
-        opcodes::READ,  opcodes::EQ,    opcodes::NOOP,  opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
-    ]);
+    let program = build_program(vec![
+        OpCode::Read, OpCode::Eq,   OpCode::Swap2, OpCode::Read,
+        OpCode::Eq,   OpCode::Noop, OpCode::Noop,  OpCode::Noop,
+        OpCode::Noop, OpCode::Noop, OpCode::Noop,  OpCode::Noop,
+        OpCode::Noop, OpCode::Noop, OpCode::Noop,
+    ], &[]);
 
     let options = ProofOptions::default();
     let diff_inv = field::inv(field::sub(1, 2));
@@ -37,12 +38,16 @@ fn cmp_operation() {
     let (inputs_a, inputs_b) = build_inputs_for_cmp(a, b, 128);
 
     // build the program
-    let mut program = vec![opcodes::BEGIN, opcodes::PAD2, opcodes::PUSH, p127];
-    for _ in 0..128 { program.push(opcodes::CMP);  }
-    program.push(opcodes::DROP4);
-    while program.len() < 256 { program.push(opcodes::NOOP); }
+    let mut instructions = vec![
+        OpCode::Pad2, OpCode::Noop, OpCode::Noop, OpCode::Noop,
+        OpCode::Noop, OpCode::Noop, OpCode::Noop, OpCode::Noop,
+        OpCode::Push,
+    ];
+    for _ in 0..128 { instructions.push(OpCode::Cmp);  }
+    instructions.push(OpCode::Drop4);
+    while instructions.len() < 255 { instructions.push(OpCode::Noop); }
 
-    let program = Program::from_path(program);
+    let program = build_program(instructions, &[p127]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::new(&[0, 0, 0, 0, 0, a, b], &inputs_a, &inputs_b);
@@ -73,13 +78,13 @@ fn binacc_operation() {
     inputs_a.reverse();
 
     // build the program
-    let mut program = vec![opcodes::BEGIN];
-    for _ in 0..128 { program.push(opcodes::BINACC); }
-    program.push(opcodes::DROP);
-    program.push(opcodes::DROP);
-    while program.len() < 256 { program.push(opcodes::NOOP); }
+    let mut instructions = vec![];
+    for _ in 0..128 { instructions.push(OpCode::BinAcc); }
+    instructions.push(OpCode::Drop);
+    instructions.push(OpCode::Drop);
+    while instructions.len() < 255 { instructions.push(OpCode::Noop); }
 
-    let program = Program::from_path(program);
+    let program = build_program(instructions, &[]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::new(&[p127, 0, 0, a], &inputs_a, &[]);
@@ -111,4 +116,3 @@ fn build_inputs_for_cmp(a: u128, b: u128, size: usize) -> (Vec<u128>, Vec<u128>)
 
     return (inputs_a, inputs_b);
 }
-*/
