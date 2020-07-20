@@ -1,8 +1,9 @@
-use crate::math::{ field, polynom };
-use crate::processor::opcodes::{ FlowOps, UserOps };
-use crate::stark::trace::{ TraceState };
-use crate::utils::{ accumulator::ARK };
-use crate::{ SPONGE_WIDTH, BASE_CYCLE_LENGTH };
+use crate::{
+    math::{ field, polynom },
+    processor::opcodes::{ FlowOps, UserOps },
+    stark::trace::TraceState,
+    utils::sponge::ARK, SPONGE_WIDTH, BASE_CYCLE_LENGTH
+};
 use super::utils::{ are_equal, is_zero, is_binary, binary_not, extend_constants, EvaluationResult };
 
 mod op_bits;

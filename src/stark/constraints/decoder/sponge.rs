@@ -1,5 +1,7 @@
-use crate::math::{ field::{ self, add, sub, mul } };
-use crate::utils::accumulator::{ apply_sbox, apply_mds, apply_inv_mds };
+use crate::{
+    math::field::{ self, add, sub, mul },
+    utils::sponge::{ apply_sbox, apply_mds, apply_inv_mds },
+};
 use super::{ TraceState, UserOps, are_equal, EvaluationResult, SPONGE_WIDTH };
 
 // CONSTRAINT EVALUATOR
@@ -46,7 +48,7 @@ pub fn enforce_hacc(result: &mut [u128], current: &TraceState, next: &TraceState
 mod tests {
     
     use crate::{ SPONGE_WIDTH, BASE_CYCLE_LENGTH };
-    use crate::utils::accumulator::{ apply_round as apply_hacc_round, ARK };
+    use crate::utils::sponge::{ apply_round as apply_hacc_round, ARK };
     use super::{ TraceState, super::transpose_ark_constants };
 
     #[test]

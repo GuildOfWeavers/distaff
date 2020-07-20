@@ -1,6 +1,5 @@
-use crate::math::{ field, fft, polynom };
-use crate::utils::{ filled_vector };
 use crate::{
+    math::field,
     HASH_STATE_WIDTH as STATE_WIDTH,
     HASH_STATE_RATE as STATE_RATE,
     HASH_DIGEST_SIZE as DIGEST_SIZE,
@@ -87,33 +86,6 @@ pub fn apply_inv_mds(state: &mut[u128]) {
         }
     }
     state.copy_from_slice(&result);
-}
-
-pub fn get_extended_constants(extension_factor: usize) -> (Vec<Vec<u128>>, Vec<Vec<u128>>) {
-    let root = field::get_root_of_unity(CYCLE_LENGTH);
-    let inv_twiddles = fft::get_inv_twiddles(root, CYCLE_LENGTH);
-
-    let domain_size = CYCLE_LENGTH * extension_factor;
-    let domain_root = field::get_root_of_unity(domain_size);
-    let twiddles = fft::get_twiddles(domain_root, domain_size);
-
-    let mut polys = Vec::with_capacity(ARK.len());
-    let mut evaluations = Vec::with_capacity(ARK.len());
-
-    for constant in ARK.iter() {
-        let mut extended_constant = filled_vector(CYCLE_LENGTH, domain_size, field::ZERO);
-        extended_constant.copy_from_slice(constant);
-
-        polynom::interpolate_fft_twiddles(&mut extended_constant, &inv_twiddles, true);
-        polys.push(extended_constant.clone());
-
-        unsafe { extended_constant.set_len(extended_constant.capacity()); }
-        polynom::eval_fft_twiddles(&mut extended_constant, &twiddles, true);
-
-        evaluations.push(extended_constant);
-    }
-
-    return (polys, evaluations);
 }
 
 // 128-BIT RESCUE CONSTANTS

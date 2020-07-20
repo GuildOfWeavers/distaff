@@ -1,4 +1,4 @@
-use crate::utils::accumulator::{ apply_round as apply_hacc_round };
+use crate::utils::sponge::{ apply_round as apply_hacc_round };
 use super::{ Decoder, TraceState, UserOps };
 
 // CONSTANTS

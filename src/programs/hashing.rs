@@ -1,6 +1,6 @@
 use crate::{
     math::field,
-    utils::accumulator::{ add_constants, apply_sbox, apply_mds, apply_inv_sbox }
+    utils::sponge::{ add_constants, apply_sbox, apply_mds, apply_inv_sbox }
 };
 use super::{ ProgramBlock, OpCode, BASE_CYCLE_LENGTH, SPONGE_WIDTH as STATE_WIDTH };
 

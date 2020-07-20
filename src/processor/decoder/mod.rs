@@ -1,6 +1,8 @@
-use crate::math::{ field };
-use crate::utils::accumulator::{ add_constants, apply_sbox, apply_mds, apply_inv_sbox };
-use crate::{ MAX_CONTEXT_DEPTH, MAX_LOOP_DEPTH, NUM_CF_OP_BITS, NUM_LD_OP_BITS, NUM_HD_OP_BITS };
+use crate::{
+    math::field,
+    utils::sponge::{ add_constants, apply_sbox, apply_mds, apply_inv_sbox },
+    MAX_CONTEXT_DEPTH, MAX_LOOP_DEPTH, NUM_CF_OP_BITS, NUM_LD_OP_BITS, NUM_HD_OP_BITS
+};
 use super::opcodes::{ FlowOps, UserOps };
 
 #[cfg(test)]
