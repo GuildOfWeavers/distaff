@@ -80,7 +80,6 @@ pub enum UserOps {
     Roll8       = 0b0_11_11100,         // no shift
     BinAcc      = 0b0_11_11101,         // no shift
     //???       = 0b0_11_11110,
-    
     Noop        = 0b0_11_11111,         // no shift
 
     // high-degree operations
@@ -104,7 +103,7 @@ impl UserOps {
 
     pub fn hd_index(&self) -> usize {
         return match self {
-            UserOps::Push | UserOps::Cmp | UserOps::RescR | UserOps::Noop => {
+            UserOps::Push | UserOps::Cmp | UserOps::RescR => {
                 ((*self as usize) >> 5) & 0b11
             },
             _ => {

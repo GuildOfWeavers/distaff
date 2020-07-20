@@ -139,7 +139,7 @@ impl Stack {
         let mut evaluations = vec![field::ZERO; current.len()];
 
         // control flow operations
-        enforce_no_change(&mut evaluations,     current, next, op_flags[OpCode::Noop.ld_index()]);
+        //enforce_no_change(&mut evaluations,     current, next, op_flags[OpCode::Noop.ld_index()]);
         enforce_assert  (&mut evaluations, aux, current, next, op_flags[OpCode::Assert.ld_index()]);
         enforce_asserteq(&mut evaluations, aux, current, next, op_flags[OpCode::AssertEq.ld_index()]);
 
@@ -196,9 +196,8 @@ impl Stack {
         // it may actually be smaller than that
         let mut evaluations = vec![field::ZERO; current.len()];
 
-        //enforce_no_change(&mut evaluations,      current, next, op_flags[OpCode::Noop.hd_index()]);
-        //enforce_push     (&mut evaluations,      current, next, op_flags[OpCode::Push.hd_index()]);
-        //enforce_cmp      (&mut evaluations,      current, next, op_flags[OpCode::Cmp.hd_index()]);
+        enforce_push (&mut evaluations, current, next,      op_flags[OpCode::Push.hd_index() ]);
+        enforce_cmp  (&mut evaluations, current, next,      op_flags[OpCode::Cmp.hd_index()  ]);
         enforce_rescr(&mut evaluations, current, next, ark, op_flags[OpCode::RescR.hd_index()]);
 
         // copy evaluations into the result

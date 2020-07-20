@@ -1,5 +1,4 @@
-use crate::math::{ field };
-use super::{ is_binary, are_equal, enforce_no_change, EvaluationResult };
+use super::{ field, is_binary, are_equal, enforce_no_change, EvaluationResult };
 
 // CONSTANTS
 // ================================================================================================
@@ -79,7 +78,9 @@ pub fn enforce_cmp(result: &mut [u128], current: &[u128], next: &[u128], op_flag
     result.agg_constraint(7, op_flag, power_of_two_constraint);
 
     // registers beyond the 7th register were not affected
-    enforce_no_change(&mut result[8..], &current[8..], &next[8..], op_flag);
+    for i in 8..result.len() {
+        result.agg_constraint(i, op_flag, are_equal(current[i], next[i]));
+    }
 }
 
 pub fn enforce_binacc(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
@@ -102,5 +103,7 @@ pub fn enforce_binacc(result: &mut [u128], current: &[u128], next: &[u128], op_f
     result.agg_constraint(2, op_flag, are_equal(next[2], acc));
 
     // registers beyond 2nd register remained the same
-    enforce_no_change(&mut result[3..], &current[3..], &next[3..], op_flag);
+    for i in 3..result.len() {
+        result.agg_constraint(i, op_flag, are_equal(current[i], next[i]));
+    }
 }
