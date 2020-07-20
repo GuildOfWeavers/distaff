@@ -16,6 +16,7 @@ pub fn get_example(args: &[String]) -> Example  {
     // construct the program which either adds or multiplies two numbers
     // based on the value provided via secret inputs
     let program = assembly::compile("
+    begin
         push.3
         push.5
         read
@@ -23,8 +24,9 @@ pub fn get_example(args: &[String]) -> Example  {
             add
         else
             mul
-        endif",
-        options.hash_fn()).unwrap();
+        end
+    end",
+    options.hash_fn()).unwrap();
 
     println!("Generated a program to test conditional execution; expected result: {}", 
         expected_result);

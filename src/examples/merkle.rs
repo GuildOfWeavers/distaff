@@ -40,8 +40,10 @@ pub fn get_example(args: &[String]) -> Example  {
 fn generate_merkle_program(n: usize) -> Program {
 
     let source = format!("
+    begin
         read.ab
         mpath.{}
+    end
     ", n);
 
     return assembly::compile(&source, blake3).unwrap();

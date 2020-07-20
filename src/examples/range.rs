@@ -44,6 +44,7 @@ fn generate_values(n: usize) -> Vec<u128> {
 fn generate_range_check_program(n: usize, hash_fn: HashFunction) -> Program {
 
     let mut program = String::with_capacity(n * 80);
+    program.push_str("begin ");
 
     // repeat the cycle of the following operations:
     // 1. read a value from secret tape A
@@ -52,6 +53,7 @@ fn generate_range_check_program(n: usize, hash_fn: HashFunction) -> Program {
     for _ in 0..n {
         program.push_str("read rc.63 add ");
     }
+    program.push_str("end");
 
     return assembly::compile(&program, hash_fn).unwrap();
 }
