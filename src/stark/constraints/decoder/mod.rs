@@ -1,8 +1,9 @@
-use crate::math::{ field, polynom, fft };
+use crate::math::{ field, polynom };
 use crate::processor::opcodes::{ FlowOps, UserOps };
 use crate::stark::trace::{ TraceState };
-use crate::utils::{ filled_vector, accumulator::ARK };
-use super::utils::{ are_equal, is_zero, is_binary, binary_not, EvaluationResult };
+use crate::utils::{ accumulator::ARK };
+use crate::{ SPONGE_WIDTH, BASE_CYCLE_LENGTH };
+use super::utils::{ are_equal, is_zero, is_binary, binary_not, extend_constants, EvaluationResult };
 
 mod op_bits;
 use op_bits::{ enforce_op_bits };
@@ -12,25 +13,12 @@ use sponge::{ enforce_hacc };
 
 mod flow_ops;
 use flow_ops::{
-    enforce_begin,
-    enforce_tend,
-    enforce_fend,
-    enforce_loop,
-    enforce_wrap,
-    enforce_break,
-    enforce_void
+    enforce_begin, enforce_tend, enforce_fend, enforce_void,
+    enforce_loop, enforce_wrap, enforce_break,
 };
 
 #[cfg(test)]
 mod tests;
-
-// TODO: move to global constants
-const SPONGE_WIDTH: usize = 4;
-const BASE_CYCLE_LENGTH: usize = 16;
-
-const CYCLE_MASK_IDX: usize = 0;
-const PREFIX_MASK_IDX: usize = 1;
-const PUSH_MASK_IDX: usize = 2;
 
 // CONSTANTS
 // ================================================================================================
@@ -49,6 +37,10 @@ const SPONGE_CONSTRAINT_DEGREES: [usize; NUM_SPONGE_CONSTRAINTS] = [
 ];
 
 const STACK_CONSTRAINT_DEGREE: usize = 4;
+
+const CYCLE_MASK_IDX : usize = 0;
+const PREFIX_MASK_IDX: usize = 1;
+const PUSH_MASK_IDX  : usize = 2;
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -129,14 +121,14 @@ impl Decoder {
         let result = &mut result[NUM_OP_CONSTRAINTS..];
         let op_flags = current.cf_op_flags();
 
-        enforce_hacc (result, current, next, &ark, op_flags[FlowOps::Hacc as usize]);
-        enforce_begin(result, current, next, op_flags[FlowOps::Begin as usize]);
-        enforce_tend (result, current, next, op_flags[FlowOps::Tend as usize]);
-        enforce_fend (result, current, next, op_flags[FlowOps::Fend as usize]);
-        enforce_loop (result, current, next, op_flags[FlowOps::Loop as usize]);
-        enforce_wrap (result, current, next, op_flags[FlowOps::Wrap as usize]);
-        enforce_break(result, current, next, op_flags[FlowOps::Break as usize]);
-        enforce_void (result, current, next, op_flags[FlowOps::Void as usize]);
+        enforce_hacc (result, current, next, &ark, op_flags[FlowOps::Hacc.op_index() ]);
+        enforce_begin(result, current, next,       op_flags[FlowOps::Begin.op_index()]);
+        enforce_tend (result, current, next,       op_flags[FlowOps::Tend.op_index() ]);
+        enforce_fend (result, current, next,       op_flags[FlowOps::Fend.op_index() ]);
+        enforce_loop (result, current, next,       op_flags[FlowOps::Loop.op_index() ]);
+        enforce_wrap (result, current, next,       op_flags[FlowOps::Wrap.op_index() ]);
+        enforce_break(result, current, next,       op_flags[FlowOps::Break.op_index()]);
+        enforce_void (result, current, next,       op_flags[FlowOps::Void.op_index() ]);
     }
 
     /// Evaluates decoder transition constraints at the specified x coordinate and saves the
@@ -180,34 +172,6 @@ impl Decoder {
 
 // HELPER FUNCTIONS
 // ================================================================================================
-fn extend_constants(constants: &[[u128; BASE_CYCLE_LENGTH]], extension_factor: usize) -> (Vec<Vec<u128>>, Vec<Vec<u128>>)
-{
-    let root = field::get_root_of_unity(BASE_CYCLE_LENGTH);
-    let inv_twiddles = fft::get_inv_twiddles(root, BASE_CYCLE_LENGTH);
-
-    let domain_size = BASE_CYCLE_LENGTH * extension_factor;
-    let domain_root = field::get_root_of_unity(domain_size);
-    let twiddles = fft::get_twiddles(domain_root, domain_size);
-
-    let mut polys = Vec::with_capacity(constants.len());
-    let mut evaluations = Vec::with_capacity(constants.len());
-
-    for constant in constants.iter() {
-        let mut extended_constant = filled_vector(BASE_CYCLE_LENGTH, domain_size, field::ZERO);
-        extended_constant.copy_from_slice(constant);
-
-        polynom::interpolate_fft_twiddles(&mut extended_constant, &inv_twiddles, true);
-        polys.push(extended_constant.clone());
-
-        unsafe { extended_constant.set_len(extended_constant.capacity()); }
-        polynom::eval_fft_twiddles(&mut extended_constant, &twiddles, true);
-
-        evaluations.push(extended_constant);
-    }
-
-    return (polys, evaluations);
-}
-
 fn transpose_ark_constants(constants: Vec<Vec<u128>>, cycle_length: usize) -> Vec<[u128; 2 * SPONGE_WIDTH]>
 {
     let mut values = Vec::new();

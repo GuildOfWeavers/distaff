@@ -45,7 +45,7 @@ pub fn enforce_hacc(result: &mut [u128], current: &TraceState, next: &TraceState
 #[cfg(test)]
 mod tests {
     
-    use crate::{ SPONGE_WIDTH, SPONGE_CYCLE_LENGTH };
+    use crate::{ SPONGE_WIDTH, BASE_CYCLE_LENGTH };
     use crate::utils::accumulator::{ apply_round as apply_hacc_round, ARK };
     use super::{ TraceState, super::transpose_ark_constants };
 
@@ -53,7 +53,7 @@ mod tests {
     fn op_hacc() {
 
         let ark: Vec<Vec<u128>> = ARK.iter().map(|row| row.to_vec()).collect();
-        let ark = transpose_ark_constants(ark, SPONGE_CYCLE_LENGTH);
+        let ark = transpose_ark_constants(ark, BASE_CYCLE_LENGTH);
 
         // correct transition, push.7
         let push_value = 7;

@@ -1,6 +1,8 @@
-use crate::math::{ field };
-use crate::utils::accumulator::{ add_constants, apply_sbox, apply_mds, apply_inv_sbox };
-use super::{ ProgramBlock, OpCode, CYCLE_LENGTH, SPONGE_WIDTH as STATE_WIDTH };
+use crate::{
+    math::field,
+    utils::accumulator::{ add_constants, apply_sbox, apply_mds, apply_inv_sbox }
+};
+use super::{ ProgramBlock, OpCode, BASE_CYCLE_LENGTH, SPONGE_WIDTH as STATE_WIDTH };
 
 // CONSTANTS
 // ================================================================================================
@@ -30,7 +32,7 @@ pub fn hash_seq(blocks: &Vec<ProgramBlock>, suffix: &[u8], suffix_offset: usize)
             ProgramBlock::Span(block) => {
                 // for Span blocks, first do an extra round of acc_hash to ensure block
                 // alignment on a 16 cycle boundary
-                hash_op(&mut state, NOOP_VALUE, 0, CYCLE_LENGTH - 1);
+                hash_op(&mut state, NOOP_VALUE, 0, BASE_CYCLE_LENGTH - 1);
 
                 // then, update the state with the hash of the block
                 state = block.hash(state);
@@ -63,7 +65,7 @@ pub fn hash_seq(blocks: &Vec<ProgramBlock>, suffix: &[u8], suffix_offset: usize)
 /// Merges an operation with the state of the sponge.
 pub fn hash_op(state: &mut [u128; STATE_WIDTH], op_code: u8, op_value: u128, step: usize) {
 
-    let ark_idx = step % CYCLE_LENGTH;
+    let ark_idx = step % BASE_CYCLE_LENGTH;
 
     // apply first half of Rescue round
     add_constants(state, ark_idx, 0);

@@ -1,8 +1,11 @@
-use crate::math::{ field };
-use crate::processor::{ OpCode };
-use crate::stark::{ TraceState };
-use crate::{ NUM_LD_OPS, NUM_HD_OPS };
-use super::utils::{ are_equal, is_zero, is_binary, binary_not, EvaluationResult };
+use crate::{
+    math::{ field, polynom },
+    processor::OpCode,
+    stark::TraceState,
+    utils::hasher::ARK,
+    NUM_LD_OPS, NUM_HD_OPS, BASE_CYCLE_LENGTH, HASH_STATE_WIDTH
+};
+use super::utils::{ are_equal, is_binary, binary_not, extend_constants, EvaluationResult };
 
 mod arithmetic;
 use arithmetic::{ enforce_add, enforce_mul, enforce_inv, enforce_neg };
@@ -16,9 +19,8 @@ use comparison::{ enforce_eq, enforce_cmp, enforce_binacc };
 mod selection;
 use selection::{ enforce_choose, enforce_choose2 };
 
-mod hashing;
-
-use hashing::HashEvaluator;
+mod hash;
+use hash::{ enforce_rescr };
 
 mod utils;
 use utils::{ enforce_no_change };
@@ -29,29 +31,42 @@ const NUM_AUX_CONSTRAINTS: usize = 2;
 const AUX_CONSTRAINT_DEGREES: [usize; NUM_AUX_CONSTRAINTS] = [7, 7];
 
 const STACK_HEAD_DEGREES: [usize; 7] = [
-    8, 8, 8, 8, 8, 8, 7,    // constraints for the first 7 registers of user stack
+    7, 7, 7, 7, 7, 7, 7,    // constraints for the first 7 registers of user stack
 ];
 const STACK_REST_DEGREE: usize = 6; // degree for the rest of the stack registers
 
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct Stack {
-    hash_evaluator      : HashEvaluator,
-    constraint_degrees  : Vec<usize>
+    trace_length        : usize,
+    cycle_length        : usize,
+    ark_values          : Vec<[u128; 2 * HASH_STATE_WIDTH]>,
+    ark_polys           : Vec<Vec<u128>>,
+    constraint_degrees  : Vec<usize>,
 }
 
 // STACK CONSTRAINT EVALUATOR IMPLEMENTATION
 // ================================================================================================
 impl Stack {
-    pub fn new(trace_length: usize, extension_factor: usize, stack_depth: usize) -> Stack {
 
+    pub fn new(trace_length: usize, extension_factor: usize, stack_depth: usize) -> Stack 
+    {
+        // build an array of constraint degrees for the stack
         let mut degrees = Vec::from(&AUX_CONSTRAINT_DEGREES[..]);
         degrees.extend_from_slice(&STACK_HEAD_DEGREES[..]);
         degrees.resize(stack_depth + NUM_AUX_CONSTRAINTS, STACK_REST_DEGREE);
 
+        // determine extended cycle length
+        let cycle_length = BASE_CYCLE_LENGTH * extension_factor;
+
+        // extend rounds constants by the specified extension factor
+        let (ark_polys, ark_evaluations) = extend_constants(&ARK, extension_factor);
+        let ark_values = transpose_ark_constants(ark_evaluations, cycle_length);
+
         return Stack {
-            hash_evaluator      : HashEvaluator::new(trace_length, extension_factor),
-            constraint_degrees  : degrees,
+            trace_length, cycle_length,
+            ark_values, ark_polys,
+            constraint_degrees: degrees,
         };
     }
 
@@ -64,8 +79,12 @@ impl Stack {
 
     /// Evaluates stack transition constraints at the specified step of the evaluation domain and
     /// saves the evaluations into `result`.
-    pub fn evaluate(&self, current: &TraceState, next: &TraceState, step: usize, result: &mut [u128]) {
+    pub fn evaluate(&self, current: &TraceState, next: &TraceState, step: usize, result: &mut [u128])
+    {
+        // determine round constants at the specified step
+        let ark = self.ark_values[step % self.cycle_length];
 
+        // get user stack registers from current and next steps
         let old_stack = current.user_stack();
         let new_stack = next.user_stack();
 
@@ -75,14 +94,25 @@ impl Stack {
 
         // evaluate constraints for hash operation
         let op_flags = current.hd_op_flags();
-        self.enforce_high_degree_ops(old_stack, new_stack, op_flags, result);
+        self.enforce_high_degree_ops(old_stack, new_stack, &ark, op_flags, result);
     }
 
     /// Evaluates stack transition constraints at the specified x coordinate and saves the
     /// evaluations into `result`. Unlike the function above, this function can evaluate constraints
     /// at any out-of-domain point, but it is much slower than the previous function.
-    pub fn evaluate_at(&self, current: &TraceState, next: &TraceState, x: u128, result: &mut [u128]) {
-        
+    pub fn evaluate_at(&self, current: &TraceState, next: &TraceState, x: u128, result: &mut [u128])
+    {
+        // map x to the corresponding coordinate in constant cycles
+        let num_cycles = (self.trace_length / BASE_CYCLE_LENGTH) as u128;
+        let x = field::exp(x, num_cycles);
+
+        // determine round constants at the specified x coordinate
+        let mut ark = [field::ZERO; 2 * HASH_STATE_WIDTH];
+        for i in 0..ark.len() {
+            ark[i] = polynom::eval(&self.ark_polys[i], x);
+        }
+
+        // get user stack registers from current and next steps
         let old_stack = current.user_stack();
         let new_stack = next.user_stack();
 
@@ -92,7 +122,7 @@ impl Stack {
 
         // evaluate constraints for hash operation
         let op_flags = current.hd_op_flags();
-        self.enforce_high_degree_ops(old_stack, new_stack, op_flags, result);
+        self.enforce_high_degree_ops(old_stack, new_stack, &ark, op_flags, result);
     }
 
     /// Evaluates transition constraints for all operations where the operation result does not
@@ -109,7 +139,7 @@ impl Stack {
         let mut evaluations = vec![field::ZERO; current.len()];
 
         // control flow operations
-        enforce_no_change(&mut evaluations,      current, next, op_flags[OpCode::Noop.ld_index()]);
+        enforce_no_change(&mut evaluations,     current, next, op_flags[OpCode::Noop.ld_index()]);
         enforce_assert  (&mut evaluations, aux, current, next, op_flags[OpCode::Assert.ld_index()]);
         enforce_asserteq(&mut evaluations, aux, current, next, op_flags[OpCode::AssertEq.ld_index()]);
 
@@ -156,10 +186,10 @@ impl Stack {
         }
     }
 
-    fn enforce_high_degree_ops(&self, current: &[u128], next: &[u128], op_flags: [u128; NUM_HD_OPS], result: &mut [u128]) {
-
-        // split constraint evaluation result into aux constraints and stack constraints
-        let (aux, result) = result.split_at_mut(NUM_AUX_CONSTRAINTS);
+    fn enforce_high_degree_ops(&self, current: &[u128], next: &[u128], ark: &[u128], op_flags: [u128; NUM_HD_OPS], result: &mut [u128])
+    {
+        // high-degree operations don't use aux constraints
+        let (_, result) = result.split_at_mut(NUM_AUX_CONSTRAINTS);
 
         // initialize a vector to hold stack constraint evaluations; this is needed because
         // constraint evaluator functions assume that the stack is at least 8 items deep; while
@@ -169,7 +199,7 @@ impl Stack {
         //enforce_no_change(&mut evaluations,      current, next, op_flags[OpCode::Noop.hd_index()]);
         //enforce_push     (&mut evaluations,      current, next, op_flags[OpCode::Push.hd_index()]);
         //enforce_cmp      (&mut evaluations,      current, next, op_flags[OpCode::Cmp.hd_index()]);
-        // TODO: add hash instruction
+        enforce_rescr(&mut evaluations, current, next, ark, op_flags[OpCode::RescR.hd_index()]);
 
         // copy evaluations into the result
         for i in 0..result.len() {
@@ -322,4 +352,18 @@ fn enforce_roll8(result: &mut [u128], current: &[u128], next: &[u128], op_flag: 
     result.agg_constraint(6, op_flag, are_equal(next[6], current[5]));
     result.agg_constraint(7, op_flag, are_equal(next[7], current[6]));
     enforce_no_change(&mut result[8..], &current[8..], &next[8..], op_flag);
+}
+
+// HELPER FUNCTIONS
+// ================================================================================================
+fn transpose_ark_constants(constants: Vec<Vec<u128>>, cycle_length: usize) -> Vec<[u128; 2 * HASH_STATE_WIDTH]>
+{
+    let mut values = Vec::new();
+    for i in 0..cycle_length {
+        values.push([field::ZERO; 2 * HASH_STATE_WIDTH]);
+        for j in 0..(2 * HASH_STATE_WIDTH) {
+            values[i][j] = constants[j][i];
+        }
+    }
+    return values;
 }

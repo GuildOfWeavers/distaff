@@ -1,6 +1,6 @@
 use crate::math::{ field };
 use crate::{
-    SPONGE_CYCLE_LENGTH as NUM_ROUNDS,
+    BASE_CYCLE_LENGTH as NUM_ROUNDS,
     SPONGE_WIDTH as STATE_WIDTH,
 };
 

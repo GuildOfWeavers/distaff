@@ -1,6 +1,9 @@
-use crate::crypto::{ HashFunction, build_merkle_nodes };
-use crate::processor::{ OpCode, OpHint };
-use crate::utils::{ as_bytes };
+use crate::{
+    crypto::{ HashFunction, build_merkle_nodes },
+    processor::{ OpCode, OpHint },
+    utils::{ as_bytes },
+    SPONGE_WIDTH, PROGRAM_DIGEST_SIZE, BASE_CYCLE_LENGTH,
+};
 
 pub mod assembly;
 
@@ -15,13 +18,6 @@ use hashing::{ hash_op, hash_acc, hash_seq };
 
 #[cfg(test)]
 mod tests;
-
-// CONSTANTS
-// ================================================================================================
-use crate::{
-    SPONGE_WIDTH,
-    PROGRAM_DIGEST_SIZE,
-    SPONGE_CYCLE_LENGTH as CYCLE_LENGTH };
 
 // TYPES AND INTERFACES
 // ================================================================================================

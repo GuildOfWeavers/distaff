@@ -81,20 +81,19 @@ const MAX_REGISTER_COUNT    : usize = 128;
 const MAX_CONTEXT_DEPTH     : usize = 16;
 const MAX_LOOP_DEPTH        : usize = 8;
 const MIN_EXTENSION_FACTOR  : usize = 16;
+const BASE_CYCLE_LENGTH     : usize = 16;
 
 // HASH OPERATION
 // ------------------------------------------------------------------------------------------------
 const HASH_STATE_RATE       : usize = 4;
 const HASH_STATE_CAPACITY   : usize = 2;
 const HASH_STATE_WIDTH      : usize = HASH_STATE_RATE + HASH_STATE_CAPACITY;
-const HASH_CYCLE_LENGTH     : usize = 16;
 const HASH_NUM_ROUNDS       : usize = 10;
 const HASH_DIGEST_SIZE      : usize = 2;
 
 // OPERATION SPONGE
 // ------------------------------------------------------------------------------------------------
 const SPONGE_WIDTH          : usize = 4;
-const SPONGE_CYCLE_LENGTH   : usize = 16;
 const PROGRAM_DIGEST_SIZE   : usize = 2;
 
 // DECODER LAYOUT
