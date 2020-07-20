@@ -1,4 +1,4 @@
-use super::{ field, is_binary, are_equal, enforce_no_change, EvaluationResult };
+use super::{ field, are_equal, is_binary, binary_not, enforce_no_change, EvaluationResult };
 
 // CONSTANTS
 // ================================================================================================
@@ -12,7 +12,26 @@ const LT_IDX        : usize = 5;
 const Y_ACC_IDX     : usize = 6;
 const X_ACC_IDX     : usize = 7;
 
-// CONSTRAINT EVALUATORS
+// ASSERTIONS
+// ================================================================================================
+
+/// Enforces constraints for ASSERT operation. The constraints are similar to DROP operation, but
+/// have an auxiliary constraint which enforces that 1 - x = 0, where x is the top of the stack.
+pub fn enforce_assert(result: &mut [u128], aux: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
+    let n = next.len() - 1;
+    enforce_no_change(&mut result[0..n], &current[1..], &next[0..n], op_flag);
+    aux.agg_constraint(0, op_flag, are_equal(field::ONE, current[0]));
+}
+
+/// Enforces constraints for ASSERTEQ operation. The stack is shifted by 2 registers the left and
+/// an auxiliary constraint enforces that the first element of the stack is equal to the second.
+pub fn enforce_asserteq(result: &mut [u128], aux: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
+    let n = next.len() - 2;
+    enforce_no_change(&mut result[0..n], &current[2..], &next[0..n], op_flag);
+    aux.agg_constraint(0, op_flag, are_equal(current[0], current[1]));
+}
+
+// EQUALITY
 // ================================================================================================
 
 /// Evaluates constraints for EQ operation. These enforce that when x == y, top of the stack at
@@ -28,7 +47,7 @@ pub fn enforce_eq(result: &mut [u128], aux: &mut [u128], current: &[u128], next:
     let inv_diff = current[0];
 
     // the operation is defined as 1 - diff * inv(diff)
-    let op_result = field::sub(field::ONE, field::mul(diff, inv_diff));
+    let op_result = binary_not(field::mul(diff, inv_diff));
     result.agg_constraint(0, op_flag, are_equal(next[0], op_result));
 
     // stack items beyond 3nd item are shifted the the left by 2
@@ -39,6 +58,9 @@ pub fn enforce_eq(result: &mut [u128], aux: &mut [u128], current: &[u128], next:
     // the result must be set to 0
     aux.agg_constraint(0, op_flag, field::mul(next[0], diff));
 }
+
+// INEQUALITY
+// ================================================================================================
 
 /// Evaluates constraints for CMP operation.
 pub fn enforce_cmp(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
@@ -54,8 +76,8 @@ pub fn enforce_cmp(result: &mut [u128], current: &[u128], next: &[u128], op_flag
 
     // comparison trackers were updated correctly
     let not_set = next[NOT_SET_IDX];
-    let bit_gt = field::mul(x_bit, field::sub(field::ONE, y_bit));
-    let bit_lt = field::mul(y_bit, field::sub(field::ONE, x_bit));
+    let bit_gt = field::mul(x_bit, binary_not(y_bit));
+    let bit_lt = field::mul(y_bit, binary_not(x_bit));
 
     let gt = field::add(current[GT_IDX], field::mul(bit_gt, not_set));
     let lt = field::add(current[LT_IDX], field::mul(bit_lt, not_set));
@@ -70,7 +92,7 @@ pub fn enforce_cmp(result: &mut [u128], current: &[u128], next: &[u128], op_flag
     result.agg_constraint(5, op_flag, are_equal(next[X_ACC_IDX], x_acc));
 
     // when GT or LT register is set to 1, not_set flag is cleared
-    let not_set_check = field::mul(field::sub(field::ONE, current[LT_IDX]), field::sub(field::ONE, current[GT_IDX]));
+    let not_set_check = field::mul(binary_not(current[LT_IDX]), binary_not(current[GT_IDX]));
     result.agg_constraint(6, op_flag, are_equal(not_set, not_set_check));
 
     // power of 2 register was updated correctly
@@ -83,6 +105,7 @@ pub fn enforce_cmp(result: &mut [u128], current: &[u128], next: &[u128], op_flag
     }
 }
 
+/// Evaluates constraints for BINACC operation.
 pub fn enforce_binacc(result: &mut [u128], current: &[u128], next: &[u128], op_flag: u128) {
 
     // layout of first 3 registers:
