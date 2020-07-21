@@ -87,6 +87,7 @@ pub enum UserOps {
     RescR       = 0b0_10_11111,         // no shift
 
     // composite operations
+    Begin       = 0b0_00_00000,         // no shift
     Noop        = 0b0_11_11111,         // no shift
 }
 
@@ -105,7 +106,7 @@ impl UserOps {
 
     pub fn hd_index(&self) -> usize {
         return match self {
-            UserOps::Push | UserOps::Cmp | UserOps::RescR | UserOps::Noop => {
+            UserOps::Push | UserOps::Cmp | UserOps::RescR | UserOps::Noop | UserOps::Begin => {
                 ((*self as usize) >> 5) & 0b11
             },
             _ => {
@@ -120,7 +121,9 @@ impl std::fmt::Display for UserOps {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         return match self {
 
+            UserOps::Begin      => write!(f, "begin"),
             UserOps::Noop       => write!(f, "noop"),
+
             UserOps::Assert     => write!(f, "assert"),
             UserOps::AssertEq   => write!(f, "asserteq"),
     

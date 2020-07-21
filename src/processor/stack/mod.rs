@@ -64,12 +64,13 @@ impl Stack {
         // execute the appropriate action against the current state of the stack
         match op_code {
 
+            OpCode::Begin       => self.op_noop(),
             OpCode::Noop        => self.op_noop(),
+
             OpCode::Assert      => self.op_assert(),
             OpCode::AssertEq    => self.op_asserteq(),
 
             OpCode::Push        => self.op_push(op_hint),
-
             OpCode::Read        => self.op_read(op_hint),
             OpCode::Read2       => self.op_read2(),
 

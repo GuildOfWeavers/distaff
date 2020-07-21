@@ -3,7 +3,7 @@ use crate::{
     processor::OpCode,
     stark::TraceState,
     utils::hasher::ARK,
-    NUM_LD_OPS, NUM_HD_OPS, BASE_CYCLE_LENGTH, HASH_STATE_WIDTH
+    BASE_CYCLE_LENGTH, HASH_STATE_WIDTH
 };
 use super::utils::{
     are_equal, is_binary, binary_not, extend_constants, EvaluationResult,
@@ -94,20 +94,8 @@ impl Stack {
         // determine round constants at the specified step
         let ark = self.ark_values[step % self.cycle_length];
 
-        // get user stack registers from current and next steps
-        let old_stack = current.user_stack();
-        let new_stack = next.user_stack();
-
-        // evaluate constraints for low-degree operations
-        let ld_flags = current.ld_op_flags();
-        self.enforce_low_degree_ops(old_stack, new_stack, ld_flags, result);
-
-        // evaluate constraints for high-degree operations
-        let hd_flags = current.hd_op_flags();
-        self.enforce_high_degree_ops(old_stack, new_stack, &ark, hd_flags, result);
-
-        // evaluate constraints for composite operations
-        self.enforce_composite_ops(old_stack, new_stack, ld_flags, hd_flags, result);
+        // evaluate transition constraints for the stack
+        enforce_constraints(current, next, &ark, result);
     }
 
     /// Evaluates stack transition constraints at the specified x coordinate and saves the
@@ -125,118 +113,96 @@ impl Stack {
             ark[i] = polynom::eval(&self.ark_polys[i], x);
         }
 
-        // get user stack registers from current and next steps
-        let old_stack = current.user_stack();
-        let new_stack = next.user_stack();
-
-        // evaluate constraints for low-degree operations
-        let ld_flags = current.ld_op_flags();
-        self.enforce_low_degree_ops(old_stack, new_stack, ld_flags, result);
-
-        // evaluate constraints for high-degree operations
-        let hd_flags = current.hd_op_flags();
-        self.enforce_high_degree_ops(old_stack, new_stack, &ark, hd_flags, result);
-
-        // evaluate constraints for composite operations
-        self.enforce_composite_ops(old_stack, new_stack, ld_flags, hd_flags, result);
-    }
-
-    /// Evaluates transition constraints for all operations where the operation result does not
-    /// depend on the where in the execution trace it is executed. In other words, these operations
-    /// are not tied to any repeating cycles in the execution trace.
-    fn enforce_low_degree_ops(&self, current: &[u128], next: &[u128], op_flags: [u128; NUM_LD_OPS], result: &mut [u128])
-    {    
-        // split constraint evaluation result into aux constraints and stack constraints
-        let (aux, result) = result.split_at_mut(NUM_AUX_CONSTRAINTS);
-
-        // initialize a vector to hold stack constraint evaluations; this is needed because
-        // constraint evaluator functions assume that the stack is at least 8 items deep; while
-        // it may actually be smaller than that
-        let mut evaluations = vec![field::ZERO; current.len()];
-
-        // assertion operations
-        enforce_assert  (&mut evaluations, aux, current, next, op_flags[OpCode::Assert.ld_index()]);
-        enforce_asserteq(&mut evaluations, aux, current, next, op_flags[OpCode::AssertEq.ld_index()]);
-
-        // input operations
-        enforce_read    (&mut evaluations,      current, next, op_flags[OpCode::Read.ld_index()]);
-        enforce_read2   (&mut evaluations,      current, next, op_flags[OpCode::Read2.ld_index()]);
-    
-        // stack manipulation operations
-        enforce_dup     (&mut evaluations,      current, next, op_flags[OpCode::Dup.ld_index()]);
-        enforce_dup2    (&mut evaluations,      current, next, op_flags[OpCode::Dup2.ld_index()]);
-        enforce_dup4    (&mut evaluations,      current, next, op_flags[OpCode::Dup4.ld_index()]);
-        enforce_pad2    (&mut evaluations,      current, next, op_flags[OpCode::Pad2.ld_index()]);
-
-        enforce_drop    (&mut evaluations,      current, next, op_flags[OpCode::Drop.ld_index()]);
-        enforce_drop4   (&mut evaluations,      current, next, op_flags[OpCode::Drop4.ld_index()]);
-        
-        enforce_swap    (&mut evaluations,      current, next, op_flags[OpCode::Swap.ld_index()]);
-        enforce_swap2   (&mut evaluations,      current, next, op_flags[OpCode::Swap2.ld_index()]);
-        enforce_swap4   (&mut evaluations,      current, next, op_flags[OpCode::Swap4.ld_index()]);
-    
-        enforce_roll4   (&mut evaluations,      current, next, op_flags[OpCode::Roll4.ld_index()]);
-        enforce_roll8   (&mut evaluations,      current, next, op_flags[OpCode::Roll8.ld_index()]);
-    
-        // arithmetic and boolean operations
-        enforce_add     (&mut evaluations,      current, next, op_flags[OpCode::Add.ld_index()]);
-        enforce_mul     (&mut evaluations,      current, next, op_flags[OpCode::Mul.ld_index()]);
-        enforce_inv     (&mut evaluations,      current, next, op_flags[OpCode::Inv.ld_index()]);
-        enforce_neg     (&mut evaluations,      current, next, op_flags[OpCode::Neg.ld_index()]);
-        enforce_not     (&mut evaluations, aux, current, next, op_flags[OpCode::Not.ld_index()]);
-        enforce_and     (&mut evaluations, aux, current, next, op_flags[OpCode::And.ld_index()]);
-        enforce_or      (&mut evaluations, aux, current, next, op_flags[OpCode::Or.ld_index()]);
-        
-        // comparison operations
-        enforce_eq      (&mut evaluations, aux, current, next, op_flags[OpCode::Eq.ld_index()]);
-        enforce_binacc  (&mut evaluations,      current, next, op_flags[OpCode::BinAcc.ld_index()]);
-
-        // conditional selection operations
-        enforce_choose  (&mut evaluations, aux, current, next, op_flags[OpCode::Choose.ld_index()]);
-        enforce_choose2 (&mut evaluations, aux, current, next, op_flags[OpCode::Choose2.ld_index()]);
-
-        // copy evaluations into the result
-        for i in 0..result.len() {
-            result[i] = field::add(result[i], evaluations[i]);
-        }
-    }
-
-    fn enforce_high_degree_ops(&self, current: &[u128], next: &[u128], ark: &[u128], op_flags: [u128; NUM_HD_OPS], result: &mut [u128])
-    {
-        // high-degree operations don't use aux constraints
-        let (_, result) = result.split_at_mut(NUM_AUX_CONSTRAINTS);
-
-        // initialize a vector to hold stack constraint evaluations; this is needed because
-        // constraint evaluator functions assume that the stack is at least 8 items deep; while
-        // it may actually be smaller than that
-        let mut evaluations = vec![field::ZERO; current.len()];
-
-        enforce_push (&mut evaluations, current, next,      op_flags[OpCode::Push.hd_index() ]);
-        enforce_cmp  (&mut evaluations, current, next,      op_flags[OpCode::Cmp.hd_index()  ]);
-        enforce_rescr(&mut evaluations, current, next, ark, op_flags[OpCode::RescR.hd_index()]);
-
-        // copy evaluations into the result
-        for i in 0..result.len() {
-            result[i] = field::add(result[i], evaluations[i]);
-        }
-    }
-
-    pub fn enforce_composite_ops(&self, current: &[u128], next: &[u128], ld_flags: [u128; NUM_LD_OPS], hd_flags: [u128; NUM_HD_OPS], result: &mut [u128])
-    {
-        // composite operations don't use aux constraints
-        let (_, result) = result.split_at_mut(NUM_AUX_CONSTRAINTS);
-
-        // NOOP is special because its op_bits consist of all 1s in both, low-degree and
-        // high-degree positions. To make sure NOOP constraint evaluation happens only when
-        // all bits are set to 1, we need to multiply low-degree and high-degree components
-        // together. This also means that NOOP flag has degree 7.
-        let op_flag = field::mul(ld_flags[OpCode::Noop.ld_index()], hd_flags[OpCode::Noop.hd_index()]);
-        enforce_stack_copy(result, current, next, 0, op_flag);
+        // evaluate transition constraints for the stack
+        enforce_constraints(current, next, &ark, result);
     }
 }
 
 // HELPER FUNCTIONS
 // ================================================================================================
+fn enforce_constraints(current: &TraceState, next: &TraceState, ark: &[u128], result: &mut [u128])
+{
+    // split constraint evaluation result into aux constraints and stack constraints
+    let (aux, result) = result.split_at_mut(NUM_AUX_CONSTRAINTS);
+
+    // get user stack registers from current and next steps
+    let old_stack = current.user_stack();
+    let new_stack = next.user_stack();
+
+    // initialize a vector to hold stack constraint evaluations; this is needed because
+    // constraint evaluator functions assume that the stack is at least 8 items deep; while
+    // it may actually be smaller than that
+    let mut evaluations = vec![field::ZERO; old_stack.len()];
+
+    // 1 ----- enforce constraints for low-degree operations --------------------------------------
+    let ld_flags = current.ld_op_flags();
+
+    // assertion operations
+    enforce_assert  (&mut evaluations, aux, old_stack, new_stack, ld_flags[OpCode::Assert.ld_index()]);
+    enforce_asserteq(&mut evaluations, aux, old_stack, new_stack, ld_flags[OpCode::AssertEq.ld_index()]);
+
+    // input operations
+    enforce_read    (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Read.ld_index()]);
+    enforce_read2   (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Read2.ld_index()]);
+
+    // stack manipulation operations
+    enforce_dup     (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Dup.ld_index()]);
+    enforce_dup2    (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Dup2.ld_index()]);
+    enforce_dup4    (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Dup4.ld_index()]);
+    enforce_pad2    (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Pad2.ld_index()]);
+
+    enforce_drop    (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Drop.ld_index()]);
+    enforce_drop4   (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Drop4.ld_index()]);
+    
+    enforce_swap    (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Swap.ld_index()]);
+    enforce_swap2   (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Swap2.ld_index()]);
+    enforce_swap4   (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Swap4.ld_index()]);
+
+    enforce_roll4   (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Roll4.ld_index()]);
+    enforce_roll8   (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Roll8.ld_index()]);
+
+    // arithmetic and boolean operations
+    enforce_add     (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Add.ld_index()]);
+    enforce_mul     (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Mul.ld_index()]);
+    enforce_inv     (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Inv.ld_index()]);
+    enforce_neg     (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Neg.ld_index()]);
+    enforce_not     (&mut evaluations, aux, old_stack, new_stack, ld_flags[OpCode::Not.ld_index()]);
+    enforce_and     (&mut evaluations, aux, old_stack, new_stack, ld_flags[OpCode::And.ld_index()]);
+    enforce_or      (&mut evaluations, aux, old_stack, new_stack, ld_flags[OpCode::Or.ld_index()]);
+    
+    // comparison operations
+    enforce_eq      (&mut evaluations, aux, old_stack, new_stack, ld_flags[OpCode::Eq.ld_index()]);
+    enforce_binacc  (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::BinAcc.ld_index()]);
+
+    // conditional selection operations
+    enforce_choose  (&mut evaluations, aux, old_stack, new_stack, ld_flags[OpCode::Choose.ld_index()]);
+    enforce_choose2 (&mut evaluations, aux, old_stack, new_stack, ld_flags[OpCode::Choose2.ld_index()]);
+
+    // 2 ----- enforce constraints for high-degree operations --------------------------------------
+    let hd_flags = current.hd_op_flags();
+
+    enforce_push    (&mut evaluations,      old_stack, new_stack,      hd_flags[OpCode::Push.hd_index() ]);
+    enforce_cmp     (&mut evaluations,      old_stack, new_stack,      hd_flags[OpCode::Cmp.hd_index()  ]);
+    enforce_rescr   (&mut evaluations,      old_stack, new_stack, ark, hd_flags[OpCode::RescR.hd_index()]);
+
+    // 3 ----- enforce constraints for composite operations ---------------------------------------
+
+    // NOOP is special because its op_bits consist of all 1s in both, low-degree and
+    // high-degree positions. To make sure NOOP constraint evaluation happens only when
+    // all bits are set to 1, we need to multiply low-degree and high-degree components
+    // together. This also means that NOOP flag has degree 7.
+    let op_flag = field::mul(ld_flags[OpCode::Noop.ld_index()], hd_flags[OpCode::Noop.hd_index()]);
+    enforce_stack_copy(result, old_stack, new_stack, 0, op_flag);
+
+    // BEGIN is also special because its op_bits consist of all 0s. So, we also multiply
+    // low-degree and high-degree components together to get a single flag value.
+    let op_flag = field::mul(ld_flags[OpCode::Begin.ld_index()], hd_flags[OpCode::Begin.hd_index()]);
+    enforce_stack_copy(result, old_stack, new_stack, 0, op_flag);
+
+    // 4 ----- copy evaluations into the result --------------------------------------
+    result.copy_from_slice(&evaluations[..result.len()]);
+}
+
 fn transpose_ark_constants(constants: Vec<Vec<u128>>, cycle_length: usize) -> Vec<[u128; 2 * HASH_STATE_WIDTH]>
 {
     let mut values = Vec::new();
