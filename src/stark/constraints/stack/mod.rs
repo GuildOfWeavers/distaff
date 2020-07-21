@@ -191,13 +191,13 @@ fn enforce_constraints(current: &TraceState, next: &TraceState, ark: &[u128], re
     // high-degree positions. To make sure NOOP constraint evaluation happens only when
     // all bits are set to 1, we need to multiply low-degree and high-degree components
     // together. This also means that NOOP flag has degree 7.
-    let op_flag = field::mul(ld_flags[OpCode::Noop.ld_index()], hd_flags[OpCode::Noop.hd_index()]);
-    enforce_stack_copy(result, old_stack, new_stack, 0, op_flag);
+    // TODO: doesn't work, needs to be adjusted by a random coefficient
+    enforce_stack_copy(&mut evaluations, old_stack, new_stack, 0, current.noop_flag());
 
     // BEGIN is also special because its op_bits consist of all 0s. So, we also multiply
     // low-degree and high-degree components together to get a single flag value.
-    let op_flag = field::mul(ld_flags[OpCode::Begin.ld_index()], hd_flags[OpCode::Begin.hd_index()]);
-    enforce_stack_copy(result, old_stack, new_stack, 0, op_flag);
+    // TODO: doesn't work, needs to be adjusted by a random coefficient
+    enforce_stack_copy(&mut evaluations, old_stack, new_stack, 0, current.begin_flag());
 
     // 4 ----- copy evaluations into the result --------------------------------------
     result.copy_from_slice(&evaluations[..result.len()]);

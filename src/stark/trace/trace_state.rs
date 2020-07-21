@@ -32,6 +32,8 @@ pub struct TraceState {
     cf_op_flags : [u128; NUM_CF_OPS],
     ld_op_flags : [u128; NUM_LD_OPS],
     hd_op_flags : [u128; NUM_HD_OPS],
+    begin_flag  : u128,
+    noop_flag   : u128,
     op_flags_set: bool,
 }
 
@@ -57,6 +59,8 @@ impl TraceState {
             cf_op_flags : [0; NUM_CF_OPS],
             ld_op_flags : [0; NUM_LD_OPS],
             hd_op_flags : [0; NUM_HD_OPS],
+            begin_flag  : 0,
+            noop_flag   : 0,
             op_flags_set: false,
         };
     }
@@ -95,6 +99,8 @@ impl TraceState {
             cf_op_flags : [0; NUM_CF_OPS],
             ld_op_flags : [0; NUM_LD_OPS],
             hd_op_flags : [0; NUM_HD_OPS],
+            begin_flag  : 0,
+            noop_flag   : 0,
             op_flags_set: false,
         };
     }
@@ -197,6 +203,14 @@ impl TraceState {
             }
         }
         return self.hd_op_flags;
+    }
+
+    pub fn begin_flag(&self) -> u128 {
+        return self.begin_flag;
+    }
+
+    pub fn noop_flag(&self) -> u128 {
+        return self.noop_flag;
     }
 
     // STACKS
@@ -303,6 +317,14 @@ impl TraceState {
         self.hd_op_flags[1] = field::mul(self.hd_op_bits[0], not_1);
         self.hd_op_flags[2] = field::mul(not_0, self.hd_op_bits[1]);
         self.hd_op_flags[3] = field::mul(self.hd_op_bits[0], self.hd_op_bits[1]);
+
+        self.begin_flag = field::mul(
+                self.ld_op_flags[OpCode::Begin.ld_index()], 
+                self.hd_op_flags[OpCode::Begin.hd_index()]);
+
+        self.noop_flag = field::mul(
+            self.ld_op_flags[OpCode::Noop.ld_index()], 
+            self.hd_op_flags[OpCode::Noop.hd_index()]);
 
         // we need to make special adjustments for PUSH and ASSERT op flags so that they
         // don't coincide with BEGIN operation; we do this by multiplying each flag by a
