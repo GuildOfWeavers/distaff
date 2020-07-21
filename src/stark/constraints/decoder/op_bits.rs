@@ -1,6 +1,6 @@
-use crate::math::field::{ mul, add };
 use super::{
-    TraceState, FlowOps, UserOps, is_binary, binary_not, EvaluationResult,
+    field::{ self, mul, add },
+    TraceState, FlowOps, UserOps, is_binary, binary_not, are_equal, EvaluationResult,
     CYCLE_MASK_IDX, PREFIX_MASK_IDX, PUSH_MASK_IDX,
 };
 
@@ -32,6 +32,14 @@ pub fn enforce_op_bits(result: &mut [u128], current: &TraceState, next: &TraceSt
         hd_bit_prod = mul(hd_bit_prod, op_bit);
         i += 1;
     }
+
+    // when cf_ops = hacc, operation counter should be incremented by 1;
+    // otherwise, operation counter should remain the same
+    let is_hacc = current.cf_op_flags()[FlowOps::Hacc.op_index()];
+    let hacc_transition = mul(add(current.op_counter(), field::ONE), is_hacc);
+    let rest_transition = mul(current.op_counter(), binary_not(is_hacc));
+    result[i] = are_equal(add(hacc_transition, rest_transition), next.op_counter());
+    i += 1;
 
     // ld_ops and hd_ops cannot be simultaneously set to all 0s
     result[i] = mul(binary_not(ld_bit_prod), binary_not(hd_bit_prod));
@@ -81,8 +89,8 @@ mod tests {
         let success_result = vec![0; NUM_OP_CONSTRAINTS];
 
         // all bits are 1s: success
-        let state = new_state(FlowOps::Void as u8, UserOps::Noop as u8);
-        assert_eq!(success_result, evaluate_state(&state, [0, 0, 0]));
+        let state = new_state(FlowOps::Void as u8, UserOps::Noop as u8, 1);
+        assert_eq!(success_result, evaluate_state(&state, [0, 0, 0], false));
 
         // control flow bits are not binary
         for i in 0..3 {
@@ -92,7 +100,7 @@ mod tests {
             expected_evaluations[i] = 3 * 3 - 3;
 
             let state = new_state_from_bits(op_bits, [1, 1, 1, 1, 1, 1, 1]);
-            assert_eq!(expected_evaluations, &evaluate_state(&state, [0, 0, 0])[..10]);
+            assert_eq!(expected_evaluations, &evaluate_state(&state, [0, 0, 0], false)[..10]);
         }
 
         // user bits are not binary
@@ -103,7 +111,7 @@ mod tests {
             expected_evaluations[i + 3] = 3 * 3 - 3;
 
             let state = new_state_from_bits([0, 0, 0], op_bits);
-            assert_eq!(expected_evaluations, &evaluate_state(&state, [0, 0, 0])[..10]);
+            assert_eq!(expected_evaluations, &evaluate_state(&state, [0, 0, 0], false)[..10]);
         }
     }
 
@@ -114,19 +122,19 @@ mod tests {
 
         // user op bits cannot be all 0s
         for cf_op in 0..8 {
-            let state = new_state(cf_op, 0);
-            assert_ne!(success_result, evaluate_state(&state, [0, 0, 0]));
+            let state = new_state(cf_op, 0, 1);
+            assert_ne!(success_result, evaluate_state(&state, [0, 0, 0], false));
         }
 
         // when cf_ops are not all 0s, user_ops must be all 1s
         for cf_op in 1..8 {
             for user_op in 0..127 {
-                let state = new_state(cf_op as u8, user_op as u8);
-                assert_ne!(success_result, evaluate_state(&state, [0, 0, 0]));
+                let state = new_state(cf_op as u8, user_op as u8, 1);
+                assert_ne!(success_result, evaluate_state(&state, [0, 0, 0], false));
             }
 
-            let state = new_state(cf_op as u8, UserOps::Noop as u8);
-            assert_eq!(success_result, evaluate_state(&state, [0, 0, 0]));
+            let state = new_state(cf_op as u8, UserOps::Noop as u8, 1);
+            assert_eq!(success_result, evaluate_state(&state, [0, 0, 0], false));
         }
     }
 
@@ -136,63 +144,66 @@ mod tests {
         let success_result = vec![0; NUM_OP_CONSTRAINTS];
         
         // TEND and FEND are allowed only on multiples of 16
-        let state = new_state(FlowOps::Tend as u8, UserOps::Noop as u8);
-        assert_eq!(success_result, evaluate_state(&state, [0, 0, 0]));
-        assert_ne!(success_result, evaluate_state(&state, [1, 0, 0]));
+        let state = new_state(FlowOps::Tend as u8, UserOps::Noop as u8, 1);
+        assert_eq!(success_result, evaluate_state(&state, [0, 0, 0], false));
+        assert_ne!(success_result, evaluate_state(&state, [1, 0, 0], false));
 
-        let state = new_state(FlowOps::Fend as u8, UserOps::Noop as u8);
-        assert_eq!(success_result, evaluate_state(&state, [0, 0, 0]));
-        assert_ne!(success_result, evaluate_state(&state, [1, 0, 0]));
+        let state = new_state(FlowOps::Fend as u8, UserOps::Noop as u8, 1);
+        assert_eq!(success_result, evaluate_state(&state, [0, 0, 0], false));
+        assert_ne!(success_result, evaluate_state(&state, [1, 0, 0], false));
 
         // BEGIN, LOOP, WRAP, and BREAK are allowed only on one less than multiples of 16
-        let state = new_state(FlowOps::Begin as u8, UserOps::Noop as u8);
-        assert_eq!(success_result, evaluate_state(&state, [0, 0, 0]));
-        assert_ne!(success_result, evaluate_state(&state, [0, 1, 0]));
+        let state = new_state(FlowOps::Begin as u8, UserOps::Noop as u8, 1);
+        assert_eq!(success_result, evaluate_state(&state, [0, 0, 0], false));
+        assert_ne!(success_result, evaluate_state(&state, [0, 1, 0], false));
 
-        let state = new_state(FlowOps::Loop as u8, UserOps::Noop as u8);
-        assert_eq!(success_result, evaluate_state(&state, [0, 0, 0]));
-        assert_ne!(success_result, evaluate_state(&state, [0, 1, 0]));
+        let state = new_state(FlowOps::Loop as u8, UserOps::Noop as u8, 1);
+        assert_eq!(success_result, evaluate_state(&state, [0, 0, 0], false));
+        assert_ne!(success_result, evaluate_state(&state, [0, 1, 0], false));
 
-        let state = new_state(FlowOps::Wrap as u8, UserOps::Noop as u8);
-        assert_eq!(success_result, evaluate_state(&state, [0, 0, 0]));
-        assert_ne!(success_result, evaluate_state(&state, [0, 1, 0]));
+        let state = new_state(FlowOps::Wrap as u8, UserOps::Noop as u8, 1);
+        assert_eq!(success_result, evaluate_state(&state, [0, 0, 0], false));
+        assert_ne!(success_result, evaluate_state(&state, [0, 1, 0], false));
 
-        let state = new_state(FlowOps::Break as u8, UserOps::Noop as u8);
-        assert_eq!(success_result, evaluate_state(&state, [0, 0, 0]));
-        assert_ne!(success_result, evaluate_state(&state, [0, 1, 0]));
+        let state = new_state(FlowOps::Break as u8, UserOps::Noop as u8, 1);
+        assert_eq!(success_result, evaluate_state(&state, [0, 0, 0], false));
+        assert_ne!(success_result, evaluate_state(&state, [0, 1, 0], false));
 
         // PUSH is allowed only on multiples of 8
-        let state = new_state(FlowOps::Hacc as u8, UserOps::Push as u8);
-        assert_eq!(success_result, evaluate_state(&state, [0, 0, 0]));
-        assert_ne!(success_result, evaluate_state(&state, [0, 0, 1]));
+        let state = new_state(FlowOps::Hacc as u8, UserOps::Push as u8, 1);
+        assert_eq!(success_result, evaluate_state(&state, [0, 0, 0], true));
+        assert_ne!(success_result, evaluate_state(&state, [0, 0, 1], true));
     }
 
     #[test]
     fn invalid_op_sequence() {
         let success_result = vec![0; NUM_OP_CONSTRAINTS];
 
-        let void_state = new_state(FlowOps::Void as u8, UserOps::Noop as u8);
-        let non_void_state = new_state(FlowOps::Hacc as u8, UserOps::Add as u8);
-
         // void can follow non-void
+        let state1 = new_state(FlowOps::Hacc as u8, UserOps::Add as u8, 1);
+        let state2 = new_state(FlowOps::Void as u8, UserOps::Noop as u8, 2);
         let mut evaluations = vec![0; NUM_OP_CONSTRAINTS];
-        super::enforce_op_bits(&mut evaluations, &non_void_state, &void_state, &[0, 0, 0]);
+        super::enforce_op_bits(&mut evaluations, &state1, &state2, &[0, 0, 0]);
         assert_eq!(success_result, evaluations);
 
         // void can follow void
+        let state1 = new_state(FlowOps::Void as u8, UserOps::Noop as u8, 1);
+        let state2 = new_state(FlowOps::Void as u8, UserOps::Noop as u8, 1);
         let mut evaluations = vec![0; NUM_OP_CONSTRAINTS];
-        super::enforce_op_bits(&mut evaluations, &void_state, &void_state, &[0, 0, 0]);
+        super::enforce_op_bits(&mut evaluations, &state1, &state2, &[0, 0, 0]);
         assert_eq!(success_result, evaluations);
 
         // non-void cannot follow void
+        let state1 = new_state(FlowOps::Void as u8, UserOps::Noop as u8, 1);
+        let state2 = new_state(FlowOps::Hacc as u8, UserOps::Add as u8, 1);
         let mut evaluations = vec![0; NUM_OP_CONSTRAINTS];
-        super::enforce_op_bits(&mut evaluations, &void_state, &non_void_state, &[0, 0, 0]);
+        super::enforce_op_bits(&mut evaluations, &state1, &state2, &[0, 0, 0]);
         assert_ne!(success_result, evaluations);
     }
 
     // HELPER FUNCTIONS
     // --------------------------------------------------------------------------------------------
-    fn new_state(flow_op: u8, user_op: u8) -> TraceState {
+    fn new_state(flow_op: u8, user_op: u8, op_counter: u128) -> TraceState {
         let mut state = TraceState::new(1, 0, 1);
     
         let mut op_bits = [0; 10];
@@ -205,6 +216,7 @@ mod tests {
         }
 
         state.set_op_bits(op_bits);
+        state.set_op_counter(op_counter);
         return state;
     }
 
@@ -217,8 +229,9 @@ mod tests {
         return state;
     }
 
-    fn evaluate_state(state: &TraceState, masks: [u128; 3]) -> Vec<u128> {
-        let next_state = new_state(FlowOps::Void as u8, UserOps::Noop as u8);
+    fn evaluate_state(state: &TraceState, masks: [u128; 3], inc_counter: bool) -> Vec<u128> {
+        let op_counter = if inc_counter { state.op_counter() + 1 } else { state.op_counter() };
+        let next_state = new_state(FlowOps::Void as u8, UserOps::Noop as u8, op_counter);
         let mut evaluations = vec![0; NUM_OP_CONSTRAINTS];
         super::enforce_op_bits(&mut evaluations, &state, &next_state, &masks);
         return evaluations;

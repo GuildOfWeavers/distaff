@@ -23,9 +23,10 @@ mod tests;
 
 // CONSTANTS
 // ================================================================================================
-const NUM_OP_CONSTRAINTS: usize = 14;
+const NUM_OP_CONSTRAINTS: usize = 15;
 const OP_CONSTRAINT_DEGREES: [usize; NUM_OP_CONSTRAINTS] = [
     2, 2, 2, 2, 2, 2, 2, 2, 2, 2,   // all op bits are binary
+    4,                              // op_counter should be incremented for HACC operations
     7,                              // ld_ops and hd_ops cannot be all 0s
     8,                              // when cf_ops are not all 0s, ld_ops and hd_ops must be all 1s
     6,                              // VOID can be followed only by VOID

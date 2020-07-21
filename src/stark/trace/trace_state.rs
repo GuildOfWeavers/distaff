@@ -120,6 +120,11 @@ impl TraceState {
         return self.op_counter;
     }
 
+    #[cfg(test)]
+    pub fn set_op_counter(&mut self, value: u128) {
+        self.op_counter = value;
+    }
+
     // SPONGE
     // --------------------------------------------------------------------------------------------
     pub fn sponge(&self) -> &[u128] {

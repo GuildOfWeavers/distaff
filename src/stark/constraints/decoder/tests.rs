@@ -55,46 +55,46 @@ fn enforce_hacc() {
 
     // correct transition, push.9, step = 0
     let push_value = 9;
-    let state1     = vec![0,  3, 5, 7, 9,  0, 0, 0,  1, 1, 1, 1, 1,  0, 0,  0,  11];
-    let mut state2 = vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  0,  push_value];
+    let state1     = vec![1,  3, 5, 7, 9,  0, 0, 0,  1, 1, 1, 1, 1,  0, 0,  0,  11];
+    let mut state2 = vec![2,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  0,  push_value];
     apply_hacc_round(&mut state2[1..5], UserOps::Push as u128, push_value, 0);
     let evaluations = evaluate_transition(&decoder, 0, state1, state2);
     assert_eq!(success_result, evaluations);
 
     // correct transition, push.9, step = 8 (extension = 8)
     let push_value = 9;
-    let state1     = vec![0,  3, 5, 7, 9,  0, 0, 0,  1, 1, 1, 1, 1,  0, 0,  0,  11];
-    let mut state2 = vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  0,  push_value];
+    let state1     = vec![1,  3, 5, 7, 9,  0, 0, 0,  1, 1, 1, 1, 1,  0, 0,  0,  11];
+    let mut state2 = vec![2,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  0,  push_value];
     apply_hacc_round(&mut state2[1..5], UserOps::Push as u128, push_value, 8);
     let evaluations = evaluate_transition(&decoder, 8 * EXTENSION_FACTOR, state1, state2);
     assert_eq!(success_result, evaluations);
 
     // correct transition, add, step = 0
-    let state1     = vec![0,  3, 5, 7, 9,  0, 0, 0,  0, 0, 0, 1, 0,  1, 1,  0,  0];
-    let mut state2 = vec![0,  3, 5, 7, 9,  0, 0, 0,  1, 1, 1, 1, 1,  1, 1,  0,  0];
+    let state1     = vec![1,  3, 5, 7, 9,  0, 0, 0,  0, 0, 0, 1, 0,  1, 1,  0,  0];
+    let mut state2 = vec![2,  3, 5, 7, 9,  0, 0, 0,  1, 1, 1, 1, 1,  1, 1,  0,  0];
     apply_hacc_round(&mut state2[1..5], UserOps::Add as u128, 0, 0);
     let evaluations = evaluate_transition(&decoder, 0, state1, state2);
     assert_eq!(success_result, evaluations);
 
     // incorrect transition (wrong stack value), push.9, step = 0
     let push_value = 9;
-    let state1     = vec![0,  3, 5, 7, 9,  0, 0, 0,  1, 1, 1, 1, 1,  0, 0,  0,  11];
-    let mut state2 = vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  0,  11];
+    let state1     = vec![1,  3, 5, 7, 9,  0, 0, 0,  1, 1, 1, 1, 1,  0, 0,  0,  11];
+    let mut state2 = vec![2,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  0,  11];
     apply_hacc_round(&mut state2[1..5], UserOps::Push as u128, push_value, 0);
     let evaluations = evaluate_transition(&decoder, 0, state1, state2);
     assert_ne!(success_result, evaluations);
 
     // incorrect transition (wrong opcode), push.9, step = 0
     let push_value = 9;
-    let state1     = vec![0,  3, 5, 7, 9,  0, 0, 0,  1, 1, 1, 1, 1,  1, 1,  0,  11];
-    let mut state2 = vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  0,   9];
+    let state1     = vec![1,  3, 5, 7, 9,  0, 0, 0,  1, 1, 1, 1, 1,  1, 1,  0,  11];
+    let mut state2 = vec![2,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  0,   9];
     apply_hacc_round(&mut state2[1..5], UserOps::Push as u128, push_value, 0);
     let evaluations = evaluate_transition(&decoder, 0, state1, state2);
     assert_ne!(success_result, evaluations);
 
     // incorrect transition (stack value added to sponge), add, step = 0
-    let state1     = vec![0,  3, 5, 7, 9,  0, 0, 0,  0, 0, 0, 1, 0,  1, 1,  0,  9];
-    let mut state2 = vec![0,  3, 5, 7, 9,  0, 0, 0,  1, 1, 1, 1, 1,  1, 1,  0,  0];
+    let state1     = vec![1,  3, 5, 7, 9,  0, 0, 0,  0, 0, 0, 1, 0,  1, 1,  0,  9];
+    let mut state2 = vec![2,  3, 5, 7, 9,  0, 0, 0,  1, 1, 1, 1, 1,  1, 1,  0,  0];
     apply_hacc_round(&mut state2[1..5], UserOps::Add as u128, 9, 0);
     let evaluations = evaluate_transition(&decoder, 0, state1, state2);
     assert_ne!(success_result, evaluations);
