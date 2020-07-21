@@ -1,4 +1,9 @@
-use crate::{ math::field, crypto::{ MerkleTree }, Program };
+use crate::{
+    math::field,
+    crypto::{ MerkleTree },
+    Program,
+    MIN_TRACE_LENGTH
+};
 use super::{ StarkProof, TraceState, ConstraintEvaluator, CompositionCoefficients, fri, utils };
 
 // VERIFIER FUNCTION
@@ -34,7 +39,12 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u128], outputs: &[u128], proof:
     }
     let procedure_hash = proc_path[0];
 
-    // 3 ----- Verify trace and constraint Merkle proofs ------------------------------------------
+    // 5 ----- Verify number of operations in the program -----------------------------------------
+    if proof.op_count() < MIN_TRACE_LENGTH as u128 {
+        return Err(String::from("Verification of minimum operation count failed"));
+    }
+
+    // 4 ----- Verify trace and constraint Merkle proofs ------------------------------------------
     if !MerkleTree::verify_batch(proof.trace_root(), &t_positions, &proof.trace_proof(), hash_fn) {
         return Err(String::from("verification of trace Merkle proof failed"));
     }
@@ -43,7 +53,7 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u128], outputs: &[u128], proof:
         return Err(String::from("verification of constraint Merkle proof failed"));
     }
 
-    // 4 ----- Compute constraint evaluations at DEEP point z -------------------------------------
+    // 5 ----- Compute constraint evaluations at DEEP point z -------------------------------------
     // derive DEEP point z from the root of the constraint tree
     let z = field::prng(*proof.constraint_root());
 
@@ -55,7 +65,7 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u128], outputs: &[u128], proof:
         z
     );
 
-    // 5 ----- Compute composition polynomial evaluations -----------------------------------------
+    // 6 ----- Compute composition polynomial evaluations -----------------------------------------
     // derive coefficient for linear combination from the root of constraint tree
     let coefficients = CompositionCoefficients::new(*proof.constraint_root());
 
@@ -64,7 +74,7 @@ pub fn verify(program_hash: &[u8; 32], inputs: &[u128], outputs: &[u128], proof:
     let c_composition = compose_constraints(&proof, &t_positions, &c_positions, z, constraint_evaluation_at_z, &coefficients);
     let evaluations = t_composition.iter().zip(c_composition).map(|(&t, c)| field::add(t, c)).collect::<Vec<u128>>();
     
-    // 6 ----- Verify low-degree proof -------------------------------------------------------------
+    // 7 ----- Verify low-degree proof -------------------------------------------------------------
     let max_degree = utils::get_composition_degree(proof.trace_length());
     return match fri::verify(&degree_proof, &evaluations, &t_positions, max_degree, options) {
         Ok(result) => Ok(result),

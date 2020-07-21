@@ -310,7 +310,7 @@ impl TraceState {
 
 impl fmt::Debug for TraceState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{}] {:>32X?} {:?} {:?} {:?} {:>32X?} {:>32X?} {:?}",
+        write!(f, "[{:>4}] {:>32X?} {:?} {:?} {:?} {:>32X?} {:>32X?} {:?}",
             self.op_counter,
             self.sponge, 
             self.cf_op_bits,
@@ -325,7 +325,7 @@ impl fmt::Debug for TraceState {
 
 impl fmt::Display for TraceState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{}] {:>16X?} {:?} {:?} {:?} {:>16X?} {:>16X?} {:?}",
+        write!(f, "[{:>4}] {:>16X?} {:?} {:?} {:?} {:>16X?} {:>16X?} {:?}",
             self.op_counter,
             self.sponge.iter().map(|x| x >> 64).collect::<Vec<u128>>(),
             self.cf_op_bits,

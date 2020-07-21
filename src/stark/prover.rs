@@ -153,6 +153,7 @@ pub fn prove(trace: &mut TraceTable, inputs: &[u128], outputs: &[u128], options:
         deep_values,
         fri_proof,
         pow_nonce,
+        trace.get_last_state().op_counter(),
         trace.ctx_depth(),
         trace.loop_depth(),
         trace.stack_depth(),

@@ -10,6 +10,9 @@ use super::utils::{
     enforce_stack_copy, enforce_left_shift, enforce_right_shift,
 };
 
+mod flow_ops;
+use flow_ops::{ enforce_noop, enforce_assert, enforce_asserteq };
+
 mod input;
 use input::{ enforce_push, enforce_read, enforce_read2 };
 
@@ -26,7 +29,7 @@ use manipulation::{
 };
 
 mod comparison;
-use comparison::{ enforce_assert, enforce_asserteq, enforce_eq, enforce_cmp, enforce_binacc };
+use comparison::{ enforce_eq, enforce_cmp, enforce_binacc };
 
 mod selection;
 use selection::{ enforce_choose, enforce_choose2 };
@@ -148,7 +151,7 @@ impl Stack {
         let mut evaluations = vec![field::ZERO; current.len()];
 
         // control flow operations
-        //enforce_no_change(&mut evaluations,     current, next, op_flags[OpCode::Noop.ld_index()]);
+        enforce_noop    (&mut evaluations,      current, next, op_flags[OpCode::Noop.ld_index()]);
         enforce_assert  (&mut evaluations, aux, current, next, op_flags[OpCode::Assert.ld_index()]);
         enforce_asserteq(&mut evaluations, aux, current, next, op_flags[OpCode::AssertEq.ld_index()]);
 

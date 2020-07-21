@@ -45,8 +45,14 @@ pub fn execute(program: &Program, inputs: &ProgramInputs, num_outputs: usize, op
         now.elapsed().as_millis());
 
     // copy the user stack state the the last step to return as output
-    let last_state = trace.get_state(trace.unextended_length() - 1);
+    let last_state = trace.get_last_state();
     let outputs = last_state.user_stack()[..num_outputs].to_vec();
+    
+    // make sure number of executed operations was sufficient
+    assert!(last_state.op_counter() as usize >= MIN_TRACE_LENGTH,
+        "a program must consist of at least {} operation, but only {} were executed",
+        MIN_TRACE_LENGTH,
+        last_state.op_counter());
 
     // generate STARK proof
     let mut proof = stark::prove(&mut trace, inputs.get_public_inputs(), &outputs, options);

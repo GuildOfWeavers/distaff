@@ -35,6 +35,7 @@ pub struct TraceInfo {
     pub ctx_depth       : u8,
     pub loop_depth      : u8,
     pub stack_depth     : u8,
+    pub op_count        : u32,
 }
 
 // STARK PROOF IMPLEMENTATION
@@ -49,6 +50,7 @@ impl StarkProof {
         deep_values         : DeepValues,
         degree_proof        : FriProof,
         pow_nonce           : u64,
+        op_count            : u128,
         ctx_depth           : usize,
         loop_depth          : usize,
         stack_depth         : usize,
@@ -59,6 +61,7 @@ impl StarkProof {
             ctx_depth           : ctx_depth as u8,
             loop_depth          : loop_depth as u8,
             stack_depth         : stack_depth as u8,
+            op_count            : op_count as u32,
         };
 
         return StarkProof {
@@ -140,6 +143,10 @@ impl StarkProof {
 
     pub fn stack_depth(&self) -> usize {
         return self.trace_info.stack_depth as usize;
+    }
+
+    pub fn op_count(&self) -> u128 {
+        return self.trace_info.op_count as u128;
     }
 
     // DEEP VALUES

@@ -58,24 +58,22 @@ impl TraceTable {
         };
     }
 
-    /// Returns hash value of the executed program. TODO: replace with get_last_state?
-    pub fn get_program_hash(&self) -> Vec<u128> {
+    /// Returns state of the trace table at the specified `step`.
+    pub fn get_state(&self, step: usize) -> TraceState {
+        let mut result = TraceState::new(self.ctx_depth, self.loop_depth, self.stack_depth);
+        self.fill_state(&mut result, step);
+        return result;
+    }
+
+    /// Returns state of the trace table at the last step.
+    pub fn get_last_state(&self) -> TraceState {
         let last_step = if self.is_extended() {
             self.domain_size() - self.extension_factor()
         }
         else {
             self.unextended_length() - 1
         };
-
-        let state = self.get_state(last_step);
-        return state.program_hash().to_vec();
-    }
-
-    /// Returns state of the trace table at the specified `step`.
-    pub fn get_state(&self, step: usize) -> TraceState {
-        let mut result = TraceState::new(self.ctx_depth, self.loop_depth, self.stack_depth);
-        self.fill_state(&mut result, step);
-        return result;
+        return self.get_state(last_step);
     }
 
     /// Copies trace table state at the specified `step` to the passed in `state` object.

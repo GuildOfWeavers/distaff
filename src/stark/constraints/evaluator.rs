@@ -1,6 +1,9 @@
-use crate::math::{ field };
-use crate::stark::{ StarkProof, TraceTable, TraceState, ConstraintCoefficients };
-use crate::utils::{ uninit_vector };
+use crate::{
+    math::field,
+    utils::uninit_vector,
+    stark::{ StarkProof, TraceTable, TraceState, ConstraintCoefficients },
+    PROGRAM_DIGEST_SIZE,
+};
 use super::{ decoder::Decoder, stack::Stack, MAX_CONSTRAINT_DEGREE };
 
 // TYPES AND INTERFACES
@@ -19,6 +22,7 @@ pub struct Evaluator {
 
     b_constraint_num: usize,
     program_hash    : Vec<u128>,
+    op_count        : u128,
     inputs          : Vec<u128>,
     outputs         : Vec<u128>,
     b_degree_adj    : u128,
@@ -30,8 +34,9 @@ impl Evaluator {
 
     pub fn from_trace(trace: &TraceTable, trace_root: &[u8; 32], inputs: &[u128], outputs: &[u128]) -> Evaluator
     {
+        let last_state = trace.get_last_state();
+
         let stack_depth = trace.stack_depth();
-        let program_hash = trace.get_program_hash();
         let trace_length = trace.unextended_length();
         let extension_factor = MAX_CONSTRAINT_DEGREE;
 
@@ -63,8 +68,9 @@ impl Evaluator {
             t_constraint_num: t_constraint_degrees.len(),
             t_degree_groups : group_transition_constraints(t_constraint_degrees, trace_length),
             t_evaluations   : t_evaluations,
-            b_constraint_num: inputs.len() + outputs.len() + program_hash.len(),
-            program_hash    : program_hash,
+            b_constraint_num: get_boundary_constraint_num(&inputs, &outputs),
+            program_hash    : last_state.program_hash().to_vec(),
+            op_count        : last_state.op_counter(),
             inputs          : inputs.to_vec(),
             outputs         : outputs.to_vec(),
             b_degree_adj    : get_boundary_constraint_adjustment_degree(trace_length),
@@ -72,7 +78,7 @@ impl Evaluator {
     }
 
     pub fn from_proof(proof: &StarkProof, program_hash: &[u8; 32], inputs: &[u128], outputs: &[u128]) -> Evaluator
-    {    
+    {
         let stack_depth = proof.stack_depth();
         let trace_length = proof.trace_length();
         let extension_factor = proof.options().extension_factor();
@@ -95,8 +101,9 @@ impl Evaluator {
             t_constraint_num: t_constraint_degrees.len(),
             t_degree_groups : group_transition_constraints(t_constraint_degrees, trace_length),
             t_evaluations   : Vec::new(),
-            b_constraint_num: inputs.len() + outputs.len() + program_hash.len(),
+            b_constraint_num: get_boundary_constraint_num(&inputs, &outputs),
             program_hash    : parse_program_hash(program_hash),
+            op_count        : proof.op_count(),
             inputs          : inputs.to_vec(),
             outputs         : outputs.to_vec(),
             b_degree_adj    : get_boundary_constraint_adjustment_degree(trace_length),
@@ -237,19 +244,24 @@ impl Evaluator {
         // make sure operation sponge contains program hash
         let program_hash = current.program_hash();
         for i in 0..self.program_hash.len() {
-            cc_idx += 2;
             let val = field::sub(program_hash[i], self.program_hash[i]);
             f_result = field::add(f_result, field::mul(val, cc[cc_idx]));
             result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
+            cc_idx += 2;
         }
 
         // make sure stack registers are set to outputs
         for i in 0..self.outputs.len() {
-            cc_idx += 2;
             let val = field::sub(user_stack[i], self.outputs[i]);
             f_result = field::add(f_result, field::mul(val, cc[cc_idx]));
             result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
+            cc_idx += 2;
         }
+
+        // make sure op_count register is set to the claimed value of operations
+        let val = field::sub(current.op_counter(), self.op_count);
+        f_result = field::add(f_result, field::mul(val, cc[cc_idx]));
+        result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
 
         // raise the degree of adjusted terms and sum all the terms together
         f_result = field::add(f_result, field::mul(result_adj, xp));
@@ -366,4 +378,11 @@ fn parse_program_hash(program_hash: &[u8; 32]) -> Vec<u128> {
         field::from_bytes(&program_hash[..16]),
         field::from_bytes(&program_hash[16..]),
     ];
+}
+
+fn get_boundary_constraint_num(inputs: &[u128], outputs: &[u128]) -> usize {
+    return
+        PROGRAM_DIGEST_SIZE 
+        + inputs.len() + outputs.len()
+        + 1 /* for op_count */;
 }
