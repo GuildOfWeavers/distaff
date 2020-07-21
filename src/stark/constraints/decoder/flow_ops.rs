@@ -192,32 +192,32 @@ mod tests {
     fn op_begin() {
 
         // correct transition, context depth = 1
-        let state1 = TraceState::from_vec(1, 0, 1, &vec![3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  0,  11]);
-        let state2 = TraceState::from_vec(1, 0, 1, &vec![0, 0, 0, 0,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  3,  11]);
+        let state1 = TraceState::from_vec(1, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  0,  11]);
+        let state2 = TraceState::from_vec(1, 0, 1, &vec![0,  0, 0, 0, 0,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  3,  11]);
 
         let mut evaluations = vec![0; 5];
         super::enforce_begin(&mut evaluations, &state1, &state2, 1);
         assert_eq!(vec![0, 0, 0, 0, 0], evaluations);
 
         // correct transition, context depth = 2
-        let state1 = TraceState::from_vec(2, 0, 1, &vec![3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  2, 0,  11]);
-        let state2 = TraceState::from_vec(2, 0, 1, &vec![0, 0, 0, 0,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  3, 2,  11]);
+        let state1 = TraceState::from_vec(2, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  2, 0,  11]);
+        let state2 = TraceState::from_vec(2, 0, 1, &vec![0,  0, 0, 0, 0,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  3, 2,  11]);
 
         let mut evaluations = vec![0; 6];
         super::enforce_begin(&mut evaluations, &state1, &state2, 1);
         assert_eq!(vec![0, 0, 0, 0, 0, 0], evaluations);
 
         // incorrect transition, context depth = 1
-        let state1 = TraceState::from_vec(1, 0, 1, &vec![3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  0, 11]);
-        let state2 = TraceState::from_vec(1, 0, 1, &vec![1, 2, 3, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  5, 11]);
+        let state1 = TraceState::from_vec(1, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  0, 11]);
+        let state2 = TraceState::from_vec(1, 0, 1, &vec![0,  1, 2, 3, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  5, 11]);
 
         let mut evaluations = vec![0; 5];
         super::enforce_begin(&mut evaluations, &state1, &state2, 1);
         assert_eq!(vec![1, 2, 3, 4, field::sub(3, 5)], evaluations);
 
         // incorrect transition, context depth = 2
-        let state1 = TraceState::from_vec(2, 0, 1, &vec![3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  2, 0,  11]);
-        let state2 = TraceState::from_vec(2, 0, 1, &vec![1, 2, 3, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  5, 6,  11]);
+        let state1 = TraceState::from_vec(2, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  2, 0,  11]);
+        let state2 = TraceState::from_vec(2, 0, 1, &vec![0,  1, 2, 3, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  5, 6,  11]);
 
         let mut evaluations = vec![0; 6];
         super::enforce_begin(&mut evaluations, &state1, &state2, 1);
@@ -228,32 +228,32 @@ mod tests {
     fn op_tend() {
 
         // correct transition, context depth = 1
-        let state1 = TraceState::from_vec(1, 0, 1, &vec![3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8,  11]);
-        let state2 = TraceState::from_vec(1, 0, 1, &vec![8, 3, 4, 0,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  0,  11]);
+        let state1 = TraceState::from_vec(1, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8,  11]);
+        let state2 = TraceState::from_vec(1, 0, 1, &vec![0,  8, 3, 4, 0,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  0,  11]);
 
         let mut evaluations = vec![0; 5];
         super::enforce_tend(&mut evaluations, &state1, &state2, 1);
         assert_eq!(vec![0, 0, 0, 0, 0], evaluations);
 
         // correct transition, context depth = 2
-        let state1 = TraceState::from_vec(2, 0, 1, &vec![3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8, 2,  11]);
-        let state2 = TraceState::from_vec(2, 0, 1, &vec![8, 3, 6, 0,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  2, 0,  11]);
+        let state1 = TraceState::from_vec(2, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8, 2,  11]);
+        let state2 = TraceState::from_vec(2, 0, 1, &vec![0,  8, 3, 6, 0,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  2, 0,  11]);
 
         let mut evaluations = vec![0; 6];
         super::enforce_tend(&mut evaluations, &state1, &state2, 1);
         assert_eq!(vec![0, 0, 0, 0, 0, 0], evaluations);
 
         // incorrect transition, context depth = 1
-        let state1 = TraceState::from_vec(1, 0, 1, &vec![3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8, 11]);
-        let state2 = TraceState::from_vec(1, 0, 1, &vec![1, 2, 3, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  8, 11]);
+        let state1 = TraceState::from_vec(1, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8, 11]);
+        let state2 = TraceState::from_vec(1, 0, 1, &vec![0,  1, 2, 3, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  8, 11]);
 
         let mut evaluations = vec![0; 5];
         super::enforce_tend(&mut evaluations, &state1, &state2, 1);
         assert_eq!(vec![7, 1, 0, 4, 8], evaluations);
 
         // incorrect transition, context depth = 2
-        let state1 = TraceState::from_vec(2, 0, 1, &vec![3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  4, 6,  11]);
-        let state2 = TraceState::from_vec(2, 0, 1, &vec![1, 2, 3, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  5, 6,  11]);
+        let state1 = TraceState::from_vec(2, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  4, 6,  11]);
+        let state2 = TraceState::from_vec(2, 0, 1, &vec![0,  1, 2, 3, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  5, 6,  11]);
 
         let mut evaluations = vec![0; 6];
         super::enforce_tend(&mut evaluations, &state1, &state2, 1);
@@ -264,32 +264,32 @@ mod tests {
     fn op_fend() {
 
         // correct transition, context depth = 1
-        let state1 = TraceState::from_vec(1, 0, 1, &vec![3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8,  11]);
-        let state2 = TraceState::from_vec(1, 0, 1, &vec![8, 4, 3, 0,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  0,  11]);
+        let state1 = TraceState::from_vec(1, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8,  11]);
+        let state2 = TraceState::from_vec(1, 0, 1, &vec![0,  8, 4, 3, 0,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  0,  11]);
 
         let mut evaluations = vec![0; 5];
         super::enforce_fend(&mut evaluations, &state1, &state2, 1);
         assert_eq!(vec![0, 0, 0, 0, 0], evaluations);
 
         // correct transition, context depth = 2
-        let state1 = TraceState::from_vec(2, 0, 1, &vec![3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8, 2,  11]);
-        let state2 = TraceState::from_vec(2, 0, 1, &vec![8, 6, 3, 0,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  2, 0,  11]);
+        let state1 = TraceState::from_vec(2, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8, 2,  11]);
+        let state2 = TraceState::from_vec(2, 0, 1, &vec![0,  8, 6, 3, 0,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  2, 0,  11]);
 
         let mut evaluations = vec![0; 6];
         super::enforce_fend(&mut evaluations, &state1, &state2, 1);
         assert_eq!(vec![0, 0, 0, 0, 0, 0], evaluations);
 
         // incorrect transition, context depth = 1
-        let state1 = TraceState::from_vec(1, 0, 1, &vec![3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8, 11]);
-        let state2 = TraceState::from_vec(1, 0, 1, &vec![1, 3, 2, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  8, 11]);
+        let state1 = TraceState::from_vec(1, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8, 11]);
+        let state2 = TraceState::from_vec(1, 0, 1, &vec![0,  1, 3, 2, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  8, 11]);
 
         let mut evaluations = vec![0; 5];
         super::enforce_fend(&mut evaluations, &state1, &state2, 1);
         assert_eq!(vec![7, 0, 1, 4, 8], evaluations);
 
         // incorrect transition, context depth = 2
-        let state1 = TraceState::from_vec(2, 0, 1, &vec![3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  4, 6,  11]);
-        let state2 = TraceState::from_vec(2, 0, 1, &vec![1, 6, 2, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  5, 6,  11]);
+        let state1 = TraceState::from_vec(2, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  4, 6,  11]);
+        let state2 = TraceState::from_vec(2, 0, 1, &vec![0,  1, 6, 2, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  5, 6,  11]);
 
         let mut evaluations = vec![0; 6];
         super::enforce_fend(&mut evaluations, &state1, &state2, 1);
@@ -315,24 +315,24 @@ mod tests {
     fn op_void() {
 
         // correct transition, context depth = 1
-        let state1 = TraceState::from_vec(1, 0, 1, &vec![3, 5, 7, 9,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  8,  11]);
-        let state2 = TraceState::from_vec(1, 0, 1, &vec![3, 5, 7, 9,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  8,  11]);
+        let state1 = TraceState::from_vec(1, 0, 1, &vec![0,  3, 5, 7, 9,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  8,  11]);
+        let state2 = TraceState::from_vec(1, 0, 1, &vec![0,  3, 5, 7, 9,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  8,  11]);
 
         let mut evaluations = vec![0; 5];
         super::enforce_void(&mut evaluations, &state1, &state2, 1);
         assert_eq!(vec![0, 0, 0, 0, 0], evaluations);
 
         // correct transition, context depth = 2
-        let state1 = TraceState::from_vec(2, 0, 1, &vec![3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8, 2,  11]);
-        let state2 = TraceState::from_vec(2, 0, 1, &vec![3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8, 2,  11]);
+        let state1 = TraceState::from_vec(2, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8, 2,  11]);
+        let state2 = TraceState::from_vec(2, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8, 2,  11]);
 
         let mut evaluations = vec![0; 6];
         super::enforce_void(&mut evaluations, &state1, &state2, 1);
         assert_eq!(vec![0, 0, 0, 0, 0, 0], evaluations);
 
         // incorrect transition, context depth = 1
-        let state1 = TraceState::from_vec(1, 0, 1, &vec![3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8, 11]);
-        let state2 = TraceState::from_vec(1, 0, 1, &vec![2, 4, 6, 8,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  7, 11]);
+        let state1 = TraceState::from_vec(1, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8, 11]);
+        let state2 = TraceState::from_vec(1, 0, 1, &vec![0,  2, 4, 6, 8,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  7, 11]);
 
         let mut evaluations = vec![0; 5];
         super::enforce_void(&mut evaluations, &state1, &state2, 1);

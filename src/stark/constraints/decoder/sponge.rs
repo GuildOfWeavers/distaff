@@ -59,7 +59,7 @@ mod tests {
 
         // correct transition, push.7
         let push_value = 7;
-        let state1 = TraceState::from_vec(1, 0, 1, &vec![1, 2, 3, 4,  0, 0, 0,  1, 1, 1, 1, 1,  0, 0,  0,  0]);
+        let state1 = TraceState::from_vec(1, 0, 1, &vec![0,  1, 2, 3, 4,  0, 0, 0,  1, 1, 1, 1, 1,  0, 0,  0,  0]);
 
         let mut sponge = [1, 2, 3, 4];
         apply_hacc_round(&mut sponge, state1.op_code(), push_value, 0);
@@ -71,7 +71,7 @@ mod tests {
         assert_eq!(vec![0, 0, 0, 0], evaluations);
 
         // correct transition, non-push op
-        let state1 = TraceState::from_vec(1, 0, 1, &vec![1, 2, 3, 4,  0, 0, 0,  0, 0, 0, 0, 0,  1, 1,  0,  0]);
+        let state1 = TraceState::from_vec(1, 0, 1, &vec![0,  1, 2, 3, 4,  0, 0, 0,  0, 0, 0, 0, 0,  1, 1,  0,  0]);
 
         let mut sponge = [1, 2, 3, 4];
         apply_hacc_round(&mut sponge, state1.op_code(), 0, 0);
@@ -83,7 +83,7 @@ mod tests {
 
         // incorrect transition, push.7
         let push_value = 7;
-        let state1 = TraceState::from_vec(1, 0, 1, &vec![1, 2, 3, 4,  0, 0, 0,  1, 1, 1, 1, 1,  0, 0,  0,  0]);
+        let state1 = TraceState::from_vec(1, 0, 1, &vec![0,  1, 2, 3, 4,  0, 0, 0,  1, 1, 1, 1, 1,  0, 0,  0,  0]);
 
         let mut sponge = [1, 2, 3, 4];
         apply_hacc_round(&mut sponge, state1.op_code(), push_value, 0);
@@ -95,7 +95,7 @@ mod tests {
         assert_eq!(vec![0, 340282366920938463463374557953744961536, 0, 0], evaluations);
 
         // incorrect transition, non-push op
-        let state1 = TraceState::from_vec(1, 0, 1, &vec![1, 2, 3, 4,  0, 0, 0,  0, 0, 0, 0, 0,  1, 1,  0,  0]);
+        let state1 = TraceState::from_vec(1, 0, 1, &vec![0,  1, 2, 3, 4,  0, 0, 0,  0, 0, 0, 0, 0,  1, 1,  0,  0]);
 
         let mut sponge = [1, 2, 3, 4];
         apply_hacc_round(&mut sponge, state1.op_code(), 9, 0);
@@ -110,7 +110,7 @@ mod tests {
     // --------------------------------------------------------------------------------------------
     fn build_state(sponge: &[u128; SPONGE_WIDTH], push_value: u128) -> TraceState {
         let state = vec![
-            sponge[0], sponge[1], sponge[2], sponge[3],  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  0,  push_value
+            0, sponge[0], sponge[1], sponge[2], sponge[3],  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  0,  push_value
         ];
         return TraceState::from_vec(1, 0, 1, &state);
     }

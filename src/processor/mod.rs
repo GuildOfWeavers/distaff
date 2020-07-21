@@ -187,9 +187,9 @@ fn execute_loop(block: &Loop, decoder: &mut Decoder, stack: &mut Stack)
 #[cfg(test)]
 mod tests {
 
-    use crate::crypto::{ hash::blake3 };
-    use crate::programs::assembly;
-    use crate::utils::{ as_bytes };
+    use crate::{
+        crypto::hash::blake3, programs::assembly, stark::TraceState, utils::as_bytes,
+    };
     use super::{ ProgramInputs };
 
     #[test]
@@ -197,23 +197,22 @@ mod tests {
         let program = assembly::compile("begin add push.5 mul push.7 end", blake3).unwrap();
         let inputs = ProgramInputs::from_public(&[1, 2]);
 
-        let (trace, ..) = super::execute(&program, 0, &inputs);
+        let (trace, ctx_depth, loop_depth) = super::execute(&program, 0, &inputs);
         let trace_length = trace[0].len();
-        let i = trace_length - 1;
-
-        let program_hash = [trace[0][i], trace[1][i]];
-        let op_bits = [
-            trace[4][i], trace[5][i], trace[6][i], trace[7][i], trace[8][i],
-            trace[9][i], trace[10][i], trace[11][i], trace[12][i], trace[13][i]
-        ];
-        let ctx_stack = [trace[14][i]];
-        let user_stack = [trace[15][i], trace[16][i]];
 
         assert_eq!(64, trace_length);
-        assert_eq!(program.hash(), as_bytes(&program_hash));
-        assert_eq!([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], op_bits);
-        assert_eq!([0], ctx_stack);
-        assert_eq!([7, 15], user_stack);
+        assert_eq!(18, trace.len());
+
+        let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
+        state.update_from_trace(&trace, trace_length - 1);
+
+        // TODO: check op counter
+        assert_eq!(program.hash(), as_bytes(state.program_hash()));
+        assert_eq!([1, 1, 1], state.cf_op_bits());
+        assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
+        assert_eq!([1, 1], state.hd_op_bits());
+        assert_eq!([0], state.ctx_stack());
+        assert_eq!([7, 15, 0, 0, 0, 0, 0, 0], state.user_stack());
     }
 
     #[test]
@@ -221,23 +220,22 @@ mod tests {
         let program = assembly::compile("begin add block push.5 mul push.7 end end", blake3).unwrap();
         let inputs = ProgramInputs::from_public(&[1, 2]);
 
-        let (trace, ..) = super::execute(&program, 0, &inputs);
+        let (trace, ctx_depth, loop_depth) = super::execute(&program, 0, &inputs);
         let trace_length = trace[0].len();
-        let i = trace_length - 1;
-
-        let program_hash = [trace[0][i], trace[1][i]];
-        let op_bits = [
-            trace[4][i], trace[5][i], trace[6][i], trace[7][i], trace[8][i],
-            trace[9][i], trace[10][i], trace[11][i], trace[12][i], trace[13][i]
-        ];
-        let ctx_stack = [trace[14][i], trace[15][i]];
-        let user_stack = [trace[16][i], trace[17][i]];
 
         assert_eq!(64, trace_length);
-        assert_eq!(program.hash(), as_bytes(&program_hash));
-        assert_eq!([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], op_bits);
-        assert_eq!([0, 0], ctx_stack);
-        assert_eq!([7, 15], user_stack);
+        assert_eq!(19, trace.len());
+
+        let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
+        state.update_from_trace(&trace, trace_length - 1);
+        
+        // TODO: check op counter
+        assert_eq!(program.hash(), as_bytes(state.program_hash()));
+        assert_eq!([1, 1, 1], state.cf_op_bits());
+        assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
+        assert_eq!([1, 1], state.hd_op_bits());
+        assert_eq!([0, 0], state.ctx_stack());
+        assert_eq!([7, 15, 0, 0, 0, 0, 0, 0], state.user_stack());
     }
 
     #[test]
@@ -248,43 +246,41 @@ mod tests {
         
         // execute true branch
         let inputs = ProgramInputs::new(&[5, 3], &[1], &[]);
-        let (trace, ..) = super::execute(&program, 0, &inputs);
+        let (trace, ctx_depth, loop_depth) = super::execute(&program, 0, &inputs);
         let trace_length = trace[0].len();
-        let i = trace_length - 1;
-
-        let program_hash = [trace[0][i], trace[1][i]];
-        let op_bits = [
-            trace[4][i], trace[5][i], trace[6][i], trace[7][i], trace[8][i],
-            trace[9][i], trace[10][i], trace[11][i], trace[12][i], trace[13][i]
-        ];
-        let ctx_stack = [trace[14][i], trace[15][i]];
-        let user_stack = [trace[16][i], trace[17][i], trace[18][i]];
 
         assert_eq!(128, trace_length);
-        assert_eq!(program.hash(), as_bytes(&program_hash));
-        assert_eq!([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], op_bits);
-        assert_eq!([0, 0], ctx_stack);
-        assert_eq!([24, 0, 0], user_stack);
+        assert_eq!(20, trace.len());
+
+        let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
+        state.update_from_trace(&trace, trace_length - 1);
+
+        // TODO: check op counter
+        assert_eq!(program.hash(), as_bytes(state.program_hash()));
+        assert_eq!([1, 1, 1], state.cf_op_bits());
+        assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
+        assert_eq!([1, 1], state.hd_op_bits());
+        assert_eq!([0, 0], state.ctx_stack());
+        assert_eq!([24, 0, 0, 0, 0, 0, 0, 0], state.user_stack());
 
         // execute false branch
         let inputs = ProgramInputs::new(&[5, 3], &[0], &[]);
-        let (trace, ..) = super::execute(&program, 0, &inputs);
+        let (trace, ctx_depth, loop_depth) = super::execute(&program, 0, &inputs);
         let trace_length = trace[0].len();
-        let i = trace_length - 1;
-
-        let program_hash = [trace[0][i], trace[1][i]];
-        let op_bits = [
-            trace[4][i], trace[5][i], trace[6][i], trace[7][i], trace[8][i],
-            trace[9][i], trace[10][i], trace[11][i], trace[12][i], trace[13][i]
-        ];
-        let ctx_stack = [trace[14][i], trace[15][i]];
-        let user_stack = [trace[16][i], trace[17][i], trace[18][i]];
 
         assert_eq!(128, trace_length);
-        assert_eq!(program.hash(), as_bytes(&program_hash));
-        assert_eq!([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], op_bits);
-        assert_eq!([0, 0], ctx_stack);
-        assert_eq!([96, 3, 0], user_stack);
+        assert_eq!(20, trace.len());
+
+        let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
+        state.update_from_trace(&trace, trace_length - 1);
+
+        // TODO: check op counter
+        assert_eq!(program.hash(), as_bytes(state.program_hash()));
+        assert_eq!([1, 1, 1], state.cf_op_bits());
+        assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
+        assert_eq!([1, 1], state.hd_op_bits());
+        assert_eq!([0, 0], state.ctx_stack());
+        assert_eq!([96, 3, 0, 0, 0, 0, 0, 0], state.user_stack());
     }
 
     #[test]
@@ -295,93 +291,67 @@ mod tests {
 
         // don't enter the loop
         let inputs = ProgramInputs::new(&[5, 3], &[0], &[]);
-        let (trace, ..) = super::execute(&program, 0, &inputs);
+        let (trace, ctx_depth, loop_depth) = super::execute(&program, 0, &inputs);
         let trace_length = trace[0].len();
-        let i = trace_length - 1;
-
-        let program_hash = [trace[0][i], trace[1][i]];
-        let op_bits = [
-            trace[4][i], trace[5][i], trace[6][i], trace[7][i], trace[8][i],
-            trace[9][i], trace[10][i], trace[11][i], trace[12][i], trace[13][i]
-        ];
-        let ctx_stack = [trace[14][i], trace[15][i]];
-        let user_stack = [trace[16][i], trace[17][i]];
 
         assert_eq!(64, trace_length);
-        assert_eq!(program.hash(), as_bytes(&program_hash));
-        assert_eq!([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], op_bits);
-        assert_eq!([0, 0], ctx_stack);
-        assert_eq!([15, 0], user_stack);
+        assert_eq!(19, trace.len());
+
+        let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
+        state.update_from_trace(&trace, trace_length - 1);
+
+        // TODO: check op counter
+        assert_eq!(program.hash(), as_bytes(state.program_hash()));
+        assert_eq!([1, 1, 1], state.cf_op_bits());
+        assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
+        assert_eq!([1, 1], state.hd_op_bits());
+        assert_eq!([0, 0], state.ctx_stack());
+        assert_eq!([15, 0, 0, 0, 0, 0, 0, 0], state.user_stack());
 
         // execute one iteration
         let inputs = ProgramInputs::new(&[5, 3], &[1, 0], &[]);
-        let (trace, ..) = super::execute(&program, 0, &inputs);
+        let (trace, ctx_depth, loop_depth) = super::execute(&program, 0, &inputs);
         let trace_length = trace[0].len();
-        let i = trace_length - 1;
-
-        let program_hash = [trace[0][i], trace[1][i]];
-        let op_bits = [
-            trace[4][i], trace[5][i], trace[6][i], trace[7][i], trace[8][i],
-            trace[9][i], trace[10][i], trace[11][i], trace[12][i], trace[13][i]
-        ];
-        let ctx_stack = [trace[14][i], trace[15][i]];
-        let loop_stack = [trace[16][i]];
-        let user_stack = [trace[17][i], trace[18][i]];
 
         assert_eq!(128, trace_length);
-        assert_eq!(program.hash(), as_bytes(&program_hash));
-        assert_eq!([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], op_bits);
-        assert_eq!([0, 0], ctx_stack);
-        assert_eq!([0], loop_stack);
-        assert_eq!([225, 0], user_stack);
+        assert_eq!(20, trace.len());
+
+        let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
+        state.update_from_trace(&trace, trace_length - 1);
+
+        // TODO: check op counter
+        assert_eq!(program.hash(), as_bytes(state.program_hash()));
+        assert_eq!([1, 1, 1], state.cf_op_bits());
+        assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
+        assert_eq!([1, 1], state.hd_op_bits());
+        assert_eq!([0, 0], state.ctx_stack());
+        assert_eq!([0], state.loop_stack());
+        assert_eq!([225, 0, 0, 0, 0, 0, 0, 0], state.user_stack());
 
         // execute five iteration
         let inputs = ProgramInputs::new(&[5, 3], &[1, 1, 1, 1, 1, 0], &[]);
-        let (trace, ..) = super::execute(&program, 0, &inputs);
-        print_trace(&trace, 2, 1);
+        let (trace, ctx_depth, loop_depth) = super::execute(&program, 0, &inputs);
         let trace_length = trace[0].len();
-        let i = trace_length - 1;
-
-        let program_hash = [trace[0][i], trace[1][i]];
-        let op_bits = [
-            trace[4][i], trace[5][i], trace[6][i], trace[7][i], trace[8][i],
-            trace[9][i], trace[10][i], trace[11][i], trace[12][i], trace[13][i]
-        ];
-        let ctx_stack = [trace[14][i], trace[15][i]];
-        let loop_stack = [trace[16][i]];
-        let user_stack = [trace[17][i], trace[18][i]];
 
         assert_eq!(256, trace_length);
-        assert_eq!(program.hash(), as_bytes(&program_hash));
-        assert_eq!([1, 1, 1, 1, 1, 1, 1, 1, 1, 1], op_bits);
-        assert_eq!([0, 0], ctx_stack);
-        assert_eq!([0], loop_stack);
-        assert_eq!([43143988327398919500410556793212890625, 0], user_stack);
+        assert_eq!(20, trace.len());
+
+        let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
+        state.update_from_trace(&trace, trace_length - 1);
+
+        // TODO: check op counter
+        assert_eq!(program.hash(), as_bytes(state.program_hash()));
+        assert_eq!([1, 1, 1], state.cf_op_bits());
+        assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
+        assert_eq!([1, 1], state.hd_op_bits());
+        assert_eq!([0, 0], state.ctx_stack());
+        assert_eq!([0], state.loop_stack());
+        assert_eq!([43143988327398919500410556793212890625, 0, 0, 0, 0, 0, 0, 0], state.user_stack());
     }
 
-    fn print_trace(trace: &Vec<Vec<u128>>, ctx_stack_depth: usize, loop_stack_depth: usize) {
-
-        let width = trace.len();
-        let length = trace[0].len();
-
-        let ctx_stack_end = 14 + ctx_stack_depth;
-        let loop_stack_end = ctx_stack_end + loop_stack_depth;
-
-        for i in 0..length {
-            let mut state = vec![];
-            for j in 0..4 {
-                state.push(trace[j][i] >> 64);
-            }
-            for j in 4..width {
-                state.push(trace[j][i]);
-            }
-            
-            println!("{}:\t{:>16X?} {:?} {:?} {:?} {:X?} {:X?} {:?}", i,
-                &state[0..4], &state[4..7],
-                &state[7..12], &state[12..14],
-                &state[14..ctx_stack_end], &state[ctx_stack_end..loop_stack_end],
-                &state[loop_stack_end..]
-            );
-        }
+    fn build_trace_state(num_registers: usize, ctx_depth: usize, loop_depth: usize) -> TraceState {
+        let decoder_width = TraceState::compute_decoder_width(ctx_depth, loop_depth);
+        let stack_depth = num_registers - decoder_width;
+        return TraceState::new(ctx_depth, loop_depth, stack_depth);
     }
 }

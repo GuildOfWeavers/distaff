@@ -3,7 +3,7 @@ use crate::math::field;
 use crate::{
     MIN_STACK_DEPTH,
     PROGRAM_DIGEST_SIZE,
-    SPONGE_WIDTH, SPONGE_RANGE,
+    OP_COUNTER_IDX, SPONGE_WIDTH, SPONGE_RANGE,
     NUM_CF_OPS, NUM_LD_OPS, NUM_HD_OPS,
     NUM_CF_OP_BITS, NUM_LD_OP_BITS, NUM_HD_OP_BITS,
     CF_OP_BITS_RANGE, LD_OP_BITS_RANGE, HD_OP_BITS_RANGE,
@@ -12,12 +12,13 @@ use crate::{
 // CONSTANTS
 // ================================================================================================
 const NUM_OP_BITS: usize = NUM_CF_OP_BITS + NUM_LD_OP_BITS + NUM_HD_OP_BITS;
-const NUM_STATIC_DECODER_REGISTERS: usize = SPONGE_WIDTH + NUM_OP_BITS;
+const NUM_STATIC_DECODER_REGISTERS: usize = 1 + SPONGE_WIDTH + NUM_OP_BITS; // 1 is for op_counter
 
 // TYPES AND INTERFACES
 // ================================================================================================
 #[derive(PartialEq)]
 pub struct TraceState {
+    op_counter  : u128,
     sponge      : [u128; SPONGE_WIDTH],
     cf_op_bits  : [u128; NUM_CF_OP_BITS],
     ld_op_bits  : [u128; NUM_LD_OP_BITS],
@@ -43,6 +44,7 @@ impl TraceState {
     pub fn new(ctx_depth: usize, loop_depth: usize, stack_depth: usize) -> TraceState {
         
         return TraceState {
+            op_counter  : 0,
             sponge      : [0; SPONGE_WIDTH],
             cf_op_bits  : [0; NUM_CF_OP_BITS],
             ld_op_bits  : [0; NUM_LD_OP_BITS],
@@ -59,6 +61,8 @@ impl TraceState {
     }
 
     pub fn from_vec(ctx_depth: usize, loop_depth: usize, stack_depth: usize, state: &Vec<u128>) -> TraceState {
+
+        let op_counter = state[OP_COUNTER_IDX];
 
         let mut sponge = [0; SPONGE_WIDTH];
         sponge.copy_from_slice(&state[SPONGE_RANGE]);
@@ -84,7 +88,7 @@ impl TraceState {
         user_stack[..stack_depth].copy_from_slice(&state[loop_stack_end..]);
 
         return TraceState {
-            sponge,
+            op_counter, sponge,
             cf_op_bits, ld_op_bits, hd_op_bits,
             ctx_stack, loop_stack, user_stack, stack_depth,
             cf_op_flags : [0; NUM_CF_OPS],
@@ -108,6 +112,12 @@ impl TraceState {
 
     pub fn stack_depth(&self) -> usize {
         return self.stack_depth;
+    }
+
+    // OPERATION COUNTER
+    // --------------------------------------------------------------------------------------------
+    pub fn op_counter(&self) -> u128 {
+        return self.op_counter;
     }
 
     // SPONGE
@@ -201,6 +211,7 @@ impl TraceState {
     // --------------------------------------------------------------------------------------------
     pub fn to_vec(&self) -> Vec<u128> {
         let mut result = Vec::with_capacity(self.width());
+        result.push(self.op_counter);
         result.extend_from_slice(&self.sponge);
         result.extend_from_slice(&self.cf_op_bits);
         result.extend_from_slice(&self.ld_op_bits);
@@ -213,7 +224,9 @@ impl TraceState {
 
     pub fn update_from_trace(&mut self, trace: &Vec<Vec<u128>>, step: usize) {
 
-        for (i, j) in SPONGE_RANGE.enumerate() { self.sponge[i] = trace[j][step]; }
+        self.op_counter = trace[OP_COUNTER_IDX][step];
+
+        for (i, j) in SPONGE_RANGE.enumerate()     { self.sponge[i] = trace[j][step]; }
         for (i, j) in CF_OP_BITS_RANGE.enumerate() { self.cf_op_bits[i] = trace[j][step]; }
         for (i, j) in LD_OP_BITS_RANGE.enumerate() { self.ld_op_bits[i] = trace[j][step]; }
         for (i, j) in HD_OP_BITS_RANGE.enumerate() { self.hd_op_bits[i] = trace[j][step]; }
@@ -292,7 +305,8 @@ impl TraceState {
 
 impl fmt::Debug for TraceState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:>32X?} {:?} {:?} {:?} {:>32X?} {:>32X?} {:?}",
+        write!(f, "[{}] {:>32X?} {:?} {:?} {:?} {:>32X?} {:>32X?} {:?}",
+            self.op_counter,
             self.sponge, 
             self.cf_op_bits,
             self.ld_op_bits,
@@ -306,7 +320,8 @@ impl fmt::Debug for TraceState {
 
 impl fmt::Display for TraceState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:>16X?} {:?} {:?} {:?} {:>16X?} {:>16X?} {:?}",
+        write!(f, "[{}] {:>16X?} {:?} {:?} {:?} {:>16X?} {:>16X?} {:?}",
+            self.op_counter,
             self.sponge.iter().map(|x| x >> 64).collect::<Vec<u128>>(),
             self.cf_op_bits,
             self.ld_op_bits,
@@ -337,10 +352,11 @@ mod tests {
 
         // empty loop stack
         let state = TraceState::from_vec(1, 0, 2, &vec![
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17
+            101, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17
         ]);
 
         let empty_loop_stack: [u128; 0] = [];
+        assert_eq!(101, state.op_counter());
         assert_eq!([1, 2, 3, 4], state.sponge());
         assert_eq!([5, 6, 7], state.cf_op_bits());
         assert_eq!([8, 9, 10, 11, 12], state.ld_op_bits());
@@ -348,18 +364,19 @@ mod tests {
         assert_eq!([15], state.ctx_stack());
         assert_eq!(empty_loop_stack, state.loop_stack());
         assert_eq!([16, 17, 0, 0, 0, 0, 0, 0], state.user_stack());
-        assert_eq!(17, state.width());
+        assert_eq!(18, state.width());
         assert_eq!(2, state.stack_depth());
         assert_eq!(vec![
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17
+            101, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17
         ], state.to_vec());
 
         // non-empty loop stack
         let state = TraceState::from_vec(2, 1, 9, &vec![
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+            101, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
             18, 19, 20, 21, 22, 23, 24, 25, 26,
         ]);
 
+        assert_eq!(101, state.op_counter());
         assert_eq!([1, 2, 3, 4], state.sponge());
         assert_eq!([5, 6, 7], state.cf_op_bits());
         assert_eq!([8, 9, 10, 11, 12], state.ld_op_bits());
@@ -367,17 +384,17 @@ mod tests {
         assert_eq!([15, 16], state.ctx_stack());
         assert_eq!([17], state.loop_stack());
         assert_eq!([18, 19, 20, 21, 22, 23, 24, 25, 26], state.user_stack());
-        assert_eq!(26, state.width());
+        assert_eq!(27, state.width());
         assert_eq!(9, state.stack_depth());
         assert_eq!(vec![
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+            101, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
             18, 19, 20, 21, 22, 23, 24, 25, 26,
         ], state.to_vec());
     }
 
     #[test]
     fn update_from_trace() {
-        let data = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+        let data = vec![101, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
         let mut trace = Vec::with_capacity(data.len());
         for i in 0..data.len() {
             trace.push(vec![0, data[i], 0]);
@@ -387,6 +404,7 @@ mod tests {
         let mut state = TraceState::new(2, 1, 3);
         state.update_from_trace(&trace, 0);
 
+        assert_eq!(0, state.op_counter());
         assert_eq!([0, 0, 0, 0], state.sponge());
         assert_eq!([0, 0, 0], state.cf_op_bits());
         assert_eq!([0, 0, 0, 0, 0], state.ld_op_bits());
@@ -394,12 +412,13 @@ mod tests {
         assert_eq!([0, 0], state.ctx_stack());
         assert_eq!([0], state.loop_stack());
         assert_eq!([0, 0, 0, 0, 0, 0, 0, 0], state.user_stack());
-        assert_eq!(20, state.width());
+        assert_eq!(21, state.width());
         assert_eq!(3, state.stack_depth());
 
         // second row
         state.update_from_trace(&trace, 1);
 
+        assert_eq!(101, state.op_counter());
         assert_eq!([1, 2, 3, 4], state.sponge());
         assert_eq!([5, 6, 7], state.cf_op_bits());
         assert_eq!([8, 9, 10, 11, 12], state.ld_op_bits());
@@ -407,7 +426,7 @@ mod tests {
         assert_eq!([15, 16], state.ctx_stack());
         assert_eq!([17], state.loop_stack());
         assert_eq!([18, 19, 20, 0, 0, 0, 0, 0], state.user_stack());
-        assert_eq!(20, state.width());
+        assert_eq!(21, state.width());
         assert_eq!(3, state.stack_depth());
     }
 
@@ -415,7 +434,7 @@ mod tests {
     fn op_flags() {
         // all ones
         let state = TraceState::from_vec(1, 0, 2, &vec![
-            1, 2, 3, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 15, 16, 17
+            101, 1, 2, 3, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 15, 16, 17
         ]);
 
         assert_eq!([0, 0, 0, 0, 0, 0, 0, 1], state.cf_op_flags());
@@ -427,7 +446,7 @@ mod tests {
 
         // all zeros
         let state = TraceState::from_vec(1, 0, 2, &vec![
-            1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 16, 17
+            101, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 16, 17
         ]);
 
         assert_eq!([1, 0, 0, 0, 0, 0, 0, 0], state.cf_op_flags());
@@ -439,7 +458,7 @@ mod tests {
 
         // mixed 1
         let state = TraceState::from_vec(1, 0, 2, &vec![
-            1, 2, 3, 4, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 15, 16, 17
+            101, 1, 2, 3, 4, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 15, 16, 17
         ]);
 
         assert_eq!([0, 1, 0, 0, 0, 0, 0, 0], state.cf_op_flags());
@@ -451,7 +470,7 @@ mod tests {
 
         // mixed 2
         let state = TraceState::from_vec(1, 0, 2, &vec![
-            1, 2, 3, 4, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 15, 16, 17
+            101, 1, 2, 3, 4, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 15, 16, 17
         ]);
 
         assert_eq!([0, 0, 0, 1, 0, 0, 0, 0], state.cf_op_flags());
@@ -465,22 +484,22 @@ mod tests {
     #[test]
     fn op_code() {
         let state = TraceState::from_vec(1, 0, 2, &vec![
-            1, 2, 3, 4, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 15, 16, 17
+            101, 1, 2, 3, 4, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 15, 16, 17
         ]);
         assert_eq!(0, state.op_code());
 
         let state = TraceState::from_vec(1, 0, 2, &vec![
-            1, 2, 3, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 15, 16, 17
+            101, 1, 2, 3, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 15, 16, 17
         ]);
         assert_eq!(127, state.op_code());
 
         let state = TraceState::from_vec(1, 0, 2, &vec![
-            1, 2, 3, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 15, 16, 17
+            101, 1, 2, 3, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 15, 16, 17
         ]);
         assert_eq!(63, state.op_code());
 
         let state = TraceState::from_vec(1, 0, 2, &vec![
-            1, 2, 3, 4, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 15, 16, 17
+            101, 1, 2, 3, 4, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 15, 16, 17
         ]);
         assert_eq!(97, state.op_code());
     }

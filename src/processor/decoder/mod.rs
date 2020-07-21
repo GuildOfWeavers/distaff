@@ -22,7 +22,8 @@ pub struct Decoder {
 
     step        : usize,
 
-    op_acc      : [Vec<u128>; SPONGE_WIDTH],
+    op_counter  : Vec<u128>,
+    sponge_trace: [Vec<u128>; SPONGE_WIDTH],
     sponge      : [u128; SPONGE_WIDTH],
 
     cf_op_bits  : [Vec<u128>; NUM_CF_OP_BITS],
@@ -43,8 +44,11 @@ impl Decoder {
     /// Creates a new instance of instruction decoder.
     pub fn new(init_trace_length: usize) -> Decoder {
 
-        // initialize instruction accumulator
-        let op_acc = [
+        // initialize operation counter
+        let op_counter = vec![field::ZERO; init_trace_length];
+
+        // initialize instruction sponge
+        let sponge_trace = [
             vec![field::ZERO; init_trace_length], vec![field::ZERO; init_trace_length],
             vec![field::ZERO; init_trace_length], vec![field::ZERO; init_trace_length],
         ];
@@ -73,14 +77,16 @@ impl Decoder {
 
         // create and return decoder
         return Decoder {
-            step: 0, op_acc, sponge, cf_op_bits, ld_op_bits, hd_op_bits,
+            step: 0, 
+            op_counter, sponge, sponge_trace,
+            cf_op_bits, ld_op_bits, hd_op_bits,
             ctx_stack, ctx_depth, loop_stack, loop_depth,
         };
     }
 
     /// Returns trace length of register traces in the decoder.
     pub fn trace_length(&self) -> usize {
-        return self.op_acc[0].len();
+        return self.op_counter.len();
     }
 
     /// Returns value of the current step pointer.
@@ -102,12 +108,13 @@ impl Decoder {
     pub fn get_state(&self, step: usize) -> Vec<u128> {
         let mut state = Vec::new();
 
-        for register in self.op_acc.iter()     { state.push(register[step]); }
-        for register in self.cf_op_bits.iter() { state.push(register[step]); }
-        for register in self.ld_op_bits.iter() { state.push(register[step]); }
-        for register in self.hd_op_bits.iter() { state.push(register[step]); }
-        for register in self.ctx_stack.iter()  { state.push(register[step]); }
-        for register in self.loop_stack.iter() { state.push(register[step]); }
+        state.push(self.op_counter[step]);
+        for register in self.sponge_trace.iter() { state.push(register[step]); }
+        for register in self.cf_op_bits.iter()   { state.push(register[step]); }
+        for register in self.ld_op_bits.iter()   { state.push(register[step]); }
+        for register in self.hd_op_bits.iter()   { state.push(register[step]); }
+        for register in self.ctx_stack.iter()    { state.push(register[step]); }
+        for register in self.loop_stack.iter()   { state.push(register[step]); }
 
         return state;
     }
@@ -116,7 +123,9 @@ impl Decoder {
     pub fn into_register_traces(mut self) -> Vec<Vec<u128>> {
         let mut registers: Vec<Vec<u128>> = Vec::new();
 
-        let [r0, r1, r2, r3] = self.op_acc;
+        registers.push(self.op_counter);
+
+        let [r0, r1, r2, r3] = self.sponge_trace;
         registers.push(r0);
         registers.push(r1);
         registers.push(r2);
@@ -152,7 +161,7 @@ impl Decoder {
         assert!(self.step % BASE_CYCLE_LENGTH == BASE_CYCLE_LENGTH - 1,
             "cannot start context block at step {}: operation alignment is not valid", self.step);
 
-        self.advance_step();
+        self.advance_step(false);
         self.save_context();
         self.copy_loop_stack();
         self.set_op_bits(FlowOps::Begin, UserOps::Noop);
@@ -164,7 +173,7 @@ impl Decoder {
         assert!(self.step % BASE_CYCLE_LENGTH == 0,
             "cannot exit context block at step {}: operation alignment is not valid", self.step);
 
-        self.advance_step();
+        self.advance_step(false);
         let context_hash = self.pop_context();
         self.copy_loop_stack();
 
@@ -186,7 +195,7 @@ impl Decoder {
         assert!(self.step % BASE_CYCLE_LENGTH == BASE_CYCLE_LENGTH - 1,
             "cannot start a loop at step {}: operation alignment is not valid", self.step);
 
-        self.advance_step();
+        self.advance_step(false);
         self.save_context();
         self.save_loop_image(loop_image);
         self.set_op_bits(FlowOps::Loop, UserOps::Noop);
@@ -198,7 +207,7 @@ impl Decoder {
         assert!(self.step % BASE_CYCLE_LENGTH == BASE_CYCLE_LENGTH - 1,
             "cannot wrap a loop at step {}: operation alignment is not valid", self.step);
 
-        self.advance_step();
+        self.advance_step(false);
         self.copy_context_stack();
         assert!(self.sponge[0] == self.peek_loop_image(),
             "cannot wrap a loop at step {}: hash of the last iteration doesn't match loop image", self.step);
@@ -211,7 +220,7 @@ impl Decoder {
         assert!(self.step % BASE_CYCLE_LENGTH == BASE_CYCLE_LENGTH - 1,
             "cannot break a loop at step {}: operation alignment is not valid", self.step);
 
-        self.advance_step();
+        self.advance_step(false);
         self.copy_context_stack();
         assert!(self.sponge[0] == self.pop_loop_image(),
             "cannot break a loop at step {}: hash of the last iteration doesn't match loop image", self.step);
@@ -232,25 +241,29 @@ impl Decoder {
             }
         }
 
-        self.advance_step();
+        self.advance_step(true);
         self.copy_context_stack();
         self.copy_loop_stack();
         self.set_op_bits(FlowOps::Hacc, op_code);
-        self.apply_hacc_round(op_code, op_value);        
+        self.apply_hacc_round(op_code, op_value);
     }
 
     /// Populate all register traces with values for steps between the current step
     /// and the end of the trace.
     pub fn finalize_trace(&mut self) {
+        // don't increase counter for void instructions
+        let last_op_count = self.op_counter[self.step];
+        fill_register(&mut self.op_counter, self.step + 1, last_op_count);
+
         // set all bit registers to 1 to indicate NOOP operation
         for register in self.cf_op_bits.iter_mut() { fill_register(register, self.step, field::ONE); }
         for register in self.ld_op_bits.iter_mut() { fill_register(register, self.step, field::ONE); }
         for register in self.hd_op_bits.iter_mut() { fill_register(register, self.step, field::ONE); }
 
-        // for op_acc and stack registers, just copy the value of the last state of the register
-        for register in self.op_acc.iter_mut()     { fill_register(register, self.step + 1, register[self.step]); }
-        for register in self.ctx_stack.iter_mut()  { fill_register(register, self.step + 1, register[self.step]); }
-        for register in self.loop_stack.iter_mut() { fill_register(register, self.step + 1, register[self.step]); }
+        // for sponge and stack registers, just copy the value of the last state of the register
+        for register in self.sponge_trace.iter_mut() { fill_register(register, self.step + 1, register[self.step]); }
+        for register in self.ctx_stack.iter_mut()    { fill_register(register, self.step + 1, register[self.step]); }
+        for register in self.loop_stack.iter_mut()   { fill_register(register, self.step + 1, register[self.step]); }
 
         // update the step pointer to point to the last step
         self.step = self.trace_length() - 1;
@@ -260,7 +273,7 @@ impl Decoder {
     // --------------------------------------------------------------------------------------------
 
     /// Moves step pointer to the next step and ensures that register traces have sufficient size.
-    fn advance_step(&mut self) {
+    fn advance_step(&mut self, is_user_op: bool) {
         // increment step by 1
         self.step += 1;
 
@@ -268,12 +281,21 @@ impl Decoder {
         if self.step >= self.trace_length() {
             let new_length = self.trace_length() * 2;
 
-            for register in self.op_acc.iter_mut()     { register.resize(new_length, field::ZERO); }
-            for register in self.cf_op_bits.iter_mut() { register.resize(new_length, field::ZERO); }
-            for register in self.ld_op_bits.iter_mut() { register.resize(new_length, field::ZERO); }
-            for register in self.hd_op_bits.iter_mut() { register.resize(new_length, field::ZERO); }
-            for register in self.ctx_stack.iter_mut()  { register.resize(new_length, field::ZERO); }
-            for register in self.loop_stack.iter_mut() { register.resize(new_length, field::ZERO); }
+            self.op_counter.resize(new_length, field::ZERO);
+            for register in self.sponge_trace.iter_mut() { register.resize(new_length, field::ZERO); }
+            for register in self.cf_op_bits.iter_mut()   { register.resize(new_length, field::ZERO); }
+            for register in self.ld_op_bits.iter_mut()   { register.resize(new_length, field::ZERO); }
+            for register in self.hd_op_bits.iter_mut()   { register.resize(new_length, field::ZERO); }
+            for register in self.ctx_stack.iter_mut()    { register.resize(new_length, field::ZERO); }
+            for register in self.loop_stack.iter_mut()   { register.resize(new_length, field::ZERO); }
+        }
+
+        // for user ops, increment counter by 1; otherwise, copy counter from thee previous step
+        if is_user_op {
+            self.op_counter[self.step] = self.op_counter[self.step - 1] + 1;
+        }
+        else {
+            self.op_counter[self.step] = self.op_counter[self.step - 1];
         }
     }
     
@@ -411,18 +433,18 @@ impl Decoder {
     // HASH ACCUMULATOR HELPERS
     // --------------------------------------------------------------------------------------------
 
-    /// Sets the states of the sponge to the provided values and updates `op_acc` registers 
+    /// Sets the states of the sponge to the provided values and updates `sponge_trace` registers 
     /// at the current step.
     fn set_sponge(&mut self, state: [u128; SPONGE_WIDTH]) {
         self.sponge = state;
-        self.op_acc[0][self.step] = state[0];
-        self.op_acc[1][self.step] = state[1];
-        self.op_acc[2][self.step] = state[2];
-        self.op_acc[3][self.step] = state[3];
+        self.sponge_trace[0][self.step] = state[0];
+        self.sponge_trace[1][self.step] = state[1];
+        self.sponge_trace[2][self.step] = state[2];
+        self.sponge_trace[3][self.step] = state[3];
     }
 
     /// Applies a modified version of Rescue round to the sponge state and copies the result
-    /// into `op_acc` registers.
+    /// into `sponge_trace` registers.
     fn apply_hacc_round(&mut self, op_code: UserOps, op_value: u128) {
 
         let ark_idx = (self.step - 1) % BASE_CYCLE_LENGTH;
@@ -441,9 +463,9 @@ impl Decoder {
         apply_inv_sbox(&mut self.sponge);
         apply_mds(&mut self.sponge);
 
-        // copy the new sponge state into the op_acc registers
+        // copy the new sponge state into the sponge_trace registers
         for i in 0..SPONGE_WIDTH {
-            self.op_acc[i][self.step] = self.sponge[i];
+            self.sponge_trace[i][self.step] = self.sponge[i];
         }
     }
 }
