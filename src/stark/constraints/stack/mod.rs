@@ -10,9 +10,6 @@ use super::utils::{
     enforce_stack_copy, enforce_left_shift, enforce_right_shift,
 };
 
-mod flow_ops;
-use flow_ops::{ enforce_noop, enforce_assert, enforce_asserteq };
-
 mod input;
 use input::{ enforce_push, enforce_read, enforce_read2 };
 
@@ -29,7 +26,7 @@ use manipulation::{
 };
 
 mod comparison;
-use comparison::{ enforce_eq, enforce_cmp, enforce_binacc };
+use comparison::{ enforce_assert, enforce_asserteq, enforce_eq, enforce_cmp, enforce_binacc };
 
 mod selection;
 use selection::{ enforce_choose, enforce_choose2 };
@@ -42,10 +39,11 @@ use hash::{ enforce_rescr };
 const NUM_AUX_CONSTRAINTS: usize = 2;
 const AUX_CONSTRAINT_DEGREES: [usize; NUM_AUX_CONSTRAINTS] = [7, 7];
 
+// TODO: revisit degrees; maybe consolidate into a single constant
 const STACK_HEAD_DEGREES: [usize; 7] = [
-    7, 7, 7, 7, 7, 7, 7,    // constraints for the first 7 registers of user stack
+    8, 8, 8, 8, 8, 8, 8,    // constraints for the first 7 registers of user stack
 ];
-const STACK_REST_DEGREE: usize = 6; // degree for the rest of the stack registers
+const STACK_REST_DEGREE: usize = 8; // degree for the rest of the stack registers
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -100,13 +98,16 @@ impl Stack {
         let old_stack = current.user_stack();
         let new_stack = next.user_stack();
 
-        // evaluate constraints for simple operations
-        let op_flags = current.ld_op_flags();
-        self.enforce_low_degree_ops(old_stack, new_stack, op_flags, result);
+        // evaluate constraints for low-degree operations
+        let ld_flags = current.ld_op_flags();
+        self.enforce_low_degree_ops(old_stack, new_stack, ld_flags, result);
 
-        // evaluate constraints for hash operation
-        let op_flags = current.hd_op_flags();
-        self.enforce_high_degree_ops(old_stack, new_stack, &ark, op_flags, result);
+        // evaluate constraints for high-degree operations
+        let hd_flags = current.hd_op_flags();
+        self.enforce_high_degree_ops(old_stack, new_stack, &ark, hd_flags, result);
+
+        // evaluate constraints for composite operations
+        self.enforce_composite_ops(old_stack, new_stack, ld_flags, hd_flags, result);
     }
 
     /// Evaluates stack transition constraints at the specified x coordinate and saves the
@@ -128,13 +129,16 @@ impl Stack {
         let old_stack = current.user_stack();
         let new_stack = next.user_stack();
 
-        // evaluate constraints for low_degree operations
-        let op_flags = current.ld_op_flags();
-        self.enforce_low_degree_ops(old_stack, new_stack, op_flags, result);
+        // evaluate constraints for low-degree operations
+        let ld_flags = current.ld_op_flags();
+        self.enforce_low_degree_ops(old_stack, new_stack, ld_flags, result);
 
-        // evaluate constraints for hash operation
-        let op_flags = current.hd_op_flags();
-        self.enforce_high_degree_ops(old_stack, new_stack, &ark, op_flags, result);
+        // evaluate constraints for high-degree operations
+        let hd_flags = current.hd_op_flags();
+        self.enforce_high_degree_ops(old_stack, new_stack, &ark, hd_flags, result);
+
+        // evaluate constraints for composite operations
+        self.enforce_composite_ops(old_stack, new_stack, ld_flags, hd_flags, result);
     }
 
     /// Evaluates transition constraints for all operations where the operation result does not
@@ -150,8 +154,7 @@ impl Stack {
         // it may actually be smaller than that
         let mut evaluations = vec![field::ZERO; current.len()];
 
-        // control flow operations
-        enforce_noop    (&mut evaluations,      current, next, op_flags[OpCode::Noop.ld_index()]);
+        // assertion operations
         enforce_assert  (&mut evaluations, aux, current, next, op_flags[OpCode::Assert.ld_index()]);
         enforce_asserteq(&mut evaluations, aux, current, next, op_flags[OpCode::AssertEq.ld_index()]);
 
@@ -216,6 +219,19 @@ impl Stack {
         for i in 0..result.len() {
             result[i] = field::add(result[i], evaluations[i]);
         }
+    }
+
+    pub fn enforce_composite_ops(&self, current: &[u128], next: &[u128], ld_flags: [u128; NUM_LD_OPS], hd_flags: [u128; NUM_HD_OPS], result: &mut [u128])
+    {
+        // composite operations don't use aux constraints
+        let (_, result) = result.split_at_mut(NUM_AUX_CONSTRAINTS);
+
+        // NOOP is special because its op_bits consist of all 1s in both, low-degree and
+        // high-degree positions. To make sure NOOP constraint evaluation happens only when
+        // all bits are set to 1, we need to multiply low-degree and high-degree components
+        // together. This also means that NOOP flag has degree 7.
+        let op_flag = field::mul(ld_flags[OpCode::Noop.ld_index()], hd_flags[OpCode::Noop.hd_index()]);
+        enforce_stack_copy(result, current, next, 0, op_flag);
     }
 }
 
