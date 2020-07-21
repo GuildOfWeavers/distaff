@@ -7,9 +7,11 @@ fn single_block() {
     let source = "begin push.1 push.2 add end";
     let program = super::compile(source, blake3).unwrap();
 
-    let expected = "begin \
+    let expected = "\
+        begin noop noop noop noop noop noop noop \
         push(1) noop noop noop noop noop noop noop \
-        push(2) add noop noop noop noop noop end";
+        push(2) add noop noop noop noop noop noop \
+        noop noop noop noop noop noop noop end";
 
     assert_eq!(expected, format!("{:?}", program));
 }
@@ -19,8 +21,8 @@ fn sequence_of_blocks() {
     let source = "begin block push.1 push.2 add end block push.3 push.4 add end end";
     let program = super::compile(source, blake3).unwrap();
 
-    let expected = "begin \
-        noop noop noop noop noop noop noop noop \
+    let expected = "\
+        begin noop noop noop noop noop noop noop \
         noop noop noop noop noop noop noop block \
         push(1) noop noop noop noop noop noop noop \
         push(2) add noop noop noop noop noop end \
@@ -36,8 +38,8 @@ fn sequence_of_blocks_with_prefix() {
     let source = "begin read read add block push.1 push.2 add end block push.3 push.4 sub end end";
     let program = super::compile(source, blake3).unwrap();
 
-    let expected = "begin \
-        read read add noop noop noop noop noop \
+    let expected = "\
+        begin read read add noop noop noop noop \
         noop noop noop noop noop noop noop block \
         push(1) noop noop noop noop noop noop noop \
         push(2) add noop noop noop noop noop end \
@@ -53,8 +55,8 @@ fn sequence_of_blocks_with_prefix_and_suffix() {
     let source = "begin read read add block push.1 push.2 add end block push.3 push.4 sub end hash.2 end";
     let program = super::compile(source, blake3).unwrap();
 
-    let expected = "begin \
-        read read add noop noop noop noop noop \
+    let expected = "\
+        begin read read add noop noop noop noop \
         noop noop noop noop noop noop noop block \
         push(1) noop noop noop noop noop noop noop \
         push(2) add noop noop noop noop noop end \
@@ -87,9 +89,11 @@ fn single_if_else() {
     end";
     let program = super::compile(source, blake3).unwrap();
 
-    let expected = "begin \
+    let expected = "\
+        begin noop noop noop noop noop noop noop \
         push(3) noop noop noop noop noop noop noop \
-        push(5) read noop noop noop noop noop if \
+        push(5) read noop noop noop noop noop noop \
+        noop noop noop noop noop noop noop if \
         assert add dup mul noop noop noop noop \
         noop noop noop noop noop noop noop else \
         not assert mul dup add noop noop noop \
@@ -115,9 +119,11 @@ fn single_if_else_with_suffix() {
     end";
     let program = super::compile(source, blake3).unwrap();
 
-    let expected = "begin \
+    let expected = "\
+        begin noop noop noop noop noop noop noop \
         push(3) noop noop noop noop noop noop noop \
-        push(5) read noop noop noop noop noop if \
+        push(5) read noop noop noop noop noop noop \
+        noop noop noop noop noop noop noop if \
         assert add dup mul noop noop noop noop \
         noop noop noop noop noop noop noop else \
         not assert mul dup add noop noop noop \
@@ -148,9 +154,11 @@ fn nested_if_else() {
     end";
     let program = super::compile(source, blake3).unwrap();
 
-    let expected = "begin \
+    let expected = "\
+    begin noop noop noop noop noop noop noop \
         push(3) noop noop noop noop noop noop noop \
-        push(5) read noop noop noop noop noop \
+        push(5) read noop noop noop noop noop noop \
+        noop noop noop noop noop noop noop \
         if \
             assert add dup mul read::eq eq noop noop \
             noop noop noop noop noop noop noop \
@@ -185,12 +193,16 @@ fn single_loop() {
     end";
     let program = super::compile(source, blake3).unwrap();
 
-    let expected = "begin \
+    let expected = "\
+    begin noop noop noop noop noop noop noop \
         push(3) noop noop noop noop noop noop noop \
-        push(5) read noop noop noop noop noop while \
-        assert add dup mul read2 noop noop noop \
-        noop noop noop noop noop noop noop end \
-        end";
+        push(5) read noop noop noop noop noop noop \
+        noop noop noop noop noop noop noop \
+        while \
+            assert add dup mul read2 noop noop noop \
+            noop noop noop noop noop noop noop \
+        end \
+    end";
 
     assert_eq!(expected, format!("{:?}", program));
 }
@@ -212,9 +224,11 @@ fn loop_with_suffix_and_nested_if_else() {
     end";
     let program = super::compile(source, blake3).unwrap();
 
-    let expected = "begin \
+    let expected = "\
+    begin noop noop noop noop noop noop noop \
         push(3) noop noop noop noop noop noop noop \
-        push(5) read noop noop noop noop noop \
+        push(5) read noop noop noop noop noop noop \
+        noop noop noop noop noop noop noop \
         while \
             assert add dup mul read2 noop noop noop \
             noop noop noop noop noop noop noop \
@@ -247,8 +261,9 @@ fn repeat_2_spans() {
     end";
     let program = super::compile(source, blake3).unwrap();
 
-    let expected = "begin \
-        read read add read read::eq eq noop noop \
+    let expected = "\
+    begin \
+        read read add read read::eq eq noop \
         noop noop noop noop noop noop noop \
         block \
             push(3) add noop noop noop noop noop noop \
@@ -272,8 +287,9 @@ fn repeat_5_spans() {
     end";
     let program = super::compile(source, blake3).unwrap();
 
-    let expected = "begin \
-        read read add read read::eq eq noop noop \
+    let expected = "\
+    begin \
+        read read add read read::eq eq noop \
         noop noop noop noop noop noop noop \
         block \
             push(3) add noop noop noop noop noop noop \
@@ -306,8 +322,9 @@ fn repeat_2_blocks() {
     end";
     let program = super::compile(source, blake3).unwrap();
 
-    let expected = "begin \
-        read read add read read::eq eq noop noop \
+    let expected = "\
+    begin \
+        read read add read read::eq eq noop \
         noop noop noop noop noop noop noop \
         block \
             read noop noop noop noop noop noop noop \
@@ -349,8 +366,9 @@ fn repeat_2_blocks_with_suffix() {
     end";
     let program = super::compile(source, blake3).unwrap();
 
-    let expected = "begin \
-        read read add read read::eq eq noop noop \
+    let expected = "\
+    begin \
+        read read add read read::eq eq noop \
         noop noop noop noop noop noop noop \
         block \
             read noop noop noop noop noop noop noop \
@@ -392,14 +410,17 @@ fn multiple_procedures() {
     let program = super::compile(source, blake3).unwrap();
     assert_eq!(2, program.proc_count());
 
-    let expected = "begin \
-            push(1) noop noop noop noop noop noop noop \
-            push(2) add noop noop noop noop noop \
-        end\n\
-        begin \
-            push(3) noop noop noop noop noop noop noop \
-            push(4) mul noop noop noop noop noop \
-        end";
+    let expected = "\
+    begin noop noop noop noop noop noop noop \
+        push(1) noop noop noop noop noop noop noop \
+        push(2) add noop noop noop noop noop noop \
+        noop noop noop noop noop noop noop \
+    end\n\
+    begin noop noop noop noop noop noop noop \
+        push(3) noop noop noop noop noop noop noop \
+        push(4) mul noop noop noop noop noop noop \
+        noop noop noop noop noop noop noop \
+    end";
 
     assert_eq!(expected, format!("{:?}", program));
 }

@@ -138,7 +138,8 @@ impl std::fmt::Debug for Program {
 
         for i in 0..self.procedures.len() {
             let mut body_code = format!("{:?}", self.procedures[i]);
-            body_code.replace_range(..5, "begin");
+            // get rid of extra `begin` token
+            body_code.replace_range(..6, "");
             if i == self.procedures.len() - 1 {
                 write!(f, "{}", body_code)?;
             }
@@ -159,6 +160,7 @@ fn hash_procedures(procedures: &Vec<Group>) -> Vec<[u8; 32]> {
     let mut hashes = Vec::with_capacity(procedures.len());
 
     for procedure in procedures.iter() {
+        validate_procedure(procedure);
         let (v0, v1) = procedure.get_hash();
         let hash = hash_acc(0, v0, v1);
         let mut hash_bytes = [0u8; 32];
@@ -167,4 +169,14 @@ fn hash_procedures(procedures: &Vec<Group>) -> Vec<[u8; 32]> {
     }
 
     return hashes;
+}
+
+fn validate_procedure(procedure: &Group) {
+    match &procedure.body()[0] {
+        ProgramBlock::Span(block) => {
+            let (op_code, _) = block.get_op(0);
+            assert!(op_code == OpCode::Begin, "a procedure must start with BEGIN operation");
+        },
+        _ => panic!("a procedure must start with a Span block")
+    }
 }

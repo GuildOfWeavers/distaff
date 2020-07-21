@@ -11,7 +11,7 @@ use utils::{ traverse, close_block };
 
 #[test]
 fn single_block() {
-    let block = Span::new_block(vec![OpCode::Noop; 15]);
+    let block = build_first_block(OpCode::Noop, 15);
 
     let program = Program::from_proc(vec![block]);
     let procedure = program.get_proc(0);
@@ -25,7 +25,7 @@ fn single_block() {
 
 #[test]
 fn linear_blocks() {
-    let block1 = Span::new_block(vec![OpCode::Noop; 15]);
+    let block1 = build_first_block(OpCode::Noop, 15);
 
     let inner_block1 = Span::new_block(vec![OpCode::Add; 15]);
     let block2 = Group::new_block(vec![inner_block1]);
@@ -58,7 +58,7 @@ fn linear_blocks() {
 
 #[test]
 fn nested_blocks() {
-    let block1 = Span::new_block(vec![OpCode::Noop; 15]);
+    let block1 = build_first_block(OpCode::Noop, 15);
 
     let inner_block1 = Span::new_block(vec![OpCode::Add; 15]);
     let block2 = Group::new_block(vec![inner_block1]);
@@ -81,7 +81,7 @@ fn nested_blocks() {
 
 #[test]
 fn conditional_program() {
-    let block1 = Span::new_block(vec![OpCode::Noop; 15]);
+    let block1 = build_first_block(OpCode::Noop, 15);
 
     let t_branch = vec![Span::new_block(vec![
         OpCode::Assert, OpCode::Add, OpCode::Add, OpCode::Add,
@@ -117,7 +117,7 @@ fn conditional_program() {
 
 #[test]
 fn simple_loop() {
-    let block1 = Span::new_block(vec![OpCode::Noop; 15]);
+    let block1 = build_first_block(OpCode::Noop, 15);
 
     let loop_body = vec![Span::new_block(vec![
         OpCode::Assert, OpCode::Add, OpCode::Add, OpCode::Add,
@@ -155,8 +155,8 @@ fn simple_loop() {
 #[test]
 fn program_with_two_procedures() {
     
-    let block1 = Group::new(vec![Span::new_block(vec![OpCode::Add; 15])]);
-    let block2 = Group::new(vec![Span::new_block(vec![OpCode::Mul; 15])]);
+    let block1 = Group::new(vec![build_first_block(OpCode::Add, 15)]);
+    let block2 = Group::new(vec![build_first_block(OpCode::Mul, 15)]);
     
     let program = Program::new(vec![block1.clone(), block2.clone()], blake3);
     
@@ -178,8 +178,8 @@ fn program_with_two_procedures() {
 #[test]
 fn procedure_authentication() {
     
-    let block1 = Group::new(vec![Span::new_block(vec![OpCode::Add; 15])]);
-    let block2 = Group::new(vec![Span::new_block(vec![OpCode::Mul; 15])]);
+    let block1 = Group::new(vec![build_first_block(OpCode::Add, 15)]);
+    let block2 = Group::new(vec![build_first_block(OpCode::Mul, 15)]);
     
     let program = Program::new(vec![block1.clone(), block2.clone()], blake3);
     
@@ -204,6 +204,12 @@ fn procedure_authentication() {
 
 // HELPER FUNCTIONS
 // ================================================================================================
+fn build_first_block(op_code: OpCode, length: usize) -> ProgramBlock {
+    let mut instructions = vec![op_code; length];
+    instructions[0] = OpCode::Begin;
+    return Span::new_block(instructions);
+}
+
 fn hash_to_bytes(hash: &[u128; 4]) -> [u8; 32] {
     let mut hash_bytes = [0u8; 32];
     hash_bytes.copy_from_slice(&as_bytes(&hash[..2]));

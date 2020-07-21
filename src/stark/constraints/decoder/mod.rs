@@ -26,8 +26,8 @@ mod tests;
 const NUM_OP_CONSTRAINTS: usize = 15;
 const OP_CONSTRAINT_DEGREES: [usize; NUM_OP_CONSTRAINTS] = [
     2, 2, 2, 2, 2, 2, 2, 2, 2, 2,   // all op bits are binary
-    4,                              // op_counter should be incremented for HACC operations
-    7,                              // ld_ops and hd_ops cannot be all 0s
+    3,                              // op_counter should be incremented for HACC operations
+    8,                              // ld_ops and hd_ops cannot be all 0s
     8,                              // when cf_ops are not all 0s, ld_ops and hd_ops must be all 1s
     6,                              // VOID can be followed only by VOID
     4,                              // operations happen on allowed step multiples
@@ -35,7 +35,7 @@ const OP_CONSTRAINT_DEGREES: [usize; NUM_OP_CONSTRAINTS] = [
 
 const NUM_SPONGE_CONSTRAINTS: usize = 4;
 const SPONGE_CONSTRAINT_DEGREES: [usize; NUM_SPONGE_CONSTRAINTS] = [
-    6, 6, 6, 6,                     // sponge transition constraints
+    6, 7, 6, 6,                     // sponge transition constraints
 ];
 
 const STACK_CONSTRAINT_DEGREE: usize = 4;

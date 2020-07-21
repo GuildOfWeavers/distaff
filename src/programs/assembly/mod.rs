@@ -20,7 +20,7 @@ type HintMap = HashMap<usize, OpHint>;
 pub fn compile(source: &str, hash_fn: HashFunction) -> Result<Program, AssemblyError> {
 
     // break assembly string into tokens
-    let mut tokens: Vec<&str> = source.split_whitespace().collect();
+    let tokens: Vec<&str> = source.split_whitespace().collect();
 
     // perform basic validation
     if tokens.len() == 0 {
@@ -38,9 +38,6 @@ pub fn compile(source: &str, hash_fn: HashFunction) -> Result<Program, AssemblyE
 
     // read procedures from the token stream
     while i < tokens.len() {
-        // replace `begin` with `block` for parsing purposes
-        tokens[i] = "block";
-
         // read a procedure from the token stream
         let mut procedure = Vec::new();
         i = parse_branch(&mut procedure, &tokens, i)?;
@@ -147,8 +144,13 @@ fn parse_block(parent: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) ->
 fn parse_branch(body: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) -> Result<usize, AssemblyError> {
 
     // determine starting instructions of the branch based on branch head
-    let head: Vec<&str> = tokens[i].split(".").collect();
+    let mut head: Vec<&str> = tokens[i].split(".").collect();
     let mut op_codes: Vec<OpCode> = match head[0] {
+        "begin"  => {
+            // this is a first block of a procedure
+            head[0] = "block";
+            vec![OpCode::Begin]
+        },
         "block"  => vec![],
         "if"     => vec![OpCode::Assert],
         "else"   => vec![OpCode::Not, OpCode::Assert],

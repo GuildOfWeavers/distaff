@@ -1,6 +1,7 @@
 use std::{ fmt, cmp };
-use crate::math::field;
 use crate::{
+    math::field,
+    OpCode,
     MIN_STACK_DEPTH,
     PROGRAM_DIGEST_SIZE,
     OP_COUNTER_IDX, SPONGE_WIDTH, SPONGE_RANGE,
@@ -302,6 +303,15 @@ impl TraceState {
         self.hd_op_flags[1] = field::mul(self.hd_op_bits[0], not_1);
         self.hd_op_flags[2] = field::mul(not_0, self.hd_op_bits[1]);
         self.hd_op_flags[3] = field::mul(self.hd_op_bits[0], self.hd_op_bits[1]);
+
+        // we need to make special adjustments for PUSH and ASSERT op flags so that they
+        // don't coincide with BEGIN operation; we do this by multiplying each flag by a
+        // single op_bit from another bank; this increases degree of each flag by 1
+        debug_assert!(OpCode::Push.hd_index() == 0, "PUSH index is not 0!");
+        self.hd_op_flags[0] = field::mul(self.hd_op_flags[0], self.ld_op_bits[0]);
+
+        debug_assert!(OpCode::Assert.ld_index() == 0, "ASSERT index is not 0!");
+        self.ld_op_flags[0] = field::mul(self.ld_op_flags[0], self.hd_op_bits[0]);
 
         // mark flags as set
         self.op_flags_set = true;

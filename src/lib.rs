@@ -48,6 +48,10 @@ pub fn execute(program: &Program, inputs: &ProgramInputs, num_outputs: usize, op
     let last_state = trace.get_last_state();
     let outputs = last_state.user_stack()[..num_outputs].to_vec();
     
+    for i in 0..trace.unextended_length() {
+        println!("{}:\t{}", i, trace.get_state(i));
+    }
+
     // make sure number of executed operations was sufficient
     assert!(last_state.op_counter() as usize >= MIN_TRACE_LENGTH,
         "a program must consist of at least {} operation, but only {} were executed",
