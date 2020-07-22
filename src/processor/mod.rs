@@ -206,7 +206,7 @@ mod tests {
         let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
         state.update_from_trace(&trace, trace_length - 1);
 
-        // TODO: check op counter
+        assert_eq!(46, state.op_counter());
         assert_eq!(program.hash(), as_bytes(state.program_hash()));
         assert_eq!([1, 1, 1], state.cf_op_bits());
         assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
@@ -229,7 +229,7 @@ mod tests {
         let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
         state.update_from_trace(&trace, trace_length - 1);
         
-        // TODO: check op counter
+        assert_eq!(60, state.op_counter());
         assert_eq!(program.hash(), as_bytes(state.program_hash()));
         assert_eq!([1, 1, 1], state.cf_op_bits());
         assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
@@ -255,7 +255,7 @@ mod tests {
         let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
         state.update_from_trace(&trace, trace_length - 1);
 
-        // TODO: check op counter
+        assert_eq!(76, state.op_counter());
         assert_eq!(program.hash(), as_bytes(state.program_hash()));
         assert_eq!([1, 1, 1], state.cf_op_bits());
         assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
@@ -274,7 +274,7 @@ mod tests {
         let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
         state.update_from_trace(&trace, trace_length - 1);
 
-        // TODO: check op counter
+        assert_eq!(92, state.op_counter());
         assert_eq!(program.hash(), as_bytes(state.program_hash()));
         assert_eq!([1, 1, 1], state.cf_op_bits());
         assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
@@ -300,7 +300,7 @@ mod tests {
         let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
         state.update_from_trace(&trace, trace_length - 1);
 
-        // TODO: check op counter
+        assert_eq!(60, state.op_counter());
         assert_eq!(program.hash(), as_bytes(state.program_hash()));
         assert_eq!([1, 1, 1], state.cf_op_bits());
         assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
@@ -319,7 +319,7 @@ mod tests {
         let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
         state.update_from_trace(&trace, trace_length - 1);
 
-        // TODO: check op counter
+        assert_eq!(75, state.op_counter());
         assert_eq!(program.hash(), as_bytes(state.program_hash()));
         assert_eq!([1, 1, 1], state.cf_op_bits());
         assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
@@ -339,7 +339,7 @@ mod tests {
         let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
         state.update_from_trace(&trace, trace_length - 1);
 
-        // TODO: check op counter
+        assert_eq!(135, state.op_counter());
         assert_eq!(program.hash(), as_bytes(state.program_hash()));
         assert_eq!([1, 1, 1], state.cf_op_bits());
         assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());

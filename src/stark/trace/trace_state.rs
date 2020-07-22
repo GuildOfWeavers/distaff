@@ -318,17 +318,21 @@ impl TraceState {
         self.hd_op_flags[2] = field::mul(not_0, self.hd_op_bits[1]);
         self.hd_op_flags[3] = field::mul(self.hd_op_bits[0], self.hd_op_bits[1]);
 
+        // compute flag for BEGIN operation which is just 0000000; the below is equivalent
+        // to multiplying binary inverses of all op bits together.
         self.begin_flag = field::mul(
-                self.ld_op_flags[OpCode::Begin.ld_index()], 
-                self.hd_op_flags[OpCode::Begin.hd_index()]);
+            self.ld_op_flags[OpCode::Begin.ld_index()], 
+            self.hd_op_flags[OpCode::Begin.hd_index()]);
 
+        // compute flag for NOOP operation which is just 1111111; the below is equivalent to
+        // multiplying all op bits together.
         self.noop_flag = field::mul(
             self.ld_op_flags[OpCode::Noop.ld_index()], 
             self.hd_op_flags[OpCode::Noop.hd_index()]);
 
         // we need to make special adjustments for PUSH and ASSERT op flags so that they
         // don't coincide with BEGIN operation; we do this by multiplying each flag by a
-        // single op_bit from another bank; this increases degree of each flag by 1
+        // single op_bit from another op bank; this increases degree of each flag by 1
         debug_assert!(OpCode::Push.hd_index() == 0, "PUSH index is not 0!");
         self.hd_op_flags[0] = field::mul(self.hd_op_flags[0], self.ld_op_bits[0]);
 
@@ -389,7 +393,7 @@ mod tests {
 
         // empty loop stack
         let state = TraceState::from_vec(1, 0, 2, &vec![
-            101, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17
+            101,  1, 2, 3, 4,  5, 6, 7,  8, 9, 10, 11, 12,  13, 14,  15, 16, 17
         ]);
 
         let empty_loop_stack: [u128; 0] = [];
@@ -431,7 +435,9 @@ mod tests {
 
     #[test]
     fn update_from_trace() {
-        let data = vec![101, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+        let data = vec![
+            101,  1, 2, 3, 4,  5, 6, 7,  8, 9, 10, 11, 12,  13, 14,  15, 16,  17,  18, 19, 20
+        ];
         let mut trace = Vec::with_capacity(data.len());
         for i in 0..data.len() {
             trace.push(vec![0, data[i], 0]);
@@ -469,9 +475,24 @@ mod tests {
 
     #[test]
     fn op_flags() {
+
+        // all zeros
+        let state = TraceState::from_vec(1, 0, 2, &vec![
+            101,  1, 2, 3, 4,  0, 0, 0,  0, 0, 0, 0, 0,  0, 0,  15, 16, 17
+        ]);
+
+        assert_eq!([1, 0, 0, 0, 0, 0, 0, 0], state.cf_op_flags());
+        assert_eq!([
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ], state.ld_op_flags());
+        assert_eq!([0, 0, 0, 0], state.hd_op_flags());
+        assert_eq!(1, state.begin_flag());
+        assert_eq!(0, state.noop_flag());
+
         // all ones
         let state = TraceState::from_vec(1, 0, 2, &vec![
-            101, 1, 2, 3, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 15, 16, 17
+            101,  1, 2, 3, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  15, 16, 17
         ]);
 
         assert_eq!([0, 0, 0, 0, 0, 0, 0, 1], state.cf_op_flags());
@@ -480,22 +501,12 @@ mod tests {
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
         ], state.ld_op_flags());
         assert_eq!([0, 0, 0, 1], state.hd_op_flags());
-
-        // all zeros
-        let state = TraceState::from_vec(1, 0, 2, &vec![
-            101, 1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 16, 17
-        ]);
-
-        assert_eq!([1, 0, 0, 0, 0, 0, 0, 0], state.cf_op_flags());
-        assert_eq!([
-            1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        ], state.ld_op_flags());
-        assert_eq!([1, 0, 0, 0], state.hd_op_flags());
+        assert_eq!(0, state.begin_flag());
+        assert_eq!(1, state.noop_flag());
 
         // mixed 1
         let state = TraceState::from_vec(1, 0, 2, &vec![
-            101, 1, 2, 3, 4, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 15, 16, 17
+            101,  1, 2, 3, 4,  1, 0, 0,  1, 0, 0, 0, 0,  1, 0,  15, 16, 17
         ]);
 
         assert_eq!([0, 1, 0, 0, 0, 0, 0, 0], state.cf_op_flags());
@@ -504,6 +515,8 @@ mod tests {
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ], state.ld_op_flags());
         assert_eq!([0, 1, 0, 0], state.hd_op_flags());
+        assert_eq!(0, state.begin_flag());
+        assert_eq!(0, state.noop_flag());
 
         // mixed 2
         let state = TraceState::from_vec(1, 0, 2, &vec![
@@ -521,22 +534,22 @@ mod tests {
     #[test]
     fn op_code() {
         let state = TraceState::from_vec(1, 0, 2, &vec![
-            101, 1, 2, 3, 4, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 15, 16, 17
+            101,  1, 2, 3, 4,  1, 1, 1,  0, 0, 0, 0, 0,  0, 0,  15, 16, 17
         ]);
         assert_eq!(0, state.op_code());
 
         let state = TraceState::from_vec(1, 0, 2, &vec![
-            101, 1, 2, 3, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 15, 16, 17
+            101,  1, 2, 3, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  15, 16, 17
         ]);
         assert_eq!(127, state.op_code());
 
         let state = TraceState::from_vec(1, 0, 2, &vec![
-            101, 1, 2, 3, 4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 15, 16, 17
+            101,  1, 2, 3, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 0,  15, 16, 17
         ]);
         assert_eq!(63, state.op_code());
 
         let state = TraceState::from_vec(1, 0, 2, &vec![
-            101, 1, 2, 3, 4, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 15, 16, 17
+            101,  1, 2, 3, 4,  1, 1, 1,  1, 0, 0, 0, 0,  1, 1,  15, 16, 17
         ]);
         assert_eq!(97, state.op_code());
     }

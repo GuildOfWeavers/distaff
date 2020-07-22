@@ -38,12 +38,7 @@ use hash::{ enforce_rescr };
 // ================================================================================================
 const NUM_AUX_CONSTRAINTS: usize = 2;
 const AUX_CONSTRAINT_DEGREES: [usize; NUM_AUX_CONSTRAINTS] = [7, 7];
-
-// TODO: revisit degrees; maybe consolidate into a single constant
-const STACK_HEAD_DEGREES: [usize; 7] = [
-    7, 7, 7, 7, 7, 7, 7,    // constraints for the first 7 registers of user stack
-];
-const STACK_REST_DEGREE: usize = 7; // degree for the rest of the stack registers
+const STACK_TRANSITION_DEGREE: usize = 7; // degree for all stack register transition constraints
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -63,8 +58,7 @@ impl Stack {
     {
         // build an array of constraint degrees for the stack
         let mut degrees = Vec::from(&AUX_CONSTRAINT_DEGREES[..]);
-        degrees.extend_from_slice(&STACK_HEAD_DEGREES[..]);
-        degrees.resize(stack_depth + NUM_AUX_CONSTRAINTS, STACK_REST_DEGREE);
+        degrees.resize(stack_depth + NUM_AUX_CONSTRAINTS, STACK_TRANSITION_DEGREE);
 
         // determine extended cycle length
         let cycle_length = BASE_CYCLE_LENGTH * extension_factor;
@@ -187,19 +181,15 @@ fn enforce_constraints(current: &TraceState, next: &TraceState, ark: &[u128], re
 
     // 3 ----- enforce constraints for composite operations ---------------------------------------
 
-    // NOOP is special because its op_bits consist of all 1s in both, low-degree and
-    // high-degree positions. To make sure NOOP constraint evaluation happens only when
-    // all bits are set to 1, we need to multiply low-degree and high-degree components
-    // together. This also means that NOOP flag has degree 7.
-    // TODO: doesn't work, needs to be adjusted by a random coefficient
-    enforce_stack_copy(&mut evaluations, old_stack, new_stack, 0, current.noop_flag());
-
-    // BEGIN is also special because its op_bits consist of all 0s. So, we also multiply
-    // low-degree and high-degree components together to get a single flag value.
-    // TODO: doesn't work, needs to be adjusted by a random coefficient
+    // BEGIN and NOOP have "composite" opcodes where all 7 opcode bits are set to either 1s or 0s;
+    // thus, the flags for these operations are computed separately by multiplying all opcodes;
+    // this results in flag degree of 7 for each operation, but since both operations enforce the
+    // same constraints (the stack doesn't change), higher degree terms cancel out, and we
+    // end up with overall constraint degree of (6 + 1 = 7) for both operations.
     enforce_stack_copy(&mut evaluations, old_stack, new_stack, 0, current.begin_flag());
-
-    // 4 ----- copy evaluations into the result --------------------------------------
+    enforce_stack_copy(&mut evaluations, old_stack, new_stack, 0, current.noop_flag());
+    
+    // 4 ----- copy evaluations into the result ---------------------------------------------------
     result.copy_from_slice(&evaluations[..result.len()]);
 }
 

@@ -365,10 +365,10 @@ mod tests {
 
     fn build_trace_table() -> TraceTable {
         let instructions = vec![
-            OpCode::Swap, OpCode::Dup2, OpCode::Drop, OpCode::Add,
-            OpCode::Swap, OpCode::Dup2, OpCode::Drop, OpCode::Add,
-            OpCode::Swap, OpCode::Dup2, OpCode::Drop, OpCode::Add,
-            OpCode::Noop, OpCode::Noop, OpCode::Noop,
+            OpCode::Begin, OpCode::Swap, OpCode::Dup2, OpCode::Drop,
+            OpCode::Add,   OpCode::Swap, OpCode::Dup2, OpCode::Drop,
+            OpCode::Add,   OpCode::Swap, OpCode::Dup2, OpCode::Drop,
+            OpCode::Add,   OpCode::Noop, OpCode::Noop,
         ];
         let program = Program::from_proc(vec![
             ProgramBlock::Span(Span::new(instructions, HashMap::new()))

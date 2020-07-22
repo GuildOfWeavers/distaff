@@ -7,10 +7,10 @@ use super::{
 #[test]
 fn eq_operations() {
     let program = build_program(vec![
-        OpCode::Read, OpCode::Eq,   OpCode::Swap2, OpCode::Read,
-        OpCode::Eq,   OpCode::Noop, OpCode::Noop,  OpCode::Noop,
-        OpCode::Noop, OpCode::Noop, OpCode::Noop,  OpCode::Noop,
-        OpCode::Noop, OpCode::Noop, OpCode::Noop,
+        OpCode::Begin, OpCode::Read, OpCode::Eq,   OpCode::Swap2,
+        OpCode::Read,  OpCode::Eq,   OpCode::Noop, OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop, OpCode::Noop, OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop, OpCode::Noop,
     ], &[]);
 
     let options = ProofOptions::default();
@@ -39,8 +39,8 @@ fn cmp_operation() {
 
     // build the program
     let mut instructions = vec![
-        OpCode::Pad2, OpCode::Noop, OpCode::Noop, OpCode::Noop,
-        OpCode::Noop, OpCode::Noop, OpCode::Noop, OpCode::Noop,
+        OpCode::Begin, OpCode::Pad2, OpCode::Noop, OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop, OpCode::Noop, OpCode::Noop,
         OpCode::Push,
     ];
     for _ in 0..128 { instructions.push(OpCode::Cmp);  }
@@ -78,7 +78,7 @@ fn binacc_operation() {
     inputs_a.reverse();
 
     // build the program
-    let mut instructions = vec![];
+    let mut instructions = vec![OpCode::Begin];
     for _ in 0..128 { instructions.push(OpCode::BinAcc); }
     instructions.push(OpCode::Drop);
     instructions.push(OpCode::Drop);
