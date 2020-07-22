@@ -274,7 +274,7 @@ mod tests {
         crypto::hash::blake3,
         programs::{ Program, ProgramInputs, blocks::{ ProgramBlock, Span } },
         processor::{ execute, OpCode },
-        stark::{ TraceTable, CompositionCoefficients, MAX_CONSTRAINT_DEGREE }
+        stark::{ TraceTable, CompositionCoefficients, utils::get_composition_degree }
     };
     
     const EXT_FACTOR: usize = 32;
@@ -307,7 +307,7 @@ mod tests {
         let t_tree = trace.build_merkle_tree(blake3);
         let z = field::prng(*t_tree.root());
         let cc = CompositionCoefficients::new(*t_tree.root());
-        let target_degree = (trace.unextended_length() - 2) * MAX_CONSTRAINT_DEGREE - 1;
+        let target_degree =  get_composition_degree(trace.unextended_length());
 
         let g = field::get_root_of_unity(trace.unextended_length());
         let zg = field::mul(z, g);
