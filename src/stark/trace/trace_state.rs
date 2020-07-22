@@ -53,7 +53,7 @@ impl TraceState {
             ld_op_bits  : [0; NUM_LD_OP_BITS],
             hd_op_bits  : [0; NUM_HD_OP_BITS],
             ctx_stack   : vec![0; ctx_depth + 1],
-            loop_stack  : vec![0; loop_depth],
+            loop_stack  : vec![0; loop_depth + 1],
             user_stack  : vec![0; cmp::max(stack_depth, MIN_STACK_DEPTH)],
             stack_depth : stack_depth,
             cf_op_flags : [0; NUM_CF_OPS],
@@ -85,9 +85,9 @@ impl TraceState {
         let ctx_stack_end = HD_OP_BITS_RANGE.end + ctx_depth;
         ctx_stack[..ctx_depth].copy_from_slice(&state[HD_OP_BITS_RANGE.end..ctx_stack_end]);
 
-        let mut loop_stack = vec![0; loop_depth];
+        let mut loop_stack = vec![0; loop_depth + 1];
         let loop_stack_end = ctx_stack_end + loop_depth;
-        loop_stack.copy_from_slice(&state[ctx_stack_end..loop_stack_end]);
+        loop_stack[..loop_depth].copy_from_slice(&state[ctx_stack_end..loop_stack_end]);
 
         let mut user_stack = vec![0; cmp::max(stack_depth, MIN_STACK_DEPTH)];
         user_stack[..stack_depth].copy_from_slice(&state[loop_stack_end..]);
@@ -115,8 +115,8 @@ impl TraceState {
     // --------------------------------------------------------------------------------------------
     pub fn width(&self) -> usize {
         return HD_OP_BITS_RANGE.end 
-            + (self.ctx_stack.len() - 1) // outer-most context doesn't count because its always 0
-            + self.loop_stack.len()
+            + (self.ctx_stack.len() - 1)  // outer-most context doesn't count because it's always 0
+            + (self.loop_stack.len() - 1) // outer-most loop doesn't count because it's always 0
             + self.stack_depth;
     }
 
@@ -240,7 +240,7 @@ impl TraceState {
         result.extend_from_slice(&self.ld_op_bits);
         result.extend_from_slice(&self.hd_op_bits);
         result.extend_from_slice(&self.ctx_stack[..(self.ctx_stack.len() - 1)]);
-        result.extend_from_slice(&self.loop_stack);
+        result.extend_from_slice(&self.loop_stack[..(self.loop_stack.len() -1)]);
         result.extend_from_slice(&self.user_stack[..self.stack_depth]);
         return result;
     }
@@ -260,7 +260,7 @@ impl TraceState {
             self.ctx_stack[i] = trace[j][step];
         }
 
-        let loop_stack_end = ctx_stack_end + self.loop_stack.len();
+        let loop_stack_end = ctx_stack_end + (self.loop_stack.len() - 1);
         for (i, j) in (ctx_stack_end..loop_stack_end).enumerate() {
             self.loop_stack[i] = trace[j][step];
         }
@@ -399,14 +399,13 @@ mod tests {
             101,  1, 2, 3, 4,  5, 6, 7,  8, 9, 10, 11, 12,  13, 14,  15, 16
         ]);
 
-        let empty_loop_stack: [u128; 0] = [];
         assert_eq!(101, state.op_counter());
         assert_eq!([1, 2, 3, 4], state.sponge());
         assert_eq!([5, 6, 7], state.cf_op_bits());
         assert_eq!([8, 9, 10, 11, 12], state.ld_op_bits());
         assert_eq!([13, 14], state.hd_op_bits());
         assert_eq!([0], state.ctx_stack());
-        assert_eq!(empty_loop_stack, state.loop_stack());
+        assert_eq!([0], state.loop_stack());
         assert_eq!([15, 16, 0, 0, 0, 0, 0, 0], state.user_stack());
         assert_eq!(17, state.width());
         assert_eq!(2, state.stack_depth());
@@ -419,14 +418,13 @@ mod tests {
             101,  1, 2, 3, 4,  5, 6, 7,  8, 9, 10, 11, 12,  13, 14,  15,  16, 17
         ]);
 
-        let empty_loop_stack: [u128; 0] = [];
         assert_eq!(101, state.op_counter());
         assert_eq!([1, 2, 3, 4], state.sponge());
         assert_eq!([5, 6, 7], state.cf_op_bits());
         assert_eq!([8, 9, 10, 11, 12], state.ld_op_bits());
         assert_eq!([13, 14], state.hd_op_bits());
         assert_eq!([15, 0], state.ctx_stack());
-        assert_eq!(empty_loop_stack, state.loop_stack());
+        assert_eq!([0], state.loop_stack());
         assert_eq!([16, 17, 0, 0, 0, 0, 0, 0], state.user_stack());
         assert_eq!(18, state.width());
         assert_eq!(2, state.stack_depth());
@@ -446,7 +444,7 @@ mod tests {
         assert_eq!([8, 9, 10, 11, 12], state.ld_op_bits());
         assert_eq!([13, 14], state.hd_op_bits());
         assert_eq!([15, 16, 0], state.ctx_stack());
-        assert_eq!([17], state.loop_stack());
+        assert_eq!([17, 0], state.loop_stack());
         assert_eq!([18, 19, 20, 21, 22, 23, 24, 25, 26], state.user_stack());
         assert_eq!(27, state.width());
         assert_eq!(9, state.stack_depth());
@@ -476,7 +474,7 @@ mod tests {
         assert_eq!([0, 0, 0, 0, 0], state.ld_op_bits());
         assert_eq!([0, 0], state.hd_op_bits());
         assert_eq!([0, 0, 0], state.ctx_stack());
-        assert_eq!([0], state.loop_stack());
+        assert_eq!([0, 0], state.loop_stack());
         assert_eq!([0, 0, 0, 0, 0, 0, 0, 0], state.user_stack());
         assert_eq!(21, state.width());
         assert_eq!(3, state.stack_depth());
@@ -490,7 +488,7 @@ mod tests {
         assert_eq!([8, 9, 10, 11, 12], state.ld_op_bits());
         assert_eq!([13, 14], state.hd_op_bits());
         assert_eq!([15, 16, 0], state.ctx_stack());
-        assert_eq!([17], state.loop_stack());
+        assert_eq!([17, 0], state.loop_stack());
         assert_eq!([18, 19, 20, 0, 0, 0, 0, 0], state.user_stack());
         assert_eq!(21, state.width());
         assert_eq!(3, state.stack_depth());

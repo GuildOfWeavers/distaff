@@ -4,7 +4,10 @@ use crate::{
     stark::trace::TraceState,
     utils::sponge::ARK, SPONGE_WIDTH, BASE_CYCLE_LENGTH
 };
-use super::utils::{ are_equal, is_zero, is_binary, binary_not, extend_constants, EvaluationResult };
+use super::utils::{
+    are_equal, is_zero, is_binary, binary_not, extend_constants, EvaluationResult,
+    enforce_stack_copy, enforce_left_shift, enforce_right_shift,
+};
 
 mod op_bits;
 use op_bits::{ enforce_op_bits };
@@ -67,7 +70,7 @@ impl Decoder {
         // build an array of constraint degrees for the decoder
         let mut degrees = Vec::from(&OP_CONSTRAINT_DEGREES[..]);
         degrees.extend_from_slice(&SPONGE_CONSTRAINT_DEGREES[..]);
-        degrees.resize(degrees.len() + ctx_depth + loop_depth, STACK_CONSTRAINT_DEGREE);
+        degrees.resize(degrees.len() + (ctx_depth + 1) + (loop_depth + 1), STACK_CONSTRAINT_DEGREE);
 
         // determine extended cycle length
         let cycle_length = BASE_CYCLE_LENGTH * extension_factor;
