@@ -41,9 +41,9 @@ const AUX_CONSTRAINT_DEGREES: [usize; NUM_AUX_CONSTRAINTS] = [7, 7];
 
 // TODO: revisit degrees; maybe consolidate into a single constant
 const STACK_HEAD_DEGREES: [usize; 7] = [
-    8, 8, 8, 8, 8, 8, 8,    // constraints for the first 7 registers of user stack
+    7, 7, 7, 7, 7, 7, 7,    // constraints for the first 7 registers of user stack
 ];
-const STACK_REST_DEGREE: usize = 8; // degree for the rest of the stack registers
+const STACK_REST_DEGREE: usize = 7; // degree for the rest of the stack registers
 
 // TYPES AND INTERFACES
 // ================================================================================================
