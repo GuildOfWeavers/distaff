@@ -82,12 +82,16 @@ pub fn verify(program_hash: &[u8; 32], public_inputs: &[u128], outputs: &[u128],
 // GLOBAL CONSTANTS
 // ================================================================================================
 
+pub const MAX_CONTEXT_DEPTH : usize = 16;
+pub const MAX_LOOP_DEPTH    : usize = 8;
 const MIN_TRACE_LENGTH      : usize = 16;
 const MAX_REGISTER_COUNT    : usize = 128;
-const MAX_CONTEXT_DEPTH     : usize = 16;
-const MAX_LOOP_DEPTH        : usize = 8;
 const MIN_EXTENSION_FACTOR  : usize = 16;
 const BASE_CYCLE_LENGTH     : usize = 16;
+
+// PUSH OPERATION
+// ------------------------------------------------------------------------------------------------
+const PUSH_OP_ALIGNMENT     : usize = 8;
 
 // HASH OPERATION
 // ------------------------------------------------------------------------------------------------
@@ -101,6 +105,7 @@ const HASH_DIGEST_SIZE      : usize = 2;
 // ------------------------------------------------------------------------------------------------
 const SPONGE_WIDTH          : usize = 4;
 const PROGRAM_DIGEST_SIZE   : usize = 2;
+const HACC_NUM_ROUNDS       : usize = 14;
 
 // DECODER LAYOUT
 // ------------------------------------------------------------------------------------------------
@@ -132,5 +137,5 @@ const HD_OP_BITS_RANGE      : Range<usize> = Range { start: 13, end: 15 };
 
 pub const MAX_PUBLIC_INPUTS : usize = 8;
 pub const MAX_OUTPUTS       : usize = 8;
+pub const MAX_STACK_DEPTH   : usize = 32;
 const MIN_STACK_DEPTH       : usize = 8;
-const MAX_STACK_DEPTH       : usize = 32;

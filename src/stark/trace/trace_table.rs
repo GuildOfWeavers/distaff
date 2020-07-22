@@ -28,7 +28,6 @@ impl TraceTable {
             "extension factor must be at least {}", crate::MIN_EXTENSION_FACTOR);
 
         // validate context depth
-        assert!(ctx_depth > 0, "context depth must be greater than 0");
         assert!(ctx_depth <= crate::MAX_CONTEXT_DEPTH,
             "context depth cannot be greater than {}", crate::MAX_CONTEXT_DEPTH);
 

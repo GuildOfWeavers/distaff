@@ -1,9 +1,8 @@
-use crate::math::{ field };
-use crate::programs::{ ProgramInputs };
-use crate::programs::{ Program, blocks::{ ProgramBlock, Span, Loop } };
-use crate::{ MIN_TRACE_LENGTH };
-
-pub const HACC_NUM_ROUNDS: usize = 14; // TODO: move to global constants
+use crate::{
+    math::field,
+    programs::{ Program, ProgramInputs, blocks::{ ProgramBlock, Span, Loop } },
+    MIN_TRACE_LENGTH, HACC_NUM_ROUNDS,
+};
 
 // RE-EXPORTS
 // ================================================================================================
@@ -201,8 +200,7 @@ mod tests {
         let trace_length = trace[0].len();
 
         assert_eq!(64, trace_length);
-        assert_eq!(18, trace.len());
-
+        assert_eq!(17, trace.len());
         let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
         state.update_from_trace(&trace, trace_length - 1);
 
@@ -224,7 +222,7 @@ mod tests {
         let trace_length = trace[0].len();
 
         assert_eq!(64, trace_length);
-        assert_eq!(19, trace.len());
+        assert_eq!(18, trace.len());
 
         let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
         state.update_from_trace(&trace, trace_length - 1);
@@ -250,7 +248,7 @@ mod tests {
         let trace_length = trace[0].len();
 
         assert_eq!(128, trace_length);
-        assert_eq!(20, trace.len());
+        assert_eq!(19, trace.len());
 
         let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
         state.update_from_trace(&trace, trace_length - 1);
@@ -269,7 +267,7 @@ mod tests {
         let trace_length = trace[0].len();
 
         assert_eq!(128, trace_length);
-        assert_eq!(20, trace.len());
+        assert_eq!(19, trace.len());
 
         let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
         state.update_from_trace(&trace, trace_length - 1);
@@ -295,7 +293,7 @@ mod tests {
         let trace_length = trace[0].len();
 
         assert_eq!(64, trace_length);
-        assert_eq!(19, trace.len());
+        assert_eq!(18, trace.len());
 
         let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
         state.update_from_trace(&trace, trace_length - 1);
@@ -314,7 +312,7 @@ mod tests {
         let trace_length = trace[0].len();
 
         assert_eq!(128, trace_length);
-        assert_eq!(20, trace.len());
+        assert_eq!(19, trace.len());
 
         let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
         state.update_from_trace(&trace, trace_length - 1);
@@ -334,7 +332,7 @@ mod tests {
         let trace_length = trace[0].len();
 
         assert_eq!(256, trace_length);
-        assert_eq!(20, trace.len());
+        assert_eq!(19, trace.len());
 
         let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
         state.update_from_trace(&trace, trace_length - 1);

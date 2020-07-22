@@ -52,7 +52,7 @@ impl TraceState {
             cf_op_bits  : [0; NUM_CF_OP_BITS],
             ld_op_bits  : [0; NUM_LD_OP_BITS],
             hd_op_bits  : [0; NUM_HD_OP_BITS],
-            ctx_stack   : vec![0; ctx_depth],
+            ctx_stack   : vec![0; ctx_depth + 1],
             loop_stack  : vec![0; loop_depth],
             user_stack  : vec![0; cmp::max(stack_depth, MIN_STACK_DEPTH)],
             stack_depth : stack_depth,
@@ -81,9 +81,9 @@ impl TraceState {
         let mut hd_op_bits = [0; NUM_HD_OP_BITS];
         hd_op_bits.copy_from_slice(&state[HD_OP_BITS_RANGE]);
 
-        let mut ctx_stack = vec![0; ctx_depth];
+        let mut ctx_stack = vec![0; ctx_depth + 1];
         let ctx_stack_end = HD_OP_BITS_RANGE.end + ctx_depth;
-        ctx_stack.copy_from_slice(&state[HD_OP_BITS_RANGE.end..ctx_stack_end]);
+        ctx_stack[..ctx_depth].copy_from_slice(&state[HD_OP_BITS_RANGE.end..ctx_stack_end]);
 
         let mut loop_stack = vec![0; loop_depth];
         let loop_stack_end = ctx_stack_end + loop_depth;
@@ -114,7 +114,10 @@ impl TraceState {
     // PUBLIC ACCESSORS
     // --------------------------------------------------------------------------------------------
     pub fn width(&self) -> usize {
-        return HD_OP_BITS_RANGE.end + self.ctx_stack.len() + self.loop_stack.len() + self.stack_depth;
+        return HD_OP_BITS_RANGE.end 
+            + (self.ctx_stack.len() - 1) // outer-most context doesn't count because its always 0
+            + self.loop_stack.len()
+            + self.stack_depth;
     }
 
     pub fn stack_depth(&self) -> usize {
@@ -236,7 +239,7 @@ impl TraceState {
         result.extend_from_slice(&self.cf_op_bits);
         result.extend_from_slice(&self.ld_op_bits);
         result.extend_from_slice(&self.hd_op_bits);
-        result.extend_from_slice(&self.ctx_stack);
+        result.extend_from_slice(&self.ctx_stack[..(self.ctx_stack.len() - 1)]);
         result.extend_from_slice(&self.loop_stack);
         result.extend_from_slice(&self.user_stack[..self.stack_depth]);
         return result;
@@ -252,7 +255,7 @@ impl TraceState {
         for (i, j) in HD_OP_BITS_RANGE.enumerate() { self.hd_op_bits[i] = trace[j][step]; }
 
         let ctx_stack_start = HD_OP_BITS_RANGE.end;
-        let ctx_stack_end = ctx_stack_start + self.ctx_stack.len();
+        let ctx_stack_end = ctx_stack_start + (self.ctx_stack.len() - 1);
         for (i, j) in (ctx_stack_start..ctx_stack_end).enumerate() {
             self.ctx_stack[i] = trace[j][step];
         }
@@ -391,9 +394,9 @@ mod tests {
     #[test]
     fn from_vec() {
 
-        // empty loop stack
-        let state = TraceState::from_vec(1, 0, 2, &vec![
-            101,  1, 2, 3, 4,  5, 6, 7,  8, 9, 10, 11, 12,  13, 14,  15, 16, 17
+        // empty context and loop stacks
+        let state = TraceState::from_vec(0, 0, 2, &vec![
+            101,  1, 2, 3, 4,  5, 6, 7,  8, 9, 10, 11, 12,  13, 14,  15, 16
         ]);
 
         let empty_loop_stack: [u128; 0] = [];
@@ -402,7 +405,27 @@ mod tests {
         assert_eq!([5, 6, 7], state.cf_op_bits());
         assert_eq!([8, 9, 10, 11, 12], state.ld_op_bits());
         assert_eq!([13, 14], state.hd_op_bits());
-        assert_eq!([15], state.ctx_stack());
+        assert_eq!([0], state.ctx_stack());
+        assert_eq!(empty_loop_stack, state.loop_stack());
+        assert_eq!([15, 16, 0, 0, 0, 0, 0, 0], state.user_stack());
+        assert_eq!(17, state.width());
+        assert_eq!(2, state.stack_depth());
+        assert_eq!(vec![
+            101, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
+        ], state.to_vec());
+
+        // 1 item on context stack, empty loop stack
+        let state = TraceState::from_vec(1, 0, 2, &vec![
+            101,  1, 2, 3, 4,  5, 6, 7,  8, 9, 10, 11, 12,  13, 14,  15,  16, 17
+        ]);
+
+        let empty_loop_stack: [u128; 0] = [];
+        assert_eq!(101, state.op_counter());
+        assert_eq!([1, 2, 3, 4], state.sponge());
+        assert_eq!([5, 6, 7], state.cf_op_bits());
+        assert_eq!([8, 9, 10, 11, 12], state.ld_op_bits());
+        assert_eq!([13, 14], state.hd_op_bits());
+        assert_eq!([15, 0], state.ctx_stack());
         assert_eq!(empty_loop_stack, state.loop_stack());
         assert_eq!([16, 17, 0, 0, 0, 0, 0, 0], state.user_stack());
         assert_eq!(18, state.width());
@@ -413,7 +436,7 @@ mod tests {
 
         // non-empty loop stack
         let state = TraceState::from_vec(2, 1, 9, &vec![
-            101, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+            101,  1, 2, 3, 4,  5, 6, 7,  8, 9, 10, 11, 12,  13, 14,  15, 16,  17,
             18, 19, 20, 21, 22, 23, 24, 25, 26,
         ]);
 
@@ -422,7 +445,7 @@ mod tests {
         assert_eq!([5, 6, 7], state.cf_op_bits());
         assert_eq!([8, 9, 10, 11, 12], state.ld_op_bits());
         assert_eq!([13, 14], state.hd_op_bits());
-        assert_eq!([15, 16], state.ctx_stack());
+        assert_eq!([15, 16, 0], state.ctx_stack());
         assert_eq!([17], state.loop_stack());
         assert_eq!([18, 19, 20, 21, 22, 23, 24, 25, 26], state.user_stack());
         assert_eq!(27, state.width());
@@ -452,7 +475,7 @@ mod tests {
         assert_eq!([0, 0, 0], state.cf_op_bits());
         assert_eq!([0, 0, 0, 0, 0], state.ld_op_bits());
         assert_eq!([0, 0], state.hd_op_bits());
-        assert_eq!([0, 0], state.ctx_stack());
+        assert_eq!([0, 0, 0], state.ctx_stack());
         assert_eq!([0], state.loop_stack());
         assert_eq!([0, 0, 0, 0, 0, 0, 0, 0], state.user_stack());
         assert_eq!(21, state.width());
@@ -466,7 +489,7 @@ mod tests {
         assert_eq!([5, 6, 7], state.cf_op_bits());
         assert_eq!([8, 9, 10, 11, 12], state.ld_op_bits());
         assert_eq!([13, 14], state.hd_op_bits());
-        assert_eq!([15, 16], state.ctx_stack());
+        assert_eq!([15, 16, 0], state.ctx_stack());
         assert_eq!([17], state.loop_stack());
         assert_eq!([18, 19, 20, 0, 0, 0, 0, 0], state.user_stack());
         assert_eq!(21, state.width());

@@ -1,20 +1,14 @@
 use crate::{
     math::field,
     utils::sponge::{ add_constants, apply_sbox, apply_mds, apply_inv_sbox },
-    MAX_CONTEXT_DEPTH, MAX_LOOP_DEPTH, NUM_CF_OP_BITS, NUM_LD_OP_BITS, NUM_HD_OP_BITS
+    MAX_CONTEXT_DEPTH, MAX_LOOP_DEPTH,
+    NUM_CF_OP_BITS, NUM_LD_OP_BITS, NUM_HD_OP_BITS,
+    SPONGE_WIDTH, BASE_CYCLE_LENGTH, PUSH_OP_ALIGNMENT,
 };
 use super::opcodes::{ FlowOps, UserOps };
 
 #[cfg(test)]
 mod tests;
-
-// CONSTANTS
-// ================================================================================================
-
-const BASE_CYCLE_LENGTH: usize = 16;
-const PUSH_OP_ALIGNMENT: usize = 8;
-
-const SPONGE_WIDTH: usize = 4;
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -96,7 +90,8 @@ impl Decoder {
 
     /// Returns the max value of the context stack reached during program execution.
     pub fn max_ctx_stack_depth(&self) -> usize {
-        return self.ctx_stack.len();
+        // outer-most context doesn't count because it is always just 0
+        return self.ctx_stack.len() - 1;
     }
 
     /// Returns the max value of the loop stack reached during program execution.
@@ -147,7 +142,10 @@ impl Decoder {
         registers.push(r0);
         registers.push(r1);
 
+        // for context stack, first get rid of the outer-most context because it is always 0
+        self.ctx_stack.pop();
         registers.append(&mut self.ctx_stack);
+
         registers.append(&mut self.loop_stack);
 
         return registers;
