@@ -1,8 +1,9 @@
+use std::{ cmp };
 use crate::{
     math::{ field, polynom },
     processor::opcodes::{ FlowOps, UserOps },
     stark::trace::TraceState,
-    utils::sponge::ARK, SPONGE_WIDTH, BASE_CYCLE_LENGTH
+    utils::sponge::ARK, SPONGE_WIDTH, BASE_CYCLE_LENGTH, MIN_CONTEXT_DEPTH, MIN_LOOP_DEPTH,
 };
 use super::utils::{
     are_equal, is_zero, is_binary, binary_not, extend_constants, EvaluationResult,
@@ -70,7 +71,10 @@ impl Decoder {
         // build an array of constraint degrees for the decoder
         let mut degrees = Vec::from(&OP_CONSTRAINT_DEGREES[..]);
         degrees.extend_from_slice(&SPONGE_CONSTRAINT_DEGREES[..]);
-        degrees.resize(degrees.len() + (ctx_depth + 1) + (loop_depth + 1), STACK_CONSTRAINT_DEGREE);
+        degrees.resize(degrees.len()
+            + cmp::max(ctx_depth, MIN_CONTEXT_DEPTH)
+            + cmp::max(loop_depth, MIN_LOOP_DEPTH),
+            STACK_CONSTRAINT_DEGREE);
 
         // determine extended cycle length
         let cycle_length = BASE_CYCLE_LENGTH * extension_factor;

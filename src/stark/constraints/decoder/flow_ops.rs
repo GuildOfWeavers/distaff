@@ -223,7 +223,7 @@ mod tests {
 
         let mut evaluations = vec![0; 7];
         super::enforce_tend(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![7, 1, 0, 4, are_equal(0, 8), 0, 0], evaluations);
+        assert_eq!(vec![7, 1, 0, 4, 8, 0, 0], evaluations);
 
         // incorrect transition, context depth = 2
         let state1 = TraceState::from_vec(2, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  4, 6,  11]);
@@ -231,7 +231,7 @@ mod tests {
 
         let mut evaluations = vec![0; 8];
         super::enforce_tend(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![3, 1, 0, 4, 1, are_equal(0, 6), 0, 0], evaluations);
+        assert_eq!(vec![3, 1, 0, 4, 1, 6, 0, 0], evaluations);
     }
 
     #[test]
@@ -259,7 +259,7 @@ mod tests {
 
         let mut evaluations = vec![0; 7];
         super::enforce_fend(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![7, 0, 1, 4, are_equal(0, 8), 0, 0], evaluations);
+        assert_eq!(vec![7, 0, 1, 4, 8, 0, 0], evaluations);
 
         // incorrect transition, context depth = 2
         let state1 = TraceState::from_vec(2, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  4, 6,  11]);
@@ -267,7 +267,7 @@ mod tests {
 
         let mut evaluations = vec![0; 8];
         super::enforce_fend(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![3, 0, 1, 4, 1, are_equal(0, 6), 0, 0], evaluations);
+        assert_eq!(vec![3, 0, 1, 4, 1, 6, 0, 0], evaluations);
     }
 
     #[test]

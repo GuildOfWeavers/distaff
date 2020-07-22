@@ -232,7 +232,8 @@ mod tests {
         assert_eq!([1, 1, 1], state.cf_op_bits());
         assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
         assert_eq!([1, 1], state.hd_op_bits());
-        assert_eq!([0, 0], state.ctx_stack());
+        assert_eq!([0], state.ctx_stack());
+        assert_eq!([0], state.loop_stack());
         assert_eq!([7, 15, 0, 0, 0, 0, 0, 0], state.user_stack());
     }
 
@@ -258,7 +259,8 @@ mod tests {
         assert_eq!([1, 1, 1], state.cf_op_bits());
         assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
         assert_eq!([1, 1], state.hd_op_bits());
-        assert_eq!([0, 0], state.ctx_stack());
+        assert_eq!([0], state.ctx_stack());
+        assert_eq!([0], state.loop_stack());
         assert_eq!([24, 0, 0, 0, 0, 0, 0, 0], state.user_stack());
 
         // execute false branch
@@ -277,7 +279,8 @@ mod tests {
         assert_eq!([1, 1, 1], state.cf_op_bits());
         assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
         assert_eq!([1, 1], state.hd_op_bits());
-        assert_eq!([0, 0], state.ctx_stack());
+        assert_eq!([0], state.ctx_stack());
+        assert_eq!([0], state.loop_stack());
         assert_eq!([96, 3, 0, 0, 0, 0, 0, 0], state.user_stack());
     }
 
@@ -303,7 +306,8 @@ mod tests {
         assert_eq!([1, 1, 1], state.cf_op_bits());
         assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
         assert_eq!([1, 1], state.hd_op_bits());
-        assert_eq!([0, 0], state.ctx_stack());
+        assert_eq!([0], state.ctx_stack());
+        assert_eq!([0], state.loop_stack());
         assert_eq!([15, 0, 0, 0, 0, 0, 0, 0], state.user_stack());
 
         // execute one iteration
@@ -322,8 +326,8 @@ mod tests {
         assert_eq!([1, 1, 1], state.cf_op_bits());
         assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
         assert_eq!([1, 1], state.hd_op_bits());
-        assert_eq!([0, 0], state.ctx_stack());
-        assert_eq!([0, 0], state.loop_stack());
+        assert_eq!([0], state.ctx_stack());
+        assert_eq!([0], state.loop_stack());
         assert_eq!([225, 0, 0, 0, 0, 0, 0, 0], state.user_stack());
 
         // execute five iteration
@@ -342,8 +346,8 @@ mod tests {
         assert_eq!([1, 1, 1], state.cf_op_bits());
         assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
         assert_eq!([1, 1], state.hd_op_bits());
-        assert_eq!([0, 0], state.ctx_stack());
-        assert_eq!([0, 0], state.loop_stack());
+        assert_eq!([0], state.ctx_stack());
+        assert_eq!([0], state.loop_stack());
         assert_eq!([43143988327398919500410556793212890625, 0, 0, 0, 0, 0, 0, 0], state.user_stack());
     }
 

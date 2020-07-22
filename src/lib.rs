@@ -89,6 +89,10 @@ const MAX_REGISTER_COUNT    : usize = 128;
 const MIN_EXTENSION_FACTOR  : usize = 16;
 const BASE_CYCLE_LENGTH     : usize = 16;
 
+const MIN_STACK_DEPTH       : usize = 8;
+const MIN_CONTEXT_DEPTH     : usize = 1;
+const MIN_LOOP_DEPTH        : usize = 1;
+
 // PUSH OPERATION
 // ------------------------------------------------------------------------------------------------
 const PUSH_OP_ALIGNMENT     : usize = 8;
@@ -138,4 +142,3 @@ const HD_OP_BITS_RANGE      : Range<usize> = Range { start: 13, end: 15 };
 pub const MAX_PUBLIC_INPUTS : usize = 8;
 pub const MAX_OUTPUTS       : usize = 8;
 pub const MAX_STACK_DEPTH   : usize = 32;
-const MIN_STACK_DEPTH       : usize = 8;
