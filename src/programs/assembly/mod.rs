@@ -235,6 +235,7 @@ fn parse_op_token(op: Vec<&str>, op_codes: &mut Vec<OpCode>, op_hints: &mut Hint
         "or"     => parse_or(op_codes, &op, step),
 
         "eq"     => parse_eq(op_codes, op_hints, &op, step),
+        "ne"     => parse_ne(op_codes, op_hints, &op, step),
         "gt"     => parse_gt(op_codes, op_hints, &op, step),
         "lt"     => parse_lt(op_codes, op_hints, &op, step),
         "rc"     => parse_rc(op_codes, op_hints, &op, step),

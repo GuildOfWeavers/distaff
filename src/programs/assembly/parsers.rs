@@ -249,11 +249,21 @@ pub fn parse_or(program: &mut Vec<OpCode>, op: &[&str], step: usize) -> Result<b
 // COMPARISON OPERATIONS
 // ================================================================================================
 
-/// Appends EQ operation to the program.
+/// Appends a sequence of operations to the the program to determine whether the top value on the
+/// stack is equal to the following value.
 pub fn parse_eq(program: &mut Vec<OpCode>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     if op.len() > 1 { return Err(AssemblyError::extra_param(op, step)); }
     hints.insert(program.len(), OpHint::EqStart);
     program.extend_from_slice(&[OpCode::Read, OpCode::Eq]);
+    return Ok(true);
+}
+
+/// Appends a sequence of operations to the the program to determine whether the top value on the
+/// stack is not equal to the following value.
+pub fn parse_ne(program: &mut Vec<OpCode>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> { 
+    if op.len() > 1 { return Err(AssemblyError::extra_param(op, step)); }
+    hints.insert(program.len(), OpHint::EqStart);
+    program.extend_from_slice(&[OpCode::Read, OpCode::Eq, OpCode::Not]);
     return Ok(true);
 }
 
