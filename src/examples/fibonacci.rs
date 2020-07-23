@@ -30,20 +30,18 @@ pub fn get_example(args: &[String]) -> Example  {
 
 /// Generates a program to compute the `n`-th term of Fibonacci sequence
 fn generate_fibonacci_program(n: usize, hash_fn: HashFunction) -> Program {
-
-    let mut program = String::with_capacity(n * 20);
-    program.push_str("begin ");
-
     // the program is a simple repetition of 4 stack operations:
     // the first operation moves the 2nd stack item to the top,
     // the second operation duplicates the top 2 stack items,
     // the third operation removes the top item from the stack
     // the last operation pops top 2 stack items, adds them, and pushes
     // the result back onto the stack
-    for _ in 0..(n - 1) {
-        program.push_str("swap dup.2 drop add ");
-    }
-    program.push_str("end");
+    let program = format!("
+    begin 
+        repeat.{}
+            swap dup.2 drop add
+        end
+    end", n - 1);
 
     return assembly::compile(&program, hash_fn).unwrap();
 }
