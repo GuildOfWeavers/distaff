@@ -42,6 +42,7 @@ const SPONGE_CONSTRAINT_DEGREES: [usize; NUM_SPONGE_CONSTRAINTS] = [
     6, 7, 6, 6,                     // sponge transition constraints
 ];
 
+const LOOP_IMAGE_CONSTRAINT_DEGREE: usize = 4;
 const STACK_CONSTRAINT_DEGREE: usize = 4;
 
 const CYCLE_MASK_IDX : usize = 0;
@@ -71,6 +72,7 @@ impl Decoder {
         // build an array of constraint degrees for the decoder
         let mut degrees = Vec::from(&OP_CONSTRAINT_DEGREES[..]);
         degrees.extend_from_slice(&SPONGE_CONSTRAINT_DEGREES[..]);
+        degrees.push(LOOP_IMAGE_CONSTRAINT_DEGREE);
         degrees.resize(degrees.len()
             + cmp::max(ctx_depth, MIN_CONTEXT_DEPTH)
             + cmp::max(loop_depth, MIN_LOOP_DEPTH),

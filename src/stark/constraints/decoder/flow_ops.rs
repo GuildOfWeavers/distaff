@@ -10,16 +10,17 @@ use super::{
 pub fn enforce_begin(result: &mut [u128], current: &TraceState, next: &TraceState, op_flag: u128)
 {
     // make sure sponge state has been cleared
-    let next_sponge = next.sponge();
-    result.agg_constraint(0, op_flag, is_zero(next_sponge[0]));
-    result.agg_constraint(1, op_flag, is_zero(next_sponge[1]));
-    result.agg_constraint(2, op_flag, is_zero(next_sponge[2]));
-    result.agg_constraint(3, op_flag, is_zero(next_sponge[3]));
+    let new_sponge = next.sponge();
+    result.agg_constraint(0, op_flag, is_zero(new_sponge[0]));
+    result.agg_constraint(1, op_flag, is_zero(new_sponge[1]));
+    result.agg_constraint(2, op_flag, is_zero(new_sponge[2]));
+    result.agg_constraint(3, op_flag, is_zero(new_sponge[3]));
 
     // make sure hash of parent block was pushed onto the context stack
     let parent_hash = current.sponge()[0];
-    let ctx_stack_end = SPONGE_WIDTH + current.ctx_stack().len();
-    let ctx_result = &mut result[SPONGE_WIDTH..ctx_stack_end];
+    let ctx_stack_start = SPONGE_WIDTH + 1; // 1 is for loop image constraint
+    let ctx_stack_end = ctx_stack_start + current.ctx_stack().len();
+    let ctx_result = &mut result[ctx_stack_start..ctx_stack_end];
     ctx_result.agg_constraint(0, op_flag, are_equal(parent_hash, next.ctx_stack()[0]));
     enforce_right_shift(ctx_result, current.ctx_stack(), next.ctx_stack(), 1, op_flag);
 
@@ -33,15 +34,16 @@ pub fn enforce_tend(result: &mut [u128], current: &TraceState, next: &TraceState
     let parent_hash = current.ctx_stack()[0];
     let block_hash = current.sponge()[0];
 
-    let next_sponge = next.sponge();
-    result.agg_constraint(0, op_flag, are_equal(parent_hash, next_sponge[0]));
-    result.agg_constraint(1, op_flag, are_equal(block_hash, next_sponge[1]));
+    let new_sponge = next.sponge();
+    result.agg_constraint(0, op_flag, are_equal(parent_hash, new_sponge[0]));
+    result.agg_constraint(1, op_flag, are_equal(block_hash, new_sponge[1]));
     // no constraint on the 3rd element of the sponge
-    result.agg_constraint(3, op_flag, is_zero(next_sponge[3]));
+    result.agg_constraint(3, op_flag, is_zero(new_sponge[3]));
 
     // make parent hash was popped from context stack
-    let ctx_stack_end = SPONGE_WIDTH + current.ctx_stack().len();
-    let ctx_result = &mut result[SPONGE_WIDTH..ctx_stack_end];
+    let ctx_stack_start = SPONGE_WIDTH + 1; // 1 is for loop image constraint
+    let ctx_stack_end = ctx_stack_start + current.ctx_stack().len();
+    let ctx_result = &mut result[ctx_stack_start..ctx_stack_end];
     enforce_left_shift(ctx_result, current.ctx_stack(), next.ctx_stack(), 1, 1, op_flag);
 
     // make sure loop stack didn't change
@@ -54,15 +56,16 @@ pub fn enforce_fend(result: &mut [u128], current: &TraceState, next: &TraceState
     let parent_hash = current.ctx_stack()[0];
     let block_hash = current.sponge()[0];
 
-    let next_sponge = next.sponge();
-    result.agg_constraint(0, op_flag, are_equal(parent_hash, next_sponge[0]));
+    let new_sponge = next.sponge();
+    result.agg_constraint(0, op_flag, are_equal(parent_hash, new_sponge[0]));
     // no constraint on the 2nd element of the sponge
-    result.agg_constraint(2, op_flag, are_equal(block_hash, next_sponge[2]));
-    result.agg_constraint(3, op_flag, is_zero(next_sponge[3]));
+    result.agg_constraint(2, op_flag, are_equal(block_hash, new_sponge[2]));
+    result.agg_constraint(3, op_flag, is_zero(new_sponge[3]));
 
     // make sure parent hash was popped from context stack
-    let ctx_stack_end = SPONGE_WIDTH + current.ctx_stack().len();
-    let ctx_result = &mut result[SPONGE_WIDTH..ctx_stack_end];
+    let ctx_stack_start = SPONGE_WIDTH + 1; // 1 is for loop image constraint
+    let ctx_stack_end = ctx_stack_start + current.ctx_stack().len();
+    let ctx_result = &mut result[ctx_stack_start..ctx_stack_end];
     enforce_left_shift(ctx_result, current.ctx_stack(), next.ctx_stack(), 1, 1, op_flag);
 
     // make sure loop stack didn't change
@@ -73,16 +76,17 @@ pub fn enforce_fend(result: &mut [u128], current: &TraceState, next: &TraceState
 pub fn enforce_loop(result: &mut [u128], current: &TraceState, next: &TraceState, op_flag: u128)
 {
     // make sure sponge state has been cleared
-    let next_sponge = next.sponge();
-    result.agg_constraint(0, op_flag, is_zero(next_sponge[0]));
-    result.agg_constraint(1, op_flag, is_zero(next_sponge[1]));
-    result.agg_constraint(2, op_flag, is_zero(next_sponge[2]));
-    result.agg_constraint(3, op_flag, is_zero(next_sponge[3]));
+    let new_sponge = next.sponge();
+    result.agg_constraint(0, op_flag, is_zero(new_sponge[0]));
+    result.agg_constraint(1, op_flag, is_zero(new_sponge[1]));
+    result.agg_constraint(2, op_flag, is_zero(new_sponge[2]));
+    result.agg_constraint(3, op_flag, is_zero(new_sponge[3]));
 
     // make sure hash of parent block was pushed onto the context stack
     let parent_hash = current.sponge()[0];
-    let ctx_stack_end = SPONGE_WIDTH + current.ctx_stack().len();
-    let ctx_result = &mut result[SPONGE_WIDTH..ctx_stack_end];
+    let ctx_stack_start = SPONGE_WIDTH + 1; // 1 is for loop image constraint
+    let ctx_stack_end = ctx_stack_start + current.ctx_stack().len();
+    let ctx_result = &mut result[ctx_stack_start..ctx_stack_end];
     ctx_result.agg_constraint(0, op_flag, are_equal(parent_hash, next.ctx_stack()[0]));
     enforce_right_shift(ctx_result, current.ctx_stack(), next.ctx_stack(), 1, op_flag);
 
@@ -95,18 +99,20 @@ pub fn enforce_loop(result: &mut [u128], current: &TraceState, next: &TraceState
 pub fn enforce_wrap(result: &mut [u128], current: &TraceState, next: &TraceState, op_flag: u128)
 {
     // make sure sponge state has been cleared
-    let next_sponge = next.sponge();
-    result.agg_constraint(0, op_flag, is_zero(next_sponge[0]));
-    result.agg_constraint(1, op_flag, is_zero(next_sponge[1]));
-    result.agg_constraint(2, op_flag, is_zero(next_sponge[2]));
-    result.agg_constraint(3, op_flag, is_zero(next_sponge[3]));
+    let new_sponge = next.sponge();
+    result.agg_constraint(0, op_flag, is_zero(new_sponge[0]));
+    result.agg_constraint(1, op_flag, is_zero(new_sponge[1]));
+    result.agg_constraint(2, op_flag, is_zero(new_sponge[2]));
+    result.agg_constraint(3, op_flag, is_zero(new_sponge[3]));
 
     // make sure item at the top of loop stack is equal to loop image
-    // TODO
+    let loop_image = current.sponge()[0];
+    result.agg_constraint(SPONGE_WIDTH, op_flag, are_equal(loop_image, current.loop_stack()[0]));
 
     // make sure context stack didn't change
-    let ctx_stack_end = SPONGE_WIDTH + current.ctx_stack().len();
-    let ctx_result = &mut result[SPONGE_WIDTH..ctx_stack_end];
+    let ctx_stack_start = SPONGE_WIDTH + 1; // 1 is for loop image constraint
+    let ctx_stack_end = ctx_stack_start + current.ctx_stack().len();
+    let ctx_result = &mut result[ctx_stack_start..ctx_stack_end];
     enforce_stack_copy(ctx_result, current.ctx_stack(), next.ctx_stack(), 0, op_flag);
 
     // make sure loop stack didn't change
@@ -124,11 +130,13 @@ pub fn enforce_break(result: &mut [u128], current: &TraceState, next: &TraceStat
     }
 
     // make sure item at the top of loop stack is equal to loop image
-    // TODO
+    let loop_image = old_sponge[0];
+    result.agg_constraint(SPONGE_WIDTH, op_flag, are_equal(loop_image, current.loop_stack()[0]));
 
     // make sure context stack didn't change
-    let ctx_stack_end = SPONGE_WIDTH + current.ctx_stack().len();
-    let ctx_result = &mut result[SPONGE_WIDTH..ctx_stack_end];
+    let ctx_stack_start = SPONGE_WIDTH + 1; // 1 is for loop image constraint
+    let ctx_stack_end = ctx_stack_start + current.ctx_stack().len();
+    let ctx_result = &mut result[ctx_stack_start..ctx_stack_end];
     enforce_stack_copy(ctx_result, current.ctx_stack(), next.ctx_stack(), 0, op_flag);
 
     // make loop image was popped from loop stack
@@ -146,8 +154,9 @@ pub fn enforce_void(result: &mut [u128], current: &TraceState, next: &TraceState
     }
 
     // make sure context stack didn't change
-    let ctx_stack_end = SPONGE_WIDTH + current.ctx_stack().len();
-    let ctx_result = &mut result[SPONGE_WIDTH..ctx_stack_end];
+    let ctx_stack_start = SPONGE_WIDTH + 1; // 1 is for loop image constraint
+    let ctx_stack_end = ctx_stack_start + current.ctx_stack().len();
+    let ctx_result = &mut result[ctx_stack_start..ctx_stack_end];
     enforce_stack_copy(ctx_result, current.ctx_stack(), next.ctx_stack(), 0, op_flag);
 
     // make sure loop stack didn't change
@@ -170,33 +179,33 @@ mod tests {
         let state1 = new_state(15, FlowOps::Begin, &[3, 5, 7, 9], &[0], &[]);
         let state2 = new_state(16, FlowOps::Void,  &[0, 0, 0, 0], &[3], &[]);
 
-        let mut evaluations = vec![0; 6];
+        let mut evaluations = vec![0; 7];
         super::enforce_begin(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![0, 0, 0, 0, 0, 0], evaluations);
+        assert_eq!(vec![0, 0, 0, 0, 0, 0, 0], evaluations);
 
         // correct transition, context depth = 2
         let state1 = new_state(15, FlowOps::Begin, &[3, 5, 7, 9], &[2, 0], &[]);
         let state2 = new_state(16, FlowOps::Void,  &[0, 0, 0, 0], &[3, 2], &[]);
         
-        let mut evaluations = vec![0; 7];
+        let mut evaluations = vec![0; 8];
         super::enforce_begin(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![0, 0, 0, 0, 0, 0, 0], evaluations);
+        assert_eq!(vec![0, 0, 0, 0, 0, 0, 0, 0], evaluations);
 
         // incorrect transition, context depth = 1
         let state1 = new_state(15, FlowOps::Begin, &[3, 5, 7, 9], &[0], &[]);
         let state2 = new_state(16, FlowOps::Void,  &[1, 2, 3, 4], &[5], &[]);
         
-        let mut evaluations = vec![0; 6];
+        let mut evaluations = vec![0; 7];
         super::enforce_begin(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![1, 2, 3, 4, are_equal(3, 5), 0], evaluations);
+        assert_eq!(vec![1, 2, 3, 4, 0, are_equal(3, 5), 0], evaluations);
 
         // incorrect transition, context depth = 2
         let state1 = new_state(15, FlowOps::Begin, &[3, 5, 7, 9], &[2, 0], &[]);
         let state2 = new_state(16, FlowOps::Void,  &[1, 2, 3, 4], &[5, 6], &[]);
 
-        let mut evaluations = vec![0; 7];
+        let mut evaluations = vec![0; 8];
         super::enforce_begin(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![1, 2, 3, 4, are_equal(3, 5), are_equal(2, 6), 0], evaluations);
+        assert_eq!(vec![1, 2, 3, 4, 0, are_equal(3, 5), are_equal(2, 6), 0], evaluations);
     }
 
     #[test]
@@ -224,7 +233,7 @@ mod tests {
 
         let mut evaluations = vec![0; 7];
         super::enforce_tend(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![7, 1, 0, 4, 8, 0, 0], evaluations);
+        assert_eq!(vec![7, 1, 0, 4, 0, 8, 0], evaluations);
 
         // incorrect transition, context depth = 2
         let state1 = new_state(15, FlowOps::Tend, &[3, 5, 7, 9], &[4, 6], &[]);
@@ -232,7 +241,7 @@ mod tests {
 
         let mut evaluations = vec![0; 8];
         super::enforce_tend(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![3, 1, 0, 4, 1, 6, 0, 0], evaluations);
+        assert_eq!(vec![3, 1, 0, 4, 0, 1, 6, 0], evaluations);
     }
 
     #[test]
@@ -260,7 +269,7 @@ mod tests {
 
         let mut evaluations = vec![0; 7];
         super::enforce_fend(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![7, 0, 1, 4, 8, 0, 0], evaluations);
+        assert_eq!(vec![7, 0, 1, 4, 0, 8, 0], evaluations);
 
         // incorrect transition, context depth = 2
         let state1 = new_state(15, FlowOps::Fend, &[3, 5, 7, 9], &[4, 6], &[]);
@@ -268,7 +277,7 @@ mod tests {
 
         let mut evaluations = vec![0; 8];
         super::enforce_fend(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![3, 0, 1, 4, 1, 6, 0, 0], evaluations);
+        assert_eq!(vec![3, 0, 1, 4, 0, 1, 6, 0], evaluations);
     }
 
     #[test]
@@ -295,7 +304,7 @@ mod tests {
 
         let mut evaluations = vec![0; 7];
         super::enforce_loop(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![0, 0, 0, 0, 3, 0, 0], evaluations);
+        assert_eq!(vec![0, 0, 0, 0, 0, 3, 0], evaluations);
 
         // correct transition, context depth = 2, loop depth = 2
         let state1 = new_state(15, FlowOps::Loop, &[3, 5, 7, 9], &[6, 0], &[11,  0]);
@@ -311,17 +320,93 @@ mod tests {
 
         let mut evaluations = vec![0; 9];
         super::enforce_loop(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![0, 0, 0, 0, 0, 0, 0, 11, 0], evaluations);
+        assert_eq!(vec![0, 0, 0, 0, 0, 0, 0, 0, 11], evaluations);
     }
 
     #[test]
     fn op_wrap() {
-        // TODO
+        // correct transition, context depth = 1, loop depth = 1
+        let state1 = new_state(15, FlowOps::Wrap, &[3, 5, 7, 9], &[11], &[3]);
+        let state2 = new_state(16, FlowOps::Void, &[0, 0, 0, 0], &[11], &[3]);
+
+        let mut evaluations = vec![0; 7];
+        super::enforce_wrap(&mut evaluations, &state1, &state2, 1);
+        assert_eq!(vec![0, 0, 0, 0, 0, 0, 0], evaluations);
+
+        // incorrect transition (loop image mismatch), context depth = 1, loop depth = 1
+        let state1 = new_state(15, FlowOps::Wrap, &[3, 5, 7, 9], &[11], &[5]);
+        let state2 = new_state(16, FlowOps::Void, &[0, 0, 0, 0], &[11], &[5]);
+
+        let mut evaluations = vec![0; 7];
+        super::enforce_wrap(&mut evaluations, &state1, &state2, 1);
+        assert_eq!(vec![0, 0, 0, 0, are_equal(3, 5), 0, 0], evaluations);
+
+        // incorrect transition (loop stack changed), context depth = 1, loop depth = 1
+        let state1 = new_state(15, FlowOps::Wrap, &[3, 5, 7, 9], &[11], &[3]);
+        let state2 = new_state(16, FlowOps::Void, &[0, 0, 0, 0], &[11], &[4]);
+
+        let mut evaluations = vec![0; 7];
+        super::enforce_wrap(&mut evaluations, &state1, &state2, 1);
+        assert_eq!(vec![0, 0, 0, 0, 0, 0, are_equal(3, 4)], evaluations);
+
+        // incorrect transition (context stack changed), context depth = 1, loop depth = 1
+        let state1 = new_state(15, FlowOps::Wrap, &[3, 5, 7, 9], &[11], &[3]);
+        let state2 = new_state(16, FlowOps::Void, &[0, 0, 0, 0], &[10], &[3]);
+
+        let mut evaluations = vec![0; 7];
+        super::enforce_wrap(&mut evaluations, &state1, &state2, 1);
+        assert_eq!(vec![0, 0, 0, 0, 0, are_equal(11, 10), 0], evaluations);
+
+        // incorrect transition (sponge not reset), context depth = 1, loop depth = 1
+        let state1 = new_state(15, FlowOps::Wrap, &[3, 5, 7, 9], &[11], &[3]);
+        let state2 = new_state(16, FlowOps::Void, &[1, 2, 3, 4], &[11], &[3]);
+
+        let mut evaluations = vec![0; 7];
+        super::enforce_wrap(&mut evaluations, &state1, &state2, 1);
+        assert_eq!(vec![1, 2, 3, 4, 0, 0, 0], evaluations);
     }
 
     #[test]
     fn op_break() {
-        // TODO
+        // correct transition, context depth = 1, loop depth = 1
+        let state1 = new_state(15, FlowOps::Break, &[3, 5, 7, 9], &[11], &[3]);
+        let state2 = new_state(16, FlowOps::Void,  &[3, 5, 7, 9], &[11], &[0]);
+
+        let mut evaluations = vec![0; 7];
+        super::enforce_break(&mut evaluations, &state1, &state2, 1);
+        assert_eq!(vec![0, 0, 0, 0, 0, 0, 0], evaluations);
+
+        // incorrect transition (loop image mismatch), context depth = 1, loop depth = 1
+        let state1 = new_state(15, FlowOps::Wrap, &[3, 5, 7, 9], &[11], &[5]);
+        let state2 = new_state(16, FlowOps::Void, &[3, 5, 7, 9], &[11], &[0]);
+
+        let mut evaluations = vec![0; 7];
+        super::enforce_break(&mut evaluations, &state1, &state2, 1);
+        assert_eq!(vec![0, 0, 0, 0, are_equal(3, 5), 0, 0], evaluations);
+
+        // incorrect transition (loop stack not popped), context depth = 1, loop depth = 1
+        let state1 = new_state(15, FlowOps::Wrap, &[3, 5, 7, 9], &[11], &[3]);
+        let state2 = new_state(16, FlowOps::Void, &[3, 5, 7, 9], &[11], &[3]);
+
+        let mut evaluations = vec![0; 7];
+        super::enforce_break(&mut evaluations, &state1, &state2, 1);
+        assert_eq!(vec![0, 0, 0, 0, 0, 0, are_equal(3, 0)], evaluations);
+
+        // incorrect transition (context stack changed), context depth = 1, loop depth = 1
+        let state1 = new_state(15, FlowOps::Wrap, &[3, 5, 7, 9], &[11], &[3]);
+        let state2 = new_state(16, FlowOps::Void, &[3, 5, 7, 9], &[10], &[0]);
+
+        let mut evaluations = vec![0; 7];
+        super::enforce_break(&mut evaluations, &state1, &state2, 1);
+        assert_eq!(vec![0, 0, 0, 0, 0, are_equal(11, 10), 0], evaluations);
+
+        // incorrect transition (sponge changed), context depth = 1, loop depth = 1
+        let state1 = new_state(15, FlowOps::Wrap, &[3, 5, 7, 9], &[11], &[3]);
+        let state2 = new_state(16, FlowOps::Void, &[1, 3, 5, 7], &[11], &[0]);
+
+        let mut evaluations = vec![0; 7];
+        super::enforce_break(&mut evaluations, &state1, &state2, 1);
+        assert_eq!(vec![2, 2, 2, 2, 0, 0, 0], evaluations);
     }
 
     #[test]
@@ -331,25 +416,25 @@ mod tests {
         let state1 = new_state(15, FlowOps::Void, &[3, 5, 7, 9], &[8], &[]);
         let state2 = new_state(16, FlowOps::Void, &[3, 5, 7, 9], &[8], &[]);
 
-        let mut evaluations = vec![0; 6];
+        let mut evaluations = vec![0; 7];
         super::enforce_void(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![0, 0, 0, 0, 0, 0], evaluations);
+        assert_eq!(vec![0, 0, 0, 0, 0, 0, 0], evaluations);
 
         // correct transition, context depth = 2, loop depth = 1
         let state1 = new_state(15, FlowOps::Void, &[3, 5, 7, 9], &[8, 2], &[11]);
         let state2 = new_state(16, FlowOps::Void, &[3, 5, 7, 9], &[8, 2], &[11]);
 
-        let mut evaluations = vec![0; 7];
+        let mut evaluations = vec![0; 8];
         super::enforce_void(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![0, 0, 0, 0, 0, 0, 0], evaluations);
+        assert_eq!(vec![0, 0, 0, 0, 0, 0, 0, 0], evaluations);
 
         // incorrect transition, context depth = 1, loop depth = 1
         let state1 = new_state(15, FlowOps::Void, &[3, 5, 7, 9], &[8], &[11]);
         let state2 = new_state(16, FlowOps::Void, &[2, 4, 6, 8], &[7], &[10]);
 
-        let mut evaluations = vec![0; 6];
+        let mut evaluations = vec![0; 7];
         super::enforce_void(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![1, 1, 1, 1, 1, 1], evaluations);
+        assert_eq!(vec![1, 1, 1, 1, 0, 1, 1], evaluations);
     }
 
     // HELPER FUNCTIONS
