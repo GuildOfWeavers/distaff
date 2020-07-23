@@ -160,74 +160,75 @@ pub fn enforce_void(result: &mut [u128], current: &TraceState, next: &TraceState
 #[cfg(test)]
 mod tests {
     
+    use crate::processor::opcodes::{ FlowOps, UserOps };
     use super::{ TraceState, are_equal };
 
     #[test]
     fn op_begin() {
 
         // correct transition, context depth = 1
-        let state1 = TraceState::from_vec(1, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  0,  11]);
-        let state2 = TraceState::from_vec(1, 0, 1, &vec![0,  0, 0, 0, 0,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  3,  11]);
+        let state1 = new_state(15, FlowOps::Begin, &[3, 5, 7, 9], &[0], &[]);
+        let state2 = new_state(16, FlowOps::Void,  &[0, 0, 0, 0], &[3], &[]);
 
+        let mut evaluations = vec![0; 6];
+        super::enforce_begin(&mut evaluations, &state1, &state2, 1);
+        assert_eq!(vec![0, 0, 0, 0, 0, 0], evaluations);
+
+        // correct transition, context depth = 2
+        let state1 = new_state(15, FlowOps::Begin, &[3, 5, 7, 9], &[2, 0], &[]);
+        let state2 = new_state(16, FlowOps::Void,  &[0, 0, 0, 0], &[3, 2], &[]);
+        
         let mut evaluations = vec![0; 7];
         super::enforce_begin(&mut evaluations, &state1, &state2, 1);
         assert_eq!(vec![0, 0, 0, 0, 0, 0, 0], evaluations);
 
-        // correct transition, context depth = 2
-        let state1 = TraceState::from_vec(2, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  2, 0,  11]);
-        let state2 = TraceState::from_vec(2, 0, 1, &vec![0,  0, 0, 0, 0,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  3, 2,  11]);
-
-        let mut evaluations = vec![0; 8];
-        super::enforce_begin(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![0, 0, 0, 0, 0, 0, 0, 0], evaluations);
-
         // incorrect transition, context depth = 1
-        let state1 = TraceState::from_vec(1, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  0, 11]);
-        let state2 = TraceState::from_vec(1, 0, 1, &vec![0,  1, 2, 3, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  5, 11]);
+        let state1 = new_state(15, FlowOps::Begin, &[3, 5, 7, 9], &[0], &[]);
+        let state2 = new_state(16, FlowOps::Void,  &[1, 2, 3, 4], &[5], &[]);
+        
+        let mut evaluations = vec![0; 6];
+        super::enforce_begin(&mut evaluations, &state1, &state2, 1);
+        assert_eq!(vec![1, 2, 3, 4, are_equal(3, 5), 0], evaluations);
+
+        // incorrect transition, context depth = 2
+        let state1 = new_state(15, FlowOps::Begin, &[3, 5, 7, 9], &[2, 0], &[]);
+        let state2 = new_state(16, FlowOps::Void,  &[1, 2, 3, 4], &[5, 6], &[]);
 
         let mut evaluations = vec![0; 7];
         super::enforce_begin(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![1, 2, 3, 4, are_equal(3, 5), 0, 0], evaluations);
-
-        // incorrect transition, context depth = 2
-        let state1 = TraceState::from_vec(2, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  2, 0,  11]);
-        let state2 = TraceState::from_vec(2, 0, 1, &vec![0,  1, 2, 3, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  5, 6,  11]);
-
-        let mut evaluations = vec![0; 8];
-        super::enforce_begin(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![1, 2, 3, 4, are_equal(3, 5), are_equal(2, 6), 0, 0], evaluations);
+        assert_eq!(vec![1, 2, 3, 4, are_equal(3, 5), are_equal(2, 6), 0], evaluations);
     }
 
     #[test]
     fn op_tend() {
 
         // correct transition, context depth = 1
-        let state1 = TraceState::from_vec(1, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8,  11]);
-        let state2 = TraceState::from_vec(1, 0, 1, &vec![0,  8, 3, 4, 0,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  0,  11]);
+        let state1 = new_state(15, FlowOps::Tend, &[3, 5, 7, 9], &[8], &[]);
+        let state2 = new_state(16, FlowOps::Void, &[8, 3, 4, 0], &[0], &[]);
 
         let mut evaluations = vec![0; 7];
         super::enforce_tend(&mut evaluations, &state1, &state2, 1);
         assert_eq!(vec![0, 0, 0, 0, 0, 0, 0], evaluations);
 
         // correct transition, context depth = 2
-        let state1 = TraceState::from_vec(2, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8, 2,  11]);
-        let state2 = TraceState::from_vec(2, 0, 1, &vec![0,  8, 3, 6, 0,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  2, 0,  11]);
+        let state1 = new_state(15, FlowOps::Tend, &[3, 5, 7, 9], &[8, 2], &[]);
+        let state2 = new_state(16, FlowOps::Void, &[8, 3, 4, 0], &[2, 0], &[]);
 
         let mut evaluations = vec![0; 8];
         super::enforce_tend(&mut evaluations, &state1, &state2, 1);
         assert_eq!(vec![0, 0, 0, 0, 0, 0, 0, 0], evaluations);
 
         // incorrect transition, context depth = 1
-        let state1 = TraceState::from_vec(1, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8, 11]);
-        let state2 = TraceState::from_vec(1, 0, 1, &vec![0,  1, 2, 3, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  8, 11]);
+        let state1 = new_state(15, FlowOps::Tend, &[3, 5, 7, 9], &[8], &[]);
+        let state2 = new_state(16, FlowOps::Void, &[1, 2, 3, 4], &[8], &[]);
 
         let mut evaluations = vec![0; 7];
         super::enforce_tend(&mut evaluations, &state1, &state2, 1);
         assert_eq!(vec![7, 1, 0, 4, 8, 0, 0], evaluations);
 
         // incorrect transition, context depth = 2
-        let state1 = TraceState::from_vec(2, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  4, 6,  11]);
-        let state2 = TraceState::from_vec(2, 0, 1, &vec![0,  1, 2, 3, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  5, 6,  11]);
+        let state1 = new_state(15, FlowOps::Tend, &[3, 5, 7, 9], &[4, 6], &[]);
+        let state2 = new_state(16, FlowOps::Void, &[1, 2, 3, 4], &[5, 6], &[]);
 
         let mut evaluations = vec![0; 8];
         super::enforce_tend(&mut evaluations, &state1, &state2, 1);
@@ -238,32 +239,32 @@ mod tests {
     fn op_fend() {
 
         // correct transition, context depth = 1
-        let state1 = TraceState::from_vec(1, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8,  11]);
-        let state2 = TraceState::from_vec(1, 0, 1, &vec![0,  8, 4, 3, 0,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  0,  11]);
+        let state1 = new_state(15, FlowOps::Fend, &[3, 5, 7, 9], &[8], &[]);
+        let state2 = new_state(16, FlowOps::Void, &[8, 4, 3, 0], &[0], &[]);
 
         let mut evaluations = vec![0; 7];
         super::enforce_fend(&mut evaluations, &state1, &state2, 1);
         assert_eq!(vec![0, 0, 0, 0, 0, 0, 0], evaluations);
 
         // correct transition, context depth = 2
-        let state1 = TraceState::from_vec(2, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8, 2,  11]);
-        let state2 = TraceState::from_vec(2, 0, 1, &vec![0,  8, 6, 3, 0,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  2, 0,  11]);
+        let state1 = new_state(15, FlowOps::Fend, &[3, 5, 7, 9], &[8, 2], &[]);
+        let state2 = new_state(16, FlowOps::Void, &[8, 6, 3, 0], &[2, 0], &[]);
 
         let mut evaluations = vec![0; 8];
         super::enforce_fend(&mut evaluations, &state1, &state2, 1);
         assert_eq!(vec![0, 0, 0, 0, 0, 0, 0, 0], evaluations);
 
         // incorrect transition, context depth = 1
-        let state1 = TraceState::from_vec(1, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8, 11]);
-        let state2 = TraceState::from_vec(1, 0, 1, &vec![0,  1, 3, 2, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  8, 11]);
+        let state1 = new_state(15, FlowOps::Fend, &[3, 5, 7, 9], &[8], &[]);
+        let state2 = new_state(16, FlowOps::Void, &[1, 3, 2, 4], &[8], &[]);
 
         let mut evaluations = vec![0; 7];
         super::enforce_fend(&mut evaluations, &state1, &state2, 1);
         assert_eq!(vec![7, 0, 1, 4, 8, 0, 0], evaluations);
 
         // incorrect transition, context depth = 2
-        let state1 = TraceState::from_vec(2, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  4, 6,  11]);
-        let state2 = TraceState::from_vec(2, 0, 1, &vec![0,  1, 6, 2, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  5, 6,  11]);
+        let state1 = new_state(15, FlowOps::Fend, &[3, 5, 7, 9], &[4, 6], &[]);
+        let state2 = new_state(16, FlowOps::Void, &[1, 6, 2, 4], &[5, 6], &[]);
 
         let mut evaluations = vec![0; 8];
         super::enforce_fend(&mut evaluations, &state1, &state2, 1);
@@ -272,7 +273,45 @@ mod tests {
 
     #[test]
     fn op_loop() {
-        // TODO
+        // correct transition, context depth = 1, loop depth = 1
+        let state1 = new_state(15, FlowOps::Loop, &[3, 5, 7, 9], &[0], &[0]);
+        let state2 = new_state(16, FlowOps::Void, &[0, 0, 0, 0], &[3], &[11]);
+
+        let mut evaluations = vec![0; 7];
+        super::enforce_loop(&mut evaluations, &state1, &state2, 1);
+        assert_eq!(vec![0, 0, 0, 0, 0, 0, 0], evaluations);
+
+        // incorrect transition (state not cleared), context depth = 1, loop depth = 1
+        let state1 = new_state(15, FlowOps::Loop, &[3, 5, 7, 9], &[0], &[0]);
+        let state2 = new_state(16, FlowOps::Void, &[1, 2, 3, 4], &[3], &[11]);
+
+        let mut evaluations = vec![0; 7];
+        super::enforce_loop(&mut evaluations, &state1, &state2, 1);
+        assert_eq!(vec![1, 2, 3, 4, 0, 0, 0], evaluations);
+
+        // incorrect transition (context not copied), context depth = 1, loop depth = 1
+        let state1 = new_state(15, FlowOps::Loop, &[3, 5, 7, 9], &[0], &[0]);
+        let state2 = new_state(16, FlowOps::Void, &[0, 0, 0, 0], &[0], &[11]);
+
+        let mut evaluations = vec![0; 7];
+        super::enforce_loop(&mut evaluations, &state1, &state2, 1);
+        assert_eq!(vec![0, 0, 0, 0, 3, 0, 0], evaluations);
+
+        // correct transition, context depth = 2, loop depth = 2
+        let state1 = new_state(15, FlowOps::Loop, &[3, 5, 7, 9], &[6, 0], &[11,  0]);
+        let state2 = new_state(16, FlowOps::Void, &[0, 0, 0, 0], &[3, 6], &[13, 11]);
+
+        let mut evaluations = vec![0; 9];
+        super::enforce_loop(&mut evaluations, &state1, &state2, 1);
+        assert_eq!(vec![0, 0, 0, 0, 0, 0, 0, 0, 0], evaluations);
+
+        // incorrect transition (loop stack not shifted), context depth = 2, loop depth = 2
+        let state1 = new_state(15, FlowOps::Loop, &[3, 5, 7, 9], &[6, 0], &[11, 0]);
+        let state2 = new_state(16, FlowOps::Void, &[0, 0, 0, 0], &[3, 6], &[11, 0]);
+
+        let mut evaluations = vec![0; 9];
+        super::enforce_loop(&mut evaluations, &state1, &state2, 1);
+        assert_eq!(vec![0, 0, 0, 0, 0, 0, 0, 11, 0], evaluations);
     }
 
     #[test]
@@ -289,27 +328,51 @@ mod tests {
     fn op_void() {
 
         // correct transition, context depth = 1
-        let state1 = TraceState::from_vec(1, 0, 1, &vec![0,  3, 5, 7, 9,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  8,  11]);
-        let state2 = TraceState::from_vec(1, 0, 1, &vec![0,  3, 5, 7, 9,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  8,  11]);
+        let state1 = new_state(15, FlowOps::Void, &[3, 5, 7, 9], &[8], &[]);
+        let state2 = new_state(16, FlowOps::Void, &[3, 5, 7, 9], &[8], &[]);
+
+        let mut evaluations = vec![0; 6];
+        super::enforce_void(&mut evaluations, &state1, &state2, 1);
+        assert_eq!(vec![0, 0, 0, 0, 0, 0], evaluations);
+
+        // correct transition, context depth = 2, loop depth = 1
+        let state1 = new_state(15, FlowOps::Void, &[3, 5, 7, 9], &[8, 2], &[11]);
+        let state2 = new_state(16, FlowOps::Void, &[3, 5, 7, 9], &[8, 2], &[11]);
 
         let mut evaluations = vec![0; 7];
         super::enforce_void(&mut evaluations, &state1, &state2, 1);
         assert_eq!(vec![0, 0, 0, 0, 0, 0, 0], evaluations);
 
-        // correct transition, context depth = 2
-        let state1 = TraceState::from_vec(2, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8, 2,  11]);
-        let state2 = TraceState::from_vec(2, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8, 2,  11]);
+        // incorrect transition, context depth = 1, loop depth = 1
+        let state1 = new_state(15, FlowOps::Void, &[3, 5, 7, 9], &[8], &[11]);
+        let state2 = new_state(16, FlowOps::Void, &[2, 4, 6, 8], &[7], &[10]);
 
-        let mut evaluations = vec![0; 8];
+        let mut evaluations = vec![0; 6];
         super::enforce_void(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![0, 0, 0, 0, 0, 0, 0, 0], evaluations);
+        assert_eq!(vec![1, 1, 1, 1, 1, 1], evaluations);
+    }
 
-        // incorrect transition, context depth = 1
-        let state1 = TraceState::from_vec(1, 0, 1, &vec![0,  3, 5, 7, 9,  1, 0, 0,  1, 1, 1, 1, 1,  1, 1,  8, 11]);
-        let state2 = TraceState::from_vec(1, 0, 1, &vec![0,  2, 4, 6, 8,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  7, 11]);
+    // HELPER FUNCTIONS
+    // --------------------------------------------------------------------------------------------
+    fn new_state(step: usize, flow_op: FlowOps, sponge: &[u128; 4], ctx_stack: &[u128], loop_stack: &[u128]) -> TraceState 
+    {
+        let ctx_depth = ctx_stack.len();
+        let loop_depth = loop_stack.len();
 
-        let mut evaluations = vec![0; 7];
-        super::enforce_void(&mut evaluations, &state1, &state2, 1);
-        assert_eq!(vec![1, 1, 1, 1, 1, 0, 0], evaluations);
+        let mut state = vec![step as u128, sponge[0], sponge[1], sponge[2], sponge[3]];
+
+        for i in 0..3 {
+            state.push(((flow_op as u128) >> i) & 1);
+        }
+
+        for i in 0..7 {
+            state.push(((UserOps::Noop as u128) >> i) & 1);
+        }
+
+        state.extend_from_slice(ctx_stack);
+        state.extend_from_slice(loop_stack);
+        state.push(101); // single value for user stack
+
+        return TraceState::from_vec(ctx_depth, loop_depth, 1, &state);
     }
 }
