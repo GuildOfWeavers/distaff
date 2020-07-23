@@ -23,7 +23,7 @@ pub use programs::{ Program, ProgramInputs, assembly, blocks };
 // EXECUTOR
 // ================================================================================================
 
-/// Executes the specified `program` and returns the result together with program hash
+/// TODO: Executes the specified `program` and returns the result together with program hash
 /// and STARK-based proof of execution.
 /// 
 /// * `inputs` specifies the initial stack state and provides secret input tapes;

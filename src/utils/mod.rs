@@ -1,4 +1,4 @@
-use std::{ mem, slice };
+use std::{ mem, slice, ops::Range };
 
 // RE-EXPORTS
 // ================================================================================================
@@ -38,6 +38,21 @@ pub fn as_bytes<T>(values: &[T]) -> &[u8] {
         slice::from_raw_parts(values.as_ptr() as *const u8, values.len() * value_size)
     };
     return result;
+}
+
+// RANGE
+// ================================================================================================
+pub trait RangeSlider {
+    fn slide(self, slide_by: usize) -> Self;
+}
+
+impl RangeSlider for Range<usize> {
+    fn slide(self, width: usize) -> Range<usize> {
+        return Range {
+            start   : self.end,
+            end     : self.end + width
+        };
+    }
 }
 
 // TESTS
