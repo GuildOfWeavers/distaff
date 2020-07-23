@@ -1,14 +1,11 @@
-use crate::{
-    math::field,
-    utils::sponge::{ add_constants, apply_sbox, apply_mds, apply_inv_sbox }
+use crate::{ utils::sponge };
+use super::{
+    ProgramBlock, OpCode, BASE_CYCLE_LENGTH, SPONGE_WIDTH as STATE_WIDTH, HACC_NUM_ROUNDS,
 };
-use super::{ ProgramBlock, OpCode, BASE_CYCLE_LENGTH, SPONGE_WIDTH as STATE_WIDTH };
 
 // CONSTANTS
 // ================================================================================================
-pub const ACC_NUM_ROUNDS: usize = 14;   // TODO: move to global constants
-pub const ACC_ROUND_OFFSET: usize = 1;  // TODO: move to global constants
-
+pub const HACC_ROUND_OFFSET: usize = 1;
 pub const NOOP_VALUE: u8 = OpCode::Noop as u8;
 
 // PUBLIC FUNCTIONS
@@ -63,29 +60,15 @@ pub fn hash_seq(blocks: &Vec<ProgramBlock>, suffix: &[u8], suffix_offset: usize)
 }
 
 /// Merges an operation with the state of the sponge.
-pub fn hash_op(state: &mut [u128; STATE_WIDTH], op_code: u8, op_value: u128, step: usize) {
-
-    let ark_idx = step % BASE_CYCLE_LENGTH;
-
-    // apply first half of Rescue round
-    add_constants(state, ark_idx, 0);
-    apply_sbox(state);
-    apply_mds(state);
-
-    // inject value into the state
-    state[0] = field::add(state[0], op_code as u128);
-    state[1] = field::add(state[1], op_value);
-
-    // apply second half of Rescue round
-    add_constants(state, ark_idx, STATE_WIDTH);
-    apply_inv_sbox(state);
-    apply_mds(state);
+pub fn hash_op(state: &mut [u128; STATE_WIDTH], op_code: u8, op_value: u128, step: usize)
+{
+    sponge::apply_round(state, op_code as u128, op_value, step);
 }
 
 /// Merges hash of a control block (v0, v1) into the hash of the parent block.
 pub fn hash_acc(parent_hash: u128, v0: u128, v1: u128) -> [u128; STATE_WIDTH] {
     let mut state = [parent_hash, v0, v1, 0];
-    for i in ACC_ROUND_OFFSET..(ACC_ROUND_OFFSET + ACC_NUM_ROUNDS) {
+    for i in HACC_ROUND_OFFSET..(HACC_ROUND_OFFSET + HACC_NUM_ROUNDS) {
         hash_op(&mut state, NOOP_VALUE, 0, i);
     }
     return state;

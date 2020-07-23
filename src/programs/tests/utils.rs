@@ -1,5 +1,7 @@
-use super::{ ProgramBlock, OpCode, Span, Loop };
-use super::super::hashing::{ hash_op, ACC_NUM_ROUNDS };
+use super::{
+    ProgramBlock, OpCode, Span, Loop,
+    super::{ HACC_NUM_ROUNDS, hashing::hash_op },
+};
 
 // PUBLIC FUNCTIONS
 // ================================================================================================
@@ -104,7 +106,7 @@ pub fn close_block(hash: &mut [u128; 4], parent_hash: u128, sibling_hash: u128, 
         hash[3] = 0;
     }
 
-    for _ in 0..ACC_NUM_ROUNDS {
+    for _ in 0..HACC_NUM_ROUNDS {
         hash_op(hash, OpCode::Noop as u8, 0, step);
         step += 1;
     }

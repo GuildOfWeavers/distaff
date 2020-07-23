@@ -1,7 +1,9 @@
-use crate::math::{ field };
-use crate::utils::{ hasher };
-use crate::{ HASH_STATE_WIDTH, MIN_STACK_DEPTH, MAX_STACK_DEPTH };
-use super::{ ProgramInputs, OpCode, OpHint }; // TODO
+use crate::{
+    math::field,
+    utils::hasher,
+    ProgramInputs, OpCode, OpHint,
+    HASH_STATE_WIDTH, MIN_STACK_DEPTH, MAX_STACK_DEPTH,
+};
 
 #[cfg(test)]
 mod tests;

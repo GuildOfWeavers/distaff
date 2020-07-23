@@ -2,7 +2,7 @@ use crate::{
     crypto::{ HashFunction, build_merkle_nodes },
     processor::{ OpCode, OpHint },
     utils::{ as_bytes },
-    SPONGE_WIDTH, PROGRAM_DIGEST_SIZE, BASE_CYCLE_LENGTH,
+    SPONGE_WIDTH, PROGRAM_DIGEST_SIZE, BASE_CYCLE_LENGTH, HACC_NUM_ROUNDS,
 };
 
 pub mod assembly;

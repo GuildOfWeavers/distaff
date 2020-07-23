@@ -1,6 +1,6 @@
 use crate::{
     math::field,
-    utils::sponge::{ add_constants, apply_sbox, apply_mds, apply_inv_sbox },
+    utils::sponge,
     MAX_CONTEXT_DEPTH, MAX_LOOP_DEPTH,
     NUM_CF_OP_BITS, NUM_LD_OP_BITS, NUM_HD_OP_BITS,
     SPONGE_WIDTH, BASE_CYCLE_LENGTH, PUSH_OP_ALIGNMENT,
@@ -445,21 +445,8 @@ impl Decoder {
     /// into `sponge_trace` registers.
     fn apply_hacc_round(&mut self, op_code: UserOps, op_value: u128) {
 
-        let ark_idx = (self.step - 1) % BASE_CYCLE_LENGTH;
-        
-        // apply first half of Rescue round
-        add_constants(&mut self.sponge, ark_idx, 0);
-        apply_sbox(&mut self.sponge);
-        apply_mds(&mut self.sponge);
-    
-        // inject value into the state
-        self.sponge[0] = field::add(self.sponge[0], op_code as u128);
-        self.sponge[1] = field::add(self.sponge[1], op_value);
-    
-        // apply second half of Rescue round
-        add_constants(&mut self.sponge, ark_idx, SPONGE_WIDTH);
-        apply_inv_sbox(&mut self.sponge);
-        apply_mds(&mut self.sponge);
+        // apply single round of sponge function
+        sponge::apply_round(&mut self.sponge, op_code as u128, op_value, self.step - 1);
 
         // copy the new sponge state into the sponge_trace registers
         for i in 0..SPONGE_WIDTH {

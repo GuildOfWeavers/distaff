@@ -20,7 +20,7 @@ pub fn apply_round(state: &mut [u128], op_code: u128, op_value: u128, step: usiz
     apply_mds(state);
 
     // inject value into the state
-    state[0] = field::add(state[0], op_code as u128);
+    state[0] = field::add(state[0], op_code);
     state[1] = field::add(state[1], op_value);
 
     // apply second half of Rescue round
