@@ -49,6 +49,11 @@ const CYCLE_MASK_IDX : usize = 0;
 const PREFIX_MASK_IDX: usize = 1;
 const PUSH_MASK_IDX  : usize = 2;
 
+pub const NUM_STATIC_DECODER_CONSTRAINTS: usize =
+    NUM_OP_CONSTRAINTS
+    + NUM_SPONGE_CONSTRAINTS
+    + 1;    // for loop image constraint
+
 // TYPES AND INTERFACES
 // ================================================================================================
 pub struct Decoder {

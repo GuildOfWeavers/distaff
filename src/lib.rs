@@ -140,5 +140,5 @@ const HD_OP_BITS_RANGE      : Range<usize> = Range { start: 13, end: 15 };
 // ├─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┴─────┤
 
 pub const MAX_PUBLIC_INPUTS : usize = 8;
-pub const MAX_OUTPUTS       : usize = 8;
+pub const MAX_OUTPUTS       : usize = MAX_PUBLIC_INPUTS;
 pub const MAX_STACK_DEPTH   : usize = 32;

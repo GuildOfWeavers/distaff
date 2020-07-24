@@ -36,7 +36,7 @@ use hash::{ enforce_rescr };
 
 // CONSTANTS
 // ================================================================================================
-const NUM_AUX_CONSTRAINTS: usize = 2;
+pub const NUM_AUX_CONSTRAINTS: usize = 2;
 const AUX_CONSTRAINT_DEGREES: [usize; NUM_AUX_CONSTRAINTS] = [7, 7];
 const STACK_TRANSITION_DEGREE: usize = 7; // degree for all stack register transition constraints
 

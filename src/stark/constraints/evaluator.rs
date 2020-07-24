@@ -4,7 +4,7 @@ use crate::{
     stark::{ StarkProof, TraceTable, TraceState, ConstraintCoefficients },
     PROGRAM_DIGEST_SIZE,
 };
-use super::{ decoder::Decoder, stack::Stack, MAX_CONSTRAINT_DEGREE };
+use super::{ decoder::Decoder, stack::Stack, super::MAX_CONSTRAINT_DEGREE };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -35,13 +35,14 @@ impl Evaluator {
     pub fn from_trace(trace: &TraceTable, trace_root: &[u8; 32], inputs: &[u128], outputs: &[u128]) -> Evaluator
     {
         let last_state = trace.get_last_state();
-
+        let ctx_depth = trace.ctx_depth();
+        let loop_depth = trace.loop_depth();
         let stack_depth = trace.stack_depth();
         let trace_length = trace.unextended_length();
         let extension_factor = MAX_CONSTRAINT_DEGREE;
 
         // instantiate decoder and stack constraint evaluators 
-        let decoder = Decoder::new(trace_length, extension_factor, trace.ctx_depth(), trace.loop_depth());
+        let decoder = Decoder::new(trace_length, extension_factor, ctx_depth, loop_depth);
         let stack = Stack::new(trace_length, extension_factor, stack_depth);
 
         // build a list of transition constraint degrees
@@ -62,7 +63,7 @@ impl Evaluator {
         return Evaluator {
             decoder         : decoder,
             stack           : stack,
-            coefficients    : ConstraintCoefficients::new(*trace_root),
+            coefficients    : ConstraintCoefficients::new(*trace_root, ctx_depth, loop_depth, stack_depth),
             domain_size     : domain_size,
             extension_factor: extension_factor,
             t_constraint_num: t_constraint_degrees.len(),
@@ -79,12 +80,14 @@ impl Evaluator {
 
     pub fn from_proof(proof: &StarkProof, program_hash: &[u8; 32], inputs: &[u128], outputs: &[u128]) -> Evaluator
     {
+        let ctx_depth = proof.ctx_depth();
+        let loop_depth = proof.loop_depth();
         let stack_depth = proof.stack_depth();
         let trace_length = proof.trace_length();
         let extension_factor = proof.options().extension_factor();
         
         // instantiate decoder and stack constraint evaluators 
-        let decoder = Decoder::new(trace_length, extension_factor, proof.ctx_depth(), proof.loop_depth());
+        let decoder = Decoder::new(trace_length, extension_factor, ctx_depth, loop_depth);
         let stack = Stack::new(trace_length, extension_factor, stack_depth);
 
         // build a list of transition constraint degrees
@@ -95,7 +98,7 @@ impl Evaluator {
         return Evaluator {
             decoder         : decoder,
             stack           : stack,
-            coefficients    : ConstraintCoefficients::new(*proof.trace_root()),
+            coefficients    : ConstraintCoefficients::new(*proof.trace_root(), ctx_depth, loop_depth, stack_depth),
             domain_size     : proof.domain_size(),
             extension_factor: extension_factor,
             t_constraint_num: t_constraint_degrees.len(),
@@ -330,7 +333,7 @@ impl Evaluator {
     }
 
     fn combine_transition_constraints(&self, evaluations: &Vec<u128>, x: u128) -> u128 {
-        let cc = self.coefficients.transition;
+        let cc = &self.coefficients.transition;
         let mut result = field::ZERO;
 
         let mut i = 0;

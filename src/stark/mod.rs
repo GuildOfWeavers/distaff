@@ -12,9 +12,7 @@ pub use trace::{ TraceTable, TraceState };
 pub use constraints::{
     ConstraintEvaluator,
     ConstraintTable,
-    ConstraintPoly,
-    MAX_CONSTRAINT_DEGREE,
-    MAX_TRANSITION_CONSTRAINTS };
+    ConstraintPoly };
 
 pub use utils::{
     ConstraintCoefficients,
@@ -24,3 +22,5 @@ pub use options::ProofOptions;
 pub use proof::{ StarkProof, DeepValues };
 pub use prover::{ prove };
 pub use verifier::{ verify };
+
+const MAX_CONSTRAINT_DEGREE : usize = 8;

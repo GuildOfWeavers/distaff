@@ -1,10 +1,15 @@
 use std::time::Instant;
 use log::debug;
-use crate::math::{ field, polynom, fft };
-use crate::crypto::{ MerkleTree };
-use super::trace::{ TraceTable, TraceState };
-use super::constraints::{ ConstraintTable, ConstraintPoly, MAX_CONSTRAINT_DEGREE };
-use super::{ ProofOptions, StarkProof, CompositionCoefficients, DeepValues, fri, utils };
+use crate::{
+    math::{ field, polynom, fft },
+    crypto::MerkleTree,
+};
+use super::{
+    ProofOptions, StarkProof, CompositionCoefficients, DeepValues, fri, utils,
+    trace::{ TraceTable, TraceState },
+    constraints::{ ConstraintTable, ConstraintPoly },
+    MAX_CONSTRAINT_DEGREE,
+};
 
 // PROVER FUNCTION
 // ================================================================================================
