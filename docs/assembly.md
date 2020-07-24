@@ -1,15 +1,15 @@
 # Distaff assembly
-Distaff assembly is a simple, low-level language for writing programs for Distaff VM. It stands just above raw Distaff VM [instructions](isa.md), and in fact, many instructions in Distaff assembly map directly to instruction of Distaff VM. However, Distaff assembly has several advantages:
+Distaff assembly is a simple, low-level language for writing programs for Distaff VM. It stands just above raw Distaff VM [instructions](isa.md), and in fact, many instructions in Distaff assembly map directly to raw instruction of Distaff VM. However, Distaff assembly has several advantages:
 
 * Distaff assembly supports *macro instructions*. These instructions expand into sequences of raw Distaff VM instructions making it easier to encode common tasks.
 * Distaff assembler takes care of properly aligning and padding all instructions reducing the amount of mental bookkeeping needed for writing programs.
-* Distaff assembly natively supports flow control expression which the assembler automatically transforms into program execution graphs needed by Distaff VM.
+* Distaff assembly natively supports control flow expression which the assembler automatically transforms into a program execution graph needed by Distaff VM.
 
 ### Compiling assembly code
 To compile Distaff assembly source code into a program for Distaff VM, you can use the `compile()` function from the [assembly](https://github.com/GuildOfWeavers/distaff/blob/master/src/programs/assembly/mod.rs) module. This function takes the following parameters:
 
 * `source: &str` - a reference to a string containing Distaff assembly source code.
-* `hash_fn: HashFunction` - a hash function to be used for building a Merkle tree of program execution paths.
+* `hash_fn: HashFunction` - a hash function to be used for building a Merkle tree of program procedures.
 
 The `compile()` function returns `Result<Program, AssemblyError>` which will contain the compiled program if the compilation was successful, or if the source code contained errors, description of the first encountered error.
 
@@ -18,68 +18,125 @@ For example:
 use distaff::{ assembly, crypto::hash::blake3 };
 
 // the program pushes values 3 and 5 onto the stack and adds them
-let program = assembly::compile("push.3 push.5 add", blake3).unwrap();
+let program = assembly::compile("begin push.3 push.5 add end", blake3).unwrap();
 ```
 
 ## Assembly programs
-A Distaff assembly program is just a sequence of instructions each describing a specific operation. You can use any combination of whitespace characters to separate one instruction from another.
+A Distaff assembly program consists of one or more procedures. Each procedure starts with a `begin` keyword and terminates with an `end` keyword. Procedures consists of one or more program blocks. A program block can be just a linear sequence of instructions (i.e. an instruction block), or it can be a control structure which defines control flow for the procedure. For example:
 
-All currently available instructions are described below. Many instructions can be parametrized with a single parameter. The notation for specifying parameters is *operation.parameter*. For example, `push.123` describes a `push` operation which is parametrized with value `123`.
+```
+begin
+    push.1 push.2 add
+end
 
-For most instructions which support parameters, the default parameter is set to `1`. For example, `dup` is equivalent to `dup.1`, `choose` is equivalent to `choose.1` and so on.
+begin
+    push.2 push.3 mul
+end
+```
+The code above defines a program with two procedures. The first procedure pushes two numbers onto the stack and adds them. The second procedure pushes two numbers onto the stack and multiplies them. Both procedures contain a single instruction block with 3 instructions.
 
-A single instruction may take multiple VM cycles to execute. The number of cycles frequently depends on the specified parameter, and sometimes depends on other factors (e.g. place of the operation in the execution path). The tables below include this number of cycles in the last column.
+In addition to simple instruction blocks, Distaff VM supports the following control structures:
 
-### Flow control instructions
+* *if-then-(else)* expressions for conditional execution;
+* *repeat* expressions for bounded counter-controlled loops;
+* *while* expressions for unbounded condition-controlled loops.
 
-| Operation | Description                            | Cycles |
-| --------- | -------------------------------------- | :----: |
-| noop      | Does nothing.                          | 1      |
-| assert    | Pops the top item from the stack and checks if it is equal to `1`. If it is not equal to `1`, the operation will fail. | 1 |
-| assert.eq | Pops top two items from the stack and checks if they are equal. If they are not equal, the operation will fail. | 1 |
-| if.true   | Marks the beginning of the *true* branch in the `if.true else endif` expression. If the value at the top of the stack is `1`, the *true* branch is executed. | 1 |
-| else      | Marks the beginning of the *false* branch in the `if.true else endif` expression. If the value at the top of the stack is `0`, the *false* branch is executed. | 2 |
-| endif     | Marks the end of the `if.true else endif` expression.  | 0 |
+Each of these is described below.
 
-#### If.true else endif expression
-One of the ways to describe conditional execution in Distaff assembly is the `if.true else endif` expression. It can be used like so:
+### Conditional execution
+Conditional execution in Distaff VM can be accomplished with *if-then-(else)* statements. These statements look like so:
 ```
 if.true
     <instructions>
 else
     <instructions>
-endif
+end
 ```
-where `instructions` can be a sequence of any instructions, including nested `if.true else endif` expressions. The above does the following:
+where `instructions` can be a sequence of any instructions, including nested control structures; the `else` clause is optional. The above does the following:
 
 1. Pops the top item from the stack.
-2. If the value of the item is `1`, instructions following `if.true` instruction are executed.
-3. If the value of the item is `0`, instructions following `else` instruction are executed.
+2. If the value of the item is `1`, instructions in the `if.true` branch executed.
+3. If the value of the item is `0`, instructions in the `else` branch are executed.
+4. If the value is not binary (i.e. not `0` or `1`), the operation fails.
 
-A few important notes about the semantics of this operation:
-* If the value at the top of the stack is not binary (i.e. not `0` or `1`), the operation will fail.
-* Both branches of the expression must be specified, and there must be at least one instruction in each branch (even if just a `noop`).
-* The assembler creates a separate execution path for each of the branches.
+A couple of notes on performance:
 
-The last point means that instructions in the not taken branch are never executed. This is very efficient to execute, but in the current implementation, this results in doubling of possible execution paths for every `if.true else endif` expression. For example, having 10 `if.true else endif` expressions in your program will result in about 1000 possible execution paths.
+* Number of instructions in each of the branches must be one less than a multiple of 16 (e.g. 15, 31, 47 etc.). If there not enough instructions, the assembler will pad the instructions with the appropriate number of `noop`'s. So, you don't need to worry about inserting `noop`'s manually. But, for simple *if-then-(else)* statements, it might be more efficient to use [selection instructions](#Selection-instructions) instead.
+* For every level of nesting, the VM must allocate an additional register. To limit potential impact of this on performance, currently, *if-then-(else)* can be nested at most 16 levels deep. This should be sufficient for most use case, and if there is a need, will be increased in the future.
 
-The more possible execution paths there are, the longer a program will take to compile, and the more resources it will occupy in memory. Going over 20K - 30K possible execution paths, is probably not going to be practical. One way to get around this is by using [selection instructions](#Selection-instructions) instead of `if.true else endif` expressions, but this has performance implications of its own. In the future, a more performant implementation of `if.true else endif` expression will be provided.
+The above affects only nested *if-then-(else)* statements. So, when one *if-then-(else)* statement follows another, the VM does no need to allocate any additional registers.
+
+### Counter-controlled loops
+Executing a sequence of instructions a predefined number of times can be accomplished with *repeat* statements. These statements look like so:
+```
+repeat.<count>
+    <instructions>
+end
+```
+where:
+
+* `instructions` can be a sequence of any instructions, including nested control structures.
+* `count` is the number of times the `instructions` sequence should be repeated (e.g. `count.10`). `count` must be an integer greater than 1.
+
+The assembler actually unfolds the body of the loop at compile time into repeated sequences of instructions. So, a *repeat* statement is just syntactic sugar.
+
+A note on performance:
+
+* Number of instructions in the body of the loop must be one less than a multiple of 16 (e.g. 15, 31, 47 etc.). As with *if-then-(else)* statements, the assembler will take care of all required padding, but if the loop is simple and/or repeated a small number of times, it might be more efficient to write out the repeated instructions manually.
+
+### Condition-controlled loops
+Executing a sequence of instructions zero or more times based on some condition can be accomplished with *while loop* expressions. These expressions look like so:
+```
+while.true
+    <instructions>
+end
+```
+where `instructions` can be a sequence of any instructions, including nested control structures. The above does the following:
+
+1. Pops the top item from the stack.
+2. If the value of the item is `1`, `instructions` in the loop body are executed.
+    1. After the body is executed, the stack is popped again, and if the popped value is `1`, the body is executed again.
+    2. If the popped value is `0`, the loop is exited.
+    3. If the popped value is not binary (i.e. not `0` or `1`), the operation fails.
+3. If the value of the item is `0`, execution of loop body is skipped.
+4. If the value is not binary (i.e. not `0` or `1`), the operation fails.
+
+A note on performance:
+
+* For every nested loop, the VM must allocate 2 additional registers. To limit potential impact of this on performance, currently, loops can be nested at most 8 levels deep. This should be sufficient for most use case, and if there is a need, will be increased in the future. 
+
+The above affects only nested loops. So, when one loop follows another, the VM does no need to allocate any additional registers.
+
+## Instruction set
+Instructions in Distaff VM are just keywords separated from each other by any combination of whitespace characters. Many instructions can be parametrized with a single parameter. The notation for specifying parameters is *operation.parameter*. For example, `push.123` describes a `push` operation which is parametrized with value `123`.
+
+For most instructions which support parameters, the default parameter is set to `1`. For example, `dup` is equivalent to `dup.1`, `choose` is equivalent to `choose.1` and so on.
+
+A single instruction may take multiple VM cycles to execute. The number of cycles frequently depends on the specified parameter, and sometimes depends on other factors (e.g. place of the operation in the execution path). The tables below include this number of cycles in the last column.
+
+### Assertion instructions
+
+| Operation | Description                            | Cycles |
+| --------- | -------------------------------------- | :----: |
+| assert    | Pops the top item from the stack and checks if it is equal to `1`. If it is not equal to `1`, the operation fails. | 1 |
+| assert.eq | Pops top two items from the stack and checks if they are equal. If they are not equal, the operation fails. | 1 |
 
 ### Input instructions
 
 | Operation | Description                            | Cycles |
 | --------- | -------------------------------------- | :----: |
-| push.*x*  | Pushes *x* onto the stack. *x* can be any valid field element. | 2 |
+| push.*x*  | Pushes *x* onto the stack. *x* can be any valid field element. *push* operations can be executed only on steps which are multiples of 8 (e.g. 0, 8, 16 etc.). If a *push* operation in your program does not align with this, the assembler will pad it with the appropriate number of `noop`'s. | 1 - 7 |
 | read.a    | Pushes the next value from the input tape `A` onto the stack. | 1 |
 | read.ab   | Pushes the next values from input tapes `A` and `B` onto the stack. Value from input tape `A` is pushed first, followed by the value from input tape `B`. | 1 |
 
 #### Input tapes
-Distaff VM has two input tapes for supplying secret inputs to a program: tape `A` and tape `B`. You can use `read.a` and `read.ab` instructions to move value from these tapes onto the stack. When a value is read from a tape, tape pointer advances to the next value. This means, that a value can be read from a tape only once. If you try to read values from a tape which has no more values, the operation will fail.
+Distaff VM has two input tapes for supplying secret inputs to a program: tape `A` and tape `B`. You can use `read.a` and `read.ab` instructions to move value from these tapes onto the stack. When a value is read from a tape, tape pointer advances to the next value. This means, that a value can be read from a tape only once. If you try to read values from a tape which has no more values, the operation fails.
 
 ### Stack manipulation instructions
 
 | Operation | Description                            | Cycles |
 | --------- | -------------------------------------- | :----: |
+| noop      | Does nothing.                          | 1      |
 | dup.*n*   | Pushes copies of the top *n* stack items onto the stack. *n* can be any integer between 1 and 4. | 1 - 3 |
 | pad.*n*   | Pushes *n* `0`'s onto the stack; *n* can be any integer between 1 and 8. | 1 - 4 |
 | pick.*n*  | Pushes a copy of the item with index *n* onto the stack. For example, assuming `S0` is the top of the stack, executing `pick.2` transforms `S0 S1 S2 S3` into `S2 S0 S1 S2 S3`. *n* can be any integer between 1 and 3. | 2 - 5 |
@@ -97,12 +154,12 @@ Distaff VM has two input tapes for supplying secret inputs to a program: tape `A
 | add       | Pops top two items from the stack, adds them, and pushes the result onto the stack. | 1 |
 | sub       | Pops top two items from the stack, subtracts the 1st item from the 2nd item, and pushes the result onto the stack.  | 2 |
 | mul       | Pops top two items from the stack, multiplies them, and pushes the result onto the stack. | 1 |
-| div       | Pops top two items from the stack, divides the 2nd item by the 1st item, and pushes the result onto the stack. If the item at the top of the stack is `0`, this operation will fail. | 2 |
+| div       | Pops top two items from the stack, divides the 2nd item by the 1st item, and pushes the result onto the stack. If the item at the top of the stack is `0`, this operation fails. | 2 |
 | neg       | Pops the top item from the stack, computes its additive inverse, and pushes the result onto the stack. | 1      |
-| inv       | Pops the top item from the stack, computes its multiplicative inverse, and pushes the result onto the stack. If the value at the top of the stack is `0`, this operation will fail. | 1 |
-| not       | Pops the top item from the stack, subtracts it from value `1` and pushes the result onto the stack. In other words, `0` becomes `1`, and `1` becomes `0`. If the item at the top of the stack is not binary (i.e. not `0` or `1`), this operation will fail. | 1 |
-| and       | Pops top two items from the stack, computes an equivalent of their boolean `AND` (which, for binary values, is just multiplication), and pushes the result onto the stack. If either of the values is not binary, the operation will fail. | 1 |
-| or        | Pops top two items from the stack, computes an equivalent of their boolean `OR`, and pushes the result onto the stack. If either of the values is not binary, the operation will fail. | 1 |
+| inv       | Pops the top item from the stack, computes its multiplicative inverse, and pushes the result onto the stack. If the value at the top of the stack is `0`, this operation fails. | 1 |
+| not       | Pops the top item from the stack, subtracts it from value `1` and pushes the result onto the stack. In other words, `0` becomes `1`, and `1` becomes `0`. If the item at the top of the stack is not binary (i.e. not `0` or `1`), this operation fails. | 1 |
+| and       | Pops top two items from the stack, computes an equivalent of their boolean `AND` (which, for binary values, is just multiplication), and pushes the result onto the stack. If either of the values is not binary, the operation fails. | 1 |
+| or        | Pops top two items from the stack, computes an equivalent of their boolean `OR`, and pushes the result onto the stack. If either of the values is not binary, the operation fails. | 1 |
 
 #### Finite field arithmetic
 All arithmetic operations in Distaff VM happen in a [prime field](https://en.wikipedia.org/wiki/Finite_field) with modulus `340282366920938463463374557953744961537` (which can also be written as 2<sup>128</sup> - 45 * 2<sup>40</sup> + 1). This means that overflow happens after a value exceeds field modulus. So, for example: `340282366920938463463374557953744961536 + 1 = 0`.
@@ -114,34 +171,32 @@ Divisions in prime fields are defined as inverse of multiplication. Specifically
 | Operation | Description                            | Cycles |
 | --------- | -------------------------------------- | :----: |
 | eq        | Pops top two items from the stack, compares them, and if their values are equal, pushes `1` onto the stack; otherwise pushes `0` onto the stack. | 2 |
-| gt.*n*    | Pops top two items from the stack, compares them, and if the 1st value is greater than the 2nd value, pushes `1` onto the stack; otherwise pushes `0` onto the stack. If either of the values is greater than 2<sup>*n*</sup>, the operation will fail. *n* can be any integer between 4 and 128. | *n + 15* |
-| lt.*n*    | Pops top two items from the stack, compares them, and if the 1st value is less than the 2nd value, pushes `1` onto the stack; otherwise pushes `0` onto the stack. If either of the values is greater than 2<sup>*n*</sup>, the operation will fail. *n* can be any integer between 4 and 128. | *n + 14* |
-| rc.*n*    | Pops the top item from the stack, checks if it is less than 2<sup>*n*</sup>, and if it is, pushes `1` onto the stack; otherwise pushes `0` onto the stack. *n* can be any integer between 4 and 128.| *n + 7* |
-| isodd.*n* | Pops the top item from the stack, and if its value is odd, pushes `1` onto the stack; otherwise pushes `0` onto the stack. If the value is greater than 2<sup>*n*</sup>, the operation will fail. *n* can be any integer between 4 and 128. | *n + 6* |
+| ne        | Pops top two items from the stack, compares them, and if their values are not equal, pushes `1` onto the stack; otherwise pushes `0` onto the stack. | 3 |
+| gt.*n*    | Pops top two items from the stack, compares them, and if the 1st value is greater than the 2nd value, pushes `1` onto the stack; otherwise pushes `0` onto the stack. If either of the values is greater than 2<sup>*n*</sup>, the operation fails. *n* can be any integer between 4 and 128. | *n + 14* |
+| lt.*n*    | Pops top two items from the stack, compares them, and if the 1st value is less than the 2nd value, pushes `1` onto the stack; otherwise pushes `0` onto the stack. If either of the values is greater than 2<sup>*n*</sup>, the operation fails. *n* can be any integer between 4 and 128. | *n + 13* |
+| rc.*n*    | Pops the top item from the stack, checks if it is less than 2<sup>*n*</sup>, and if it is, pushes `1` onto the stack; otherwise pushes `0` onto the stack. *n* can be any integer between 4 and 128.| *n + 6* |
+| isodd.*n* | Pops the top item from the stack, and if its value is odd, pushes `1` onto the stack; otherwise pushes `0` onto the stack. If the value is greater than 2<sup>*n*</sup>, the operation fails. *n* can be any integer between 4 and 128. | *n + 5* |
 
 ### Selection instructions
 
 | Operation | Description                            | Cycles |
 | --------- | -------------------------------------- | :----: |
-| choose.1  | Pops top 3 items from the stack, and pushes either the 1st or the 2nd value back onto the stack depending on whether the 3rd value is `1` or `0`. For example, assuming `S0` is the top of the stack, `S0 S1 1` becomes `S0`, while `S0 S1 0` becomes `S1`. This operation will fail if the 3rd stack item is not a binary value. | 1 |
-| choose.2  | Pops top 6 items from the stack, and pushes either the 1st or the 2nd pair of values back onto the stack depending on whether the 5th value is `1` or `0`. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3 1 S5` becomes `S0 S1`, while `S0 S1 S2 S3 0 S5` becomes `S2 S3` (notice that `S5` is discarded in both cases). This operation will fail if the 5th stack item is not a binary value. | 1 |
+| choose.1  | Pops top 3 items from the stack, and pushes either the 1st or the 2nd value back onto the stack depending on whether the 3rd value is `1` or `0`. For example, assuming `S0` is the top of the stack, `S0 S1 1` becomes `S0`, while `S0 S1 0` becomes `S1`. This operation fails if the 3rd stack item is not a binary value. | 1 |
+| choose.2  | Pops top 6 items from the stack, and pushes either the 1st or the 2nd pair of values back onto the stack depending on whether the 5th value is `1` or `0`. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3 1 S5` becomes `S0 S1`, while `S0 S1 S2 S3 0 S5` becomes `S2 S3` (notice that `S5` is discarded in both cases). This operation fails if the 5th stack item is not a binary value. | 1 |
 
-#### Conditional execution
-Selection instructions can be used to simulate conditional execution. This, in turn, can be used to eliminate simple `if.true else endif` expressions. For example, if we have a program with conditional branches which looks like so:
+Selection instructions can be used to simulate conditional execution. This, in turn, can be used to eliminate simple *if-then-(else)* expressions. For example, if we have a program with conditional branches which looks like so:
 ```
 if.true
     <instructions>
 else
     <instructions>
-endif
+end
 ```
 We can transform it into a linear program using selection instructions like so:
 
 1. First, execute instructions in the `if.true` branch and leave the result on the stack.
 2. Then, execute instructions in the `else` branch and leave the result on the stack.
 3. Finally, use `choose` or `choose.2` instruction to select between the two results based on the desired condition.
-
-For simple programs, such transformation would not be difficult, but for complex programs with deeply nested conditional logic, this will be far from trivial. Moreover, this approach suffers from the fact that both branches of the program need to be executed, and this reduces efficiency. Nevertheless, for simple conditional expressions this approach may be preferred over `if.true else endif` expressions because it does not increase the number of possible program execution paths.
 
 ### Cryptographic instructions
 
