@@ -1,7 +1,7 @@
 # Distaff assembly
 Distaff assembly is a simple, low-level language for writing programs for Distaff VM. It stands just above raw Distaff VM [instructions](isa.md), and in fact, many instructions in Distaff assembly map directly to raw instruction of Distaff VM. However, Distaff assembly has several advantages:
 
-* Distaff assembly supports *macro instructions*. These instructions expand into sequences of raw Distaff VM instructions making it easier to encode common tasks.
+* Distaff assembly supports *macro instructions*. These instructions expand into sequences of raw Distaff VM instructions making it easier to encode common operations.
 * Distaff assembler takes care of properly aligning and padding all instructions reducing the amount of mental bookkeeping needed for writing programs.
 * Distaff assembly natively supports control flow expression which the assembler automatically transforms into a program execution graph needed by Distaff VM.
 
@@ -9,33 +9,21 @@ Distaff assembly is a simple, low-level language for writing programs for Distaf
 To compile Distaff assembly source code into a program for Distaff VM, you can use the `compile()` function from the [assembly](https://github.com/GuildOfWeavers/distaff/blob/master/src/programs/assembly/mod.rs) module. This function takes the following parameters:
 
 * `source: &str` - a reference to a string containing Distaff assembly source code.
-* `hash_fn: HashFunction` - a hash function to be used for building a Merkle tree of program procedures.
 
 The `compile()` function returns `Result<Program, AssemblyError>` which will contain the compiled program if the compilation was successful, or if the source code contained errors, description of the first encountered error.
 
 For example:
 ```Rust
-use distaff::{ assembly, crypto::hash::blake3 };
+use distaff::{ assembly };
 
 // the program pushes values 3 and 5 onto the stack and adds them
-let program = assembly::compile("begin push.3 push.5 add end", blake3).unwrap();
+let program = assembly::compile("begin push.3 push.5 add end").unwrap();
 ```
 
 ## Assembly programs
-A Distaff assembly program consists of one or more procedures. Each procedure starts with a `begin` keyword and terminates with an `end` keyword. Procedures consists of one or more program blocks. A program block can be just a linear sequence of instructions (i.e. an instruction block), or it can be a control structure which defines control flow for the procedure. For example:
+A Distaff assembly program is just a sequence of instructions each describing a specific operation. You can use any combination of whitespace characters to separate one instruction from another. Every program must start with a `begin` instruction and terminate with an `end` instruction.
 
-```
-begin
-    push.1 push.2 add
-end
-
-begin
-    push.2 push.3 mul
-end
-```
-The code above defines a program with two procedures. The first procedure pushes two numbers onto the stack and adds them. The second procedure pushes two numbers onto the stack and multiplies them. Both procedures contain a single instruction block with 3 instructions.
-
-In addition to simple instruction blocks, Distaff VM supports the following control structures:
+In addition to simple instructions sequences, Distaff VM supports the following control structures:
 
 * *if-then-(else)* expressions for conditional execution;
 * *repeat* expressions for bounded counter-controlled loops;

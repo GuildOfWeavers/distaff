@@ -2,7 +2,7 @@
 Distaff is a zero-knowledge virtual machine written in Rust. For any program executed on Distaff VM, a STARK-based proof of execution is automatically generated. This proof can then be used by anyone to verify that a program was executed correctly without the need for re-executing the program or even knowing what the program was.
 
 ### Status
-**DO NOT USE IN PRODUCTION.** Distaff is in an early alpha. This means that current functionality is incomplete, and there are known and unknown bugs and security flaws.
+**DO NOT USE IN PRODUCTION.** Distaff is in an alpha stage. This means that current functionality is incomplete, and there are known and unknown bugs and security flaws.
 
 ## Usage
 Distaff crate exposes `execute()` and `verify()` functions which can be used to execute programs and verify their execution. Both are explained below, but you can also take a look at several working examples [here](https://github.com/GuildOfWeavers/distaff/blob/master/src/main.rs).
@@ -43,20 +43,15 @@ Here is a simple example of executing a program which pushes two numbers onto th
 ```Rust
 use distaff::{ self, ProofOptions, ProgramInputs, assembly };
 
-// we'll be using default options
-let options = ProofOptions::default();
-
 // this is our program, we compile it from assembly code
-let program = assembly::compile(
-    "push.3 push.5 add",
-    options.hash_fn()).unwrap();
+let program = assembly::compile("begin push.3 push.5 add end").unwrap();
 
 // let's execute it
 let (outputs, proof) = distaff::execute(
         &program,
-        &ProgramInputs::none(), // we won't provide any inputs
-        1,                      // we'll return a single item from the stack
-        &options);
+        &ProgramInputs::none(),     // we won't provide any inputs
+        1,                          // we'll return one item from the stack
+        &ProofOptions::default());  // we'll be using default options
 
 // the output should be 8
 assert_eq!(vec![8], outputs);
@@ -123,11 +118,13 @@ let options = ProofOptions::default();
 let n = 50;
 
 // build the program
-let mut source = String::new();
-for _ in 0..(n - 1) {
-    source.push_str("swap dup.2 drop add ");
-}
-let program = assembly::compile(&source, options.hash_fn()).unwrap();
+let mut source = format!("
+    begin 
+        repeat.{}
+            swap dup.2 drop add
+        end
+    end", n - 1);
+let program = assembly::compile(&source).unwrap();
 
 // initialize the stack with values 0 and 1
 let inputs = ProgramInputs::from_public(&[1, 0]);
@@ -147,21 +144,21 @@ Above, we used public inputs to initialize the stack rather than using `push` op
 This program is rather efficient: the stack never gets more than 4 items deep.
 
 ## Performance
-Here are some very informal benchmarks of running the Fibonacci calculator on Intel Core i5-7300U @ 2.60GHz (single thread) for a given number of operations (remember, it takes 3 operations to compute a single Fibonacci term):
+Here are some very informal benchmarks of running the Fibonacci calculator on Intel Core i5-7300U @ 2.60GHz (single thread) for a given number of operations:
 
 | Operation Count | Execution time | Execution RAM  | Verification time | Proof size |
 | --------------- | :------------: | :------------: | :---------------: | :--------: |
-| 2<sup>8</sup>   | 180 ms         | negligible     | 2 ms              | 57 KB      |
-| 2<sup>10</sup>  | 300 ms         | negligible     | 2 ms              | 78 KB      |
-| 2<sup>12</sup>  | 900 ms         | < 100 MB       | 2 ms              | 101 KB     |
-| 2<sup>14</sup>  | 3.5 sec        | ~ 350 MB       | 3 ms              | 124 KB     |
-| 2<sup>16</sup>  | 14.4 sec       | 1.4 GB         | 3 ms              | 156 KB     |
-| 2<sup>18</sup>  | 1 min          | 5.2 GB         | 3 ms              | 188 KB     |
-| 2<sup>20</sup>  | 15 min         | > 5.6 GB       | 4 ms              | 225 KB     |
+| 2<sup>8</sup>   | 190 ms         | negligible     | 2 ms              | 62 KB      |
+| 2<sup>10</sup>  | 350 ms         | negligible     | 2 ms              | 80 KB      |
+| 2<sup>12</sup>  | 1 sec          | < 100 MB       | 2 ms              | 104 KB     |
+| 2<sup>14</sup>  | 4.5 sec        | ~ 250 MB       | 3 ms              | 132 KB     |
+| 2<sup>16</sup>  | 18 sec         | 1.1 GB         | 3 ms              | 161 KB     |
+| 2<sup>18</sup>  | 1.3 min        | 5.5 GB         | 3 ms              | 193 KB     |
+| 2<sup>20</sup>  | 18 min         | > 5.6 GB       | 4 ms              | 230 KB     |
 
 A few notes about the results:
 1. Execution time is dominated by the proof generation time. In fact, the time needed to run the program is only about 0.05% of the time needed to generate the proof.
-2. For 2<sup>20</sup> case, RAM on my machine maxed out at 5.6 GB, but for efficient execution ~16 GB would be needed. This probably explains why proving time is so poor in this case as compared to other cases. If there was sufficient RAM available, execution time would have likely been around 4 mins.
+2. For 2<sup>20</sup> case, RAM on my machine maxed out at 5.6 GB, but for efficient execution ~20 GB would be needed. This probably explains why proving time is so poor in this case as compared to other cases. If there was sufficient RAM available, execution time would have likely been around 5 mins.
 3. The benchmarks use default proof options which target 120-bit security level. The security level can be increased by either increasing execution time or proof size. In general, there is a trade-off between proof time and proof size (i.e. for a given security level, you can reduce proof size by increasing execution time, up to a point).
 
 ## References

@@ -11,7 +11,7 @@ All arithmetic operations (addition, multiplication) also happen in the same pri
 Besides being field elements, values in Distaff VM are untyped. However, some operations expect binary values and will fail if you attempt to execute them using non-binary values. Binary values are values which are either `0` or `1`.
 
 ### Programs
-Programs in Distaff VM are represented by a directed acyclic graph of [instructions](isa.md). You can construct this graph manually, but it is much easier to construct it by compiling [Distaff assembly](assembly.md) source code.
+Programs in Distaff VM are structures as an [execution graph](programs.md) of program blocks each consisting of a sequence of VM [instructions](isa.md). You can construct this graph manually, but it is much easier to construct it by compiling [Distaff assembly](assembly.md) source code.
 
 In fact, Distaff assembly is the preferred way of writing programs for Distaff VM, and all references and examples in these docs use assembly syntax.
 
@@ -24,63 +24,8 @@ Currently, there are 3 ways to get values onto the stack:
 
 Values remaining on the stack after a program is executed can be returned as program outputs. You can specify exactly how many values (from the top of the stack) should be returned. Currently, the number of outputs is limited to 8. A way to return a large number of values (hundreds or thousands) is not yet available, but will be provided in the future.
 
-### Turing-completeness
-Distaff VM is currently not [Turing-complete](https://en.wikipedia.org/wiki/Turing_completeness). However, conditional execution (i.e. if/else statements) are fully supported, and support for bounded (and maybe even un-bounded) loops will be added in the future.
-
 ### Memory
 Currently, Distaff VM has no random access memory - all values live on the stack. However, a memory module will be added in the future to enable saving values to and reading values from RAM.
 
 ### Program hash
-All Distaff programs can be reduced to a single 32-byte value, called program hash. Once a `Program` object is constructed (e.g. by compiling assembly code), you can access this hash via `Program.hash()` method. This hash value is used by a verifier when they verify program execution. This ensure that the verifier verifies execution of a specific program (e.g. a program which the prover had committed to previously). The methodology for computing program hash is described below.
-
-#### 1. Deconstructing a program into execution paths
-First, a program is deconstructed into all possible linear execution paths. For example, if a program looks like so:
-
-```
-push.3
-push.5
-read
-if.true
-    add
-else
-    mul
-endif
-```
-It will have 2 possible execution paths:
-```
-path 1: push.3 push.5 read assert add
-path 2: push.3 push.5 read not assert mul
-```
-
-#### 2. Hashing execution paths
-After all possible execution paths are generated, each path is reduced to a 32-byte value using the following methodology:
-
-1. First, the path is padded with `noop` operations. The padding ensures that:
-   1. The program consists of at least 16 operations.
-   2. The number of operations is a power of 2 (16, 32, 64 etc.).
-2. Then, a hash function is used to sequentially hash all instructions together. This hash function is based on Rescue hash function - however, it deviates significantly from the original construction. Security implications of this deviation have not been analyzed. It is possible that this hashing scheme is insecure, and will need to be changed in the future.
-
-The hash function works as follows:
-
-First, a state of 4 field elements is initialized to `0`. Then, the following procedure is applied:
-```
-for each op_code in the path do:
-    add round constants;
-    apply s-box;
-    apply MDS;
-    state[0] = state[0] + state[2] * op_code;
-    state[1] = state[1] * state[3] + op_code;
-    add round constants;
-    apply inverse s-box;
-    apply MDS;
-```
-where `op_code` is the opcode of the operation being executed on the VM. As mentioned above, this is based on the Rescue hash function but with the following significant differences:
-1. The opcodes of the program are injected into the state in the middle of every round.
-2. The number of rounds is equal to the number of operations in the execution path.
-
-After the above procedure has been applied for all operations of the path, the first two elements of the state are returned as the hash of the path.
-
-#### 3. Combining path hashes into a Merkle tree
-Once all execution paths have been reduced to 32-byte values, a Merkle tree is build from these value. The root of the tree is the hash of the entire program.
-
-The hash function used for building the Merkle tree is defined at the time of program compilation and can be any standard hash function - e.g. SHA256 or Blake3.
+All Distaff programs can be reduced to a single 32-byte value, called program hash. Once a `Program` object is constructed (e.g. by compiling assembly code), you can access this hash via `Program.hash()` method. This hash value is used by a verifier when they verify program execution. This ensure that the verifier verifies execution of a specific program (e.g. a program which the prover had committed to previously). The methodology for computing program hash is described [here](programs.md#Program-hash).
