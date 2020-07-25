@@ -103,10 +103,12 @@ impl Decoder {
         };
     }
 
+    #[cfg(test)]
     pub fn ctx_depth(&self) -> usize {
         return self.ctx_depth;
     }
 
+    #[cfg(test)]
     pub fn loop_depth(&self) -> usize {
         return self.loop_depth;
     }

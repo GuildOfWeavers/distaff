@@ -102,8 +102,12 @@ impl ConstraintTable {
             actual_degrees.push(degree);
         }
 
-        // TODO: replace with assert
-        println!("expected: {:>3?}", expected_degrees);
-        println!("actual:   {:>3?}", actual_degrees);
+        for i in 0..expected_degrees.len() {
+            if expected_degrees[i] < actual_degrees[i] {
+                panic!("constraint degrees didn't match\nexpected: {:>3?}\nactual:   {:>3?}",
+                    expected_degrees, actual_degrees);
+                   
+            }
+        }
     }
 }

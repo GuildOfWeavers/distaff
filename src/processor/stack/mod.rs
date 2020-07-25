@@ -116,6 +116,7 @@ impl Stack {
     }
 
     /// Returns value of the current step pointer.
+    #[cfg(test)]
     pub fn current_step(&self) -> usize {
         return self.step;
     }

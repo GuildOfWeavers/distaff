@@ -84,6 +84,7 @@ impl Decoder {
     }
 
     /// Returns value of the current step pointer.
+    #[cfg(test)]
     pub fn current_step(&self) -> usize {
         return self.step;
     }
@@ -100,6 +101,7 @@ impl Decoder {
     }
 
     /// Returns the state of the stack at the specified `step`.
+    #[cfg(test)]
     pub fn get_state(&self, step: usize) -> Vec<u128> {
         let mut state = Vec::new();
 
