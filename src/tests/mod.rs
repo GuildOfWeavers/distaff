@@ -1,17 +1,21 @@
-use crate::{ ProofOptions, opcodes::f128 as opcodes, math::field, utils::hasher };
-use super::{ Program, ProgramInputs, };
+use std::collections::HashMap;
+use crate::{
+    ProofOptions, Program, ProgramInputs, OpCode, OpHint,
+    blocks::{ ProgramBlock, Span, Group },
+    math::field, utils::hasher
+};
 
 mod branches;
 mod comparisons;
 
 #[test]
 fn execute_verify() {
-    let program = Program::from_path(vec![
-        opcodes::BEGIN, opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
-        opcodes::ADD,   opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
-        opcodes::ADD,   opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
-        opcodes::ADD,   opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-    ]);
+    let program = build_program(vec![
+        OpCode::Begin, OpCode::Swap, OpCode::Dup2, OpCode::Drop,
+        OpCode::Add,   OpCode::Swap, OpCode::Dup2, OpCode::Drop,
+        OpCode::Add,   OpCode::Swap, OpCode::Dup2, OpCode::Drop,
+        OpCode::Add,   OpCode::Noop, OpCode::Noop,
+    ], &[]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::from_public(&[1, 0]);
@@ -26,12 +30,12 @@ fn execute_verify() {
 
 #[test]
 fn execute_verify_fail() {
-    let program = Program::from_path(vec![
-        opcodes::BEGIN, opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
-        opcodes::ADD,   opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
-        opcodes::ADD,   opcodes::SWAP, opcodes::DUP2, opcodes::DROP,
-        opcodes::ADD,   opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-    ]);
+    let program = build_program(vec![
+        OpCode::Begin, OpCode::Swap, OpCode::Dup2, OpCode::Drop,
+        OpCode::Add,   OpCode::Swap, OpCode::Dup2, OpCode::Drop,
+        OpCode::Add,   OpCode::Swap, OpCode::Dup2, OpCode::Drop,
+        OpCode::Add,   OpCode::Noop, OpCode::Noop,
+    ], &[]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::from_public(&[1, 0]);
@@ -54,39 +58,43 @@ fn execute_verify_fail() {
     let mut program_hash2 = program.hash().clone();
     program_hash2[0] = 1;
     let result = super::verify(&program_hash2, inputs.get_public_inputs(), &outputs, &proof);
-    let err_msg = format!("verification of program execution path failed");
+    let err_msg = format!("verification of low-degree proof failed: evaluations did not match column value at depth 0");
     assert_eq!(Err(err_msg), result);
 }
 
 #[test]
-fn stack_operations() {
-    let program = Program::from_path(vec![
-        opcodes::BEGIN,  opcodes::SWAP,    opcodes::SWAP2, opcodes::SWAP4,
-        opcodes::CHOOSE, opcodes::PUSH,    11,             opcodes::ROLL4, 
-        opcodes::DUP,    opcodes::CHOOSE2, opcodes::DUP4,  opcodes::ROLL8,
-        opcodes::DROP,   opcodes::DROP,    opcodes::DUP2,  opcodes::NOOP
-    ]);
+fn stack_manipulation() {
+    let program = build_program(vec![
+        OpCode::Begin, OpCode::Noop,  OpCode::Noop,  OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,  OpCode::Noop,  OpCode::Noop,
+        OpCode::Swap,  OpCode::Swap2, OpCode::Swap4, OpCode::Roll4,
+        OpCode::Roll8, OpCode::Dup,   OpCode::Add,   OpCode::Pad2,
+        OpCode::Push,  OpCode::Swap4, OpCode::Drop4, OpCode::Dup2,
+        OpCode::Swap4, OpCode::Add,   OpCode::Add,   OpCode::Dup4,
+        OpCode::Push,  OpCode::Add,   OpCode::Add,   OpCode::Add,
+        OpCode::Add,   OpCode::Noop,  OpCode::Noop,
+    ], &[11, 12]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::from_public(&[7, 6, 5, 4, 3, 2, 1, 0]);
     let num_outputs = 8;
 
     let (outputs, proof) = super::execute(&program, &inputs, num_outputs, &options);
-    assert_eq!(outputs, [3, 6, 3, 6, 7, 11, 3, 6]);
+    assert_eq!(outputs, [46, 19, 4, 11, 0, 11, 0, 6]);
 
     let result = super::verify(program.hash(), inputs.get_public_inputs(), &outputs, &proof);
     assert_eq!(Ok(true), result);
 }
 
 #[test]
-fn logic_operations() {
+fn selection_operations() {
     // CHOOSE
-    let program = Program::from_path(vec![
-        opcodes::BEGIN,  opcodes::CHOOSE,  opcodes::CHOOSE, opcodes::NOOP,
-        opcodes::NOOP,   opcodes::NOOP,    opcodes::NOOP,   opcodes::NOOP,
-        opcodes::NOOP,   opcodes::NOOP,    opcodes::NOOP,   opcodes::NOOP,
-        opcodes::NOOP,   opcodes::NOOP,    opcodes::NOOP,   opcodes::NOOP,
-    ]);
+    let program = build_program(vec![
+        OpCode::Begin, OpCode::Choose,  OpCode::Choose, OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,    OpCode::Noop, OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,    OpCode::Noop, OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,    OpCode::Noop,
+    ], &[]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::from_public(&[3, 4, 1, 5, 0, 6, 7, 8]);
@@ -99,12 +107,16 @@ fn logic_operations() {
     assert_eq!(Ok(true), result);
 
     // CHOOSE2
-    let program = Program::from_path(vec![
-        opcodes::BEGIN, opcodes::PUSH,    3,                opcodes::PUSH,
-        4,              opcodes::CHOOSE2, opcodes::CHOOSE2, opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP,    opcodes::NOOP,    opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP,    opcodes::NOOP,    opcodes::NOOP,
-    ]);
+    let program = build_program(vec![
+        OpCode::Begin, OpCode::Noop,    OpCode::Noop,    OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,    OpCode::Noop,    OpCode::Noop,
+        OpCode::Push,  OpCode::Noop,    OpCode::Noop,    OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,    OpCode::Noop,    OpCode::Noop,
+        OpCode::Push,  OpCode::Choose2, OpCode::Choose2, OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,    OpCode::Noop,    OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,    OpCode::Noop,    OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,    OpCode::Noop,
+    ], &[3, 4]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::from_public(&[5, 6, 1, 0, 7, 8, 0, 0]);
@@ -118,14 +130,14 @@ fn logic_operations() {
 }
 
 #[test]
-#[should_panic]
-fn logic_operations_panic() {
-    let program = Program::from_path(vec![
-        opcodes::BEGIN,  opcodes::CHOOSE,  opcodes::CHOOSE, opcodes::NOOP,
-        opcodes::NOOP,   opcodes::NOOP,    opcodes::NOOP,   opcodes::NOOP,
-        opcodes::NOOP,   opcodes::NOOP,    opcodes::NOOP,   opcodes::NOOP,
-        opcodes::NOOP,   opcodes::NOOP,    opcodes::NOOP,   opcodes::NOOP,
-    ]);
+#[should_panic(expected = "CHOOSE on a non-binary condition at step 2")]
+fn selection_operations_panic() {
+    let program = build_program(vec![
+        OpCode::Begin, OpCode::Choose, OpCode::Choose, OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,   OpCode::Noop,   OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,   OpCode::Noop,   OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,   OpCode::Noop,
+    ], &[]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::from_public(&[3, 4, 2, 5, 0, 6, 7, 8]);
@@ -136,12 +148,12 @@ fn logic_operations_panic() {
 
 #[test]
 fn math_operations() {
-    let program = Program::from_path(vec![
-        opcodes::BEGIN, opcodes::ADD,  opcodes::MUL,  opcodes::INV,
-        opcodes::NEG,   opcodes::SWAP, opcodes::NOT,  opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-    ]);
+    let program = build_program(vec![
+        OpCode::Begin, OpCode::Add,  OpCode::Mul,  OpCode::Inv,
+        OpCode::Neg,   OpCode::Swap, OpCode::Not,  OpCode::Noop, 
+        OpCode::Noop,  OpCode::Noop, OpCode::Noop, OpCode::Noop, 
+        OpCode::Noop,  OpCode::Noop, OpCode::Noop, 
+    ], &[]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::from_public(&[7, 6, 5, 0, 2, 3]);
@@ -158,12 +170,12 @@ fn math_operations() {
 
 #[test]
 fn bool_operations() {
-    let program = Program::from_path(vec![
-        opcodes::BEGIN, opcodes::NOT,  opcodes::OR,   opcodes::OR,
-        opcodes::AND,   opcodes::AND,  opcodes::NOT,  opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP, opcodes::NOOP, opcodes::NOOP,
-    ]);
+    let program = build_program(vec![
+        OpCode::Begin, OpCode::Not,  OpCode::Or,   OpCode::Or,
+        OpCode::And,   OpCode::And,  OpCode::Not,  OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop, OpCode::Noop, OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop, OpCode::Noop,
+    ], &[]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::from_public(&[1, 0, 1, 1, 0]);
@@ -181,16 +193,16 @@ fn bool_operations() {
 #[test]
 fn hash_operations() {
     // single hash
-    let program = Program::from_path(vec![
-        opcodes::BEGIN, opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
-        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
-        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
-        opcodes::RESCR, opcodes::RESCR, opcodes::DROP,  opcodes::DROP,
-        opcodes::DROP,  opcodes::DROP,  opcodes::NOOP,  opcodes::NOOP,
-    ]);
+    let program = build_program(vec![
+        OpCode::Begin, OpCode::Noop,  OpCode::Noop,  OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,  OpCode::Noop,  OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,  OpCode::Noop,  OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,  OpCode::Noop,  OpCode::Noop,
+        OpCode::RescR, OpCode::RescR, OpCode::RescR, OpCode::RescR,
+        OpCode::RescR, OpCode::RescR, OpCode::RescR, OpCode::RescR,
+        OpCode::RescR, OpCode::RescR, OpCode::Drop,  OpCode::Drop,
+        OpCode::Drop,  OpCode::Drop,  OpCode::Noop
+    ], &[]);
 
     let value = [1, 2, 3, 4];
     let mut expected_hash = hasher::digest(&value);
@@ -207,20 +219,20 @@ fn hash_operations() {
     assert_eq!(Ok(true), result);
 
     // double hash
-    let program = Program::from_path(vec![
-        opcodes::BEGIN, opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
-        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
-        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
-        opcodes::RESCR, opcodes::RESCR, opcodes::DROP4, opcodes::NOOP,
-        opcodes::PAD2,  opcodes::DUP2,  opcodes::NOOP,  opcodes::NOOP,
-        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
-        opcodes::RESCR, opcodes::RESCR, opcodes::RESCR, opcodes::RESCR,
-        opcodes::RESCR, opcodes::RESCR, opcodes::DROP4, opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
-    ]);
+    let program = build_program(vec![
+        OpCode::Begin, OpCode::Noop,  OpCode::Noop,  OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,  OpCode::Noop,  OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,  OpCode::Noop,  OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,  OpCode::Noop,  OpCode::Noop,
+        OpCode::RescR, OpCode::RescR, OpCode::RescR, OpCode::RescR,
+        OpCode::RescR, OpCode::RescR, OpCode::RescR, OpCode::RescR,
+        OpCode::RescR, OpCode::RescR, OpCode::Drop4, OpCode::Noop,
+        OpCode::Pad2,  OpCode::Dup2,  OpCode::Noop,  OpCode::Noop,
+        OpCode::RescR, OpCode::RescR, OpCode::RescR, OpCode::RescR,
+        OpCode::RescR, OpCode::RescR, OpCode::RescR, OpCode::RescR,
+        OpCode::RescR, OpCode::RescR, OpCode::Drop4, OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,  OpCode::Noop
+    ], &[]);
 
     let value = [1, 2, 3, 4];
     let mut expected_hash = hasher::digest(&value);
@@ -240,12 +252,12 @@ fn hash_operations() {
 
 #[test]
 fn read_operations() {
-    let program = Program::from_path(vec![
-        opcodes::BEGIN, opcodes::READ,  opcodes::READ2, opcodes::NOOP,
-        opcodes::PUSH,      5,          opcodes::NOOP,  opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,  opcodes::NOOP,
-    ]);
+    let program = build_program(vec![
+        OpCode::Begin, OpCode::Read, OpCode::Read2, OpCode::Noop,
+        OpCode::Noop, OpCode::Noop,  OpCode::Noop,  OpCode::Noop,
+        OpCode::Push, OpCode::Noop,  OpCode::Noop,  OpCode::Noop,
+        OpCode::Noop, OpCode::Noop,  OpCode::Noop,
+    ], &[5]);
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::new(&[1], &[2, 3], &[4]);
@@ -259,19 +271,19 @@ fn read_operations() {
 }
 
 #[test]
-fn assert_operation() {
-    let program = Program::from_path(vec![
-        opcodes::BEGIN, opcodes::ASSERT, opcodes::NOOP, opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
-        opcodes::NOOP,  opcodes::NOOP,   opcodes::NOOP, opcodes::NOOP,
-    ]);
+fn assert_operations() {
+    let program = build_program(vec![
+        OpCode::Begin, OpCode::Assert, OpCode::Noop, OpCode::AssertEq,
+        OpCode::Noop,  OpCode::Noop,   OpCode::Noop, OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,   OpCode::Noop, OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,   OpCode::Noop,
+    ], &[]);
 
     let options = ProofOptions::default();
-    let inputs = ProgramInputs::from_public(&[1, 2, 3]);
+    let inputs = ProgramInputs::from_public(&[1, 3, 3]);
     let num_outputs = 2;
 
-    let expected_result = vec![2, 3];
+    let expected_result = vec![0, 0];
 
     let (outputs, proof) = super::execute(&program, &inputs, num_outputs, &options);
     assert_eq!(expected_result, outputs);
@@ -281,3 +293,26 @@ fn assert_operation() {
 }
 
 // TODO: add more tests
+
+// HELPER FUNCTIONS
+// ================================================================================================
+fn build_program(instructions: Vec<OpCode>, push_values: &[u128]) -> Program {
+
+    // build hint map for PUSh operations
+    let mut j = 0;
+    let mut hints = HashMap::new();
+    for i in 0..instructions.len() {
+        match instructions[i] {
+            OpCode::Push => {
+                assert!(j < push_values.len(), "not enough push values");
+                hints.insert(i, OpHint::PushValue(push_values[j]));
+                j += 1;
+            },
+            _ => ()
+        }
+    }
+    assert!(j == push_values.len(), "too many push values");
+
+    let root = vec![ProgramBlock::Span(Span::new(instructions, hints))];
+    return Program::new(Group::new(root));
+}

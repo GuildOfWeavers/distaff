@@ -19,6 +19,7 @@ fn main() {
     }
     else {
         ex = match args[1].as_str() {
+            "collatz"       => examples::collatz::get_example(&args[1..]),
             "comparison"    => examples::comparison::get_example(&args[1..]),
             "conditional"   => examples::conditional::get_example(&args[1..]),
             "fibonacci"     => examples::fibonacci::get_example(&args[1..]),

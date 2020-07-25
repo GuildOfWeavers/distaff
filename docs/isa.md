@@ -1,75 +1,97 @@
 # Distaff VM instruction set
-Distaff VM instruction set consists of a small number of atomic instructions each encoded with an 8-bit opcode. A sequence of instructions forms a linear execution path, and these paths can be combined into program execution graphs which are consumed by Distaff VM.
+Distaff VM instruction set consists of a small number of atomic instructions. There are two types of instructions:
 
-Constructing programs in this manner may be tedious and error-prone - so, most **users are encouraged** to write programs using [Distaff assembly](assembly.md) instead. However, it is still beneficial to understand which raw instructions are available in Distaff VM and what their semantics are.
+* **System instructions** are encoded with a 3-bit opcode. They are used to control program execution path and are executed automatically by the VM as it traverses [program execution graph](programs.md).
+* **User instructions** are encoded with a 7-bit opcode. A sequence of user instructions forms a an [instruction block](programs.md/#Instruction-blocks) in a program execution graph.
+
+In every cycle, Distaff VM executes a tuple of two instructions: one system instruction and one user instruction. However, not all combinations of system and user instructions are valid, and specifics of this are described in the following sections.
+
+Distaff VM consumes programs in a form of an execution graph. An execution graph can be constructed directly from program blocks, but constructing programs in this manner may be tedious and error-prone. So, most **users are encouraged** to write programs using [Distaff assembly](assembly.md) instead. However, it is still beneficial to understand which raw instructions are available in Distaff VM and what their semantics are.
 
 The tables below describe all currently available atomic instructions in Distaff VM.
+
+## System instructions
+
+| Instruction | Opcode   | Description                             |
+| ----------- | :------: | --------------------------------------- |
+| HACC        | 000      | Indicates that any user instruction can be executed on the VM. |
+| BEGIN       | 001      | Marks the beginning of a new Group or Switch block; can be executed only on steps which are one less than a multiple of 16 (e.g. 15, 31, 47 etc.). |
+| TEND        | 010      | Marks the end of a Group block, a true branch of a Switch block, or a Loop block when loop body was executed at least once; can be executed on steps which are multiples of 16 (e.g. 16, 32, 48 etc.). |
+| FEND        | 011      | Marks the end of a false branch of a Switch block, or a skip path of a Loop block when a loop was never entered; can be executed on steps which are multiples of 16 (e.g. 16, 32, 48 etc.). |
+| LOOP        | 100      | Marks the beginning of a new Loop block; can be executed only on steps which are one less than a multiple of 16. |
+| WRAP        | 101      | Indicates that a currently executing loop should be executed for at least one more iteration; can be executed only on steps which are one less than a multiple of 16. |
+| BREAK       | 110      | Indicates that a currently executing loop should be exited; can be executed only on steps which are one less than a multiple of 16. |
+| VOID        | 111      | Pads program execution so that number of executed cycles is equal to 2<sup>n</sup> for some integer *n*. A `VOID` instruction can be followed only by another `VOID` instruction. Thus, once a single `VOID` instruction is executed, no other instruction can be executed on the VM. All programs must end with a `VOID` instruction. |
+
+## User instructions
+
+User instructions can be executed only concurrently with the `HACC` system instruction. The only exception is the `NOOP` instruction, which can be executed concurrently with any of the system instructions.
 
 ### Flow control instructions
 
 | Instruction | Opcode   | Description                             |
 | ----------- | :------: | --------------------------------------- |
-| NOOP        | 00000000 | Does nothing. |
-| BEGIN       | 11111111 | Marks the beginning of a program. Every program must start with the `BEGIN` operation. |
-| ASSERT      | 00010000 | Pops the top item from the stack and checks if it is equal to `1`. If it is not equal to `1`, the operation will fail. |
-| ASSERTEQ    | 00001111 | Pops top two items from the stack and checks if they are equal. If they are not equal, the operation will fail. |
+| BEGIN       |  0000000 | Marks the beginning of a program. Every program must start with the `BEGIN` operation. If executed on any step but the first one, the operation will fail.|
+| NOOP        |  1111111 | Does nothing. |
+| ASSERT      |  1100000 | Pops the top item from the stack and checks if it is equal to `1`. If it is not equal to `1`, the operation will fail. |
+| ASSERTEQ    |  1100001 | Pops top two items from the stack and checks if they are equal. If they are not equal, the operation will fail. |
 
 ### Input instructions
 
 | Instruction | Opcode   | Description                            |
 | ----------- | :------: | -------------------------------------- |
-| PUSH        | 00001000 | Pushes the value of the next opcode onto the stack. The value can be any field element. |
-| READ        | 00001001 | Pushes the next value from the input tape `A` onto the stack. |
-| READ2       | 00001010 | Pushes the next values from input tapes `A` and `B` onto the stack. Value from input tape `A` is pushed first, followed by the value from input tape `B`. |
+| PUSH        |  0011111 | Pushes a 128-bit value (a single field element) onto the stack. |
+| READ        |  1110000 | Pushes the next value from the input tape `A` onto the stack. |
+| READ2       |  1110001 | Pushes the next values from input tapes `A` and `B` onto the stack. Value from input tape `A` is pushed first, followed by the value from input tape `B`. |
 
 ### Stack manipulation instructions
 
 | Instruction | Opcode   | Description                            |
 | ----------- | :------: | -------------------------------------- |
-| DUP         | 00001011 | Pushes a copy of the top stack item onto the stack (duplicates the top stack item). |
-| DUP2        | 00001100 | Pushes copies of the top two stack items onto the stack. |
-| DUP4        | 00001101 | Pushes copies of the top four stack items onto the stack. |
-| PAD2        | 00001110 | Pushes two `0` values onto the stack. Equivalent to `PUSH 0 DUP`. |
-| DROP        | 00010000 | Removes the top item from the stack. |
-| DROP4       | 00010001 | Removes top four items from the stack. |
-| SWAP        | 00011010 | Moves the second from the top stack item to the top of the stack (swaps top two stack items). |
-| SWAP2       | 00011011 | Moves 3rd and 4th stack items to the top of the stack. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3` becomes `S2 S3 S0 S1`. |
-| SWAP4       | 00011100 | Moves 5th through 8th stack items to the top of the stack. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3 S4 S5 S6 S7` becomes `S4 S5 S6 S7 S0 S1 S2 S3`. |
-| ROLL4       | 00011101 | Moves 4th stack item to the top of the stack. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3` becomes `S3 S0 S1 S2`.  |
-| ROLL8       | 00011110 | Moves 8th stack item to the top of the stack. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3 S4 S5 S6 S7` becomes `S7 S0 S1 S2 S3 S4 S5 S6`. |
+| DUP         |  1110010 | Pushes a copy of the top stack item onto the stack (duplicates the top stack item). |
+| DUP2        |  1110011 | Pushes copies of the top two stack items onto the stack. |
+| DUP4        |  1110100 | Pushes copies of the top four stack items onto the stack. |
+| PAD2        |  1110101 | Pushes two `0` values onto the stack. Equivalent to `PUSH(0) DUP`. |
+| DROP        |  1100011 | Removes the top item from the stack. |
+| DROP4       |  1100100 | Removes top four items from the stack. |
+| SWAP        |  1111000 | Moves the second from the top stack item to the top of the stack (swaps top two stack items). |
+| SWAP2       |  1111001 | Moves 3rd and 4th stack items to the top of the stack. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3` becomes `S2 S3 S0 S1`. |
+| SWAP4       |  1111010 | Moves 5th through 8th stack items to the top of the stack. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3 S4 S5 S6 S7` becomes `S4 S5 S6 S7 S0 S1 S2 S3`. |
+| ROLL4       |  1111011 | Moves 4th stack item to the top of the stack. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3` becomes `S3 S0 S1 S2`.  |
+| ROLL8       |  1111100 | Moves 8th stack item to the top of the stack. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3 S4 S5 S6 S7` becomes `S7 S0 S1 S2 S3 S4 S5 S6`. |
 
 ### Arithmetic and boolean instructions
 
 | Instruction | Opcode   | Description                            |
 | ----------- | :------: | -------------------------------------- |
-| ADD         | 00011001 | Pops top two items from the stack, adds them, and pushes the result onto the stack. |
-| MUL         | 00011010 | Pops top two items from the stack, multiplies them, and pushes the result onto the stack. |
-| INV         | 00000011 | Pops the top item from the stack, computes its multiplicative inverse, and pushes the result onto the stack. This can be used to emulate division with a sequence of two operations: `INV MUL`. If the value at the top of the stack is `0`, the operation will fail.
-| NEG         | 00000100 | Pops the top item from the stack, computes its additive inverse, and pushes the result onto the stack. This can be used to emulate subtraction with a sequence of two operations: `NEG ADD` |
-| NOT         | 00000101 | Pops the top item from the stack, subtracts it from value `1` and pushes the result onto the stack. In other words, `0` becomes `1`, and `1` becomes `0`. This is equivalent to `PUSH 1 SWAP NEG ADD` but also enforces that the top stack item is a binary value. |
-| AND         | 00000110 | Pops top two items from the stack, computes an equivalent of their boolean `AND` (which, for binary values, is just multiplication), and pushes the result onto the stack. If either of the values is not binary, the operation will fail. |
-| OR          | 00000111 | Pops top two items from the stack, computes an equivalent of their boolean `OR`, and pushes the result onto the stack. If either of the values is not binary, the operation will fail. |
+| ADD         |  1101000 | Pops top two items from the stack, adds them, and pushes the result onto the stack. |
+| MUL         |  1101001 | Pops top two items from the stack, multiplies them, and pushes the result onto the stack. |
+| AND         |  1101010 | Pops top two items from the stack, computes an equivalent of their boolean `AND` (which, for binary values, is just multiplication), and pushes the result onto the stack. If either of the values is not binary, the operation will fail. |
+| OR          |  1101011 | Pops top two items from the stack, computes an equivalent of their boolean `OR`, and pushes the result onto the stack. If either of the values is not binary, the operation will fail. |
+| INV         |  1101100 | Pops the top item from the stack, computes its multiplicative inverse, and pushes the result onto the stack. This can be used to emulate division with a sequence of two operations: `INV MUL`. If the value at the top of the stack is `0`, the operation will fail.
+| NEG         |  1101101 | Pops the top item from the stack, computes its additive inverse, and pushes the result onto the stack. This can be used to emulate subtraction with a sequence of two operations: `NEG ADD` |
+| NOT         |  1101110 | Pops the top item from the stack, subtracts it from value `1` and pushes the result onto the stack. In other words, `0` becomes `1`, and `1` becomes `0`. This is equivalent to `PUSH 1 SWAP NEG ADD` but also enforces that the top stack item is a binary value. |
 
 ### Comparison instructions
 
 | Instruction | Opcode   | Description                            |
 | ----------- | :------: | -------------------------------------- |
-| EQ          | 00010101 | Pops top 3 values from the stack, subtracts the 3rd value from the 2nd, then multiplies the result by the 1st value, and then subtracts the result from value `1`. The operation can be used to check whether two values are equal (see [here](#Checking-equality)). |
-| CMP         | 00000001 | Pops top 8 items from the top of the stack, performs a single round of binary comparison, and pushes the resulting 8 values onto the stack. This operation can be used as a building block for *less then* and *greater than* operations (see [here](#Checking-inequality)). |
-| BINACC      | 00000010 | Pops top 3 items from the top of the stack, performs a single round of binary aggregation, and pushes the resulting 3 values onto the stack. This operation can be used as a building block for range check operations (see [here](#Checking-binary-decomposition)). |
+| EQ          |  1100010 | Pops top 3 values from the stack, subtracts the 3rd value from the 2nd, then multiplies the result by the 1st value, and then subtracts the result from value `1` and pushes the final result onto the stack. The operation can be used to check whether two values are equal (see [here](#Checking-equality)). |
+| CMP         |  0111111 | Pops top 8 items from the top of the stack, performs a single round of binary comparison, and pushes the resulting 8 values onto the stack. This operation can be used as a building block for *less then* and *greater than* operations (see [here](#Checking-inequality)). |
+| BINACC      |  1111101 | Pops top 3 items from the top of the stack, performs a single round of binary aggregation, and pushes the resulting 3 values onto the stack. This operation can be used as a building block for range check operations (see [here](#Checking-binary-decomposition)). |
 
 ### Selection instructions
 
 | Instruction | Opcode   | Description                            |
 | ----------- | :------: | -------------------------------------- |
-| CHOOSE      | 00010110 | Pops 3 items from the top of the stack, and pushes either the 1st or the 2nd value back onto the stack depending on whether the 3rd value is `1` or `0`. For example, assuming `S0` is the top of the stack, `S0 S1 1` becomes `S0`, while `S0 S1 0` becomes `S1`. This operation will fail if the 3rd stack item is not a binary value. |
-| CHOOSE2     | 00010111 | Pops 6 items from the top of the stack, and pushes either the 1st or the 2nd pair of values back onto the stack depending on whether the 5th value is `1` or `0`. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3 1 S5` becomes `S0 S1`, while `S0 S1 S2 S3 0 S5` becomes `S2 S3` (notice that `S5` is discarded in both cases). This operation will fail if the 5th stack item is not a binary value. |
+| CHOOSE      |  1100101 | Pops 3 items from the top of the stack, and pushes either the 1st or the 2nd value back onto the stack depending on whether the 3rd value is `1` or `0`. For example, assuming `S0` is the top of the stack, `S0 S1 1` becomes `S0`, while `S0 S1 0` becomes `S1`. This operation will fail if the 3rd stack item is not a binary value. |
+| CHOOSE2     |  1100110 | Pops 6 items from the top of the stack, and pushes either the 1st or the 2nd pair of values back onto the stack depending on whether the 5th value is `1` or `0`. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3 1 S5` becomes `S0 S1`, while `S0 S1 S2 S3 0 S5` becomes `S2 S3` (notice that `S5` is discarded in both cases). This operation will fail if the 5th stack item is not a binary value. |
 
 ### Cryptographic instructions
 
 | Instruction | Opcode   | Description                            |
 | ----------- | :------: | -------------------------------------- |
-| RESCR       | 00011000 | Pops top 6 items from the stack, computes a single round of a modified [Rescue](https://eprint.iacr.org/2019/426) hash function over these values, and pushes the resulting 6 values onto the stack. This operation can be used to hash up to two 256-bit values (see [here](#Hashing-in-Distaff-VM)).  |
+| RESCR       |  1011111 | Pops top 6 items from the stack, computes a single round of a modified [Rescue](https://eprint.iacr.org/2019/426) hash function over these values, and pushes the resulting 6 values onto the stack. This operation can be used to hash up to two 256-bit values (see [here](#Hashing-in-Distaff-VM)).  |
 
 ## Value comparison in Distaff VM
 There are 3 operations in Distaff VM which can be used to compare values: `EQ`, `CMP`, and `BINACC`. Using these operations you can check whether 2 values a equal, whether one value is greater or less than the other, and whether a value can be represented with a given number of bits.

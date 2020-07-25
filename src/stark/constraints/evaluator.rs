@@ -1,8 +1,10 @@
-use crate::math::{ field };
-use crate::processor::{ opcodes };
-use crate::stark::{ StarkProof, TraceTable, TraceState, ConstraintCoefficients };
-use crate::utils::{ uninit_vector };
-use super::{ decoder::Decoder, stack::Stack, MAX_CONSTRAINT_DEGREE };
+use crate::{
+    math::field,
+    utils::uninit_vector,
+    stark::{ StarkProof, TraceTable, TraceState, ConstraintCoefficients },
+    PROGRAM_DIGEST_SIZE,
+};
+use super::{ decoder::Decoder, stack::Stack, super::MAX_CONSTRAINT_DEGREE };
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -20,6 +22,7 @@ pub struct Evaluator {
 
     b_constraint_num: usize,
     program_hash    : Vec<u128>,
+    op_count        : u128,
     inputs          : Vec<u128>,
     outputs         : Vec<u128>,
     b_degree_adj    : u128,
@@ -29,15 +32,17 @@ pub struct Evaluator {
 // ================================================================================================
 impl Evaluator {
 
-    pub fn from_trace(trace: &TraceTable, trace_root: &[u8; 32], inputs: &[u128], outputs: &[u128]) -> Evaluator {
-
-        let stack_depth = trace.max_stack_depth();
-        let program_hash = trace.get_program_hash();
+    pub fn from_trace(trace: &TraceTable, trace_root: &[u8; 32], inputs: &[u128], outputs: &[u128]) -> Evaluator
+    {
+        let last_state = trace.get_last_state();
+        let ctx_depth = trace.ctx_depth();
+        let loop_depth = trace.loop_depth();
+        let stack_depth = trace.stack_depth();
         let trace_length = trace.unextended_length();
         let extension_factor = MAX_CONSTRAINT_DEGREE;
 
         // instantiate decoder and stack constraint evaluators 
-        let decoder = Decoder::new(trace_length, extension_factor);
+        let decoder = Decoder::new(trace_length, extension_factor, ctx_depth, loop_depth);
         let stack = Stack::new(trace_length, extension_factor, stack_depth);
 
         // build a list of transition constraint degrees
@@ -58,28 +63,31 @@ impl Evaluator {
         return Evaluator {
             decoder         : decoder,
             stack           : stack,
-            coefficients    : ConstraintCoefficients::new(*trace_root),
+            coefficients    : ConstraintCoefficients::new(*trace_root, ctx_depth, loop_depth, stack_depth),
             domain_size     : domain_size,
             extension_factor: extension_factor,
             t_constraint_num: t_constraint_degrees.len(),
             t_degree_groups : group_transition_constraints(t_constraint_degrees, trace_length),
             t_evaluations   : t_evaluations,
-            b_constraint_num: inputs.len() + outputs.len() + program_hash.len(),
-            program_hash    : program_hash,
+            b_constraint_num: get_boundary_constraint_num(&inputs, &outputs),
+            program_hash    : last_state.program_hash().to_vec(),
+            op_count        : last_state.op_counter(),
             inputs          : inputs.to_vec(),
             outputs         : outputs.to_vec(),
             b_degree_adj    : get_boundary_constraint_adjustment_degree(trace_length),
         };
     }
 
-    pub fn from_proof(proof: &StarkProof, program_hash: &[u8; 32], inputs: &[u128], outputs: &[u128]) -> Evaluator {
-        
+    pub fn from_proof(proof: &StarkProof, program_hash: &[u8; 32], inputs: &[u128], outputs: &[u128]) -> Evaluator
+    {
+        let ctx_depth = proof.ctx_depth();
+        let loop_depth = proof.loop_depth();
         let stack_depth = proof.stack_depth();
         let trace_length = proof.trace_length();
         let extension_factor = proof.options().extension_factor();
         
         // instantiate decoder and stack constraint evaluators 
-        let decoder = Decoder::new(trace_length, extension_factor);
+        let decoder = Decoder::new(trace_length, extension_factor, ctx_depth, loop_depth);
         let stack = Stack::new(trace_length, extension_factor, stack_depth);
 
         // build a list of transition constraint degrees
@@ -90,14 +98,15 @@ impl Evaluator {
         return Evaluator {
             decoder         : decoder,
             stack           : stack,
-            coefficients    : ConstraintCoefficients::new(*proof.trace_root()),
+            coefficients    : ConstraintCoefficients::new(*proof.trace_root(), ctx_depth, loop_depth, stack_depth),
             domain_size     : proof.domain_size(),
             extension_factor: extension_factor,
             t_constraint_num: t_constraint_degrees.len(),
             t_degree_groups : group_transition_constraints(t_constraint_degrees, trace_length),
             t_evaluations   : Vec::new(),
-            b_constraint_num: inputs.len() + outputs.len() + program_hash.len(),
+            b_constraint_num: get_boundary_constraint_num(&inputs, &outputs),
             program_hash    : parse_program_hash(program_hash),
+            op_count        : proof.op_count(),
             inputs          : inputs.to_vec(),
             outputs         : outputs.to_vec(),
             b_degree_adj    : get_boundary_constraint_adjustment_degree(trace_length),
@@ -178,38 +187,65 @@ impl Evaluator {
         let mut i_result = field::ZERO;
         let mut result_adj = field::ZERO;
 
-        let cc = self.coefficients.i_boundary;
-        let mut cc_idx = 0;
+        let cc = &self.coefficients.i_boundary;
 
-        // make sure op_code and ob_bits are set to BEGIN
-        let op_code = current.get_op_code();
-        let val = field::sub(op_code, opcodes::BEGIN as u128);
-        i_result = field::add(i_result, field::mul(val, cc[cc_idx]));
-        result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
+        // make sure op_counter is set to 0
+        let op_counter = current.op_counter();
+        i_result = field::add(i_result, field::mul(op_counter, cc.op_counter[0]));
+        result_adj = field::add(result_adj, field::mul(op_counter, cc.op_counter[1]));
 
-        let op_bits = current.get_op_bits();
-        for i in 0..op_bits.len() {
-            cc_idx += 2;
-            let val = field::sub(op_bits[i], field::ONE);
-            i_result = field::add(i_result, field::mul(val, cc[cc_idx]));
-            result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
+        // make sure operation sponge registers are set to 0s
+        let sponge = current.sponge();
+        for i in 0..sponge.len() {
+            i_result = field::add(i_result, field::mul(sponge[i], cc.sponge[i * 2]));
+            result_adj = field::add(result_adj, field::mul(sponge[i], cc.sponge[i * 2 + 1]));
         }
 
-        // make sure operation accumulator registers are set to zeros 
-        let op_acc = current.get_op_acc();
-        for i in 0..op_acc.len() {
+        // make sure cf_bits are set to HACC (000)
+        let mut cc_idx = 0;
+        let op_bits = current.cf_op_bits();
+        for i in 0..op_bits.len() {
+            i_result = field::add(i_result, field::mul(op_bits[i], cc.op_bits[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(op_bits[i], cc.op_bits[cc_idx + 1]));
             cc_idx += 2;
-            i_result = field::add(i_result, field::mul(op_acc[i], cc[cc_idx]));
-            result_adj = field::add(result_adj, field::mul(op_acc[i], cc[cc_idx + 1]));
+        }
+
+        // make sure low-degree op_bits are set to BEGIN (0000)
+        let op_bits = current.ld_op_bits();
+        for i in 0..op_bits.len() {
+            i_result = field::add(i_result, field::mul(op_bits[i], cc.op_bits[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(op_bits[i], cc.op_bits[cc_idx + 1]));
+            cc_idx += 2;
+        }
+
+        // make sure high-degree op_bits are set to BEGIN (00)
+        let op_bits = current.hd_op_bits();
+        for i in 0..op_bits.len() {
+            i_result = field::add(i_result, field::mul(op_bits[i], cc.op_bits[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(op_bits[i], cc.op_bits[cc_idx + 1]));
+            cc_idx += 2;
+        }
+
+        // make sure all context stack registers are 0s
+        let ctx_stack = current.ctx_stack();
+        for i in 0..ctx_stack.len() {
+            i_result = field::add(i_result, field::mul(ctx_stack[i], cc.ctx_stack[i * 2]));
+            result_adj = field::add(result_adj, field::mul(ctx_stack[i], cc.ctx_stack[i * 2 + 1]));
+        }
+
+        // make sure all loop stack registers are 0s
+        let loop_stack = current.loop_stack();
+        for i in 0..loop_stack.len() {
+            i_result = field::add(i_result, field::mul(loop_stack[i], cc.loop_stack[i * 2]));
+            result_adj = field::add(result_adj, field::mul(loop_stack[i], cc.loop_stack[i * 2 + 1]));
         }
 
         // make sure stack registers are set to inputs
-        let user_stack = current.get_stack();
+        let user_stack = current.user_stack();
         for i in 0..self.inputs.len() {
-            cc_idx += 2;
             let val = field::sub(user_stack[i], self.inputs[i]);
-            i_result = field::add(i_result, field::mul(val, cc[cc_idx]));
-            result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
+            i_result = field::add(i_result, field::mul(val, cc.user_stack[i * 2]));
+            result_adj = field::add(result_adj, field::mul(val, cc.user_stack[i * 2 + 1]));
         }
 
         // raise the degree of adjusted terms and sum all the terms together
@@ -219,37 +255,69 @@ impl Evaluator {
         let mut f_result = field::ZERO;
         let mut result_adj = field::ZERO;
 
-        let cc = self.coefficients.f_boundary;
-        let mut cc_idx = 0;
+        let cc = &self.coefficients.f_boundary;
+        
+        // make sure op_counter register is set to the claimed value of operations
+        let val = field::sub(current.op_counter(), self.op_count);
+        f_result = field::add(f_result, field::mul(val, cc.op_counter[0]));
+        result_adj = field::add(result_adj, field::mul(val, cc.op_counter[1]));
 
-        // make sure op_code and op_bits are set to NOOP
-        let op_code = current.get_op_code();
-        f_result = field::add(f_result, field::mul(op_code, cc[cc_idx]));
-        result_adj = field::add(result_adj, field::mul(op_code, cc[cc_idx + 1]));
-
-        let op_bits = current.get_op_bits();
-        for i in 0..op_bits.len() {
-            cc_idx += 2;
-            f_result = field::add(f_result, field::mul(op_bits[i], cc[cc_idx]));
-            result_adj = field::add(result_adj, field::mul(op_bits[i], cc[cc_idx + 1]));
-        }
-
-        // make sure operation accumulator contains program hash
-        let program_hash = current.get_program_hash();
+        // make sure operation sponge contains program hash
+        let program_hash = current.program_hash();
         for i in 0..self.program_hash.len() {
-            cc_idx += 2;
             let val = field::sub(program_hash[i], self.program_hash[i]);
-            f_result = field::add(f_result, field::mul(val, cc[cc_idx]));
-            result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
+            f_result = field::add(f_result, field::mul(val, cc.sponge[i * 2]));
+            result_adj = field::add(result_adj, field::mul(val, cc.sponge[i * 2 + 1]));
         }
 
-        // make sure stack registers are set to outputs
-        for i in 0..self.outputs.len() {
+        // make sure control flow op_bits are set VOID (111)
+        let mut cc_idx = 0;
+        let op_bits = current.cf_op_bits();
+        for i in 0..op_bits.len() {
+            let val = field::sub(op_bits[i], field::ONE);
+            f_result = field::add(f_result, field::mul(val, cc.op_bits[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(val, cc.op_bits[cc_idx + 1]));
             cc_idx += 2;
-            let val = field::sub(user_stack[i], self.outputs[i]);
-            f_result = field::add(f_result, field::mul(val, cc[cc_idx]));
-            result_adj = field::add(result_adj, field::mul(val, cc[cc_idx + 1]));
         }
+        
+        // make sure low-degree op_bits are set to NOOP (11111)
+        let op_bits = current.ld_op_bits();
+        for i in 0..op_bits.len() {
+            let val = field::sub(op_bits[i], field::ONE);
+            f_result = field::add(f_result, field::mul(val, cc.op_bits[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(val, cc.op_bits[cc_idx + 1]));
+            cc_idx += 2;
+        }
+        
+        // make sure high-degree op_bits are set to NOOP (11)
+        let op_bits = current.hd_op_bits();
+        for i in 0..op_bits.len() {
+            let val = field::sub(op_bits[i], field::ONE);
+            f_result = field::add(f_result, field::mul(val, cc.op_bits[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(val, cc.op_bits[cc_idx + 1]));
+            cc_idx += 2;
+        }
+        
+        // make sure all context stack registers are 0s
+        let ctx_stack = current.ctx_stack();
+        for i in 0..ctx_stack.len() {
+            f_result = field::add(f_result, field::mul(ctx_stack[i], cc.ctx_stack[i * 2]));
+            result_adj = field::add(result_adj, field::mul(ctx_stack[i], cc.ctx_stack[i * 2 + 1]));
+        }
+
+        // make sure all loop stack registers are 0s
+        let loop_stack = current.loop_stack();
+        for i in 0..loop_stack.len() {
+            f_result = field::add(f_result, field::mul(loop_stack[i], cc.loop_stack[i * 2]));
+            result_adj = field::add(result_adj, field::mul(loop_stack[i], cc.loop_stack[i * 2 + 1]));
+        }
+
+        // make sure user stack registers are set to outputs
+        for i in 0..self.outputs.len() {
+            let val = field::sub(user_stack[i], self.outputs[i]);
+            f_result = field::add(f_result, field::mul(val, cc.user_stack[i * 2]));
+            result_adj = field::add(result_adj, field::mul(val, cc.user_stack[i * 2 + 1]));
+        }        
 
         // raise the degree of adjusted terms and sum all the terms together
         f_result = field::add(f_result, field::mul(result_adj, xp));
@@ -265,7 +333,7 @@ impl Evaluator {
     }
 
     fn combine_transition_constraints(&self, evaluations: &Vec<u128>, x: u128) -> u128 {
-        let cc = self.coefficients.transition;
+        let cc = &self.coefficients.transition;
         let mut result = field::ZERO;
 
         let mut i = 0;
@@ -297,6 +365,18 @@ impl Evaluator {
                 mutable_self.t_evaluations[i][step] = evaluations[i];
             }
         }
+    }
+
+    #[cfg(debug_assertions)]
+    pub fn get_transition_evaluations(&self) -> &Vec<Vec<u128>> {
+        return &self.t_evaluations;
+    }
+
+    #[cfg(debug_assertions)]
+    pub fn get_transition_degrees(&self) -> Vec<usize> {
+        return [
+            self.decoder.constraint_degrees(), self.stack.constraint_degrees()
+        ].concat();
     }
 }
 
@@ -354,4 +434,11 @@ fn parse_program_hash(program_hash: &[u8; 32]) -> Vec<u128> {
         field::from_bytes(&program_hash[..16]),
         field::from_bytes(&program_hash[16..]),
     ];
+}
+
+fn get_boundary_constraint_num(inputs: &[u128], outputs: &[u128]) -> usize {
+    return
+        PROGRAM_DIGEST_SIZE 
+        + inputs.len() + outputs.len()
+        + 1 /* for op_count */;
 }

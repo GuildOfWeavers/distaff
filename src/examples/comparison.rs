@@ -18,6 +18,7 @@ pub fn get_example(args: &[String]) -> Example  {
     // less than 9; if it is, the value is multiplied by 9, otherwise, 9 is added
     // to the value; then we check if the value is odd.
     let program = assembly::compile("
+    begin
         push.9
         read
         dup.2
@@ -26,9 +27,9 @@ pub fn get_example(args: &[String]) -> Example  {
             mul
         else
             add
-        endif
-        isodd.128",
-        options.hash_fn()).unwrap();
+        end
+        isodd.128
+    end").unwrap();
 
     println!("Generated a program to test comparisons; expected result: {}", 
         expected_result);

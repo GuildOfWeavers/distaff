@@ -9,10 +9,8 @@ use crate::utils::{ uninit_vector, as_bytes };
 // TODO: custom serialization should reduce size by 5% - 10%
 #[derive(Clone, Serialize, Deserialize)]
 pub struct StarkProof {
-    auth_path           : Vec<[u8; 32]>,
-    auth_path_index     : u32,
     trace_root          : [u8; 32],
-    domain_depth        : u8,
+    trace_info          : TraceInfo,
     trace_nodes         : Vec<Vec<[u8; 32]>>,
     trace_evaluations   : Vec<Vec<u128>>,
     constraint_root     : [u8; 32],
@@ -29,6 +27,15 @@ pub struct DeepValues {
     pub trace_at_z2     : Vec<u128>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TraceInfo {
+    pub domain_depth    : u8,
+    pub ctx_depth       : u8,
+    pub loop_depth      : u8,
+    pub stack_depth     : u8,
+    pub op_count        : u32,
+}
+
 // STARK PROOF IMPLEMENTATION
 // ================================================================================================
 impl StarkProof {
@@ -41,13 +48,23 @@ impl StarkProof {
         deep_values         : DeepValues,
         degree_proof        : FriProof,
         pow_nonce           : u64,
+        op_count            : u128,
+        ctx_depth           : usize,
+        loop_depth          : usize,
+        stack_depth         : usize,
         options             : &ProofOptions ) -> StarkProof
     {
-        return StarkProof {
-            auth_path           : Vec::new(),
-            auth_path_index     : 0,
-            trace_root          : *trace_root,
+        let trace_info = TraceInfo {
             domain_depth        : trace_proof.depth,
+            ctx_depth           : ctx_depth as u8,
+            loop_depth          : loop_depth as u8,
+            stack_depth         : stack_depth as u8,
+            op_count            : op_count as u32,
+        };
+
+        return StarkProof {
+            trace_root          : *trace_root,
+            trace_info          : trace_info,
             trace_nodes         : trace_proof.nodes,
             trace_evaluations   : trace_evaluations,
             constraint_root     : *constraint_root,
@@ -68,7 +85,7 @@ impl StarkProof {
     }
 
     pub fn domain_size(&self) -> usize {
-        return usize::pow(2, self.domain_depth as u32);
+        return usize::pow(2, self.trace_info.domain_depth as u32);
     }
 
     pub fn trace_proof(&self) -> BatchMerkleProof {
@@ -82,7 +99,7 @@ impl StarkProof {
         return BatchMerkleProof {
             nodes   : self.trace_nodes.clone(),
             values  : hashed_states,
-            depth   : self.domain_depth,
+            depth   : self.trace_info.domain_depth,
          };
     }
 
@@ -102,40 +119,47 @@ impl StarkProof {
         return &self.trace_evaluations;
     }
 
+    pub fn pow_nonce(&self) -> u64 {
+        return self.pow_nonce;
+    }
+
+    // TRACE INFO
+    // -------------------------------------------------------------------------------------------
     pub fn trace_length(&self) -> usize {
         return self.domain_size() / self.options.extension_factor();
     }
 
-    pub fn stack_depth(&self) -> usize {
-        return TraceState::compute_stack_depth(self.trace_evaluations[0].len());
+    pub fn ctx_depth(&self) -> usize {
+        return self.trace_info.ctx_depth as usize;
     }
 
-    pub fn pow_nonce(&self) -> u64 {
-        return self.pow_nonce;
+    pub fn loop_depth(&self) -> usize {
+        return self.trace_info.loop_depth as usize;
+    }
+
+    pub fn stack_depth(&self) -> usize {
+        return self.trace_info.stack_depth as usize;
+    }
+
+    pub fn op_count(&self) -> u128 {
+        return self.trace_info.op_count as u128;
     }
 
     // DEEP VALUES
     // -------------------------------------------------------------------------------------------
     pub fn get_state_at_z1(&self) -> TraceState {
-        return TraceState::from_raw_state(self.deep_values.trace_at_z1.clone());
+        return TraceState::from_vec(
+            self.ctx_depth(),
+            self.loop_depth(),
+            self.stack_depth(),
+            &self.deep_values.trace_at_z1);
     }
 
     pub fn get_state_at_z2(&self) -> TraceState {
-        return TraceState::from_raw_state(self.deep_values.trace_at_z2.clone());
-    }
-
-    // AUTH PATH
-    // -------------------------------------------------------------------------------------------
-    pub fn auth_path(&self) -> &Vec<[u8; 32]> {
-        return &self.auth_path;
-    }
-
-    pub fn auth_path_index(&self) -> usize {
-        return self.auth_path_index as usize;
-    }
-
-    pub fn set_auth_path(&mut self, mut auth_path: Vec<[u8; 32]>, path_index: usize) {
-        self.auth_path_index = path_index as u32;
-        self.auth_path.append(&mut auth_path);
+        return TraceState::from_vec(
+            self.ctx_depth(),
+            self.loop_depth(),
+            self.stack_depth(),
+            &self.deep_values.trace_at_z2);
     }
 }

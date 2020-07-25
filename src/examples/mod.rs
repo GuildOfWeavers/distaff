@@ -2,6 +2,7 @@ use distaff::{ Program, ProgramInputs, ProofOptions };
 
 mod utils;
 
+pub mod collatz;
 pub mod comparison;
 pub mod conditional;
 pub mod fibonacci;

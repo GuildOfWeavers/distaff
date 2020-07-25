@@ -1,158 +1,398 @@
-use crate::crypto::hash::blake3;
-use super::{ Program, ExecutionGraph, opcodes };
-
+// GROUP BLOCKS
+// ================================================================================================
 #[test]
-fn linear_assembly() {
-    let source = "push.1 push.2 add";
-    let program = super::compile(source, blake3).unwrap();
+fn single_block() {
+    let source = "begin push.1 push.2 add end";
+    let program = super::compile(source).unwrap();
 
-    let expected_program = Program::from_path(vec![
-        opcodes::BEGIN, opcodes::PUSH, 1, opcodes::PUSH, 2, opcodes::ADD
-    ]);
+    let expected = "\
+        begin noop noop noop noop noop noop noop \
+        push(1) noop noop noop noop noop noop noop \
+        push(2) add noop noop noop noop noop noop \
+        noop noop noop noop noop noop noop end";
 
-    assert_eq!(expected_program.hash(), program.hash());
+    assert_eq!(expected, format!("{:?}", program));
 }
 
 #[test]
-fn branching_assembly() {
+fn sequence_of_blocks() {
+    let source = "begin block push.1 push.2 add end block push.3 push.4 add end end";
+    let program = super::compile(source).unwrap();
+
+    let expected = "\
+        begin noop noop noop noop noop noop noop \
+        noop noop noop noop noop noop noop block \
+        push(1) noop noop noop noop noop noop noop \
+        push(2) add noop noop noop noop noop end \
+        block push(3) noop noop noop noop noop noop \
+        noop push(4) add noop noop noop noop noop \
+        end end";
+
+    assert_eq!(expected, format!("{:?}", program));
+}
+
+#[test]
+fn sequence_of_blocks_with_prefix() {
+    let source = "begin read read add block push.1 push.2 add end block push.3 push.4 sub end end";
+    let program = super::compile(source).unwrap();
+
+    let expected = "\
+        begin read read add noop noop noop noop \
+        noop noop noop noop noop noop noop block \
+        push(1) noop noop noop noop noop noop noop \
+        push(2) add noop noop noop noop noop end \
+        block push(3) noop noop noop noop noop noop \
+        noop push(4) neg add noop noop noop noop \
+        end end";
+
+    assert_eq!(expected, format!("{:?}", program));
+}
+
+#[test]
+fn sequence_of_blocks_with_prefix_and_suffix() {
+    let source = "begin read read add block push.1 push.2 add end block push.3 push.4 sub end hash.2 end";
+    let program = super::compile(source).unwrap();
+
+    let expected = "\
+        begin read read add noop noop noop noop \
+        noop noop noop noop noop noop noop block \
+        push(1) noop noop noop noop noop noop noop \
+        push(2) add noop noop noop noop noop end \
+        block push(3) noop noop noop noop noop noop \
+        noop push(4) neg add noop noop noop noop \
+        end pad2 pad2 noop noop noop noop noop \
+        noop noop noop noop noop noop noop noop \
+        noop rescr rescr rescr rescr rescr rescr rescr \
+        rescr rescr rescr drop4 noop noop noop noop \
+        end";
+
+    assert_eq!(expected, format!("{:?}", program));
+}
+
+// SWITCH BLOCKS
+// ================================================================================================
+
+#[test]
+fn single_if_else() {
     let source = "
+    begin
         push.3
         push.5
         read
         if.true
-            add
+            add dup mul
         else
-            mul
-        endif";
-    let program = super::compile(source, blake3).unwrap();
+            mul dup add
+        end
+    end";
+    let program = super::compile(source).unwrap();
 
-    let mut root = ExecutionGraph::new(vec![opcodes::BEGIN, opcodes::PUSH, 3, opcodes::PUSH, 5, opcodes::READ]);
-    let tb = ExecutionGraph::new(vec![opcodes::ASSERT, opcodes::ADD]);
-    let fb = ExecutionGraph::new(vec![opcodes::NOT, opcodes::ASSERT, opcodes::MUL]);
-    root.set_next(tb, fb);
+    let expected = "\
+        begin noop noop noop noop noop noop noop \
+        push(3) noop noop noop noop noop noop noop \
+        push(5) read noop noop noop noop noop noop \
+        noop noop noop noop noop noop noop if \
+        assert add dup mul noop noop noop noop \
+        noop noop noop noop noop noop noop else \
+        not assert mul dup add noop noop noop \
+        noop noop noop noop noop noop noop end \
+        end";
 
-    let expected_program = Program::new(root, blake3);
-    assert_eq!(expected_program.hash(), program.hash());
+    assert_eq!(expected, format!("{:?}", program));
 }
 
 #[test]
-fn nested_branching_assembly() {
+fn single_if_else_with_suffix() {
     let source = "
+    begin
         push.3
         push.5
         read
         if.true
-            add
-            push.7
+            add dup mul
+        else
+            mul dup add
+        end
+        rc.16
+    end";
+    let program = super::compile(source).unwrap();
+
+    let expected = "\
+        begin noop noop noop noop noop noop noop \
+        push(3) noop noop noop noop noop noop noop \
+        push(5) read noop noop noop noop noop noop \
+        noop noop noop noop noop noop noop if \
+        assert add dup mul noop noop noop noop \
+        noop noop noop noop noop noop noop else \
+        not assert mul dup add noop noop noop \
+        noop noop noop noop noop noop noop end \
+        pad2 noop noop noop noop noop noop noop \
+        push(32768) binacc.16 binacc binacc binacc binacc binacc binacc \
+        binacc binacc binacc binacc binacc binacc binacc binacc \
+        binacc drop drop read::eq eq noop noop end";
+
+    assert_eq!(expected, format!("{:?}", program));
+}
+
+#[test]
+fn nested_if_else() {
+    let source = "
+    begin
+        push.3
+        push.5
+        read
+        if.true
+            add dup mul eq
+            if.true
+                not push.6 mul
+            end
+        else
+            mul dup add
+        end
+    end";
+    let program = super::compile(source).unwrap();
+
+    let expected = "\
+    begin noop noop noop noop noop noop noop \
+        push(3) noop noop noop noop noop noop noop \
+        push(5) read noop noop noop noop noop noop \
+        noop noop noop noop noop noop noop \
+        if \
+            assert add dup mul read::eq eq noop noop \
+            noop noop noop noop noop noop noop \
+            if \
+                assert not noop noop noop noop noop noop \
+                push(6) mul noop noop noop noop noop \
+            else \
+                not assert noop noop noop noop noop noop \
+                noop noop noop noop noop noop noop \
+            end \
+        else \
+            not assert mul dup add noop noop noop \
+            noop noop noop noop noop noop noop \
+        end \
+    end";
+
+    assert_eq!(expected, format!("{:?}", program));
+}
+
+// LOOP BLOCKS
+// ================================================================================================
+#[test]
+fn single_loop() {
+    let source = "
+    begin
+        push.3
+        push.5
+        read
+        while.true
+            add dup mul read.ab
+        end
+    end";
+    let program = super::compile(source).unwrap();
+
+    let expected = "\
+    begin noop noop noop noop noop noop noop \
+        push(3) noop noop noop noop noop noop noop \
+        push(5) read noop noop noop noop noop noop \
+        noop noop noop noop noop noop noop \
+        while \
+            assert add dup mul read2 noop noop noop \
+            noop noop noop noop noop noop noop \
+        end \
+    end";
+
+    assert_eq!(expected, format!("{:?}", program));
+}
+
+#[test]
+fn loop_with_suffix_and_nested_if_else() {
+    let source = "
+    begin
+        push.3
+        push.5
+        read
+        while.true
+            add dup mul read.ab
+            if.true
+                push.6 sub
+            end
+            push.7 add
+        end
+    end";
+    let program = super::compile(source).unwrap();
+
+    let expected = "\
+    begin noop noop noop noop noop noop noop \
+        push(3) noop noop noop noop noop noop noop \
+        push(5) read noop noop noop noop noop noop \
+        noop noop noop noop noop noop noop \
+        while \
+            assert add dup mul read2 noop noop noop \
+            noop noop noop noop noop noop noop \
+            if \
+                assert noop noop noop noop noop noop noop \
+                push(6) neg add noop noop noop noop \
+            else \
+                not assert noop noop noop noop noop noop \
+                noop noop noop noop noop noop noop \
+            end \
+            push(7) add noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop \
+        end \
+    end";
+
+    assert_eq!(expected, format!("{:?}", program));
+}
+
+// REPEAT BLOCKS
+// ================================================================================================
+
+#[test]
+fn repeat_2_spans() {
+    let source = "
+    begin
+        read read add read eq
+        repeat.2
+            push.3 add
+        end
+    end";
+    let program = super::compile(source).unwrap();
+
+    let expected = "\
+    begin \
+        read read add read read::eq eq noop \
+        noop noop noop noop noop noop noop \
+        block \
+            push(3) add noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop noop \
+            push(3) add noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop \
+        end \
+    end";
+
+    assert_eq!(expected, format!("{:?}", program));
+}
+
+#[test]
+fn repeat_5_spans() {
+    let source = "
+    begin
+        read read add read eq
+        repeat.5
+            push.3 add
+        end
+    end";
+    let program = super::compile(source).unwrap();
+
+    let expected = "\
+    begin \
+        read read add read read::eq eq noop \
+        noop noop noop noop noop noop noop \
+        block \
+            push(3) add noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop noop \
+            push(3) add noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop noop \
+            push(3) add noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop noop \
+            push(3) add noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop noop \
+            push(3) add noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop \
+        end \
+    end";
+
+    assert_eq!(expected, format!("{:?}", program));
+}
+
+#[test]
+fn repeat_2_blocks() {
+    let source = "
+    begin
+        read read add read eq
+        repeat.2
             read
             if.true
-                mul
-            else
-                add
-            endif
-        else
-            mul
-        endif";
-    let program = super::compile(source, blake3).unwrap();
+                push.3 add mul
+            end
+        end
+    end";
+    let program = super::compile(source).unwrap();
 
-    let mut root = ExecutionGraph::new(vec![opcodes::BEGIN, opcodes::PUSH, 3, opcodes::PUSH, 5, opcodes::READ]);
-    let mut t0 = ExecutionGraph::new(vec![opcodes::ASSERT, opcodes::ADD, opcodes::PUSH, 7, opcodes::READ]);
-    let t1 = ExecutionGraph::new(vec![opcodes::ASSERT, opcodes::MUL]);
-    let f1 = ExecutionGraph::new(vec![opcodes::NOT, opcodes::ASSERT, opcodes::ADD]);
-    t0.set_next(t1, f1);
-    let f0 = ExecutionGraph::new(vec![opcodes::NOT, opcodes::ASSERT, opcodes::MUL]);
-    root.set_next(t0, f0);
+    let expected = "\
+    begin \
+        read read add read read::eq eq noop \
+        noop noop noop noop noop noop noop \
+        block \
+            read noop noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop \
+            if \
+                assert noop noop noop noop noop noop noop \
+                push(3) add mul noop noop noop noop \
+            else \
+                not assert noop noop noop noop noop noop \
+                noop noop noop noop noop noop noop \
+            end \
+            read noop noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop \
+            if \
+                assert noop noop noop noop noop noop noop \
+                push(3) add mul noop noop noop noop \
+            else \
+                not assert noop noop noop noop noop noop \
+                noop noop noop noop noop noop noop \
+            end \
+        end \
+    end";
 
-    let expected_program = Program::new(root, blake3);
-    assert_eq!(expected_program.hash(), program.hash());
+    assert_eq!(expected, format!("{:?}", program));
 }
 
 #[test]
-fn sequential_branching_assembly() {
+fn repeat_2_blocks_with_suffix() {
     let source = "
-        push.3
-        push.5
-        read
-        if.true
-            add
-        else
-            mul
-        endif
-        push.7
-        read
-        if.true
-            mul
-        else
-            add
-        endif";
-    let program = super::compile(source, blake3).unwrap();
-
-    let mut root = ExecutionGraph::new(vec![opcodes::BEGIN, opcodes::PUSH, 3, opcodes::PUSH, 5, opcodes::READ]);
-
-    let mut t0 = ExecutionGraph::new(vec![opcodes::ASSERT, opcodes::ADD, opcodes::PUSH, 7, opcodes::READ]);
-    let t00 = ExecutionGraph::new(vec![opcodes::ASSERT, opcodes::MUL]);
-    let f00 = ExecutionGraph::new(vec![opcodes::NOT, opcodes::ASSERT, opcodes::ADD]);
-    t0.set_next(t00, f00);
-
-    let mut f0 = ExecutionGraph::new(vec![opcodes::NOT, opcodes::ASSERT, opcodes::MUL, opcodes::PUSH, 7, opcodes::READ]);
-    let t10 = ExecutionGraph::new(vec![opcodes::ASSERT, opcodes::MUL]);
-    let f10 = ExecutionGraph::new(vec![opcodes::NOT, opcodes::ASSERT, opcodes::ADD]);
-    f0.set_next(t10, f10);
-
-    root.set_next(t0, f0);
-
-    let expected_program = Program::new(root, blake3);
-    assert_eq!(expected_program.hash(), program.hash());
-}
-
-#[test]
-fn sequential_nested_branching_assembly() {
-    let source = "
-        push.3
-        push.5
-        read
-        if.true
-            add
-            push.7
+    begin
+        read read add read eq
+        repeat.2
             read
             if.true
-                mul
-            else
-                add
-            endif
-        else
-            mul
-        endif
-        push.9
-        read
-        if.true
-            mul
-        else
-            add
-        endif";
-    let program = super::compile(source, blake3).unwrap();
+                push.3 add mul
+            end
+            sub inv
+        end
+    end";
+    let program = super::compile(source).unwrap();
 
-    let mut root = ExecutionGraph::new(vec![opcodes::BEGIN, opcodes::PUSH, 3, opcodes::PUSH, 5, opcodes::READ]);
+    let expected = "\
+    begin \
+        read read add read read::eq eq noop \
+        noop noop noop noop noop noop noop \
+        block \
+            read noop noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop \
+            if \
+                assert noop noop noop noop noop noop noop \
+                push(3) add mul noop noop noop noop \
+            else \
+                not assert noop noop noop noop noop noop \
+                noop noop noop noop noop noop noop \
+            end \
+            neg add inv noop noop noop noop noop \
+            noop noop noop noop noop noop noop noop \
+            read noop noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop \
+            if \
+                assert noop noop noop noop noop noop noop \
+                push(3) add mul noop noop noop noop \
+            else \
+                not assert noop noop noop noop noop noop \
+                noop noop noop noop noop noop noop \
+            end \
+            neg add inv noop noop noop noop noop \
+            noop noop noop noop noop noop noop \
+        end \
+    end";
 
-    let mut b0 = ExecutionGraph::new(vec![opcodes::ASSERT, opcodes::ADD, opcodes::PUSH, 7, opcodes::READ]);
-    let mut b00 = ExecutionGraph::new(vec![opcodes::ASSERT, opcodes::MUL, opcodes::PUSH, 9, opcodes::READ]);
-    let b000 = ExecutionGraph::new(vec![opcodes::ASSERT, opcodes::MUL]);
-    let b001 = ExecutionGraph::new(vec![opcodes::NOT, opcodes::ASSERT, opcodes::ADD]);
-    b00.set_next(b000, b001);
-
-    let mut b01 = ExecutionGraph::new(vec![opcodes::NOT, opcodes::ASSERT, opcodes::ADD, opcodes::PUSH, 9, opcodes::READ]);
-    let b010 = ExecutionGraph::new(vec![opcodes::ASSERT, opcodes::MUL]);
-    let b011 = ExecutionGraph::new(vec![opcodes::NOT, opcodes::ASSERT, opcodes::ADD]);
-    b01.set_next(b010, b011);
-    b0.set_next(b00, b01);
-
-    let mut b1 = ExecutionGraph::new(vec![opcodes::NOT, opcodes::ASSERT, opcodes::MUL, opcodes::PUSH, 9, opcodes::READ]);
-    let b10 = ExecutionGraph::new(vec![opcodes::ASSERT, opcodes::MUL]);
-    let b11 = ExecutionGraph::new(vec![opcodes::NOT, opcodes::ASSERT, opcodes::ADD]);
-    b1.set_next(b10, b11);
-
-    root.set_next(b0, b1);
-
-    let expected_program = Program::new(root, blake3);
-    assert_eq!(expected_program.hash(), program.hash());
+    assert_eq!(expected, format!("{:?}", program));
 }

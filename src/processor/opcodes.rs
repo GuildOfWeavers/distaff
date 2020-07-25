@@ -1,82 +1,199 @@
-pub const NOOP: u8     = 0b000_00_000;
-pub const CMP: u8      = 0b000_00_001;
-pub const BINACC: u8   = 0b000_00_010;
-pub const INV: u8      = 0b000_00_011;
-pub const NEG: u8      = 0b000_00_100;
-pub const NOT: u8      = 0b000_00_101;  // same as: PUSH 1 SWAP NEG ADD
-pub const AND: u8      = 0b000_00_110;
-pub const OR: u8       = 0b000_00_111;
+// FLOW CONTROL OPERATIONS
+// ================================================================================================
+#[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum FlowOps {
+    Hacc    = 0b000,
+    Begin   = 0b001,
+    Tend    = 0b010,
+    Fend    = 0b011,
+    Loop    = 0b100,
+    Wrap    = 0b101,
+    Break   = 0b110,
+    Void    = 0b111,
+}
 
-pub const PUSH: u8     = 0b000_01_000;
-pub const READ: u8     = 0b000_01_001;  // same as: READ2 DROP
-pub const READ2: u8    = 0b000_01_010;
-pub const DUP: u8      = 0b000_01_011;  // same as: DUP2 SWAP DROP
-pub const DUP2: u8     = 0b000_01_100;
-pub const DUP4: u8     = 0b000_01_101;
-pub const PAD2: u8     = 0b000_01_110;  // same as: PUSH 0 DUP
-pub const ASSERTEQ: u8 = 0b000_01_111;
+impl FlowOps {
+    pub fn op_index(&self) -> usize {
+        return (*self as usize) & 0b111;
+    }
+}
 
-pub const ASSERT: u8   = 0b000_10_000;
-pub const DROP: u8     = 0b000_10_001;
-pub const DROP4: u8    = 0b000_10_010;  // same as: DROP DROP DROP DROP
-pub const ADD: u8      = 0b000_10_011;
-pub const MUL: u8      = 0b000_10_100;
-pub const EQ: u8       = 0b000_10_101;
-pub const CHOOSE: u8   = 0b000_10_110;
-pub const CHOOSE2: u8  = 0b000_10_111;
+impl std::fmt::Display for FlowOps {
 
-pub const RESCR: u8    = 0b000_11_000;
-//pub const ???: u8    = 0b000_11_001;
-pub const SWAP: u8     = 0b000_11_010;
-pub const SWAP2: u8    = 0b000_11_011;  // same as: ROLL4 ROLL4
-pub const SWAP4: u8    = 0b000_11_100;  // same as: ROLL8 ROLL8 ROLL8 ROLL8
-pub const ROLL4: u8    = 0b000_11_101;
-pub const ROLL8: u8    = 0b000_11_110;
-pub const BEGIN: u8    = 0b000_11_111;
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        return match self {
 
-/// 128-bit versions of opcodes
-pub mod f128 {
-    pub const BEGIN   : u128 = super::BEGIN as u128;
-    pub const NOOP    : u128 = super::NOOP as u128;
-    pub const ASSERT  : u128 = super::ASSERT as u128;
-    pub const ASSERTEQ: u128 = super::ASSERTEQ as u128;
+            FlowOps::Hacc   => write!(f, "hacc"),
 
-    // input ops
-    pub const PUSH    : u128 = super::PUSH as u128;
-    pub const READ    : u128 = super::READ as u128;
-    pub const READ2   : u128 = super::READ2 as u128;
+            FlowOps::Begin  => write!(f, "begin"),
+            FlowOps::Tend   => write!(f, "tend"),
+            FlowOps::Fend   => write!(f, "fend"),
 
-    // stack manipulation ops
-    pub const DUP     : u128 = super::DUP as u128;
-    pub const DUP2    : u128 = super::DUP2 as u128;
-    pub const DUP4    : u128 = super::DUP4 as u128;
-    pub const PAD2    : u128 = super::PAD2 as u128;
-    pub const DROP    : u128 = super::DROP as u128;
-    pub const DROP4   : u128 = super::DROP4 as u128;
-    pub const SWAP    : u128 = super::SWAP as u128;
-    pub const SWAP2   : u128 = super::SWAP2 as u128;
-    pub const SWAP4   : u128 = super::SWAP4 as u128;
-    pub const ROLL4   : u128 = super::ROLL4 as u128;
-    pub const ROLL8   : u128 = super::ROLL8 as u128;
+            FlowOps::Loop   => write!(f, "loop"),
+            FlowOps::Wrap   => write!(f, "wrap"),
+            FlowOps::Break  => write!(f, "break"),
 
-    // conditional ops
-    pub const CHOOSE  : u128 = super::CHOOSE as u128;
-    pub const CHOOSE2 : u128 = super::CHOOSE2 as u128;
+            FlowOps::Void   => write!(f, "void"),
+        };
+    }
+}
 
-    // math and boolean ops
-    pub const ADD     : u128 = super::ADD as u128;
-    pub const MUL     : u128 = super::MUL as u128;
-    pub const INV     : u128 = super::INV as u128;
-    pub const NEG     : u128 = super::NEG as u128;
-    pub const NOT     : u128 = super::NOT as u128;
-    pub const AND     : u128 = super::AND as u128;
-    pub const OR      : u128 = super::OR as u128;
+// USER OPERATIONS
+// ================================================================================================
+#[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum UserOps {
+    
+    // low-degree operations
+    Assert      = 0b0_11_00000,         // left shift: 1
+    AssertEq    = 0b0_11_00001,         // left shift: 2
+    Eq          = 0b0_11_00010,         // left shift: 2
+    Drop        = 0b0_11_00011,         // left shift: 1
+    Drop4       = 0b0_11_00100,         // left shift: 4
+    Choose      = 0b0_11_00101,         // left shift: 2
+    Choose2     = 0b0_11_00110,         // left shift: 4
+    //???       = 0b0_11_00111,
 
-    // comparison ops
-    pub const EQ      : u128 = super::EQ as u128;
-    pub const CMP     : u128 = super::CMP as u128;
-    pub const BINACC  : u128 = super::BINACC as u128;
+    Add         = 0b0_11_01000,         // left shift: 1
+    Mul         = 0b0_11_01001,         // left shift: 1
+    And         = 0b0_11_01010,         // left shift: 1
+    Or          = 0b0_11_01011,         // left shift: 1
+    Inv         = 0b0_11_01100,         // no shift
+    Neg         = 0b0_11_01101,         // no shift
+    Not         = 0b0_11_01110,         // no shift
+    //???       = 0b0_11_01111,
 
-    // crypto ops
-    pub const RESCR   : u128 = super::RESCR as u128;
+    Read        = 0b0_11_10000,         // right shift: 1
+    Read2       = 0b0_11_10001,         // right shift: 2
+    Dup         = 0b0_11_10010,         // right shift: 1
+    Dup2        = 0b0_11_10011,         // right shift: 2
+    Dup4        = 0b0_11_10100,         // right shift: 4
+    Pad2        = 0b0_11_10101,         // right shift: 2
+    //???       = 0b0_11_10110,
+    //???       = 0b0_11_10111,
+
+    Swap        = 0b0_11_11000,         // no shift
+    Swap2       = 0b0_11_11001,         // no shift
+    Swap4       = 0b0_11_11010,         // no shift
+    Roll4       = 0b0_11_11011,         // no shift
+    Roll8       = 0b0_11_11100,         // no shift
+    BinAcc      = 0b0_11_11101,         // no shift
+    //???       = 0b0_11_11110,
+
+    // high-degree operations
+    Push        = 0b0_00_11111,         // right shift: 1
+    Cmp         = 0b0_01_11111,         // no shift
+    RescR       = 0b0_10_11111,         // no shift
+
+    // composite operations
+    Begin       = 0b0_00_00000,         // no shift
+    Noop        = 0b0_11_11111,         // no shift
+}
+
+impl UserOps {
+
+    pub fn ld_index(&self) -> usize {
+        return match self {
+            UserOps::Push | UserOps::Cmp | UserOps::RescR => {
+                panic!("{} is not a low-degree operation", self);
+            },
+            _ => {
+                (*self as usize) & 0b11111
+            }
+        };
+    }
+
+    pub fn hd_index(&self) -> usize {
+        return match self {
+            UserOps::Push | UserOps::Cmp | UserOps::RescR | UserOps::Noop | UserOps::Begin => {
+                ((*self as usize) >> 5) & 0b11
+            },
+            _ => {
+                panic!("{} is not a high-degree operation", self);
+            }
+        };
+    }
+}
+
+impl std::fmt::Display for UserOps {
+
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        return match self {
+
+            UserOps::Begin      => write!(f, "begin"),
+            UserOps::Noop       => write!(f, "noop"),
+
+            UserOps::Assert     => write!(f, "assert"),
+            UserOps::AssertEq   => write!(f, "asserteq"),
+    
+            UserOps::Push       => write!(f, "push"),
+            UserOps::Read       => write!(f, "read"),
+            UserOps::Read2      => write!(f, "read2"),
+    
+            UserOps::Dup        => write!(f, "dup"),
+            UserOps::Dup2       => write!(f, "dup2"),
+            UserOps::Dup4       => write!(f, "dup4"),
+            UserOps::Pad2       => write!(f, "pad2"),
+    
+            UserOps::Drop       => write!(f, "drop"),
+            UserOps::Drop4      => write!(f, "drop4"),
+    
+            UserOps::Swap       => write!(f, "swap"),
+            UserOps::Swap2      => write!(f, "swap2"),
+            UserOps::Swap4      => write!(f, "swap4"),
+    
+            UserOps::Roll4      => write!(f, "roll4"),
+            UserOps::Roll8      => write!(f, "roll8"),
+    
+            UserOps::Choose     => write!(f, "choose"),
+            UserOps::Choose2    => write!(f, "choose2"),
+    
+            UserOps::Add        => write!(f, "add"),
+            UserOps::Mul        => write!(f, "mul"),
+            UserOps::Inv        => write!(f, "inv"),
+            UserOps::Neg        => write!(f, "neg"),
+            UserOps::Not        => write!(f, "not"),
+            UserOps::And        => write!(f, "and"),
+            UserOps::Or         => write!(f, "or"),
+    
+            UserOps::Eq         => write!(f, "eq"),
+            UserOps::Cmp        => write!(f, "cmp"),
+            UserOps::BinAcc     => write!(f, "binacc"),
+    
+            UserOps::RescR      => write!(f, "rescr")
+        };
+    }
+}
+
+// OPERATION HINTS
+// ================================================================================================
+#[derive(Copy, Clone, Debug)]
+pub enum OpHint {
+    EqStart,
+    RcStart(u32),
+    CmpStart(u32),
+    PushValue(u128),
+    None,
+}
+
+impl OpHint {
+    pub fn value(&self) -> u128 {
+        return match self {
+            OpHint::PushValue(value) => *value,
+            _ => 0,
+        };
+    }
+}
+
+impl std::fmt::Display for OpHint {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        return match self {
+            OpHint::EqStart          => write!(f, "::eq"),
+            OpHint::RcStart(value)   => write!(f, ".{}", value),
+            OpHint::CmpStart(value)  => write!(f, ".{}", value),
+            OpHint::PushValue(value) => write!(f, "({})", value),
+            OpHint::None             => Ok(()),
+        };
+    }
 }

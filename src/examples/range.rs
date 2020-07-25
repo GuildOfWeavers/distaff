@@ -1,4 +1,4 @@
-use distaff::{ Program, ProgramInputs, assembly, crypto::HashFunction, math::field };
+use distaff::{ Program, ProgramInputs, assembly, math::field };
 use super::{ Example, utils::parse_args };
 
 pub fn get_example(args: &[String]) -> Example  {
@@ -10,7 +10,7 @@ pub fn get_example(args: &[String]) -> Example  {
     let values = generate_values(n);
 
     // generate the program and expected results
-    let program = generate_range_check_program(n, options.hash_fn());
+    let program = generate_range_check_program(n);
     let expected_result = vec![count_63_bit_values(&values)];
     println!("Generated a program to range-check {} values; expected result: {}", 
         n,
@@ -41,9 +41,10 @@ fn generate_values(n: usize) -> Vec<u128> {
 }
 
 /// Generates a program to range-check a sequence of values.
-fn generate_range_check_program(n: usize, hash_fn: HashFunction) -> Program {
+fn generate_range_check_program(n: usize) -> Program {
 
     let mut program = String::with_capacity(n * 80);
+    program.push_str("begin ");
 
     // repeat the cycle of the following operations:
     // 1. read a value from secret tape A
@@ -52,8 +53,9 @@ fn generate_range_check_program(n: usize, hash_fn: HashFunction) -> Program {
     for _ in 0..n {
         program.push_str("read rc.63 add ");
     }
+    program.push_str("end");
 
-    return assembly::compile(&program, hash_fn).unwrap();
+    return assembly::compile(&program).unwrap();
 }
 
 /// Counts the number of values smaller than 63-bits in size.
