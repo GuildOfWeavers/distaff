@@ -19,17 +19,15 @@ pub use opcodes::{ UserOps as OpCode, OpHint };
 // PUBLIC FUNCTIONS
 // ================================================================================================
 
-/// Returns register traces resulting from executing the specified procedure within the program
-/// against the specified inputs.
-pub fn execute(program: &Program, proc_index: usize, inputs: &ProgramInputs) -> (Vec<Vec<u128>>, usize, usize)
+/// Returns register traces resulting from executing the `program` against the specified inputs.
+pub fn execute(program: &Program, inputs: &ProgramInputs) -> (Vec<Vec<u128>>, usize, usize)
 {
     // initialize decoder and stack components
     let mut decoder = Decoder::new(MIN_TRACE_LENGTH);
     let mut stack = Stack::new(inputs, MIN_TRACE_LENGTH);
 
-    // get the procedure from the program and execute it
-    let procedure = program.get_proc(proc_index);
-    execute_blocks(procedure.body(), &mut decoder, &mut stack);
+    // execute body of the program
+    execute_blocks(program.root().body(), &mut decoder, &mut stack);
     close_block(&mut decoder, &mut stack, field::ZERO, true);
 
     // fill in remaining steps to make sure the length of the trace is a power of 2
@@ -186,17 +184,15 @@ fn execute_loop(block: &Loop, decoder: &mut Decoder, stack: &mut Stack)
 #[cfg(test)]
 mod tests {
 
-    use crate::{
-        crypto::hash::blake3, programs::assembly, stark::TraceState, utils::as_bytes,
-    };
+    use crate::{ programs::assembly, stark::TraceState, utils::as_bytes };
     use super::{ ProgramInputs };
 
     #[test]
     fn execute_span() {
-        let program = assembly::compile("begin add push.5 mul push.7 end", blake3).unwrap();
+        let program = assembly::compile("begin add push.5 mul push.7 end").unwrap();
         let inputs = ProgramInputs::from_public(&[1, 2]);
 
-        let (trace, ctx_depth, loop_depth) = super::execute(&program, 0, &inputs);
+        let (trace, ctx_depth, loop_depth) = super::execute(&program, &inputs);
         let trace_length = trace[0].len();
 
         assert_eq!(64, trace_length);
@@ -215,10 +211,10 @@ mod tests {
 
     #[test]
     fn execute_block() {
-        let program = assembly::compile("begin add block push.5 mul push.7 end end", blake3).unwrap();
+        let program = assembly::compile("begin add block push.5 mul push.7 end end").unwrap();
         let inputs = ProgramInputs::from_public(&[1, 2]);
 
-        let (trace, ctx_depth, loop_depth) = super::execute(&program, 0, &inputs);
+        let (trace, ctx_depth, loop_depth) = super::execute(&program, &inputs);
         let trace_length = trace[0].len();
 
         assert_eq!(64, trace_length);
@@ -240,12 +236,11 @@ mod tests {
     #[test]
     fn execute_if_else() {
         let program = assembly::compile(
-            "begin read if.true add push.3 else push.7 add push.8 end mul end",
-            blake3).unwrap();
+            "begin read if.true add push.3 else push.7 add push.8 end mul end").unwrap();
         
         // execute true branch
         let inputs = ProgramInputs::new(&[5, 3], &[1], &[]);
-        let (trace, ctx_depth, loop_depth) = super::execute(&program, 0, &inputs);
+        let (trace, ctx_depth, loop_depth) = super::execute(&program, &inputs);
         let trace_length = trace[0].len();
 
         assert_eq!(128, trace_length);
@@ -265,7 +260,7 @@ mod tests {
 
         // execute false branch
         let inputs = ProgramInputs::new(&[5, 3], &[0], &[]);
-        let (trace, ctx_depth, loop_depth) = super::execute(&program, 0, &inputs);
+        let (trace, ctx_depth, loop_depth) = super::execute(&program, &inputs);
         let trace_length = trace[0].len();
 
         assert_eq!(128, trace_length);
@@ -287,12 +282,11 @@ mod tests {
     #[test]
     fn execute_loop() {
         let program = assembly::compile(
-            "begin mul read while.true dup mul read end end",
-            blake3).unwrap();
+            "begin mul read while.true dup mul read end end").unwrap();
 
         // don't enter the loop
         let inputs = ProgramInputs::new(&[5, 3], &[0], &[]);
-        let (trace, ctx_depth, loop_depth) = super::execute(&program, 0, &inputs);
+        let (trace, ctx_depth, loop_depth) = super::execute(&program, &inputs);
         let trace_length = trace[0].len();
 
         assert_eq!(64, trace_length);
@@ -312,7 +306,7 @@ mod tests {
 
         // execute one iteration
         let inputs = ProgramInputs::new(&[5, 3], &[1, 0], &[]);
-        let (trace, ctx_depth, loop_depth) = super::execute(&program, 0, &inputs);
+        let (trace, ctx_depth, loop_depth) = super::execute(&program, &inputs);
         let trace_length = trace[0].len();
 
         assert_eq!(128, trace_length);
@@ -332,7 +326,7 @@ mod tests {
 
         // execute five iteration
         let inputs = ProgramInputs::new(&[5, 3], &[1, 1, 1, 1, 1, 0], &[]);
-        let (trace, ctx_depth, loop_depth) = super::execute(&program, 0, &inputs);
+        let (trace, ctx_depth, loop_depth) = super::execute(&program, &inputs);
         let trace_length = trace[0].len();
 
         assert_eq!(256, trace_length);

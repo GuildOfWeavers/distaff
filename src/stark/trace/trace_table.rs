@@ -271,7 +271,7 @@ mod tests {
     use crate::{
         math::{ field, polynom, parallel, fft },
         crypto::hash::blake3,
-        programs::{ Program, ProgramInputs, blocks::{ ProgramBlock, Span } },
+        programs::{ Program, ProgramInputs, blocks::{ ProgramBlock, Span, Group } },
         processor::{ execute, OpCode },
         stark::{ TraceTable, CompositionCoefficients, utils::get_composition_degree }
     };
@@ -369,11 +369,11 @@ mod tests {
             OpCode::Add,   OpCode::Swap, OpCode::Dup2, OpCode::Drop,
             OpCode::Add,   OpCode::Noop, OpCode::Noop,
         ];
-        let program = Program::from_proc(vec![
+        let program = Program::new(Group::new(vec![
             ProgramBlock::Span(Span::new(instructions, HashMap::new()))
-        ]);
+        ]));
         let inputs = ProgramInputs::from_public(&[1, 0]);
-        let (trace, ctx_depth, loop_depth) = execute(&program, 0, &inputs);
+        let (trace, ctx_depth, loop_depth) = execute(&program, &inputs);
         return TraceTable::new(trace, ctx_depth, loop_depth, EXT_FACTOR);
     }
 }

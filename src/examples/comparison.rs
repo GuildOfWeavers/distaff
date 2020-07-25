@@ -29,8 +29,7 @@ pub fn get_example(args: &[String]) -> Example  {
             add
         end
         isodd.128
-    end",
-    options.hash_fn()).unwrap();
+    end").unwrap();
 
     println!("Generated a program to test comparisons; expected result: {}", 
         expected_result);

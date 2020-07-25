@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use crate::{
-    ProofOptions, Program, ProgramInputs, OpCode, OpHint, blocks::{ ProgramBlock, Span },
+    ProofOptions, Program, ProgramInputs, OpCode, OpHint,
+    blocks::{ ProgramBlock, Span, Group },
     math::field, utils::hasher
 };
 
@@ -57,7 +58,7 @@ fn execute_verify_fail() {
     let mut program_hash2 = program.hash().clone();
     program_hash2[0] = 1;
     let result = super::verify(&program_hash2, inputs.get_public_inputs(), &outputs, &proof);
-    let err_msg = format!("verification of program execution path failed");
+    let err_msg = format!("verification of low-degree proof failed: evaluations did not match column value at depth 0");
     assert_eq!(Err(err_msg), result);
 }
 
@@ -312,6 +313,6 @@ fn build_program(instructions: Vec<OpCode>, push_values: &[u128]) -> Program {
     }
     assert!(j == push_values.len(), "too many push values");
 
-    let procedure = vec![ProgramBlock::Span(Span::new(instructions, hints))];
-    return Program::from_proc(procedure);
+    let root = vec![ProgramBlock::Span(Span::new(instructions, hints))];
+    return Program::new(Group::new(root));
 }

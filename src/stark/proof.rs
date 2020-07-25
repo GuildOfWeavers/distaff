@@ -9,8 +9,6 @@ use crate::utils::{ uninit_vector, as_bytes };
 // TODO: custom serialization should reduce size by 5% - 10%
 #[derive(Clone, Serialize, Deserialize)]
 pub struct StarkProof {
-    proc_path           : Vec<[u8; 32]>,
-    proc_path_index     : u32,
     trace_root          : [u8; 32],
     trace_info          : TraceInfo,
     trace_nodes         : Vec<Vec<[u8; 32]>>,
@@ -65,8 +63,6 @@ impl StarkProof {
         };
 
         return StarkProof {
-            proc_path           : Vec::new(),
-            proc_path_index     : 0,
             trace_root          : *trace_root,
             trace_info          : trace_info,
             trace_nodes         : trace_proof.nodes,
@@ -165,20 +161,5 @@ impl StarkProof {
             self.loop_depth(),
             self.stack_depth(),
             &self.deep_values.trace_at_z2);
-    }
-
-    // PROC PATH
-    // -------------------------------------------------------------------------------------------
-    pub fn proc_path(&self) -> &Vec<[u8; 32]> {
-        return &self.proc_path;
-    }
-
-    pub fn proc_path_index(&self) -> usize {
-        return self.proc_path_index as usize;
-    }
-
-    pub fn set_proc_path(&mut self, mut proc_path: Vec<[u8; 32]>, path_index: usize) {
-        self.proc_path_index = path_index as u32;
-        self.proc_path.append(&mut proc_path);
     }
 }

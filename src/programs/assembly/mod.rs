@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use crate::{ crypto::HashFunction };
 use super::{ Program, ProgramBlock, Span, Group, Switch, Loop, OpCode, OpHint, BASE_CYCLE_LENGTH };
 
 mod parsers;
@@ -17,7 +16,7 @@ type HintMap = HashMap<usize, OpHint>;
 // ================================================================================================
 
 /// Compiles provided assembly code into a program.
-pub fn compile(source: &str, hash_fn: HashFunction) -> Result<Program, AssemblyError> {
+pub fn compile(source: &str) -> Result<Program, AssemblyError> {
 
     // break assembly string into tokens
     let tokens: Vec<&str> = source.split_whitespace().collect();
@@ -33,25 +32,18 @@ pub fn compile(source: &str, hash_fn: HashFunction) -> Result<Program, AssemblyE
         return Err(AssemblyError::invalid_program_end(tokens[tokens.len() - 1]));
     }
 
-    let mut i = 0;
-    let mut procedures = Vec::new();
+    // read the program from the token stream
+    let mut root_blocks = Vec::new();
+    let i = parse_branch(&mut root_blocks, &tokens, 0)?;
+    let root = Group::new(root_blocks);
 
-    // read procedures from the token stream
-    while i < tokens.len() {
-        // read a procedure from the token stream
-        let mut procedure = Vec::new();
-        i = parse_branch(&mut procedure, &tokens, i)?;
-        procedures.push(Group::new(procedure));
-
-        // if there is anything beyond the current step, make sure it starts with `begin`
-        i += 1;
-        if i < tokens.len() - 1 && tokens[i] != "begin" {
-            return Err(AssemblyError::dangling_instructions(i));
-        }
+    // make sure there is nothing left after the last token
+    if i < tokens.len() - 1 {
+        return Err(AssemblyError::dangling_instructions(i));
     }
 
     // build and return the program
-    return Ok(Program::new(procedures, hash_fn));
+    return Ok(Program::new(root));
 }
 
 // PARSER FUNCTIONS
@@ -147,7 +139,7 @@ fn parse_branch(body: &mut Vec<ProgramBlock>, tokens: &[&str], mut i: usize) -> 
     let mut head: Vec<&str> = tokens[i].split(".").collect();
     let mut op_codes: Vec<OpCode> = match head[0] {
         "begin"  => {
-            // this is a first block of a procedure
+            // this is a first block of a program
             head[0] = "block";
             vec![OpCode::Begin]
         },

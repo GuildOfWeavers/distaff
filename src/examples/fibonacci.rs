@@ -1,4 +1,4 @@
-use distaff::{ Program, ProgramInputs, assembly, math::field, crypto::HashFunction };
+use distaff::{ Program, ProgramInputs, assembly, math::field };
 use super::{ Example, utils::parse_args };
 
 pub fn get_example(args: &[String]) -> Example  {
@@ -7,7 +7,7 @@ pub fn get_example(args: &[String]) -> Example  {
     let (n, options) = parse_args(args);
     
     // generate the program and expected results
-    let program = generate_fibonacci_program(n, options.hash_fn());
+    let program = generate_fibonacci_program(n);
     let expected_result = vec![compute_fibonacci(n)];
     println!("Generated a program to compute {}-th Fibonacci term; expected result: {}", 
         n,
@@ -29,7 +29,7 @@ pub fn get_example(args: &[String]) -> Example  {
 }
 
 /// Generates a program to compute the `n`-th term of Fibonacci sequence
-fn generate_fibonacci_program(n: usize, hash_fn: HashFunction) -> Program {
+fn generate_fibonacci_program(n: usize) -> Program {
     // the program is a simple repetition of 4 stack operations:
     // the first operation moves the 2nd stack item to the top,
     // the second operation duplicates the top 2 stack items,
@@ -43,7 +43,7 @@ fn generate_fibonacci_program(n: usize, hash_fn: HashFunction) -> Program {
         end
     end", n - 1);
 
-    return assembly::compile(&program, hash_fn).unwrap();
+    return assembly::compile(&program).unwrap();
 }
 
 /// Computes the `n`-th term of Fibonacci sequence

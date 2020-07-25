@@ -25,8 +25,7 @@ pub fn get_example(args: &[String]) -> Example  {
             dup push.1 ne
         end
         swap
-    end",
-    options.hash_fn()).unwrap();
+    end").unwrap();
 
     println!("Generated a program to compute Collatz sequence; expected result: {}", 
         expected_result);

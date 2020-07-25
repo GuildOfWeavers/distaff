@@ -47,7 +47,7 @@ impl AssemblyError {
 
     pub fn dangling_instructions(step: usize) -> AssemblyError {
         return AssemblyError {
-            message : format!("dangling instructions after procedure end"),
+            message : format!("dangling instructions after program end"),
             step    : step,
             op      : String::from("end"),
         };

@@ -25,8 +25,7 @@ pub fn get_example(args: &[String]) -> Example  {
         else
             mul
         end
-    end",
-    options.hash_fn()).unwrap();
+    end").unwrap();
 
     println!("Generated a program to test conditional execution; expected result: {}", 
         expected_result);

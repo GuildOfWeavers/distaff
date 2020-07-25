@@ -1,4 +1,4 @@
-use distaff::{ Program, ProgramInputs, assembly, math::field, crypto::hash::blake3, utils::hasher };
+use distaff::{ Program, ProgramInputs, assembly, math::field, utils::hasher };
 use super::{ Example, utils::parse_args };
 
 pub fn get_example(args: &[String]) -> Example  {
@@ -46,7 +46,7 @@ fn generate_merkle_program(n: usize) -> Program {
     end
     ", n);
 
-    return assembly::compile(&source, blake3).unwrap();
+    return assembly::compile(&source).unwrap();
 }
 
 /// Converts Merkle authentication path for a node at the specified `index` into 
