@@ -129,7 +129,7 @@ fn single_if_else_with_suffix() {
         pad2 noop noop noop noop noop noop noop \
         push(32768) binacc.16 binacc binacc binacc binacc binacc binacc \
         binacc binacc binacc binacc binacc binacc binacc binacc \
-        binacc drop drop read::eq eq noop noop end";
+        binacc dup drop4 read::eq eq noop noop end";
 
     assert_eq!(expected, format!("{:?}", program));
 }
