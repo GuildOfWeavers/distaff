@@ -184,7 +184,11 @@ fn binacc_128() {
     for i in 0..128 { inputs_a.push((x >> i) & 1); }
     inputs_a.reverse();
 
-    let mut stack = init_stack(&[p127, 0, 0, x, 7, 11], &inputs_a, &[], 256);
+    let mut stack = init_stack(
+        &[0, 0, p127, 0, x, 7, 11],
+        &inputs_a,
+        &[],
+        256);
 
     // execute binary aggregation operations
     for _ in 0..128 { stack.execute(OpCode::BinAcc, OpHint::None); }
@@ -192,7 +196,8 @@ fn binacc_128() {
     // check the result
     stack.execute(OpCode::Drop, OpHint::None);
     stack.execute(OpCode::Drop, OpHint::None);
-    let state = get_stack_state(&stack, 130);
+    stack.execute(OpCode::Drop, OpHint::None);
+    let state = get_stack_state(&stack, 131);
     assert_eq!(vec![x, x, 7, 11, 0, 0, 0, 0], state);
 }
 
@@ -207,7 +212,11 @@ fn binacc_64() {
     for i in 0..64 { inputs_a.push((x >> i) & 1); }
     inputs_a.reverse();
 
-    let mut stack = init_stack(&[p127, 0, 0, x, 7, 11], &inputs_a, &[], 256);
+    let mut stack = init_stack(
+        &[0, 0, p127, 0, x, 7, 11],
+        &inputs_a,
+        &[],
+        256);
 
     // execute binary aggregation operations
     for _ in 0..64 { stack.execute(OpCode::BinAcc, OpHint::None); }
@@ -215,7 +224,8 @@ fn binacc_64() {
     // check the result
     stack.execute(OpCode::Drop, OpHint::None);
     stack.execute(OpCode::Drop, OpHint::None);
-    let state = get_stack_state(&stack, 66);
+    stack.execute(OpCode::Drop, OpHint::None);
+    let state = get_stack_state(&stack, 67);
     assert_eq!(vec![x, x, 7, 11, 0, 0, 0, 0], state);
 }
 
@@ -231,16 +241,22 @@ fn isodd_128() {
     for i in 0..128 { inputs_a.push((x >> i) & 1); }
     inputs_a.reverse();
 
-    let mut stack = init_stack(&[p127, 0, 0, x, 7, 11], &inputs_a, &[], 256);
+    let mut stack = init_stack(
+        &[0, 0, p127, 0, x, 7, 11],
+        &inputs_a,
+        &[],
+        256);
 
     // execute binary aggregation operations
     for _ in 0..128 { stack.execute(OpCode::BinAcc, OpHint::None); }
 
     // check the result
     stack.execute(OpCode::Swap2, OpHint::None);
-    stack.execute(OpCode::AssertEq, OpHint::None);
     stack.execute(OpCode::Drop, OpHint::None);
-    let state = get_stack_state(&stack, 131);
+    stack.execute(OpCode::Swap2, OpHint::None);
+    stack.execute(OpCode::Drop, OpHint::None);
+    stack.execute(OpCode::AssertEq, OpHint::None);
+    let state = get_stack_state(&stack, 133);
     assert_eq!(vec![is_odd, 7, 11, 0, 0, 0, 0, 0], state);
 }
 

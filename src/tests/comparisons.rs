@@ -82,12 +82,16 @@ fn binacc_operation() {
     for _ in 0..128 { instructions.push(OpCode::BinAcc); }
     instructions.push(OpCode::Drop);
     instructions.push(OpCode::Drop);
+    instructions.push(OpCode::Drop);
     while instructions.len() < 255 { instructions.push(OpCode::Noop); }
 
     let program = build_program(instructions, &[]);
 
     let options = ProofOptions::default();
-    let inputs = ProgramInputs::new(&[p127, 0, 0, a], &inputs_a, &[]);
+    let inputs = ProgramInputs::new(
+        &[0, 0, p127, 0, a],
+        &inputs_a,
+        &[]);
     let num_outputs = 2;
 
     let expected_result = vec![a, a];

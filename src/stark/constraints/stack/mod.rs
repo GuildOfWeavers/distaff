@@ -6,7 +6,7 @@ use crate::{
     BASE_CYCLE_LENGTH, HASH_STATE_WIDTH
 };
 use super::utils::{
-    are_equal, is_binary, binary_not, extend_constants, EvaluationResult,
+    are_equal, is_zero, is_binary, binary_not, extend_constants, EvaluationResult,
     enforce_stack_copy, enforce_left_shift, enforce_right_shift,
 };
 

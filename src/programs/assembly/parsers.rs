@@ -352,7 +352,7 @@ pub fn parse_rc(program: &mut Vec<OpCode>, hints: &mut HintMap, op: &[&str], ste
     program.resize(program.len() + (n as usize), OpCode::BinAcc);
 
     // compare binary aggregation value with the original value
-    program.extend_from_slice(&[OpCode::Drop, OpCode::Drop]);
+    program.extend_from_slice(&[OpCode::Dup, OpCode::Drop4]);
     hints.insert(program.len(), OpHint::EqStart);
     program.extend_from_slice(&[OpCode::Read, OpCode::Eq]);
     return Ok(true);
@@ -382,7 +382,7 @@ pub fn parse_isodd(program: &mut Vec<OpCode>, hints: &mut HintMap, op: &[&str], 
 
     // compare binary aggregation value with the original value and drop all
     // values used in computations except for the least significant bit of the value
-    program.extend_from_slice(&[OpCode::Swap2, OpCode::AssertEq, OpCode::Drop]);
+    program.extend_from_slice(&[OpCode::Swap2, OpCode::Drop, OpCode::Swap2, OpCode::AssertEq]);
     return Ok(true);
 }
 

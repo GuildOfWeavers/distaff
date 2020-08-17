@@ -1,6 +1,6 @@
 use super::{
     field, 
-    are_equal, is_binary, binary_not, EvaluationResult,
+    are_equal, is_zero, is_binary, binary_not, EvaluationResult,
     enforce_left_shift, enforce_stack_copy,
 };
 
@@ -109,23 +109,26 @@ pub fn enforce_cmp(result: &mut [u128], old_stack: &[u128], new_stack: &[u128], 
 /// Evaluates constraints for BINACC operation.
 pub fn enforce_binacc(result: &mut [u128], old_stack: &[u128], new_stack: &[u128], op_flag: u128)
 {
-    // layout of first 3 registers:
-    // [power of two, value bit, accumulated value]
+    // layout of first 4 registers:
+    // [value bit, 0, power of two, accumulated value]
     // value bit is located in the next state (not current state)
 
-    // power of 2 register was updated correctly
-    let power_of_two = old_stack[0];
-    let power_of_two_constraint = are_equal(field::mul(new_stack[0], 2), power_of_two);
-    result.agg_constraint(0, op_flag, power_of_two_constraint);
-
     // the bit was a binary value
-    let bit = new_stack[1];
-    result.agg_constraint(1, op_flag, is_binary(bit));
+    let bit = new_stack[0];
+    result.agg_constraint(0, op_flag, is_binary(bit));
+
+    // register after bit register was empty
+    result.agg_constraint(1, op_flag, is_zero(new_stack[1]));
+
+    // power of 2 register was updated correctly
+    let power_of_two = old_stack[2];
+    let power_of_two_constraint = are_equal(field::mul(new_stack[2], 2), power_of_two);
+    result.agg_constraint(2, op_flag, power_of_two_constraint);
 
     // binary representation accumulator was updated correctly
-    let acc = field::add(old_stack[2], field::mul(bit, power_of_two));
-    result.agg_constraint(2, op_flag, are_equal(new_stack[2], acc));
+    let acc = field::add(old_stack[3], field::mul(bit, power_of_two));
+    result.agg_constraint(3, op_flag, are_equal(new_stack[3], acc));
 
     // registers beyond 2nd register remained the same
-    enforce_stack_copy(result, old_stack, new_stack, 3, op_flag);
+    enforce_stack_copy(result, old_stack, new_stack, 4, op_flag);
 }

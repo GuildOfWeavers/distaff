@@ -488,14 +488,14 @@ impl Stack {
             OpHint::RcStart(n) => {
                 // if we are about to start range check sequence, push binary decompositions
                 // of the value onto tape A
-                assert!(self.depth >= 4, "stack underflow at step {}", self.step);
-                let val = self.registers[3][self.step - 1];
+                assert!(self.depth >= 5, "stack underflow at step {}", self.step);
+                let val = self.registers[4][self.step - 1];
                 for i in 0..n {
                     self.tape_a.push((val >> i) & 1);
                 }
             },
             _ => {
-                assert!(self.depth >= 3, "stack underflow at step {}", self.step);
+                assert!(self.depth >= 4, "stack underflow at step {}", self.step);
                 assert!(self.tape_a.len() > 0, "attempt to read from empty tape A at step {}", self.step);
             }
         }
@@ -506,9 +506,10 @@ impl Stack {
             "expected binary input at step {} but received: {}", self.step, bit);
 
         // compute current power of 2 for binary decomposition
-        let power_of_two = self.registers[0][self.step - 1];
+        let power_of_two = self.registers[2][self.step - 1];
         assert!(power_of_two.is_power_of_two(),
-            "expected top of the stack at step {} to be a power of 2, but received {}", self.step, power_of_two);
+            "expected 3rd value from the top of the stack at step {} to be a power of 2, but received {}",
+            self.step, power_of_two);
         let next_power_of_two = if power_of_two == 1 {
                 field::div(power_of_two, 2)
             }
@@ -516,14 +517,15 @@ impl Stack {
                 power_of_two >> 1
             };
 
-        let acc = self.registers[2][self.step - 1];
+        let acc = self.registers[3][self.step - 1];
 
         // update the next state of the computation
-        self.registers[0][self.step] = next_power_of_two;
-        self.registers[1][self.step] = bit;
-        self.registers[2][self.step] = field::add(acc, field::mul(bit, power_of_two));
+        self.registers[0][self.step] = bit;
+        self.registers[1][self.step] = 0;
+        self.registers[2][self.step] = next_power_of_two;
+        self.registers[3][self.step] = field::add(acc, field::mul(bit, power_of_two));
 
-        self.copy_state(3);
+        self.copy_state(4);
     }
 
     // CRYPTOGRAPHIC OPERATIONS
