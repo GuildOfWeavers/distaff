@@ -93,6 +93,7 @@ impl Stack {
 
             OpCode::Choose      => self.op_choose(),
             OpCode::Choose2     => self.op_choose2(),
+            OpCode::CSwap2      => self.op_cswap2(),
 
             OpCode::Add         => self.op_add(),
             OpCode::Mul         => self.op_mul(),
@@ -337,6 +338,27 @@ impl Stack {
             assert!(false, "CHOOSE2 on a non-binary condition at step {}", self.step);
         }
         self.shift_left(6, 4);
+    }
+
+    fn op_cswap2(&mut self) {
+        assert!(self.depth >= 6, "stack underflow at step {}", self.step);
+        let condition = self.registers[4][self.step - 1];
+        if condition == field::ZERO {
+            self.registers[0][self.step] = self.registers[0][self.step - 1];
+            self.registers[1][self.step] = self.registers[1][self.step - 1];
+            self.registers[2][self.step] = self.registers[2][self.step - 1];
+            self.registers[3][self.step] = self.registers[3][self.step - 1];
+        }
+        else if condition == field::ONE {
+            self.registers[0][self.step] = self.registers[2][self.step - 1];
+            self.registers[1][self.step] = self.registers[3][self.step - 1];
+            self.registers[2][self.step] = self.registers[0][self.step - 1];
+            self.registers[3][self.step] = self.registers[1][self.step - 1];
+        }
+        else {
+            assert!(false, "CSWAP2 on a non-binary condition at step {}", self.step);
+        }
+        self.shift_left(6, 2);
     }
 
     // ARITHMETIC AND BOOLEAN OPERATIONS

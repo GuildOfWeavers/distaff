@@ -4,6 +4,7 @@ use super::{ Stack, super::ProgramInputs, OpHint, OpCode };
 use crate::{ HASH_STATE_WIDTH };
 
 mod comparisons;
+mod conditional;
 
 const TRACE_LENGTH: usize = 16;
 
@@ -212,68 +213,6 @@ fn roll8() {
 
     assert_eq!(8, stack.depth);
     assert_eq!(8, stack.max_depth);
-}
-
-// CONDITIONAL OPERATIONS
-// ================================================================================================
-
-#[test]
-fn choose() {
-    // choose on true
-    let mut stack = init_stack(&[2, 3, 0], &[], &[], TRACE_LENGTH);
-    stack.execute(OpCode::Choose, OpHint::None);
-    assert_eq!(vec![3, 0, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
-
-    assert_eq!(1, stack.depth);
-    assert_eq!(3, stack.max_depth);
-
-    let mut stack = init_stack(&[2, 3, 0, 4], &[], &[], TRACE_LENGTH);
-    stack.execute(OpCode::Choose, OpHint::None);
-    assert_eq!(vec![3, 4, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
-
-    assert_eq!(2, stack.depth);
-    assert_eq!(4, stack.max_depth);
-
-    // choose on false
-    let mut stack = init_stack(&[2, 3, 1, 4], &[], &[], TRACE_LENGTH);
-    stack.execute(OpCode::Choose, OpHint::None);
-    assert_eq!(vec![2, 4, 0, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
-
-    assert_eq!(2, stack.depth);
-    assert_eq!(4, stack.max_depth);
-}
-
-#[test]
-#[should_panic(expected = "CHOOSE on a non-binary condition at step 1")]
-fn choose_fail() {
-    let mut stack = init_stack(&[2, 3, 4], &[], &[], TRACE_LENGTH);
-    stack.execute(OpCode::Choose, OpHint::None);
-}
-
-#[test]
-fn choose2() {
-    // choose on true
-    let mut stack = init_stack(&[2, 3, 4, 5, 0, 6, 7], &[], &[], TRACE_LENGTH);
-    stack.execute(OpCode::Choose2, OpHint::None);
-    assert_eq!(vec![4, 5, 7, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
-
-    assert_eq!(3, stack.depth);
-    assert_eq!(7, stack.max_depth);
-
-    // choose on false
-    let mut stack = init_stack(&[2, 3, 4, 5, 1, 6, 7], &[], &[], TRACE_LENGTH);
-    stack.execute(OpCode::Choose2, OpHint::None);
-    assert_eq!(vec![2, 3, 7, 0, 0, 0, 0, 0], get_stack_state(&stack, 1));
-
-    assert_eq!(3, stack.depth);
-    assert_eq!(7, stack.max_depth);
-}
-
-#[test]
-#[should_panic(expected = "CHOOSE2 on a non-binary condition at step 1")]
-fn choose2_fail() {
-    let mut stack = init_stack(&[2, 3, 4, 5, 6, 8, 8], &[], &[], TRACE_LENGTH);
-    stack.execute(OpCode::Choose2, OpHint::None);
 }
 
 // ARITHMETIC AND BOOLEAN OPERATIONS
