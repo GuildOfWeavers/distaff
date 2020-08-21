@@ -28,8 +28,8 @@ use manipulation::{
 mod comparison;
 use comparison::{ enforce_assert, enforce_asserteq, enforce_eq, enforce_cmp, enforce_binacc };
 
-mod selection;
-use selection::{ enforce_choose, enforce_choose2 };
+mod conditional;
+use conditional::{ enforce_choose, enforce_choose2, enforce_cswap2 };
 
 mod hash;
 use hash::{ enforce_rescr };
@@ -171,6 +171,7 @@ fn enforce_constraints(current: &TraceState, next: &TraceState, ark: &[u128], re
     // conditional selection operations
     enforce_choose  (&mut evaluations, aux, old_stack, new_stack, ld_flags[OpCode::Choose.ld_index()]);
     enforce_choose2 (&mut evaluations, aux, old_stack, new_stack, ld_flags[OpCode::Choose2.ld_index()]);
+    enforce_cswap2  (&mut evaluations, aux, old_stack, new_stack, ld_flags[OpCode::CSwap2.ld_index()]);
 
     // 2 ----- enforce constraints for high-degree operations --------------------------------------
     let hd_flags = current.hd_op_flags();
