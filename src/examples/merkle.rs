@@ -42,7 +42,7 @@ fn generate_merkle_program(n: usize) -> Program {
     let source = format!("
     begin
         read.ab
-        mpath.{}
+        smpath.{}
     end
     ", n);
 
@@ -63,15 +63,15 @@ fn generate_program_inputs(path: &[Vec<u128>; 2], index: usize) -> ProgramInputs
     b.push(path[1][0]);
 
     for i in 1..n {
-        // push the next node onto tapes A and B
-        a.push(path[0][i]);
-        b.push(path[1][i]);
-
         // push next bit of the position index onto tapes A and B; we use both tapes
         // here so that we can use READ2 instruction when reading inputs from the tapes
         a.push(field::ZERO);
         b.push((index & 1) as u128);
         index = index >> 1;
+
+        // push the next node onto tapes A and B
+        a.push(path[0][i]);
+        b.push(path[1][i]);
     }
 
     return ProgramInputs::new(&[], &a, &b);

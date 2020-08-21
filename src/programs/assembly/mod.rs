@@ -236,7 +236,7 @@ fn parse_op_token(op: Vec<&str>, op_codes: &mut Vec<OpCode>, op_hints: &mut Hint
         "choose" => parse_choose(op_codes, &op, step),
 
         "hash"   => parse_hash(op_codes, &op, step),
-        "mpath"  => parse_mpath(op_codes, &op, step),
+        "smpath" => parse_smpath(op_codes, &op, step),
 
         _ => return Err(AssemblyError::invalid_op(&op, step))
     }?;

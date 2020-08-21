@@ -437,16 +437,18 @@ pub fn parse_hash(program: &mut Vec<OpCode>, op: &[&str], step: usize) -> Result
 
 /// Appends a sequence of operations to the program to compute the root of Merkle
 /// authentication path for a tree of depth n.
-pub fn parse_mpath(program: &mut Vec<OpCode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+pub fn parse_smpath(program: &mut Vec<OpCode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     let n = read_param(op, step)?;
     if n < 2 || n > 256 {
         return Err(AssemblyError::invalid_param_reason(op, step,
             format!("parameter {} is invalid; value must be between 2 and 256", n)))
     }
 
-    // read the first node in the Merkle path and push it onto the stack;
-    // also pad the stack to prepare it for hashing.
-    program.extend_from_slice(&[OpCode::Read2, OpCode::Dup4, OpCode::Pad2]);
+    // move the first bit of the leaf's index and the first node in the Merkle onto the stack,
+    // position them correctly, and pad the stack to prepare it for hashing.
+    program.extend_from_slice(&[
+        OpCode::Read2, OpCode::Swap2, OpCode::Read2, OpCode::CSwap2, OpCode::Pad2
+    ]);
 
     // pad with NOOPs to make sure hashing starts on a step which is a multiple of 16
     let alignment = program.len() % HASH_OP_ALIGNMENT;
@@ -454,29 +456,25 @@ pub fn parse_mpath(program: &mut Vec<OpCode>, op: &[&str], step: usize) -> Resul
     program.resize(program.len() + pad_length, OpCode::Noop);
 
     // repeat the following cycle of operations once for each remaining node:
-    // 1. compute hash(p, v)
-    // 2. read next bit of position index
-    // 3. compute hash(v, p)
-    // 4. base on position index bit, choses either hash(p, v) or hash(v, p)
-    // 5. reads the next nodes and pushes it onto the stack
-    const SUB_CYCLE: [OpCode; 32] = [
-        OpCode::RescR, OpCode::RescR, OpCode::RescR, OpCode::RescR,
-        OpCode::RescR, OpCode::RescR, OpCode::RescR, OpCode::RescR,
-        OpCode::RescR, OpCode::RescR, OpCode::Drop4, OpCode::Read2,
-        OpCode::Swap2, OpCode::Swap4, OpCode::Swap2, OpCode::Pad2,
-        OpCode::RescR, OpCode::RescR, OpCode::RescR, OpCode::RescR,
-        OpCode::RescR, OpCode::RescR, OpCode::RescR, OpCode::RescR,
-        OpCode::RescR, OpCode::RescR, OpCode::Drop4, OpCode::Choose2,
-        OpCode::Read2, OpCode::Dup4,  OpCode::Pad2,  OpCode::Noop
+    // 1. computes hash of the 2 nodes on the stack
+    // 2. reads the index of the next node in the authentication path
+    // 3. reads the next node in the authentication path
+    // 4. base on position index bit = 1, swaps the nodes on the stack
+    // 5. pads the stack to prepare it for the next round of hashing
+    const SUB_CYCLE: [OpCode; 16] = [
+        OpCode::RescR, OpCode::RescR, OpCode::RescR,  OpCode::RescR,
+        OpCode::RescR, OpCode::RescR, OpCode::RescR,  OpCode::RescR,
+        OpCode::RescR, OpCode::RescR, OpCode::Drop4,  OpCode::Read2,
+        OpCode::Swap2, OpCode::Read2, OpCode::CSwap2, OpCode::Pad2,
     ];
 
     for _ in 0..(n - 2) {
         program.extend_from_slice(&SUB_CYCLE);
     }
 
-    // at the end, use the same cycle except for the last 4 operations
+    // at the end, use the same cycle except for the last 5 operations
     // since there is no need to read in any additional nodes
-    program.extend_from_slice(&SUB_CYCLE[..28]);
+    program.extend_from_slice(&SUB_CYCLE[..11]);
 
     return Ok(true);
 }
