@@ -70,11 +70,10 @@ fn cmp_operation() {
 fn binacc_operation() {
 
     let a: u128 = field::rand();
-    let p127: u128 = field::exp(2, 127);
 
     // build inputs
     let mut inputs_a = Vec::new();
-    for i in 0..128 { inputs_a.push((a >> i) & 1); }
+    for i in 0..128 { inputs_a.push((a >> (127 - i)) & 1); }
     inputs_a.reverse();
 
     // build the program
@@ -89,7 +88,7 @@ fn binacc_operation() {
 
     let options = ProofOptions::default();
     let inputs = ProgramInputs::new(
-        &[0, 0, p127, 0, a],
+        &[0, 0, 1, 0, a],
         &inputs_a,
         &[]);
     let num_outputs = 2;

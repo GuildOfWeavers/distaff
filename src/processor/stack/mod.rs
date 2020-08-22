@@ -541,13 +541,15 @@ impl Stack {
                 assert!(self.depth >= 5, "stack underflow at step {}", self.step);
                 let val = self.registers[4][self.step - 1];
                 for i in 0..n {
-                    self.tape_a.push((val >> i) & 1);
+                    // most significant bit is pushed first
+                    self.tape_a.push((val >> (n - i - 1)) & 1);
                 }
             },
-            _ => {
+            OpHint::None => {
                 assert!(self.depth >= 4, "stack underflow at step {}", self.step);
                 assert!(self.tape_a.len() > 0, "attempt to read from empty tape A at step {}", self.step);
-            }
+            },
+            _ => panic!("execution hint {:?} is not valid for BINACC operation", hint)
         }
 
         // get the next bit of the value from tape A
@@ -560,12 +562,7 @@ impl Stack {
         assert!(power_of_two.is_power_of_two(),
             "expected 3rd value from the top of the stack at step {} to be a power of 2, but received {}",
             self.step, power_of_two);
-        let next_power_of_two = if power_of_two == 1 {
-                field::div(power_of_two, 2)
-            }
-            else {
-                power_of_two >> 1
-            };
+        let next_power_of_two = field::mul(power_of_two, 2);
 
         let acc = self.registers[3][self.step - 1];
 

@@ -8,10 +8,10 @@ pub fn get_example(args: &[String]) -> Example  {
 
     // determine the expected result
     let expected_result: u128 = if value < 9 {
-        field::mul(9, value as u128) & 1
+        field::mul(9, value as u128)
     }
     else {
-        field::add(9, value as u128) & 1
+        field::add(9, value as u128)
     };
     
     // construct the program which checks if the value provided via secret inputs is
@@ -28,6 +28,7 @@ pub fn get_example(args: &[String]) -> Example  {
         else
             add
         end
+        dup
         isodd.128
     end").unwrap();
 
@@ -38,13 +39,13 @@ pub fn get_example(args: &[String]) -> Example  {
     let inputs = ProgramInputs::new(&[], &[value as u128], &[]);
 
     // a single element from the top of the stack will be the output
-    let num_outputs = 1;
+    let num_outputs = 2;
 
     return Example {
         program,
         inputs,
         options,
-        expected_result: vec![expected_result],
+        expected_result: vec![expected_result & 1, expected_result],
         num_outputs
     };
 }

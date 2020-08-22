@@ -131,7 +131,7 @@ fn single_if_else_with_suffix() {
                 noop noop noop noop noop noop noop \
             end \
             pad2 noop noop noop noop noop noop noop \
-            push(32768) swap dup binacc.16 binacc binacc binacc binacc \
+            push(1) swap dup binacc.16 binacc binacc binacc binacc \
             binacc binacc binacc binacc binacc binacc binacc binacc \
             binacc binacc binacc dup drop4 read::eq eq \
         end";

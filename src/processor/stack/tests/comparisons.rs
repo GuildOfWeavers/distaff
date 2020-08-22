@@ -177,15 +177,14 @@ fn gt() {
 fn binacc_128() {
 
     let x: u128 = field::rand();
-    let p127: u128 = field::exp(2, 127);
-    
+        
     // initialize the stack
     let mut inputs_a = Vec::new();
-    for i in 0..128 { inputs_a.push((x >> i) & 1); }
+    for i in 0..128 { inputs_a.push((x >> (127 - i)) & 1); }
     inputs_a.reverse();
 
     let mut stack = init_stack(
-        &[0, 0, p127, 0, x, 7, 11],
+        &[0, 0, 1, 0, x, 7, 11],
         &inputs_a,
         &[],
         256);
@@ -205,15 +204,14 @@ fn binacc_128() {
 fn binacc_64() {
 
     let x: u128 = (field::rand() as u64) as u128;
-    let p127: u128 = field::exp(2, 63);
-    
+
     // initialize the stack
     let mut inputs_a = Vec::new();
-    for i in 0..64 { inputs_a.push((x >> i) & 1); }
+    for i in 0..64 { inputs_a.push((x >> (63 - i)) & 1); }
     inputs_a.reverse();
 
     let mut stack = init_stack(
-        &[0, 0, p127, 0, x, 7, 11],
+        &[0, 0, 1, 0, x, 7, 11],
         &inputs_a,
         &[],
         256);
@@ -234,29 +232,35 @@ fn isodd_128() {
 
     let x: u128 = field::rand();
     let is_odd = x & 1;
-    let p127: u128 = field::exp(2, 127);
     
     // initialize the stack
     let mut inputs_a = Vec::new();
-    for i in 0..128 { inputs_a.push((x >> i) & 1); }
+    for i in 0..128 { inputs_a.push((x >> (127 - i)) & 1); }
     inputs_a.reverse();
 
     let mut stack = init_stack(
-        &[0, 0, p127, 0, x, 7, 11],
+        &[0, 0, 1, 0, x, 7, 11],
         &inputs_a,
         &[],
         256);
 
-    // execute binary aggregation operations
-    for _ in 0..128 { stack.execute(OpCode::BinAcc, OpHint::None); }
+    // read the first bit and make sure it is saved at the end of the stack
+    stack.execute(OpCode::BinAcc, OpHint::None);
+    stack.execute(OpCode::Swap2, OpHint::None);
+    stack.execute(OpCode::Roll4, OpHint::None);
+    stack.execute(OpCode::Dup, OpHint::None);
+
+    // execute remaining binary aggregation operations
+    for _ in 0..127 { stack.execute(OpCode::BinAcc, OpHint::None); }
 
     // check the result
-    stack.execute(OpCode::Swap2, OpHint::None);
     stack.execute(OpCode::Drop, OpHint::None);
-    stack.execute(OpCode::Swap2, OpHint::None);
     stack.execute(OpCode::Drop, OpHint::None);
+    stack.execute(OpCode::Swap, OpHint::None);
+    stack.execute(OpCode::Roll4, OpHint::None);
     stack.execute(OpCode::AssertEq, OpHint::None);
-    let state = get_stack_state(&stack, 133);
+    stack.execute(OpCode::Drop, OpHint::None);
+    let state = get_stack_state(&stack, 137);
     assert_eq!(vec![is_odd, 7, 11, 0, 0, 0, 0, 0], state);
 }
 

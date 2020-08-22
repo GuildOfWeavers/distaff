@@ -122,7 +122,7 @@ pub fn enforce_binacc(result: &mut [u128], old_stack: &[u128], new_stack: &[u128
 
     // power of 2 register was updated correctly
     let power_of_two = old_stack[2];
-    let power_of_two_constraint = are_equal(field::mul(new_stack[2], 2), power_of_two);
+    let power_of_two_constraint = are_equal(new_stack[2], field::mul(power_of_two, 2));
     result.agg_constraint(2, op_flag, power_of_two_constraint);
 
     // binary representation accumulator was updated correctly

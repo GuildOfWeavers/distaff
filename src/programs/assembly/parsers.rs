@@ -342,8 +342,7 @@ pub fn parse_rc(program: &mut Vec<OpCode>, hints: &mut HintMap, op: &[&str], ste
 
     // prepare the stack
     program.push(OpCode::Pad2);
-    let power_of_two = u128::pow(2, n - 1);
-    append_push_op(program, hints, power_of_two);
+    append_push_op(program, hints, field::ONE);
     program.extend_from_slice(&[OpCode::Swap, OpCode::Dup]);
 
     // add a hint indicating that range-checking is about to start
@@ -372,19 +371,24 @@ pub fn parse_isodd(program: &mut Vec<OpCode>, hints: &mut HintMap, op: &[&str], 
 
     // prepare the stack
     program.push(OpCode::Pad2);
-    let power_of_two = u128::pow(2, n - 1);
-    append_push_op(program, hints, power_of_two);
+    append_push_op(program, hints, field::ONE);
     program.extend_from_slice(&[OpCode::Swap, OpCode::Dup]);
 
     // add a hint indicating that range-checking is about to start
     hints.insert(program.len(), OpHint::RcStart(n));
 
-    // append BINACC operations
+    // read the first bit and make sure it is saved at the end of the stack
+    program.extend_from_slice(&[OpCode::BinAcc, OpCode::Swap2, OpCode::Roll4, OpCode::Dup]);
+
+    // append remaining BINACC operations
+    let n = n - 1;
     program.resize(program.len() + (n as usize), OpCode::BinAcc);
 
-    // compare binary aggregation value with the original value and drop all
-    // values used in computations except for the least significant bit of the value
-    program.extend_from_slice(&[OpCode::Swap2, OpCode::Drop, OpCode::Swap2, OpCode::Drop, OpCode::AssertEq]);
+    // compare binary aggregation value with the original value and drop all values used in
+    // computations except for the least significant bit of the value we saved previously
+    program.extend_from_slice(&[
+        OpCode::Drop, OpCode::Drop, OpCode::Swap, OpCode::Roll4, OpCode::AssertEq, OpCode::Drop
+    ]);
     return Ok(true);
 }
 
