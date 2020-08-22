@@ -435,8 +435,8 @@ pub fn parse_hash(program: &mut Vec<OpCode>, op: &[&str], step: usize) -> Result
     return Ok(true);
 }
 
-/// Appends a sequence of operations to the program to compute the root of Merkle
-/// authentication path for a tree of depth n.
+/// Appends a sequence of operations to the program to compute the root of Merkle authentication
+/// path for a tree of depth n. Leaf index is expected to be provided via input tapes A and B.
 pub fn parse_smpath(program: &mut Vec<OpCode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     let n = read_param(op, step)?;
     if n < 2 || n > 256 {
@@ -475,6 +475,55 @@ pub fn parse_smpath(program: &mut Vec<OpCode>, op: &[&str], step: usize) -> Resu
     // at the end, use the same cycle except for the last 5 operations
     // since there is no need to read in any additional nodes
     program.extend_from_slice(&SUB_CYCLE[..11]);
+
+    return Ok(true);
+}
+
+/// Appends a sequence of operations to the program to compute the root of Merkle authentication
+/// path for a tree of depth n. Leaf index is expected to be 3rd item from the top of the stack.
+pub fn parse_pmpath(program: &mut Vec<OpCode>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+    let n = read_param(op, step)?;
+    if n < 2 || n > 256 {
+        return Err(AssemblyError::invalid_param_reason(op, step,
+            format!("parameter {} is invalid; value must be between 2 and 256", n)))
+    }
+
+    // add a hint indicating that pmpath macro is about to begin
+    hints.insert(program.len(), OpHint::PmpathStart(n));
+    
+    // read the first node and its index onto the stack and make sure nodes are arranged
+    // correctly. Also, set initial value of binary multiplier to 1.
+    program.extend_from_slice(&[OpCode::Read2, OpCode::Pad2]);
+    append_push_op(program, hints, field::ONE);
+    program.extend_from_slice(&[
+        OpCode::Swap, OpCode::Dup, OpCode::BinAcc, OpCode::Swap4, OpCode::CSwap2, OpCode::Pad2
+    ]);
+
+    // pad with NOOPs to make sure hashing starts on a step which is a multiple of 16
+    let alignment = program.len() % HASH_OP_ALIGNMENT;
+    let pad_length = (HASH_OP_ALIGNMENT - alignment) % HASH_OP_ALIGNMENT;
+    program.resize(program.len() + pad_length, OpCode::Noop);
+
+    // repeat the following cycle of operations once for each remaining node:
+    // 1. TODO
+    const SUB_CYCLE: [OpCode; 32] = [
+        OpCode::RescR, OpCode::RescR,  OpCode::RescR, OpCode::RescR,
+        OpCode::RescR, OpCode::RescR,  OpCode::RescR, OpCode::RescR,
+        OpCode::RescR, OpCode::RescR,  OpCode::Drop4, OpCode::Pad2,
+        OpCode::Swap2, OpCode::Read2,  OpCode::Swap4, OpCode::BinAcc,
+        OpCode::Swap4, OpCode::CSwap2, OpCode::Pad2,  OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,   OpCode::Noop,  OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,   OpCode::Noop,  OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,   OpCode::Noop,  OpCode::Noop,
+    ];
+
+    for _ in 0..(n - 2) {
+        program.extend_from_slice(&SUB_CYCLE);
+    }
+
+    // TODO: add comment
+    program.extend_from_slice(&SUB_CYCLE[..11]);
+    program.extend_from_slice(&[OpCode::Swap2, OpCode::Drop, OpCode::Roll4, OpCode::AssertEq]);
 
     return Ok(true);
 }

@@ -74,7 +74,7 @@ impl Stack {
 
             OpCode::Push        => self.op_push(op_hint),
             OpCode::Read        => self.op_read(op_hint),
-            OpCode::Read2       => self.op_read2(),
+            OpCode::Read2       => self.op_read2(op_hint),
 
             OpCode::Dup         => self.op_dup(),
             OpCode::Dup2        => self.op_dup2(),
@@ -205,9 +205,37 @@ impl Stack {
         self.registers[0][self.step] = value;
     }
 
-    fn op_read2(&mut self) {
-        assert!(self.tape_a.len() > 0, "attempt to read from empty tape A at step {}", self.step);
-        assert!(self.tape_b.len() > 0, "attempt to read from empty tape B at step {}", self.step);
+    fn op_read2(&mut self, hint: OpHint) {
+        // process execution hint
+        match hint {
+            OpHint::PmpathStart(n) => {
+                assert!(self.depth >= 3, "stack underflow at step {}", self.step);
+
+                let n = (n - 1) as usize;
+                assert!(self.tape_a.len() >= n, "too few items on tape A for pmpath macro");
+                assert!(self.tape_b.len() >= n, "too few items on tape B for pmpath macro");
+
+                // first pop top n items from both input tapes
+                let v_a = self.tape_a.split_off(self.tape_a.len() - n);
+                let v_b = self.tape_b.split_off(self.tape_b.len() - n);
+
+                // then, reinsert the items but interlace them with binary decomposition of leaf index
+                let idx = self.registers[2][self.step - 1];
+                for i in 0..n {
+                    self.tape_a.push(field::ZERO);
+                    self.tape_b.push((idx >> i) & 1);   // TODO: needs to be reversed
+
+                    self.tape_a.push(v_a[i]);
+                    self.tape_b.push(v_b[i]);
+                }
+            },
+            OpHint::None => {
+                assert!(self.tape_a.len() > 0, "attempt to read from empty tape A at step {}", self.step);
+                assert!(self.tape_b.len() > 0, "attempt to read from empty tape B at step {}", self.step);
+            },
+            _ => panic!("execution hint {:?} is not valid for READ2 operation", hint)
+        }
+
         self.shift_right(0, 2);
         let value_a = self.tape_a.pop().unwrap();
         let value_b = self.tape_b.pop().unwrap();

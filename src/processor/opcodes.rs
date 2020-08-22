@@ -174,6 +174,7 @@ pub enum OpHint {
     EqStart,
     RcStart(u32),
     CmpStart(u32),
+    PmpathStart(u32),
     PushValue(u128),
     None,
 }
@@ -192,8 +193,9 @@ impl std::fmt::Display for OpHint {
         return match self {
             OpHint::EqStart          => write!(f, "::eq"),
             OpHint::RcStart(value)   => write!(f, ".{}", value),
-            OpHint::CmpStart(value)  => write!(f, ".{}", value),
-            OpHint::PushValue(value) => write!(f, "({})", value),
+            OpHint::CmpStart(value)     => write!(f, ".{}", value),
+            OpHint::PmpathStart(value)  => write!(f, ".{}", value),
+            OpHint::PushValue(value)    => write!(f, "({})", value),
             OpHint::None             => Ok(()),
         };
     }
