@@ -195,9 +195,10 @@ impl Stack {
                     self.tape_a.push(field::inv(field::sub(x, y)));
                 }
             },
-            _ => {
+            OpHint::None => {
                 assert!(self.tape_a.len() > 0, "attempt to read from empty tape A at step {}", self.step);
-            }
+            },
+            _ => panic!("execution hint {:?} is not valid for READ operation", hint)
         }
 
         self.shift_right(0, 1);
@@ -215,18 +216,18 @@ impl Stack {
                 assert!(self.tape_a.len() >= n, "too few items on tape A for pmpath macro");
                 assert!(self.tape_b.len() >= n, "too few items on tape B for pmpath macro");
 
-                // first pop top n items from both input tapes
-                let v_a = self.tape_a.split_off(self.tape_a.len() - n);
-                let v_b = self.tape_b.split_off(self.tape_b.len() - n);
-
-                // then, reinsert the items but interlace them with binary decomposition of leaf index
                 let idx = self.registers[2][self.step - 1];
-                for i in 0..n {
-                    self.tape_a.push(field::ZERO);
-                    self.tape_b.push((idx >> i) & 1);   // TODO: needs to be reversed
 
+                // we need to insert binary decomposition of index into tape A, but we need to make
+                // sure it is interlaced with node values already present there. To do this,
+                // we first remove top n values from tape A
+                let v_a = self.tape_a.split_off(self.tape_a.len() - n);
+
+                // then, we reinsert them while interlacing node and leaf index binary values
+                for i in 0..n {
+                    // most significant bit is pushed first
+                    self.tape_a.push((idx >> (n - i - 1)) & 1);
                     self.tape_a.push(v_a[i]);
-                    self.tape_b.push(v_b[i]);
                 }
             },
             OpHint::None => {
@@ -484,11 +485,12 @@ impl Stack {
                     self.tape_b.push((b_val >> i) & 1);
                 }
             },
-            _ => {
+            OpHint::None => {
                 assert!(self.depth >= 8, "stack underflow at step {}", self.step);
                 assert!(self.tape_a.len() > 0, "attempt to read from empty tape A at step {}", self.step);
                 assert!(self.tape_b.len() > 0, "attempt to read from empty tape B at step {}", self.step);
-            }
+            },
+            _ => panic!("execution hint {:?} is not valid for CMP operation", hint)
         }
 
         // get next bits of a and b values from the tapes

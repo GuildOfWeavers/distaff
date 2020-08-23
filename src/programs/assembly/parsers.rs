@@ -460,11 +460,11 @@ pub fn parse_smpath(program: &mut Vec<OpCode>, op: &[&str], step: usize) -> Resu
     program.resize(program.len() + pad_length, OpCode::Noop);
 
     // repeat the following cycle of operations once for each remaining node:
-    // 1. computes hash of the 2 nodes on the stack
-    // 2. reads the index of the next node in the authentication path
-    // 3. reads the next node in the authentication path
-    // 4. base on position index bit = 1, swaps the nodes on the stack
-    // 5. pads the stack to prepare it for the next round of hashing
+    // 1. compute hash of the 2 nodes on the stack
+    // 2. read the index of the next node in the authentication path
+    // 3. read the next node in the authentication path
+    // 4. base on position index bit = 1, swaps the nodes on the stack (using cswap2 instruction)
+    // 5. pad the stack to prepare it for the next round of hashing
     const SUB_CYCLE: [OpCode; 16] = [
         OpCode::RescR, OpCode::RescR, OpCode::RescR,  OpCode::RescR,
         OpCode::RescR, OpCode::RescR, OpCode::RescR,  OpCode::RescR,
@@ -509,7 +509,11 @@ pub fn parse_pmpath(program: &mut Vec<OpCode>, hints: &mut HintMap, op: &[&str],
     program.resize(program.len() + pad_length, OpCode::Noop);
 
     // repeat the following cycle of operations once for each remaining node:
-    // 1. TODO
+    // 1. compute hash of the 2 nodes on the stack
+    // 2. read the index of the next node in the authentication path (using binacc instruction)
+    // 3. read the next node in the authentication path
+    // 4. base on position index bit = 1, swap the nodes on the stack (using cswap2 instruction)
+    // 5. pad the stack to prepare it for the next round of hashing
     const SUB_CYCLE: [OpCode; 32] = [
         OpCode::RescR, OpCode::RescR,  OpCode::RescR, OpCode::RescR,
         OpCode::RescR, OpCode::RescR,  OpCode::RescR, OpCode::RescR,
@@ -525,7 +529,8 @@ pub fn parse_pmpath(program: &mut Vec<OpCode>, hints: &mut HintMap, op: &[&str],
         program.extend_from_slice(&SUB_CYCLE);
     }
 
-    // TODO: add comment
+    // at the end, use the first 11 operations from the cycle since there is nothing else to read;
+    // then make sure the accumulated value of index is indeed equal to the leaf index
     program.extend_from_slice(&SUB_CYCLE[..11]);
     program.extend_from_slice(&[OpCode::Swap2, OpCode::Drop, OpCode::Roll4, OpCode::AssertEq]);
 
