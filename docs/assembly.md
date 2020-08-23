@@ -163,7 +163,7 @@ Divisions in prime fields are defined as inverse of multiplication. Specifically
 | gt.*n*    | Pops top two items from the stack, compares them, and if the 1st value is greater than the 2nd value, pushes `1` onto the stack; otherwise pushes `0` onto the stack. If either of the values is greater than 2<sup>*n*</sup>, the operation fails. *n* can be any integer between 4 and 128. | *n + 14* |
 | lt.*n*    | Pops top two items from the stack, compares them, and if the 1st value is less than the 2nd value, pushes `1` onto the stack; otherwise pushes `0` onto the stack. If either of the values is greater than 2<sup>*n*</sup>, the operation fails. *n* can be any integer between 4 and 128. | *n + 13* |
 | rc.*n*    | Pops the top item from the stack, checks if it is less than 2<sup>*n*</sup>, and if it is, pushes `1` onto the stack; otherwise pushes `0` onto the stack. *n* can be any integer between 4 and 128.| *n + 8* |
-| isodd.*n* | Pops the top item from the stack, and if its value is odd, pushes `1` onto the stack; otherwise pushes `0` onto the stack. If the value is greater than 2<sup>*n*</sup>, the operation fails. *n* can be any integer between 4 and 128. | *n + 9* |
+| isodd.*n* | Pops the top item from the stack, and if its value is odd, pushes `1` onto the stack; otherwise pushes `0` onto the stack. If the value is greater than 2<sup>*n*</sup>, the operation fails. *n* can be any integer between 4 and 128. | *n + 12* |
 
 ### Selection instructions
 
@@ -191,7 +191,8 @@ We can transform it into a linear program using selection instructions like so:
 | Operation | Description                            | Cycles |
 | --------- | -------------------------------------- | :----: |
 | hash.*n*  | Pops top *n* items from the stack, computes their hash using [Rescue hash function](#Rescue-hash-function), and pushes the result onto the stack. The result is always represented by 2 stack items. *n* can be any integer between 1 and 4. | ~ 16 |
-| mpath.*n* | Pops top 2 items from the stack, uses them to compute a root of a Merkle authentication path for a tree of depth *n*, and pushes the result onto the stack. The result is always represented by 2 stack items. Input tapes `A` and `B` are expected to contain nodes of the Merkle authentication path (see [here](#Merkle-authentication-path) for more info).  | ~ *32n* |
+| smpath.*n* | Pops top 2 items from the stack, uses them to compute a root of a Merkle authentication path for a tree of depth *n*, and pushes the result onto the stack. The result is always represented by 2 stack items. Input tapes `A` and `B` are expected to contain nodes of the Merkle authentication path as well as binary representation of the leaf's index (see [here](#Merkle-authentication-path) for more info).  | ~ *16n* |
+| pmpath.*n* | Pops top 3 items from the stack, uses the first 2 items to compute a root of a Merkle authentication path for a tree of depth *n* and a leaf indicated by the 3rd stack item, and pushes the result onto the stack. The result is always represented by 2 stack items. Input tapes `A` and `B` are expected to contain nodes of the Merkle authentication path (see [here](#Merkle-authentication-path) for more info).  | ~ *32n* |
 
 #### Rescue hash function
 Distaff VM uses a modified version of [Rescue](https://eprint.iacr.org/2019/426) hash function. This modification adds half-rounds to the beginning and to the end of the standard Rescue hash function to make the arithmetization of the function fully foldable. High-level pseudo-code for the modified version looks like so:
@@ -212,9 +213,15 @@ Parameters used for the hash function are:
 
 
 #### Merkle authentication path
-As mentioned above, `mpath` instruction can be used to compute roots of Merkle authentication paths, but the semantics of this instruction are somewhat complicated and deserve a bit more explanation.
+As mentioned above, `smpath` and `pmpath` instructions can be used to compute roots of Merkle authentication paths, but the semantics of these instruction are somewhat complicated and deserve a bit more explanation.
 
-First, suppose we have a Merkle tree of depth 3 which looks like so:
+Both instructions work in a similar manner, but they are intended for different use cases. Specifically:
+
+* `smpath` instruction expects both the nodes of the Merkle authentication path and leaf index to be provided via input tapes `A` and `B`.
+* `pmpath` instruction expects only the nodes of the Merkle authentication path to be provided via input tapes `A` and `B`. The leaf index is expected to be provided via the stack.
+
+##### pmpath
+First, we'll describe `pmpath` instruction. Suppose we have a Merkle tree of depth 3 which looks like so:
 ```
            abcd
           /    \
@@ -224,10 +231,10 @@ First, suppose we have a Merkle tree of depth 3 which looks like so:
 ```
 where: `ab = hash(a, b)`, `cd = hash(c, d)`, and `abcd = hash(ab, cd)`. All of these values are 256 bits in size, and thus, we'd need two 128-bit field elements to represent each of them in Distaff VM.
 
-If we consider leaf `c`, Merkle authentication path for this leaf would be: [`d`, `ab`], and the root of this path would be `abcd`. To compute this root in Distaff VM we can use `mpath` instruction like so:
+If we consider leaf `c`, Merkle authentication path for this leaf would be: [`d`, `ab`], and the root of this path would be `abcd`. To compute this root in Distaff VM we can use `pmpath` instruction like so:
 
 1. First, we need to put two elements representing leaf `c` onto the stack.
-2. Then, we need to execute `mpath.3` instruction. We set the parameter to `3` because the depth of our Merkle tree is 3.
+2. Then, we need to execute `pmpath.3` instruction. We set the parameter to `3` because the depth of our Merkle tree is 3.
 3. The result of the operation will be the value of `abcd` sitting in the top two registers of the stack.
 
 For the above to work, we also need to populate input tapes `A` and `B` with additional data. Specifically, these tapes should contain:
@@ -252,4 +259,26 @@ Here is a brief explanation:
 
 Note that even though we use only tape `A` for bits of `c`'s index, we always complement these inputs with `0`'s in tape `B`.
 
-To summarize: if our input tapes are set up as shown above, and if our stack state is [c<sub>1</sub>, c<sub>0</sub>], where c<sub>1</sub> is at the top of the stack, executing `mpath.3` will transform the stack into [abcd<sub>1</sub>, abcd<sub>0</sub>].
+To summarize: if our input tapes are set up as shown above, and if our stack state is [c<sub>1</sub>, c<sub>0</sub>], where c<sub>1</sub> is at the top of the stack, executing `smpath.3` will transform the stack into [abcd<sub>1</sub>, abcd<sub>0</sub>].
+
+##### pmpath
+As mentioned above, `pmpath` works similarly to `smpath` but there are two important differences:
+
+First, `pmpath` expects the index of the leaf which the Merkle path authenticates to be located in the 3rd item of the stack. So, for the example in the previous section, before we execute `pmpath` instruction, we should arrange the stack like so:
+
+```
+[c_1, c_0, 2]
+```
+
+where `2` is the position of our leaf in the Merkle tree.
+
+Second, since the leaf's index is on the stack, we no longer need to put it onto input tapes. So, input tapes `A` and `B` would need to be populated like so:
+
+| A               | B              |
+| --------------- | -------------- |
+| d<sub>0</sub>   | d<sub>1</sub>  |
+| ab<sub>0</sub>  | ab<sub>1</sub> |
+
+Then, we can execute `pmpath.3` instruction (since 3 is the depth of our Merkle tree), and after the operation completes, the value of `abcd` will be sitting in the top two registers of the stack.
+
+Note that index value will be discarded. That is, the operation pops 3 values from the top of the stack but pushes back only 2 values.
