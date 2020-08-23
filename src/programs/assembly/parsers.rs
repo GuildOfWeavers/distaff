@@ -342,8 +342,8 @@ pub fn parse_rc(program: &mut Vec<OpCode>, hints: &mut HintMap, op: &[&str], ste
 
     // prepare the stack
     program.push(OpCode::Pad2);
-    let power_of_two = u128::pow(2, n - 1);
-    append_push_op(program, hints, power_of_two);
+    append_push_op(program, hints, field::ONE);
+    program.extend_from_slice(&[OpCode::Swap, OpCode::Dup]);
 
     // add a hint indicating that range-checking is about to start
     hints.insert(program.len(), OpHint::RcStart(n));
@@ -352,7 +352,7 @@ pub fn parse_rc(program: &mut Vec<OpCode>, hints: &mut HintMap, op: &[&str], ste
     program.resize(program.len() + (n as usize), OpCode::BinAcc);
 
     // compare binary aggregation value with the original value
-    program.extend_from_slice(&[OpCode::Drop, OpCode::Drop]);
+    program.extend_from_slice(&[OpCode::Dup, OpCode::Drop4]);
     hints.insert(program.len(), OpHint::EqStart);
     program.extend_from_slice(&[OpCode::Read, OpCode::Eq]);
     return Ok(true);
@@ -370,19 +370,25 @@ pub fn parse_isodd(program: &mut Vec<OpCode>, hints: &mut HintMap, op: &[&str], 
     }
 
     // prepare the stack
-    program.extend_from_slice(&[OpCode::Pad2]);
-    let power_of_two = u128::pow(2, n - 1);
-    append_push_op(program, hints, power_of_two);
+    program.push(OpCode::Pad2);
+    append_push_op(program, hints, field::ONE);
+    program.extend_from_slice(&[OpCode::Swap, OpCode::Dup]);
 
     // add a hint indicating that range-checking is about to start
     hints.insert(program.len(), OpHint::RcStart(n));
 
-    // append BINACC operations
+    // read the first bit and make sure it is saved at the end of the stack
+    program.extend_from_slice(&[OpCode::BinAcc, OpCode::Swap2, OpCode::Roll4, OpCode::Dup]);
+
+    // append remaining BINACC operations
+    let n = n - 1;
     program.resize(program.len() + (n as usize), OpCode::BinAcc);
 
-    // compare binary aggregation value with the original value and drop all
-    // values used in computations except for the least significant bit of the value
-    program.extend_from_slice(&[OpCode::Swap2, OpCode::AssertEq, OpCode::Drop]);
+    // compare binary aggregation value with the original value and drop all values used in
+    // computations except for the least significant bit of the value we saved previously
+    program.extend_from_slice(&[
+        OpCode::Drop, OpCode::Drop, OpCode::Swap, OpCode::Roll4, OpCode::AssertEq, OpCode::Drop
+    ]);
     return Ok(true);
 }
 
@@ -433,18 +439,20 @@ pub fn parse_hash(program: &mut Vec<OpCode>, op: &[&str], step: usize) -> Result
     return Ok(true);
 }
 
-/// Appends a sequence of operations to the program to compute the root of Merkle
-/// authentication path for a tree of depth n.
-pub fn parse_mpath(program: &mut Vec<OpCode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+/// Appends a sequence of operations to the program to compute the root of Merkle authentication
+/// path for a tree of depth n. Leaf index is expected to be provided via input tapes A and B.
+pub fn parse_smpath(program: &mut Vec<OpCode>, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
     let n = read_param(op, step)?;
     if n < 2 || n > 256 {
         return Err(AssemblyError::invalid_param_reason(op, step,
             format!("parameter {} is invalid; value must be between 2 and 256", n)))
     }
 
-    // read the first node in the Merkle path and push it onto the stack;
-    // also pad the stack to prepare it for hashing.
-    program.extend_from_slice(&[OpCode::Read2, OpCode::Dup4, OpCode::Pad2]);
+    // move the first bit of the leaf's index and the first node in the Merkle onto the stack,
+    // position them correctly, and pad the stack to prepare it for hashing.
+    program.extend_from_slice(&[
+        OpCode::Read2, OpCode::Swap2, OpCode::Read2, OpCode::CSwap2, OpCode::Pad2
+    ]);
 
     // pad with NOOPs to make sure hashing starts on a step which is a multiple of 16
     let alignment = program.len() % HASH_OP_ALIGNMENT;
@@ -452,29 +460,79 @@ pub fn parse_mpath(program: &mut Vec<OpCode>, op: &[&str], step: usize) -> Resul
     program.resize(program.len() + pad_length, OpCode::Noop);
 
     // repeat the following cycle of operations once for each remaining node:
-    // 1. compute hash(p, v)
-    // 2. read next bit of position index
-    // 3. compute hash(v, p)
-    // 4. base on position index bit, choses either hash(p, v) or hash(v, p)
-    // 5. reads the next nodes and pushes it onto the stack
-    const SUB_CYCLE: [OpCode; 32] = [
-        OpCode::RescR, OpCode::RescR, OpCode::RescR, OpCode::RescR,
-        OpCode::RescR, OpCode::RescR, OpCode::RescR, OpCode::RescR,
-        OpCode::RescR, OpCode::RescR, OpCode::Drop4, OpCode::Read2,
-        OpCode::Swap2, OpCode::Swap4, OpCode::Swap2, OpCode::Pad2,
-        OpCode::RescR, OpCode::RescR, OpCode::RescR, OpCode::RescR,
-        OpCode::RescR, OpCode::RescR, OpCode::RescR, OpCode::RescR,
-        OpCode::RescR, OpCode::RescR, OpCode::Drop4, OpCode::Choose2,
-        OpCode::Read2, OpCode::Dup4,  OpCode::Pad2,  OpCode::Noop
+    // 1. compute hash of the 2 nodes on the stack
+    // 2. read the index of the next node in the authentication path
+    // 3. read the next node in the authentication path
+    // 4. base on position index bit = 1, swaps the nodes on the stack (using cswap2 instruction)
+    // 5. pad the stack to prepare it for the next round of hashing
+    const SUB_CYCLE: [OpCode; 16] = [
+        OpCode::RescR, OpCode::RescR, OpCode::RescR,  OpCode::RescR,
+        OpCode::RescR, OpCode::RescR, OpCode::RescR,  OpCode::RescR,
+        OpCode::RescR, OpCode::RescR, OpCode::Drop4,  OpCode::Read2,
+        OpCode::Swap2, OpCode::Read2, OpCode::CSwap2, OpCode::Pad2,
     ];
 
     for _ in 0..(n - 2) {
         program.extend_from_slice(&SUB_CYCLE);
     }
 
-    // at the end, use the same cycle except for the last 4 operations
+    // at the end, use the same cycle except for the last 5 operations
     // since there is no need to read in any additional nodes
-    program.extend_from_slice(&SUB_CYCLE[..28]);
+    program.extend_from_slice(&SUB_CYCLE[..11]);
+
+    return Ok(true);
+}
+
+/// Appends a sequence of operations to the program to compute the root of Merkle authentication
+/// path for a tree of depth n. Leaf index is expected to be 3rd item from the top of the stack.
+pub fn parse_pmpath(program: &mut Vec<OpCode>, hints: &mut HintMap, op: &[&str], step: usize) -> Result<bool, AssemblyError> {
+    let n = read_param(op, step)?;
+    if n < 2 || n > 256 {
+        return Err(AssemblyError::invalid_param_reason(op, step,
+            format!("parameter {} is invalid; value must be between 2 and 256", n)))
+    }
+
+    // add a hint indicating that pmpath macro is about to begin
+    hints.insert(program.len(), OpHint::PmpathStart(n));
+    
+    // read the first node and its index onto the stack and make sure nodes are arranged
+    // correctly. Also, set initial value of binary multiplier to 1.
+    program.extend_from_slice(&[OpCode::Read2, OpCode::Pad2]);
+    append_push_op(program, hints, field::ONE);
+    program.extend_from_slice(&[
+        OpCode::Swap, OpCode::Dup, OpCode::BinAcc, OpCode::Swap4, OpCode::CSwap2, OpCode::Pad2
+    ]);
+
+    // pad with NOOPs to make sure hashing starts on a step which is a multiple of 16
+    let alignment = program.len() % HASH_OP_ALIGNMENT;
+    let pad_length = (HASH_OP_ALIGNMENT - alignment) % HASH_OP_ALIGNMENT;
+    program.resize(program.len() + pad_length, OpCode::Noop);
+
+    // repeat the following cycle of operations once for each remaining node:
+    // 1. compute hash of the 2 nodes on the stack
+    // 2. read the index of the next node in the authentication path (using binacc instruction)
+    // 3. read the next node in the authentication path
+    // 4. base on position index bit = 1, swap the nodes on the stack (using cswap2 instruction)
+    // 5. pad the stack to prepare it for the next round of hashing
+    const SUB_CYCLE: [OpCode; 32] = [
+        OpCode::RescR, OpCode::RescR,  OpCode::RescR, OpCode::RescR,
+        OpCode::RescR, OpCode::RescR,  OpCode::RescR, OpCode::RescR,
+        OpCode::RescR, OpCode::RescR,  OpCode::Drop4, OpCode::Pad2,
+        OpCode::Swap2, OpCode::Read2,  OpCode::Swap4, OpCode::BinAcc,
+        OpCode::Swap4, OpCode::CSwap2, OpCode::Pad2,  OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,   OpCode::Noop,  OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,   OpCode::Noop,  OpCode::Noop,
+        OpCode::Noop,  OpCode::Noop,   OpCode::Noop,  OpCode::Noop,
+    ];
+
+    for _ in 0..(n - 2) {
+        program.extend_from_slice(&SUB_CYCLE);
+    }
+
+    // at the end, use the first 11 operations from the cycle since there is nothing else to read;
+    // then make sure the accumulated value of index is indeed equal to the leaf index
+    program.extend_from_slice(&SUB_CYCLE[..11]);
+    program.extend_from_slice(&[OpCode::Swap2, OpCode::Drop, OpCode::Roll4, OpCode::AssertEq]);
 
     return Ok(true);
 }

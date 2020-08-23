@@ -118,18 +118,23 @@ fn single_if_else_with_suffix() {
     let program = super::compile(source).unwrap();
 
     let expected = "\
-        begin noop noop noop noop noop noop noop \
-        push(3) noop noop noop noop noop noop noop \
-        push(5) read noop noop noop noop noop noop \
-        noop noop noop noop noop noop noop if \
-        assert add dup mul noop noop noop noop \
-        noop noop noop noop noop noop noop else \
-        not assert mul dup add noop noop noop \
-        noop noop noop noop noop noop noop end \
-        pad2 noop noop noop noop noop noop noop \
-        push(32768) binacc.16 binacc binacc binacc binacc binacc binacc \
-        binacc binacc binacc binacc binacc binacc binacc binacc \
-        binacc drop drop read::eq eq noop noop end";
+        begin \
+            noop noop noop noop noop noop noop \
+            push(3) noop noop noop noop noop noop noop \
+            push(5) read noop noop noop noop noop noop \
+            noop noop noop noop noop noop noop \
+            if \
+                assert add dup mul noop noop noop noop \
+                noop noop noop noop noop noop noop \
+            else \
+                not assert mul dup add noop noop noop \
+                noop noop noop noop noop noop noop \
+            end \
+            pad2 noop noop noop noop noop noop noop \
+            push(1) swap dup binacc.16 binacc binacc binacc binacc \
+            binacc binacc binacc binacc binacc binacc binacc binacc \
+            binacc binacc binacc dup drop4 read::eq eq \
+        end";
 
     assert_eq!(expected, format!("{:?}", program));
 }

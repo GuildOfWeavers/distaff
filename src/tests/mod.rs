@@ -87,7 +87,7 @@ fn stack_manipulation() {
 }
 
 #[test]
-fn selection_operations() {
+fn conditional_operations() {
     // CHOOSE
     let program = build_program(vec![
         OpCode::Begin, OpCode::Choose,  OpCode::Choose, OpCode::Noop,
@@ -124,6 +124,24 @@ fn selection_operations() {
 
     let (outputs, proof) = super::execute(&program, &inputs, num_outputs, &options);
     assert_eq!(outputs, [7, 8, 0, 0, 0, 0, 0, 0]);
+
+    let result = super::verify(program.hash(), inputs.get_public_inputs(), &outputs, &proof);
+    assert_eq!(Ok(true), result);
+
+    // CSWAP2
+    let program = build_program(vec![
+        OpCode::Begin,  OpCode::CSwap2,  OpCode::Pad2,   OpCode::Swap4,
+        OpCode::CSwap2, OpCode::Noop,    OpCode::Noop,   OpCode::Noop,
+        OpCode::Noop,   OpCode::Noop,    OpCode::Noop,   OpCode::Noop,
+        OpCode::Noop,   OpCode::Noop,    OpCode::Noop,
+    ], &[]);
+
+    let options = ProofOptions::default();
+    let inputs = ProgramInputs::from_public(&[3, 4, 1, 2, 1, 0, 5, 6]);
+    let num_outputs = 8;
+
+    let (outputs, proof) = super::execute(&program, &inputs, num_outputs, &options);
+    assert_eq!(outputs, [3, 4, 5, 6, 1, 2, 0, 0]);
 
     let result = super::verify(program.hash(), inputs.get_public_inputs(), &outputs, &proof);
     assert_eq!(Ok(true), result);

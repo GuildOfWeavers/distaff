@@ -56,6 +56,7 @@ User instructions can be executed only concurrently with the `HACC` system instr
 | DROP4       |  1100100 | Removes top four items from the stack. |
 | SWAP        |  1111000 | Moves the second from the top stack item to the top of the stack (swaps top two stack items). |
 | SWAP2       |  1111001 | Moves 3rd and 4th stack items to the top of the stack. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3` becomes `S2 S3 S0 S1`. |
+| CSWAP2      |  1100111 | If the 5th stack item is `1`, swaps top 2 stack items (similar to `SWAP2` instructions); if the 5th stack item is `0`, the top 4 stack items remain unchanged; otherwise the operation fails. Stack items 5 and 6 are discarded. |
 | SWAP4       |  1111010 | Moves 5th through 8th stack items to the top of the stack. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3 S4 S5 S6 S7` becomes `S4 S5 S6 S7 S0 S1 S2 S3`. |
 | ROLL4       |  1111011 | Moves 4th stack item to the top of the stack. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3` becomes `S3 S0 S1 S2`.  |
 | ROLL8       |  1111100 | Moves 8th stack item to the top of the stack. For example, assuming `S0` is the top of the stack, `S0 S1 S2 S3 S4 S5 S6 S7` becomes `S7 S0 S1 S2 S3 S4 S5 S6`. |
@@ -78,7 +79,7 @@ User instructions can be executed only concurrently with the `HACC` system instr
 | ----------- | :------: | -------------------------------------- |
 | EQ          |  1100010 | Pops top 3 values from the stack, subtracts the 3rd value from the 2nd, then multiplies the result by the 1st value, and then subtracts the result from value `1` and pushes the final result onto the stack. The operation can be used to check whether two values are equal (see [here](#Checking-equality)). |
 | CMP         |  0111111 | Pops top 8 items from the top of the stack, performs a single round of binary comparison, and pushes the resulting 8 values onto the stack. This operation can be used as a building block for *less then* and *greater than* operations (see [here](#Checking-inequality)). |
-| BINACC      |  1111101 | Pops top 3 items from the top of the stack, performs a single round of binary aggregation, and pushes the resulting 3 values onto the stack. This operation can be used as a building block for range check operations (see [here](#Checking-binary-decomposition)). |
+| BINACC      |  1111101 | Pops top 4 items from the top of the stack, performs a single round of binary aggregation, and pushes the resulting 4 values onto the stack. This operation can be used as a building block for range check operations (see [here](#Checking-binary-decomposition)). |
 
 ### Selection instructions
 
@@ -158,30 +159,28 @@ Sometimes it may be useful to check whether a value fits into a certain number o
 
 Similar to `CMP` operation, `BINACC` operation needs to be executed `n` times in a row if we want to make sure that a value can be represented with `n` bits.
 
-Each execution of the operation consumes a single input from tape `A`. The tape must be populated with binary representation of value `a` in [big-endian](https://en.wikipedia.org/wiki/Endianness) order. For example, if `a = 5`, input tape `A` should be `[0, 1, 0, 1]`.
+Each execution of the operation consumes a single input from tape `A`. The tape must be populated with binary representation of value `a` in [little-endian](https://en.wikipedia.org/wiki/Endianness) order. For example, if `a = 5`, input tape `A` should be `[1, 0, 1, 0]`.
 
 Also similar to `CMP` operation, `BINACC` operation expect items on the stack to be arranged in a certain order. If the items are not arranged as shown below, the result of the operation is undefined:
 
 ```
-[p, 0, 0, a]
+[0, 0, 1, 0, a]
 ```
-where:
-  * `a` is the value we want to range-check,
-  * `p` is equal to 2<sup>n - 1</sup>.
+where `a` is the value we want to range-check,
 
 Once items on the stack have been arranged as described above, we execute `BINACC` instruction `n` times. This will leave the stack in the following form:
 ```
-[x, x, a_acc, a]
+[x, x, x, a_acc, a]
 ```
 where:
-* `x` value is an intermediate results of executing `BINACC` operations and should be discarded.
+* `x` values are intermediate results of executing `BINACC` operations and should be discarded.
 * `a_acc` will be equal the result of aggregating value `a` from its binary representation.
 
 To make sure that `a` can fit into `n` bits we need to check that `a_acc = a`. This can be done using the following sequence of operations:
 ```
-DROP DROP READ EQ
+DUP DROP4 READ EQ
 ```
-The above sequence discards the first two items, then checks the equality of the remaining two items as described [here](#Checking-equality) placing `1` onto the stack if the values are equal, and `0` otherwise.
+The above sequence discards the first three items, then checks the equality of the remaining two items as described [here](#Checking-equality) placing `1` onto the stack if the values are equal, and `0` otherwise.
 
 Overall, the number of operations needed to determine whether a value can be represented by `n` bits is `n + 4` (assuming you already have the value positioned correctly on the stack). Specifically:
 

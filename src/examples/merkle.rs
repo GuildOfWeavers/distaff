@@ -6,10 +6,6 @@ pub fn get_example(args: &[String]) -> Example  {
     // get the length of Merkle authentication path and proof options from the arguments
     let (depth, options) = parse_args(args);
     assert!(depth >= 2, "tree depth must be at least 2, but received {}", depth);
-    
-    // generate the program to verify Merkle path of given length
-    let program = generate_merkle_program(depth);
-    println!("Generated a program to verify Merkle proof for a tree of depth {}", depth);
 
     // generate a pseudo-random Merkle authentication path
     let (auth_path, leaf_index) = generate_authentication_path(depth);
@@ -17,14 +13,20 @@ pub fn get_example(args: &[String]) -> Example  {
     // compute root of the Merkle tree to which the path resolves
     let mut expected_result = compute_merkle_root(&auth_path, leaf_index);
     println!("Expected tree root: {:?}", expected_result);
+    
+    // generate the program to verify Merkle path of given length
+    let program = generate_merkle_program(depth, leaf_index);
+    println!("Generated a program to verify Merkle proof for a tree of depth {}", depth);
 
     // transform Merkle path into a set of inputs for the program
     let inputs = generate_program_inputs(&auth_path, leaf_index);
 
-    // a single element from the top of the stack will be the output
-    let num_outputs = 2;
+    // 4 element at the top of the stack will be the output
+    let num_outputs = 4;
 
-    // reverse tree root because values on the stack are in reverse order
+    // double and reverse tree root because values on the stack are in reverse order
+    expected_result.push(expected_result[0]);
+    expected_result.push(expected_result[1]);
     expected_result.reverse();
 
     return Example {
@@ -36,15 +38,22 @@ pub fn get_example(args: &[String]) -> Example  {
     };
 }
 
-/// Returns a program to verify Merkle authentication path for a tree of depth `n`
-fn generate_merkle_program(n: usize) -> Program {
+/// Returns a program to verify Merkle authentication paths for a tree of depth `n`;
+/// the program first verifies the path using smpath operation, and then verifies
+/// the same path using pmpath operation.
+fn generate_merkle_program(n: usize, index: usize) -> Program {
 
     let source = format!("
     begin
         read.ab
-        mpath.{}
+        dup.2
+        smpath.{}
+        swap.2
+        push.{}
+        roll.4 swap swap.2
+        pmpath.{}
     end
-    ", n);
+    ", n, index, n);
 
     return assembly::compile(&source).unwrap();
 }
@@ -62,16 +71,23 @@ fn generate_program_inputs(path: &[Vec<u128>; 2], index: usize) -> ProgramInputs
     a.push(path[0][0]);
     b.push(path[1][0]);
 
+    // populate the tapes with inputs for smpath operation
     for i in 1..n {
-        // push the next node onto tapes A and B
-        a.push(path[0][i]);
-        b.push(path[1][i]);
-
         // push next bit of the position index onto tapes A and B; we use both tapes
         // here so that we can use READ2 instruction when reading inputs from the tapes
         a.push(field::ZERO);
         b.push((index & 1) as u128);
         index = index >> 1;
+
+        // push the next node onto tapes A and B
+        a.push(path[0][i]);
+        b.push(path[1][i]);
+    }
+
+    // populate the tapes with inputs for pmpath operation
+    for i in 1..n {
+        a.push(path[0][i]);
+        b.push(path[1][i]);
     }
 
     return ProgramInputs::new(&[], &a, &b);

@@ -53,7 +53,7 @@ pub enum UserOps {
     Drop4       = 0b0_11_00100,         // left shift: 4
     Choose      = 0b0_11_00101,         // left shift: 2
     Choose2     = 0b0_11_00110,         // left shift: 4
-    //???       = 0b0_11_00111,
+    CSwap2      = 0b0_11_00111,         // left shift: 2
 
     Add         = 0b0_11_01000,         // left shift: 1
     Mul         = 0b0_11_01001,         // left shift: 1
@@ -148,6 +148,7 @@ impl std::fmt::Display for UserOps {
     
             UserOps::Choose     => write!(f, "choose"),
             UserOps::Choose2    => write!(f, "choose2"),
+            UserOps::CSwap2     => write!(f, "cswap2"),
     
             UserOps::Add        => write!(f, "add"),
             UserOps::Mul        => write!(f, "mul"),
@@ -173,6 +174,7 @@ pub enum OpHint {
     EqStart,
     RcStart(u32),
     CmpStart(u32),
+    PmpathStart(u32),
     PushValue(u128),
     None,
 }
@@ -191,8 +193,9 @@ impl std::fmt::Display for OpHint {
         return match self {
             OpHint::EqStart          => write!(f, "::eq"),
             OpHint::RcStart(value)   => write!(f, ".{}", value),
-            OpHint::CmpStart(value)  => write!(f, ".{}", value),
-            OpHint::PushValue(value) => write!(f, "({})", value),
+            OpHint::CmpStart(value)     => write!(f, ".{}", value),
+            OpHint::PmpathStart(value)  => write!(f, ".{}", value),
+            OpHint::PushValue(value)    => write!(f, "({})", value),
             OpHint::None             => Ok(()),
         };
     }

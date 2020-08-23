@@ -74,7 +74,7 @@ impl Stack {
 
             OpCode::Push        => self.op_push(op_hint),
             OpCode::Read        => self.op_read(op_hint),
-            OpCode::Read2       => self.op_read2(),
+            OpCode::Read2       => self.op_read2(op_hint),
 
             OpCode::Dup         => self.op_dup(),
             OpCode::Dup2        => self.op_dup2(),
@@ -93,6 +93,7 @@ impl Stack {
 
             OpCode::Choose      => self.op_choose(),
             OpCode::Choose2     => self.op_choose2(),
+            OpCode::CSwap2      => self.op_cswap2(),
 
             OpCode::Add         => self.op_add(),
             OpCode::Mul         => self.op_mul(),
@@ -194,9 +195,10 @@ impl Stack {
                     self.tape_a.push(field::inv(field::sub(x, y)));
                 }
             },
-            _ => {
+            OpHint::None => {
                 assert!(self.tape_a.len() > 0, "attempt to read from empty tape A at step {}", self.step);
-            }
+            },
+            _ => panic!("execution hint {:?} is not valid for READ operation", hint)
         }
 
         self.shift_right(0, 1);
@@ -204,9 +206,37 @@ impl Stack {
         self.registers[0][self.step] = value;
     }
 
-    fn op_read2(&mut self) {
-        assert!(self.tape_a.len() > 0, "attempt to read from empty tape A at step {}", self.step);
-        assert!(self.tape_b.len() > 0, "attempt to read from empty tape B at step {}", self.step);
+    fn op_read2(&mut self, hint: OpHint) {
+        // process execution hint
+        match hint {
+            OpHint::PmpathStart(n) => {
+                assert!(self.depth >= 3, "stack underflow at step {}", self.step);
+
+                let n = (n - 1) as usize;
+                assert!(self.tape_a.len() >= n, "too few items on tape A for pmpath macro");
+                assert!(self.tape_b.len() >= n, "too few items on tape B for pmpath macro");
+
+                let idx = self.registers[2][self.step - 1];
+
+                // we need to insert binary decomposition of index into tape A, but we need to make
+                // sure it is interlaced with node values already present there. To do this,
+                // we first remove top n values from tape A
+                let v_a = self.tape_a.split_off(self.tape_a.len() - n);
+
+                // then, we reinsert them while interlacing node and leaf index binary values
+                for i in 0..n {
+                    // most significant bit is pushed first
+                    self.tape_a.push((idx >> (n - i - 1)) & 1);
+                    self.tape_a.push(v_a[i]);
+                }
+            },
+            OpHint::None => {
+                assert!(self.tape_a.len() > 0, "attempt to read from empty tape A at step {}", self.step);
+                assert!(self.tape_b.len() > 0, "attempt to read from empty tape B at step {}", self.step);
+            },
+            _ => panic!("execution hint {:?} is not valid for READ2 operation", hint)
+        }
+
         self.shift_right(0, 2);
         let value_a = self.tape_a.pop().unwrap();
         let value_b = self.tape_b.pop().unwrap();
@@ -339,6 +369,27 @@ impl Stack {
         self.shift_left(6, 4);
     }
 
+    fn op_cswap2(&mut self) {
+        assert!(self.depth >= 6, "stack underflow at step {}", self.step);
+        let condition = self.registers[4][self.step - 1];
+        if condition == field::ZERO {
+            self.registers[0][self.step] = self.registers[0][self.step - 1];
+            self.registers[1][self.step] = self.registers[1][self.step - 1];
+            self.registers[2][self.step] = self.registers[2][self.step - 1];
+            self.registers[3][self.step] = self.registers[3][self.step - 1];
+        }
+        else if condition == field::ONE {
+            self.registers[0][self.step] = self.registers[2][self.step - 1];
+            self.registers[1][self.step] = self.registers[3][self.step - 1];
+            self.registers[2][self.step] = self.registers[0][self.step - 1];
+            self.registers[3][self.step] = self.registers[1][self.step - 1];
+        }
+        else {
+            assert!(false, "CSWAP2 on a non-binary condition at step {}", self.step);
+        }
+        self.shift_left(6, 2);
+    }
+
     // ARITHMETIC AND BOOLEAN OPERATIONS
     // --------------------------------------------------------------------------------------------
     fn op_add(&mut self) {
@@ -434,11 +485,12 @@ impl Stack {
                     self.tape_b.push((b_val >> i) & 1);
                 }
             },
-            _ => {
+            OpHint::None => {
                 assert!(self.depth >= 8, "stack underflow at step {}", self.step);
                 assert!(self.tape_a.len() > 0, "attempt to read from empty tape A at step {}", self.step);
                 assert!(self.tape_b.len() > 0, "attempt to read from empty tape B at step {}", self.step);
-            }
+            },
+            _ => panic!("execution hint {:?} is not valid for CMP operation", hint)
         }
 
         // get next bits of a and b values from the tapes
@@ -488,16 +540,18 @@ impl Stack {
             OpHint::RcStart(n) => {
                 // if we are about to start range check sequence, push binary decompositions
                 // of the value onto tape A
-                assert!(self.depth >= 4, "stack underflow at step {}", self.step);
-                let val = self.registers[3][self.step - 1];
+                assert!(self.depth >= 5, "stack underflow at step {}", self.step);
+                let val = self.registers[4][self.step - 1];
                 for i in 0..n {
-                    self.tape_a.push((val >> i) & 1);
+                    // most significant bit is pushed first
+                    self.tape_a.push((val >> (n - i - 1)) & 1);
                 }
             },
-            _ => {
-                assert!(self.depth >= 3, "stack underflow at step {}", self.step);
+            OpHint::None => {
+                assert!(self.depth >= 4, "stack underflow at step {}", self.step);
                 assert!(self.tape_a.len() > 0, "attempt to read from empty tape A at step {}", self.step);
-            }
+            },
+            _ => panic!("execution hint {:?} is not valid for BINACC operation", hint)
         }
 
         // get the next bit of the value from tape A
@@ -506,24 +560,21 @@ impl Stack {
             "expected binary input at step {} but received: {}", self.step, bit);
 
         // compute current power of 2 for binary decomposition
-        let power_of_two = self.registers[0][self.step - 1];
+        let power_of_two = self.registers[2][self.step - 1];
         assert!(power_of_two.is_power_of_two(),
-            "expected top of the stack at step {} to be a power of 2, but received {}", self.step, power_of_two);
-        let next_power_of_two = if power_of_two == 1 {
-                field::div(power_of_two, 2)
-            }
-            else {
-                power_of_two >> 1
-            };
+            "expected 3rd value from the top of the stack at step {} to be a power of 2, but received {}",
+            self.step, power_of_two);
+        let next_power_of_two = field::mul(power_of_two, 2);
 
-        let acc = self.registers[2][self.step - 1];
+        let acc = self.registers[3][self.step - 1];
 
         // update the next state of the computation
-        self.registers[0][self.step] = next_power_of_two;
-        self.registers[1][self.step] = bit;
-        self.registers[2][self.step] = field::add(acc, field::mul(bit, power_of_two));
+        self.registers[0][self.step] = bit;
+        self.registers[1][self.step] = 0;
+        self.registers[2][self.step] = next_power_of_two;
+        self.registers[3][self.step] = field::add(acc, field::mul(bit, power_of_two));
 
-        self.copy_state(3);
+        self.copy_state(4);
     }
 
     // CRYPTOGRAPHIC OPERATIONS
