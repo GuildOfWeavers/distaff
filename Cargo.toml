@@ -1,6 +1,6 @@
 [package]
 name = "distaff"
-version = "0.5.1"
+version = "0.6.0"
 authors = ["Bobbin Threadbare <bobbinth@protonmail.com>"]
 edition = "2018"
 description="Zero-knowledge virtual machine written in Rust"
@@ -19,11 +19,11 @@ harness = false
 [dependencies]
 hex = "0.4.2"
 rand = "0.7.3"
-blake3 = "0.3.5"
+blake3 = "0.3.6"
 sha3 = "0.8.2"
 crossbeam-utils = "0.7.2"
 bincode = "1.3.1"
-serde = { version = "1.0.114", features = ["derive"] }
+serde = { version = "1.0.115", features = ["derive"] }
 log = "0.4.11"
 env_logger = "0.7.1"
 
