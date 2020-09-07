@@ -137,16 +137,15 @@ impl Decoder {
 
         // evaluate constraints for flow control operations
         let result = &mut result[NUM_OP_CONSTRAINTS..];
-        let op_flags = current.cf_op_flags();
-
-        enforce_hacc (result, current, next, &ark, op_flags[FlowOps::Hacc.op_index() ]);
-        enforce_begin(result, current, next,       op_flags[FlowOps::Begin.op_index()]);
-        enforce_tend (result, current, next,       op_flags[FlowOps::Tend.op_index() ]);
-        enforce_fend (result, current, next,       op_flags[FlowOps::Fend.op_index() ]);
-        enforce_loop (result, current, next,       op_flags[FlowOps::Loop.op_index() ]);
-        enforce_wrap (result, current, next,       op_flags[FlowOps::Wrap.op_index() ]);
-        enforce_break(result, current, next,       op_flags[FlowOps::Break.op_index()]);
-        enforce_void (result, current, next,       op_flags[FlowOps::Void.op_index() ]);
+        
+        enforce_hacc (result, current, next, &ark, current.get_flow_op_flags(FlowOps::Hacc));
+        enforce_begin(result, current, next,       current.get_flow_op_flags(FlowOps::Begin));
+        enforce_tend (result, current, next,       current.get_flow_op_flags(FlowOps::Tend));
+        enforce_fend (result, current, next,       current.get_flow_op_flags(FlowOps::Fend));
+        enforce_loop (result, current, next,       current.get_flow_op_flags(FlowOps::Loop));
+        enforce_wrap (result, current, next,       current.get_flow_op_flags(FlowOps::Wrap));
+        enforce_break(result, current, next,       current.get_flow_op_flags(FlowOps::Break));
+        enforce_void (result, current, next,       current.get_flow_op_flags(FlowOps::Void));
     }
 
     /// Evaluates decoder transition constraints at the specified x coordinate and saves the
@@ -175,16 +174,15 @@ impl Decoder {
 
         // evaluate constraints for flow control operations
         let result = &mut result[NUM_OP_CONSTRAINTS..];
-        let op_flags = current.cf_op_flags();
 
-        enforce_hacc (result, current, next, &ark, op_flags[FlowOps::Hacc as usize]);
-        enforce_begin(result, current, next, op_flags[FlowOps::Begin as usize]);
-        enforce_tend (result, current, next, op_flags[FlowOps::Tend as usize]);
-        enforce_fend (result, current, next, op_flags[FlowOps::Fend as usize]);
-        enforce_loop (result, current, next, op_flags[FlowOps::Loop as usize]);
-        enforce_wrap (result, current, next, op_flags[FlowOps::Wrap as usize]);
-        enforce_break(result, current, next, op_flags[FlowOps::Break as usize]);
-        enforce_void (result, current, next, op_flags[FlowOps::Void as usize]);
+        enforce_hacc (result, current, next, &ark, current.get_flow_op_flags(FlowOps::Hacc));
+        enforce_begin(result, current, next,       current.get_flow_op_flags(FlowOps::Begin));
+        enforce_tend (result, current, next,       current.get_flow_op_flags(FlowOps::Tend));
+        enforce_fend (result, current, next,       current.get_flow_op_flags(FlowOps::Fend));
+        enforce_loop (result, current, next,       current.get_flow_op_flags(FlowOps::Loop));
+        enforce_wrap (result, current, next,       current.get_flow_op_flags(FlowOps::Wrap));
+        enforce_break(result, current, next,       current.get_flow_op_flags(FlowOps::Break));
+        enforce_void (result, current, next,       current.get_flow_op_flags(FlowOps::Void));
     }
 }
 

@@ -11,7 +11,7 @@ pub fn enforce_hacc(result: &mut [u128], current: &TraceState, next: &TraceState
 {
     // determine current op_value
     let stack_top = next.user_stack()[0];
-    let push_flag = current.hd_op_flags()[UserOps::Push.hd_index()];
+    let push_flag = current.get_user_op_flag(UserOps::Push);
     let op_value = mul(stack_top, push_flag);
 
     // evaluate the first half of Rescue round

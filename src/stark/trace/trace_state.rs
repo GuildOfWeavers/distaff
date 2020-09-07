@@ -8,7 +8,9 @@ use crate::{
     NUM_CF_OPS, NUM_LD_OPS, NUM_HD_OPS,
     NUM_CF_OP_BITS, NUM_LD_OP_BITS, NUM_HD_OP_BITS,
     CF_OP_BITS_RANGE, LD_OP_BITS_RANGE, HD_OP_BITS_RANGE,
+    processor::opcodes::{ FlowOps, UserOps }
 };
+
 
 // CONSTANTS
 // ================================================================================================
@@ -37,7 +39,6 @@ pub struct TraceState {
     hd_op_flags : [u128; NUM_HD_OPS],
     begin_flag  : u128,
     noop_flag   : u128,
-    op_flags_set: bool,
 }
 
 // TRACE STATE IMPLEMENTATION
@@ -66,7 +67,6 @@ impl TraceState {
             hd_op_flags : [0; NUM_HD_OPS],
             begin_flag  : 0,
             noop_flag   : 0,
-            op_flags_set: false,
         };
     }
 
@@ -97,7 +97,7 @@ impl TraceState {
         let mut user_stack = vec![0; cmp::max(stack_depth, MIN_STACK_DEPTH)];
         user_stack[..stack_depth].copy_from_slice(&state[loop_stack_end..]);
 
-        return TraceState {
+        let mut state = TraceState {
             op_counter, sponge,
             cf_op_bits, ld_op_bits, hd_op_bits,
             ctx_stack, loop_stack, user_stack,
@@ -107,8 +107,10 @@ impl TraceState {
             hd_op_flags : [0; NUM_HD_OPS],
             begin_flag  : 0,
             noop_flag   : 0,
-            op_flags_set: false,
         };
+        state.set_op_flags();
+
+        return state;
     }
 
     // STATIC FUNCTIONS
@@ -177,46 +179,24 @@ impl TraceState {
         self.cf_op_bits.copy_from_slice(&bits[..3]);
         self.ld_op_bits.copy_from_slice(&bits[3..8]);
         self.hd_op_bits.copy_from_slice(&bits[8..]);
+        self.set_op_flags();
     }
 
     // OP FLAGS
     // --------------------------------------------------------------------------------------------
-    pub fn cf_op_flags(&self) -> [u128; NUM_CF_OPS] {
-        if !self.op_flags_set {
-            unsafe {
-                let mutable_self = &mut *(self as *const _ as *mut TraceState);
-                mutable_self.set_op_flags();
-            }
-        }
-        return self.cf_op_flags;
+    pub fn get_flow_op_flags(&self, opcode: FlowOps) -> u128 {
+        return self.cf_op_flags[opcode.op_index()];
     }
 
-    pub fn ld_op_flags(&self) -> [u128; NUM_LD_OPS] {
-        if !self.op_flags_set {
-            unsafe {
-                let mutable_self = &mut *(self as *const _ as *mut TraceState);
-                mutable_self.set_op_flags();
-            }
-        }
-        return self.ld_op_flags;
-    }
+    pub fn get_user_op_flag(&self, opcode: UserOps) -> u128 {
+        return match opcode {
 
-    pub fn hd_op_flags(&self) -> [u128; NUM_HD_OPS] {
-        if !self.op_flags_set {
-            unsafe {
-                let mutable_self = &mut *(self as *const _ as *mut TraceState);
-                mutable_self.set_op_flags();
-            }
-        }
-        return self.hd_op_flags;
-    }
+            UserOps::Begin      => self.begin_flag,
+            UserOps::Noop       => self.noop_flag,
+            UserOps::Push | UserOps::Cmp | UserOps::RescR => self.hd_op_flags[opcode.hd_index()],
 
-    pub fn begin_flag(&self) -> u128 {
-        return self.begin_flag;
-    }
-
-    pub fn noop_flag(&self) -> u128 {
-        return self.noop_flag;
+            _ => self.ld_op_flags[opcode.ld_index()],
+        };
     }
 
     // STACKS
@@ -273,7 +253,7 @@ impl TraceState {
             self.user_stack[i] = trace[j][step];
         }
         
-        self.op_flags_set = false;
+        self.set_op_flags();
     }
 
     // HELPER METHODS
@@ -344,9 +324,6 @@ impl TraceState {
 
         debug_assert!(OpCode::Assert.ld_index() == 0, "ASSERT index is not 0!");
         self.ld_op_flags[0] = field::mul(self.ld_op_flags[0], self.hd_op_bits[0]);
-
-        // mark flags as set
-        self.op_flags_set = true;
     }
 }
 
@@ -499,62 +476,9 @@ mod tests {
 
     #[test]
     fn op_flags() {
-
-        // all zeros
-        let state = TraceState::from_vec(1, 0, 2, &vec![
-            101,  1, 2, 3, 4,  0, 0, 0,  0, 0, 0, 0, 0,  0, 0,  15, 16, 17
-        ]);
-
-        assert_eq!([1, 0, 0, 0, 0, 0, 0, 0], state.cf_op_flags());
-        assert_eq!([
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        ], state.ld_op_flags());
-        assert_eq!([0, 0, 0, 0], state.hd_op_flags());
-        assert_eq!(1, state.begin_flag());
-        assert_eq!(0, state.noop_flag());
-
-        // all ones
-        let state = TraceState::from_vec(1, 0, 2, &vec![
-            101,  1, 2, 3, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  15, 16, 17
-        ]);
-
-        assert_eq!([0, 0, 0, 0, 0, 0, 0, 1], state.cf_op_flags());
-        assert_eq!([
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-        ], state.ld_op_flags());
-        assert_eq!([0, 0, 0, 1], state.hd_op_flags());
-        assert_eq!(0, state.begin_flag());
-        assert_eq!(1, state.noop_flag());
-
-        // mixed 1
-        let state = TraceState::from_vec(1, 0, 2, &vec![
-            101,  1, 2, 3, 4,  1, 0, 0,  1, 0, 0, 0, 0,  1, 0,  15, 16, 17
-        ]);
-
-        assert_eq!([0, 1, 0, 0, 0, 0, 0, 0], state.cf_op_flags());
-        assert_eq!([
-            0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        ], state.ld_op_flags());
-        assert_eq!([0, 1, 0, 0], state.hd_op_flags());
-        assert_eq!(0, state.begin_flag());
-        assert_eq!(0, state.noop_flag());
-
-        // mixed 2
-        let state = TraceState::from_vec(1, 0, 2, &vec![
-            101, 1, 2, 3, 4, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1, 15, 16, 17
-        ]);
-
-        assert_eq!([0, 0, 0, 1, 0, 0, 0, 0], state.cf_op_flags());
-        assert_eq!([
-            0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        ], state.ld_op_flags());
-        assert_eq!([0, 0, 1, 0], state.hd_op_flags());
+        // TODO
     }
-
+    
     #[test]
     fn op_code() {
         let state = TraceState::from_vec(1, 0, 2, &vec![
