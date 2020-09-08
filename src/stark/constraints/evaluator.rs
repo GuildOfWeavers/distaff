@@ -203,7 +203,7 @@ impl Evaluator {
 
         // make sure cf_bits are set to HACC (000)
         let mut cc_idx = 0;
-        let op_bits = current.cf_op_bits();
+        let op_bits = current.flow_op_bits();
         for i in 0..op_bits.len() {
             i_result = field::add(i_result, field::mul(op_bits[i], cc.op_bits[cc_idx]));
             result_adj = field::add(result_adj, field::mul(op_bits[i], cc.op_bits[cc_idx + 1]));
@@ -211,7 +211,7 @@ impl Evaluator {
         }
 
         // make sure low-degree op_bits are set to BEGIN (0000)
-        let op_bits = current.ld_op_bits();
+        let op_bits = current.user_op_bits();
         for i in 0..op_bits.len() {
             i_result = field::add(i_result, field::mul(op_bits[i], cc.op_bits[cc_idx]));
             result_adj = field::add(result_adj, field::mul(op_bits[i], cc.op_bits[cc_idx + 1]));
@@ -219,7 +219,7 @@ impl Evaluator {
         }
 
         // make sure high-degree op_bits are set to BEGIN (00)
-        let op_bits = current.hd_op_bits();
+        let op_bits = current.user_op_bits(); // TODO
         for i in 0..op_bits.len() {
             i_result = field::add(i_result, field::mul(op_bits[i], cc.op_bits[cc_idx]));
             result_adj = field::add(result_adj, field::mul(op_bits[i], cc.op_bits[cc_idx + 1]));
@@ -272,7 +272,7 @@ impl Evaluator {
 
         // make sure control flow op_bits are set VOID (111)
         let mut cc_idx = 0;
-        let op_bits = current.cf_op_bits();
+        let op_bits = current.flow_op_bits();
         for i in 0..op_bits.len() {
             let val = field::sub(op_bits[i], field::ONE);
             f_result = field::add(f_result, field::mul(val, cc.op_bits[cc_idx]));
@@ -281,7 +281,7 @@ impl Evaluator {
         }
         
         // make sure low-degree op_bits are set to NOOP (11111)
-        let op_bits = current.ld_op_bits();
+        let op_bits = current.user_op_bits();
         for i in 0..op_bits.len() {
             let val = field::sub(op_bits[i], field::ONE);
             f_result = field::add(f_result, field::mul(val, cc.op_bits[cc_idx]));
@@ -290,7 +290,7 @@ impl Evaluator {
         }
         
         // make sure high-degree op_bits are set to NOOP (11)
-        let op_bits = current.hd_op_bits();
+        let op_bits = current.user_op_bits(); // TODO
         for i in 0..op_bits.len() {
             let val = field::sub(op_bits[i], field::ONE);
             f_result = field::add(f_result, field::mul(val, cc.op_bits[cc_idx]));

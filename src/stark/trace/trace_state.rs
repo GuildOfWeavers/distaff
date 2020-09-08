@@ -1,20 +1,18 @@
 use std::{ fmt, cmp };
 use crate::{
     math::field,
-    OpCode,
+    processor::opcodes::{ FlowOps, UserOps },
     PROGRAM_DIGEST_SIZE,
     MIN_STACK_DEPTH, MIN_CONTEXT_DEPTH, MIN_LOOP_DEPTH,
     OP_COUNTER_IDX, SPONGE_WIDTH, SPONGE_RANGE,
-    NUM_CF_OPS, NUM_LD_OPS, NUM_HD_OPS,
-    NUM_CF_OP_BITS, NUM_LD_OP_BITS, NUM_HD_OP_BITS,
-    CF_OP_BITS_RANGE, LD_OP_BITS_RANGE, HD_OP_BITS_RANGE,
-    processor::opcodes::{ FlowOps, UserOps }
+    NUM_FLOW_OP_BITS, NUM_USER_OP_BITS,
+    FLOW_OP_BITS_RANGE, USER_OP_BITS_RANGE,
 };
-
+use super::op_flags::OpFlags;
 
 // CONSTANTS
 // ================================================================================================
-const NUM_OP_BITS: usize = NUM_CF_OP_BITS + NUM_LD_OP_BITS + NUM_HD_OP_BITS;
+const NUM_OP_BITS: usize = NUM_FLOW_OP_BITS + NUM_USER_OP_BITS;
 const NUM_STATIC_DECODER_REGISTERS: usize = 1 + SPONGE_WIDTH + NUM_OP_BITS; // 1 is for op_counter
 
 // TYPES AND INTERFACES
@@ -23,9 +21,8 @@ const NUM_STATIC_DECODER_REGISTERS: usize = 1 + SPONGE_WIDTH + NUM_OP_BITS; // 1
 pub struct TraceState {
     op_counter  : u128,
     sponge      : [u128; SPONGE_WIDTH],
-    cf_op_bits  : [u128; NUM_CF_OP_BITS],
-    ld_op_bits  : [u128; NUM_LD_OP_BITS],
-    hd_op_bits  : [u128; NUM_HD_OP_BITS],
+    flow_op_bits: [u128; NUM_FLOW_OP_BITS],
+    user_op_bits: [u128; NUM_USER_OP_BITS],
     ctx_stack   : Vec<u128>,
     loop_stack  : Vec<u128>,
     user_stack  : Vec<u128>,
@@ -34,11 +31,7 @@ pub struct TraceState {
     loop_depth  : usize,
     stack_depth : usize,
 
-    cf_op_flags : [u128; NUM_CF_OPS],
-    ld_op_flags : [u128; NUM_LD_OPS],
-    hd_op_flags : [u128; NUM_HD_OPS],
-    begin_flag  : u128,
-    noop_flag   : u128,
+    op_flags    : OpFlags,
 }
 
 // TRACE STATE IMPLEMENTATION
@@ -53,20 +46,15 @@ impl TraceState {
         return TraceState {
             op_counter  : 0,
             sponge      : [0; SPONGE_WIDTH],
-            cf_op_bits  : [0; NUM_CF_OP_BITS],
-            ld_op_bits  : [0; NUM_LD_OP_BITS],
-            hd_op_bits  : [0; NUM_HD_OP_BITS],
+            flow_op_bits: [0; NUM_FLOW_OP_BITS],
+            user_op_bits: [0; NUM_USER_OP_BITS],
             ctx_stack   : vec![0; cmp::max(ctx_depth, MIN_CONTEXT_DEPTH)],
             loop_stack  : vec![0; cmp::max(loop_depth, MIN_LOOP_DEPTH)],
             user_stack  : vec![0; cmp::max(stack_depth, MIN_STACK_DEPTH)],
             ctx_depth   : ctx_depth,
             loop_depth  : loop_depth,
             stack_depth : stack_depth,
-            cf_op_flags : [0; NUM_CF_OPS],
-            ld_op_flags : [0; NUM_LD_OPS],
-            hd_op_flags : [0; NUM_HD_OPS],
-            begin_flag  : 0,
-            noop_flag   : 0,
+            op_flags    : OpFlags::new(),
         };
     }
 
@@ -77,18 +65,15 @@ impl TraceState {
         let mut sponge = [0; SPONGE_WIDTH];
         sponge.copy_from_slice(&state[SPONGE_RANGE]);
 
-        let mut cf_op_bits = [0; NUM_CF_OP_BITS];
-        cf_op_bits.copy_from_slice(&state[CF_OP_BITS_RANGE]);
+        let mut flow_op_bits = [0; NUM_FLOW_OP_BITS];
+        flow_op_bits.copy_from_slice(&state[FLOW_OP_BITS_RANGE]);
 
-        let mut ld_op_bits = [0; NUM_LD_OP_BITS];
-        ld_op_bits.copy_from_slice(&state[LD_OP_BITS_RANGE]);
-
-        let mut hd_op_bits = [0; NUM_HD_OP_BITS];
-        hd_op_bits.copy_from_slice(&state[HD_OP_BITS_RANGE]);
+        let mut user_op_bits = [0; NUM_USER_OP_BITS];
+        user_op_bits.copy_from_slice(&state[USER_OP_BITS_RANGE]);
 
         let mut ctx_stack = vec![0; cmp::max(ctx_depth, MIN_CONTEXT_DEPTH)];
-        let ctx_stack_end = HD_OP_BITS_RANGE.end + ctx_depth;
-        ctx_stack[..ctx_depth].copy_from_slice(&state[HD_OP_BITS_RANGE.end..ctx_stack_end]);
+        let ctx_stack_end = USER_OP_BITS_RANGE.end + ctx_depth;
+        ctx_stack[..ctx_depth].copy_from_slice(&state[USER_OP_BITS_RANGE.end..ctx_stack_end]);
 
         let mut loop_stack = vec![0; cmp::max(loop_depth, MIN_LOOP_DEPTH)];
         let loop_stack_end = ctx_stack_end + loop_depth;
@@ -99,16 +84,12 @@ impl TraceState {
 
         let mut state = TraceState {
             op_counter, sponge,
-            cf_op_bits, ld_op_bits, hd_op_bits,
+            flow_op_bits, user_op_bits,
             ctx_stack, loop_stack, user_stack,
             ctx_depth, loop_depth, stack_depth,
-            cf_op_flags : [0; NUM_CF_OPS],
-            ld_op_flags : [0; NUM_LD_OPS],
-            hd_op_flags : [0; NUM_HD_OPS],
-            begin_flag  : 0,
-            noop_flag   : 0,
+            op_flags: OpFlags::new()
         };
-        state.set_op_flags();
+        state.op_flags.update(&state.flow_op_bits, &state.user_op_bits);
 
         return state;
     }
@@ -122,7 +103,7 @@ impl TraceState {
     // PUBLIC ACCESSORS
     // --------------------------------------------------------------------------------------------
     pub fn width(&self) -> usize {
-        return HD_OP_BITS_RANGE.end + self.ctx_depth + self.loop_depth + self.stack_depth;
+        return USER_OP_BITS_RANGE.end + self.ctx_depth + self.loop_depth + self.stack_depth;
     }
 
     pub fn stack_depth(&self) -> usize {
@@ -152,51 +133,38 @@ impl TraceState {
 
     // OP BITS
     // --------------------------------------------------------------------------------------------
-    pub fn cf_op_bits(&self) -> &[u128] {
-        return &self.cf_op_bits;
+    pub fn flow_op_bits(&self) -> &[u128] {
+        return &self.flow_op_bits;
     }
 
-    pub fn ld_op_bits(&self) -> &[u128] {
-        return &self.ld_op_bits;
-    }
-
-    pub fn hd_op_bits(&self) -> &[u128] {
-        return &self.hd_op_bits;
+    pub fn user_op_bits(&self) -> &[u128] {
+        return &self.user_op_bits;
     }
 
     pub fn op_code(&self) -> u128 {
-        let mut result = self.ld_op_bits[0];
-        result = field::add(result, field::mul(self.ld_op_bits[1], 2));
-        result = field::add(result, field::mul(self.ld_op_bits[2], 4));
-        result = field::add(result, field::mul(self.ld_op_bits[3], 8));
-        result = field::add(result, field::mul(self.ld_op_bits[4], 16));
-        result = field::add(result, field::mul(self.hd_op_bits[0], 32));
-        result = field::add(result, field::mul(self.hd_op_bits[1], 64));
+        let mut result = self.user_op_bits[0];
+        result = field::add(result, field::mul(self.user_op_bits[1], 2));
+        result = field::add(result, field::mul(self.user_op_bits[2], 4));
+        result = field::add(result, field::mul(self.user_op_bits[3], 8));
+        result = field::add(result, field::mul(self.user_op_bits[4], 16));
+        result = field::add(result, field::mul(self.user_op_bits[5], 32));
         return result;
     }
 
     pub fn set_op_bits(&mut self, bits: [u128; NUM_OP_BITS]) {
-        self.cf_op_bits.copy_from_slice(&bits[..3]);
-        self.ld_op_bits.copy_from_slice(&bits[3..8]);
-        self.hd_op_bits.copy_from_slice(&bits[8..]);
-        self.set_op_flags();
+        self.flow_op_bits.copy_from_slice(&bits[..3]);
+        self.user_op_bits.copy_from_slice(&bits[3..9]);
+        self.op_flags.update(&self.flow_op_bits, &self.user_op_bits);
     }
 
     // OP FLAGS
     // --------------------------------------------------------------------------------------------
     pub fn get_flow_op_flags(&self, opcode: FlowOps) -> u128 {
-        return self.cf_op_flags[opcode.op_index()];
+        return self.op_flags.get_flow_op_flag(opcode);
     }
 
     pub fn get_user_op_flag(&self, opcode: UserOps) -> u128 {
-        return match opcode {
-
-            UserOps::Begin      => self.begin_flag,
-            UserOps::Noop       => self.noop_flag,
-            UserOps::Push | UserOps::Cmp | UserOps::RescR => self.hd_op_flags[opcode.hd_index()],
-
-            _ => self.ld_op_flags[opcode.ld_index()],
-        };
+        return self.op_flags.get_user_op_flag(opcode);
     }
 
     // STACKS
@@ -219,9 +187,8 @@ impl TraceState {
         let mut result = Vec::with_capacity(self.width());
         result.push(self.op_counter);
         result.extend_from_slice(&self.sponge);
-        result.extend_from_slice(&self.cf_op_bits);
-        result.extend_from_slice(&self.ld_op_bits);
-        result.extend_from_slice(&self.hd_op_bits);
+        result.extend_from_slice(&self.flow_op_bits);
+        result.extend_from_slice(&self.user_op_bits);
         result.extend_from_slice(&self.ctx_stack[..self.ctx_depth]);
         result.extend_from_slice(&self.loop_stack[..self.loop_depth]);
         result.extend_from_slice(&self.user_stack[..self.stack_depth]);
@@ -232,12 +199,11 @@ impl TraceState {
 
         self.op_counter = trace[OP_COUNTER_IDX][step];
 
-        for (i, j) in SPONGE_RANGE.enumerate()     { self.sponge[i] = trace[j][step]; }
-        for (i, j) in CF_OP_BITS_RANGE.enumerate() { self.cf_op_bits[i] = trace[j][step]; }
-        for (i, j) in LD_OP_BITS_RANGE.enumerate() { self.ld_op_bits[i] = trace[j][step]; }
-        for (i, j) in HD_OP_BITS_RANGE.enumerate() { self.hd_op_bits[i] = trace[j][step]; }
+        for (i, j) in SPONGE_RANGE.enumerate()       { self.sponge[i] = trace[j][step]; }
+        for (i, j) in FLOW_OP_BITS_RANGE.enumerate() { self.flow_op_bits[i] = trace[j][step]; }
+        for (i, j) in USER_OP_BITS_RANGE.enumerate() { self.user_op_bits[i] = trace[j][step]; }
 
-        let ctx_stack_start = HD_OP_BITS_RANGE.end;
+        let ctx_stack_start = USER_OP_BITS_RANGE.end;
         let ctx_stack_end = ctx_stack_start + self.ctx_depth;
         for (i, j) in (ctx_stack_start..ctx_stack_end).enumerate() {
             self.ctx_stack[i] = trace[j][step];
@@ -253,88 +219,17 @@ impl TraceState {
             self.user_stack[i] = trace[j][step];
         }
         
-        self.set_op_flags();
-    }
-
-    // HELPER METHODS
-    // --------------------------------------------------------------------------------------------
-    fn set_op_flags(&mut self) {
-
-        // set control flow flags
-        let not_0 = binary_not(self.cf_op_bits[0]);
-        let not_1 = binary_not(self.cf_op_bits[1]);
-        self.cf_op_flags[0] = field::mul(not_0, not_1);
-        self.cf_op_flags[1] = field::mul(self.cf_op_bits[0], not_1);
-        self.cf_op_flags[2] = field::mul(not_0, self.cf_op_bits[1]);
-        self.cf_op_flags[3] = field::mul(self.cf_op_bits[0], self.cf_op_bits[1]);
-        self.cf_op_flags.copy_within(0..4, 4);
-
-        let not_2 = binary_not(self.cf_op_bits[2]);
-        for i in 0..4 { self.cf_op_flags[i] = field::mul(self.cf_op_flags[i], not_2); }
-        for i in 4..8 { self.cf_op_flags[i] = field::mul(self.cf_op_flags[i], self.cf_op_bits[2]); }
-
-        // set low-degree operation flags
-        let not_0 = binary_not(self.ld_op_bits[0]);
-        let not_1 = binary_not(self.ld_op_bits[1]);
-        self.ld_op_flags[0] = field::mul(not_0, not_1);
-        self.ld_op_flags[1] = field::mul(self.ld_op_bits[0], not_1);
-        self.ld_op_flags[2] = field::mul(not_0, self.cf_op_bits[1]);
-        self.ld_op_flags[3] = field::mul(self.ld_op_bits[0], self.ld_op_bits[1]);
-        self.ld_op_flags.copy_within(0..4, 4);
-
-        let not_2 = binary_not(self.ld_op_bits[2]);
-        for i in 0..4 { self.ld_op_flags[i] = field::mul(self.ld_op_flags[i], not_2); }
-        for i in 4..8 { self.ld_op_flags[i] = field::mul(self.ld_op_flags[i], self.ld_op_bits[2]); }
-        self.ld_op_flags.copy_within(0..8, 8);
-
-        let not_3 = binary_not(self.ld_op_bits[3]);
-        for i in 0..8  { self.ld_op_flags[i] = field::mul(self.ld_op_flags[i], not_3); }
-        for i in 8..16 { self.ld_op_flags[i] = field::mul(self.ld_op_flags[i], self.ld_op_bits[3]); }
-        self.ld_op_flags.copy_within(0..16, 16);
-
-        let not_4 = binary_not(self.ld_op_bits[4]);
-        for i in 0..16  { self.ld_op_flags[i] = field::mul(self.ld_op_flags[i], not_4); }
-        for i in 16..32 { self.ld_op_flags[i] = field::mul(self.ld_op_flags[i], self.ld_op_bits[4]); }
-
-        // set high-degree operation flags
-        let not_0 = binary_not(self.hd_op_bits[0]);
-        let not_1 = binary_not(self.hd_op_bits[1]);
-        self.hd_op_flags[0] = field::mul(not_0, not_1);
-        self.hd_op_flags[1] = field::mul(self.hd_op_bits[0], not_1);
-        self.hd_op_flags[2] = field::mul(not_0, self.hd_op_bits[1]);
-        self.hd_op_flags[3] = field::mul(self.hd_op_bits[0], self.hd_op_bits[1]);
-
-        // compute flag for BEGIN operation which is just 0000000; the below is equivalent
-        // to multiplying binary inverses of all op bits together.
-        self.begin_flag = field::mul(
-            self.ld_op_flags[OpCode::Begin.ld_index()], 
-            self.hd_op_flags[OpCode::Begin.hd_index()]);
-
-        // compute flag for NOOP operation which is just 1111111; the below is equivalent to
-        // multiplying all op bits together.
-        self.noop_flag = field::mul(
-            self.ld_op_flags[OpCode::Noop.ld_index()], 
-            self.hd_op_flags[OpCode::Noop.hd_index()]);
-
-        // we need to make special adjustments for PUSH and ASSERT op flags so that they
-        // don't coincide with BEGIN operation; we do this by multiplying each flag by a
-        // single op_bit from another op bank; this increases degree of each flag by 1
-        debug_assert!(OpCode::Push.hd_index() == 0, "PUSH index is not 0!");
-        self.hd_op_flags[0] = field::mul(self.hd_op_flags[0], self.ld_op_bits[0]);
-
-        debug_assert!(OpCode::Assert.ld_index() == 0, "ASSERT index is not 0!");
-        self.ld_op_flags[0] = field::mul(self.ld_op_flags[0], self.hd_op_bits[0]);
+        self.op_flags.update(&self.flow_op_bits, &self.user_op_bits);
     }
 }
 
 impl fmt::Debug for TraceState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{:>4}] {:>32X?} {:?} {:?} {:?} {:>32X?} {:>32X?} {:?}",
+        write!(f, "[{:>4}] {:>32X?} {:?} {:?} {:>32X?} {:>32X?} {:?}",
             self.op_counter,
             self.sponge, 
-            self.cf_op_bits,
-            self.ld_op_bits,
-            self.hd_op_bits,
+            self.flow_op_bits,
+            self.user_op_bits,
             self.ctx_stack,
             self.loop_stack,
             self.user_stack
@@ -344,24 +239,16 @@ impl fmt::Debug for TraceState {
 
 impl fmt::Display for TraceState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[{:>4}] {:>16X?} {:?} {:?} {:?} {:>16X?} {:>16X?} {:?}",
+        write!(f, "[{:>4}] {:>16X?} {:?} {:?} {:>16X?} {:>16X?} {:?}",
             self.op_counter,
             self.sponge.iter().map(|x| x >> 64).collect::<Vec<u128>>(),
-            self.cf_op_bits,
-            self.ld_op_bits,
-            self.hd_op_bits,
+            self.flow_op_bits,
+            self.user_op_bits,
             self.ctx_stack.iter().map(|x| x >> 64).collect::<Vec<u128>>(),
             self.loop_stack.iter().map(|x| x >> 64).collect::<Vec<u128>>(),
             &self.user_stack[..self.stack_depth]
         )
     }
-}
-
-// HELPER FUNCTIONS
-// ================================================================================================
-#[inline(always)]
-fn binary_not(v: u128) -> u128 {
-    return field::sub(field::ONE, v);
 }
 
 // TESTS
@@ -376,15 +263,32 @@ mod tests {
 
         // empty context and loop stacks
         let state = TraceState::from_vec(0, 0, 2, &vec![
-            101,  1, 2, 3, 4,  5, 6, 7,  8, 9, 10, 11, 12,  13, 14,  15, 16
+            101,  1, 2, 3, 4,  5, 6, 7,  8, 9, 10, 11, 12, 13,  14, 15
         ]);
 
         assert_eq!(101, state.op_counter());
         assert_eq!([1, 2, 3, 4], state.sponge());
-        assert_eq!([5, 6, 7], state.cf_op_bits());
-        assert_eq!([8, 9, 10, 11, 12], state.ld_op_bits());
-        assert_eq!([13, 14], state.hd_op_bits());
+        assert_eq!([5, 6, 7], state.flow_op_bits());
+        assert_eq!([8, 9, 10, 11, 12, 13], state.user_op_bits());
         assert_eq!([0], state.ctx_stack());
+        assert_eq!([0], state.loop_stack());
+        assert_eq!([14, 15, 0, 0, 0, 0, 0, 0], state.user_stack());
+        assert_eq!(16, state.width());
+        assert_eq!(2, state.stack_depth());
+        assert_eq!(vec![
+            101, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+        ], state.to_vec());
+
+        // 1 item on context stack, empty loop stack
+        let state = TraceState::from_vec(1, 0, 2, &vec![
+            101,  1, 2, 3, 4,  5, 6, 7,  8, 9, 10, 11, 12, 13,  14,  15, 16
+        ]);
+
+        assert_eq!(101, state.op_counter());
+        assert_eq!([1, 2, 3, 4], state.sponge());
+        assert_eq!([5, 6, 7], state.flow_op_bits());
+        assert_eq!([8, 9, 10, 11, 12, 13], state.user_op_bits());
+        assert_eq!([14], state.ctx_stack());
         assert_eq!([0], state.loop_stack());
         assert_eq!([15, 16, 0, 0, 0, 0, 0, 0], state.user_stack());
         assert_eq!(17, state.width());
@@ -393,51 +297,31 @@ mod tests {
             101, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
         ], state.to_vec());
 
-        // 1 item on context stack, empty loop stack
-        let state = TraceState::from_vec(1, 0, 2, &vec![
-            101,  1, 2, 3, 4,  5, 6, 7,  8, 9, 10, 11, 12,  13, 14,  15,  16, 17
-        ]);
-
-        assert_eq!(101, state.op_counter());
-        assert_eq!([1, 2, 3, 4], state.sponge());
-        assert_eq!([5, 6, 7], state.cf_op_bits());
-        assert_eq!([8, 9, 10, 11, 12], state.ld_op_bits());
-        assert_eq!([13, 14], state.hd_op_bits());
-        assert_eq!([15], state.ctx_stack());
-        assert_eq!([0], state.loop_stack());
-        assert_eq!([16, 17, 0, 0, 0, 0, 0, 0], state.user_stack());
-        assert_eq!(18, state.width());
-        assert_eq!(2, state.stack_depth());
-        assert_eq!(vec![
-            101, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17
-        ], state.to_vec());
-
         // non-empty loop stack
         let state = TraceState::from_vec(2, 1, 9, &vec![
-            101,  1, 2, 3, 4,  5, 6, 7,  8, 9, 10, 11, 12,  13, 14,  15, 16,  17,
-            18, 19, 20, 21, 22, 23, 24, 25, 26,
+            101,  1, 2, 3, 4,  5, 6, 7,  8, 9, 10, 11, 12, 13,  14, 15,  16,
+            17, 18, 19, 20, 21, 22, 23, 24, 25
         ]);
 
         assert_eq!(101, state.op_counter());
         assert_eq!([1, 2, 3, 4], state.sponge());
-        assert_eq!([5, 6, 7], state.cf_op_bits());
-        assert_eq!([8, 9, 10, 11, 12], state.ld_op_bits());
-        assert_eq!([13, 14], state.hd_op_bits());
-        assert_eq!([15, 16], state.ctx_stack());
-        assert_eq!([17], state.loop_stack());
-        assert_eq!([18, 19, 20, 21, 22, 23, 24, 25, 26], state.user_stack());
-        assert_eq!(27, state.width());
+        assert_eq!([5, 6, 7], state.flow_op_bits());
+        assert_eq!([8, 9, 10, 11, 12, 13], state.user_op_bits());
+        assert_eq!([14, 15], state.ctx_stack());
+        assert_eq!([16], state.loop_stack());
+        assert_eq!([17, 18, 19, 20, 21, 22, 23, 24, 25], state.user_stack());
+        assert_eq!(26, state.width());
         assert_eq!(9, state.stack_depth());
         assert_eq!(vec![
-            101, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
-            18, 19, 20, 21, 22, 23, 24, 25, 26,
+            101, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+            17, 18, 19, 20, 21, 22, 23, 24, 25,
         ], state.to_vec());
     }
 
     #[test]
     fn update_from_trace() {
         let data = vec![
-            101,  1, 2, 3, 4,  5, 6, 7,  8, 9, 10, 11, 12,  13, 14,  15, 16,  17,  18, 19, 20
+            101,  1, 2, 3, 4,  5, 6, 7,  8, 9, 10, 11, 12, 13,  14, 15,  16,  17, 18, 19
         ];
         let mut trace = Vec::with_capacity(data.len());
         for i in 0..data.len() {
@@ -450,13 +334,12 @@ mod tests {
 
         assert_eq!(0, state.op_counter());
         assert_eq!([0, 0, 0, 0], state.sponge());
-        assert_eq!([0, 0, 0], state.cf_op_bits());
-        assert_eq!([0, 0, 0, 0, 0], state.ld_op_bits());
-        assert_eq!([0, 0], state.hd_op_bits());
+        assert_eq!([0, 0, 0], state.flow_op_bits());
+        assert_eq!([0, 0, 0, 0, 0, 0], state.user_op_bits());
         assert_eq!([0, 0], state.ctx_stack());
         assert_eq!([0], state.loop_stack());
         assert_eq!([0, 0, 0, 0, 0, 0, 0, 0], state.user_stack());
-        assert_eq!(21, state.width());
+        assert_eq!(20, state.width());
         assert_eq!(3, state.stack_depth());
 
         // second row
@@ -464,41 +347,30 @@ mod tests {
 
         assert_eq!(101, state.op_counter());
         assert_eq!([1, 2, 3, 4], state.sponge());
-        assert_eq!([5, 6, 7], state.cf_op_bits());
-        assert_eq!([8, 9, 10, 11, 12], state.ld_op_bits());
-        assert_eq!([13, 14], state.hd_op_bits());
-        assert_eq!([15, 16], state.ctx_stack());
-        assert_eq!([17], state.loop_stack());
-        assert_eq!([18, 19, 20, 0, 0, 0, 0, 0], state.user_stack());
-        assert_eq!(21, state.width());
+        assert_eq!([5, 6, 7], state.flow_op_bits());
+        assert_eq!([8, 9, 10, 11, 12, 13], state.user_op_bits());
+        assert_eq!([14, 15], state.ctx_stack());
+        assert_eq!([16], state.loop_stack());
+        assert_eq!([17, 18, 19, 0, 0, 0, 0, 0], state.user_stack());
+        assert_eq!(20, state.width());
         assert_eq!(3, state.stack_depth());
     }
 
     #[test]
-    fn op_flags() {
-        // TODO
-    }
-    
-    #[test]
     fn op_code() {
         let state = TraceState::from_vec(1, 0, 2, &vec![
-            101,  1, 2, 3, 4,  1, 1, 1,  0, 0, 0, 0, 0,  0, 0,  15, 16, 17
+            101,  1, 2, 3, 4,  1, 1, 1,  0, 0, 0, 0, 0, 0,  14, 15, 16
         ]);
         assert_eq!(0, state.op_code());
 
         let state = TraceState::from_vec(1, 0, 2, &vec![
-            101,  1, 2, 3, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 1,  15, 16, 17
-        ]);
-        assert_eq!(127, state.op_code());
-
-        let state = TraceState::from_vec(1, 0, 2, &vec![
-            101,  1, 2, 3, 4,  1, 1, 1,  1, 1, 1, 1, 1,  1, 0,  15, 16, 17
+            101,  1, 2, 3, 4,  1, 1, 1,  1, 1, 1, 1, 1, 1,  14, 15, 16
         ]);
         assert_eq!(63, state.op_code());
 
         let state = TraceState::from_vec(1, 0, 2, &vec![
-            101,  1, 2, 3, 4,  1, 1, 1,  1, 0, 0, 0, 0,  1, 1,  15, 16, 17
+            101,  1, 2, 3, 4,  1, 1, 1,  1, 1, 1, 1, 0, 0,  14, 15, 16
         ]);
-        assert_eq!(97, state.op_code());
+        assert_eq!(15, state.op_code());
     }
 }

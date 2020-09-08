@@ -11,25 +11,18 @@ pub fn enforce_op_bits(result: &mut [u128], current: &TraceState, next: &TraceSt
 {
     let mut i = 0;
 
-    // make sure all op bits are binary and compute their product/sum
+    // TODO: make sure all op bits are binary and compute their product/sum
     let mut cf_bit_sum = 0;
-    for &op_bit in current.cf_op_bits() {
+    for &op_bit in current.flow_op_bits() {
         result[i] = is_binary(op_bit);
         cf_bit_sum = add(cf_bit_sum, op_bit);
         i += 1;
     }
 
     let mut ld_bit_prod = 1;
-    for &op_bit in current.ld_op_bits() {
+    for &op_bit in current.user_op_bits() {
         result[i] = is_binary(op_bit);
         ld_bit_prod = mul(ld_bit_prod, op_bit);
-        i += 1;
-    }
-
-    let mut hd_bit_prod = 1;
-    for &op_bit in current.hd_op_bits() {
-        result[i] = is_binary(op_bit);
-        hd_bit_prod = mul(hd_bit_prod, op_bit);
         i += 1;
     }
 
@@ -44,11 +37,11 @@ pub fn enforce_op_bits(result: &mut [u128], current: &TraceState, next: &TraceSt
 
     // ld_ops and hd_ops can be all 0s at the first step, but cannot be all 0s
     // at any other step
-    result[i] = mul(op_counter, mul(binary_not(ld_bit_prod), binary_not(hd_bit_prod)));
+    result[i] = 0; // TODO mul(op_counter, mul(binary_not(ld_bit_prod), binary_not(hd_bit_prod)));
     i += 1;
 
     // when cf_ops are not all 0s, ld_ops and hd_ops must be all 1s
-    result[i] = mul(cf_bit_sum, binary_not(mul(ld_bit_prod, hd_bit_prod)));
+    result[i] = 0; // TODO mul(cf_bit_sum, binary_not(mul(ld_bit_prod, hd_bit_prod)));
     i += 1;
     
     // VOID can be followed only by VOID
@@ -204,12 +197,12 @@ mod tests {
     fn new_state(flow_op: u8, user_op: u8, op_counter: u128) -> TraceState {
         let mut state = TraceState::new(1, 0, 1);
     
-        let mut op_bits = [0; 10];
+        let mut op_bits = [0; 9];
         for i in 0..3 {
             op_bits[i] = ((flow_op as u128) >> i) & 1;
         }
     
-        for i in 0..7 {
+        for i in 0..6 {
             op_bits[i + 3] = ((user_op as u128) >> i) & 1;
         }
 
@@ -222,7 +215,7 @@ mod tests {
         let mut state = TraceState::new(1, 0, 1);
         state.set_op_bits([
             cf_bits[0], cf_bits[1], cf_bits[2],
-            u_bits[0], u_bits[1], u_bits[2], u_bits[3], u_bits[4], u_bits[5], u_bits[6]
+            u_bits[0], u_bits[1], u_bits[2], u_bits[3], u_bits[4], u_bits[5]
         ]);
         return state;
     }

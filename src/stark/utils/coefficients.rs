@@ -6,13 +6,13 @@ use crate::{
     SPONGE_WIDTH,
     MAX_CONTEXT_DEPTH, MAX_LOOP_DEPTH, MAX_STACK_DEPTH,
     MIN_CONTEXT_DEPTH, MIN_LOOP_DEPTH, MIN_STACK_DEPTH,
-    NUM_CF_OP_BITS, NUM_LD_OP_BITS, NUM_HD_OP_BITS,
+    NUM_FLOW_OP_BITS, NUM_USER_OP_BITS,
     stark::constraints::{ NUM_STATIC_DECODER_CONSTRAINTS, NUM_AUX_STACK_CONSTRAINTS },
 };
 
 // CONSTANTS
 // ================================================================================================
-const NUM_OP_BITS: usize = NUM_CF_OP_BITS + NUM_LD_OP_BITS + NUM_HD_OP_BITS;
+const NUM_OP_BITS: usize = NUM_FLOW_OP_BITS + NUM_USER_OP_BITS;
 const MAX_USER_STACK_IO_CONSTRAINTS: usize = MAX_PUBLIC_INPUTS; // same as MAX_OUTPUTS
 const NUM_BOUNDARY_CONSTRAINTS: usize =
     1   // for op_counter

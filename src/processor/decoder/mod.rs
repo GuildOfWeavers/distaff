@@ -2,7 +2,7 @@ use crate::{
     math::field,
     utils::sponge,
     MAX_CONTEXT_DEPTH, MAX_LOOP_DEPTH,
-    NUM_CF_OP_BITS, NUM_LD_OP_BITS, NUM_HD_OP_BITS,
+    NUM_FLOW_OP_BITS, NUM_USER_OP_BITS,
     SPONGE_WIDTH, BASE_CYCLE_LENGTH, PUSH_OP_ALIGNMENT,
 };
 use super::opcodes::{ FlowOps, UserOps };
@@ -20,9 +20,8 @@ pub struct Decoder {
     sponge_trace: [Vec<u128>; SPONGE_WIDTH],
     sponge      : [u128; SPONGE_WIDTH],
 
-    cf_op_bits  : [Vec<u128>; NUM_CF_OP_BITS],
-    ld_op_bits  : [Vec<u128>; NUM_LD_OP_BITS],
-    hd_op_bits  : [Vec<u128>; NUM_HD_OP_BITS],
+    flow_op_bits: [Vec<u128>; NUM_FLOW_OP_BITS],
+    user_op_bits: [Vec<u128>; NUM_USER_OP_BITS],
 
     ctx_stack   : Vec<Vec<u128>>,
     ctx_depth   : usize,
@@ -49,16 +48,13 @@ impl Decoder {
         let sponge = [field::ZERO; SPONGE_WIDTH];
 
         // initialize op_bits registers
-        let cf_op_bits = [
+        let flow_op_bits = [
             vec![field::ZERO; init_trace_length], vec![field::ZERO; init_trace_length],
             vec![field::ZERO; init_trace_length]
         ];
-        let ld_op_bits = [
+        let user_op_bits = [
             vec![field::ZERO; init_trace_length], vec![field::ZERO; init_trace_length],
             vec![field::ZERO; init_trace_length], vec![field::ZERO; init_trace_length],
-            vec![field::ZERO; init_trace_length]
-        ];
-        let hd_op_bits = [
             vec![field::ZERO; init_trace_length], vec![field::ZERO; init_trace_length]
         ];
 
@@ -73,7 +69,7 @@ impl Decoder {
         return Decoder {
             step: 0, 
             op_counter, sponge, sponge_trace,
-            cf_op_bits, ld_op_bits, hd_op_bits,
+            flow_op_bits, user_op_bits,
             ctx_stack, ctx_depth, loop_stack, loop_depth,
         };
     }
@@ -107,9 +103,8 @@ impl Decoder {
 
         state.push(self.op_counter[step]);
         for register in self.sponge_trace.iter() { state.push(register[step]); }
-        for register in self.cf_op_bits.iter()   { state.push(register[step]); }
-        for register in self.ld_op_bits.iter()   { state.push(register[step]); }
-        for register in self.hd_op_bits.iter()   { state.push(register[step]); }
+        for register in self.flow_op_bits.iter() { state.push(register[step]); }
+        for register in self.user_op_bits.iter() { state.push(register[step]); }
         for register in self.ctx_stack.iter()    { state.push(register[step]); }
         for register in self.loop_stack.iter()   { state.push(register[step]); }
 
@@ -128,21 +123,18 @@ impl Decoder {
         registers.push(r2);
         registers.push(r3);
 
-        let [r0, r1, r2] = self.cf_op_bits;
+        let [r0, r1, r2] = self.flow_op_bits;
         registers.push(r0);
         registers.push(r1);
         registers.push(r2);
 
-        let [r0, r1, r2, r3, r4] = self.ld_op_bits;
+        let [r0, r1, r2, r3, r4, r5] = self.user_op_bits;
         registers.push(r0);
         registers.push(r1);
         registers.push(r2);
         registers.push(r3);
         registers.push(r4);
-
-        let [r0, r1] = self.hd_op_bits;
-        registers.push(r0);
-        registers.push(r1);
+        registers.push(r5);
 
         // for context stack, first get rid of the outer-most context because it is always 0
         self.ctx_stack.pop();
@@ -255,10 +247,9 @@ impl Decoder {
         let last_op_count = self.op_counter[self.step];
         fill_register(&mut self.op_counter, self.step + 1, last_op_count);
 
-        // set all bit registers to 1 to indicate NOOP operation
-        for register in self.cf_op_bits.iter_mut() { fill_register(register, self.step, field::ONE); }
-        for register in self.ld_op_bits.iter_mut() { fill_register(register, self.step, field::ONE); }
-        for register in self.hd_op_bits.iter_mut() { fill_register(register, self.step, field::ONE); }
+        // set all bit registers to 0 to indicate NOOP operation
+        for register in self.flow_op_bits.iter_mut() { fill_register(register, self.step, field::ZERO); }
+        for register in self.user_op_bits.iter_mut() { fill_register(register, self.step, field::ZERO); }
 
         // for sponge and stack registers, just copy the value of the last state of the register
         for register in self.sponge_trace.iter_mut() { fill_register(register, self.step + 1, register[self.step]); }
@@ -283,9 +274,8 @@ impl Decoder {
 
             self.op_counter.resize(new_length, field::ZERO);
             for register in self.sponge_trace.iter_mut() { register.resize(new_length, field::ZERO); }
-            for register in self.cf_op_bits.iter_mut()   { register.resize(new_length, field::ZERO); }
-            for register in self.ld_op_bits.iter_mut()   { register.resize(new_length, field::ZERO); }
-            for register in self.hd_op_bits.iter_mut()   { register.resize(new_length, field::ZERO); }
+            for register in self.flow_op_bits.iter_mut() { register.resize(new_length, field::ZERO); }
+            for register in self.user_op_bits.iter_mut() { register.resize(new_length, field::ZERO); }
             for register in self.ctx_stack.iter_mut()    { register.resize(new_length, field::ZERO); }
             for register in self.loop_stack.iter_mut()   { register.resize(new_length, field::ZERO); }
         }
@@ -306,17 +296,13 @@ impl Decoder {
         let step = self.step - 1;
 
         let flow_op = flow_op as u8;
-        for i in 0..NUM_CF_OP_BITS {
-            self.cf_op_bits[i][step] = ((flow_op >> i) & 1) as u128;
+        for i in 0..NUM_FLOW_OP_BITS {
+            self.flow_op_bits[i][step] = ((flow_op >> i) & 1) as u128;
         }
 
         let user_op = user_op as u8;
-        for i in 0..NUM_LD_OP_BITS {
-            self.ld_op_bits[i][step] = ((user_op >> i) & 1) as u128;
-        }
-
-        for i in 0..NUM_HD_OP_BITS {
-            self.hd_op_bits[i][step] = ((user_op >> (i + NUM_LD_OP_BITS)) & 1) as u128;
+        for i in 0..NUM_USER_OP_BITS {
+            self.user_op_bits[i][step] = ((user_op >> i) & 1) as u128;
         }
     }
 

@@ -76,6 +76,10 @@ impl Stack {
             OpCode::Read        => self.op_read(op_hint),
             OpCode::Read2       => self.op_read2(op_hint),
 
+            OpCode::MLoad       => self.op_noop(),  // TODO
+            OpCode::MStore      => self.op_noop(),  // TODO
+            OpCode::MemRR       => self.op_noop(),  // TODO
+
             OpCode::Dup         => self.op_dup(),
             OpCode::Dup2        => self.op_dup2(),
             OpCode::Dup4        => self.op_dup4(),
@@ -108,6 +112,8 @@ impl Stack {
             OpCode::BinAcc      => self.op_binacc(op_hint),
 
             OpCode::RescR       => self.op_rescr(),
+
+            OpCode::Future1     => self.op_noop(),
         }
     }
 
