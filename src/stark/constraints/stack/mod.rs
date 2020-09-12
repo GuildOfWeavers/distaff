@@ -37,8 +37,8 @@ use hash::{ enforce_rescr };
 // CONSTANTS
 // ================================================================================================
 pub const NUM_AUX_CONSTRAINTS: usize = 2;
-const AUX_CONSTRAINT_DEGREES: [usize; NUM_AUX_CONSTRAINTS] = [7, 7];
-const STACK_TRANSITION_DEGREE: usize = 7; // degree for all stack register transition constraints
+const AUX_CONSTRAINT_DEGREES: [usize; NUM_AUX_CONSTRAINTS] = [8, 7];
+const STACK_TRANSITION_DEGREE: usize = 8; // degree for all stack register transition constraints
 
 // TYPES AND INTERFACES
 // ================================================================================================
@@ -129,56 +129,53 @@ fn enforce_constraints(current: &TraceState, next: &TraceState, ark: &[u128], re
     let mut evaluations = vec![field::ZERO; old_stack.len()];
 
     // 1 ----- enforce constraints for low-degree operations --------------------------------------
-    let ld_flags = current.ld_op_flags();
-
+    
     // assertion operations
-    enforce_assert  (&mut evaluations, aux, old_stack, new_stack, ld_flags[OpCode::Assert.ld_index()]);
-    enforce_asserteq(&mut evaluations, aux, old_stack, new_stack, ld_flags[OpCode::AssertEq.ld_index()]);
+    enforce_assert  (&mut evaluations, aux, old_stack, new_stack, current.get_user_op_flag(OpCode::Assert));
+    enforce_asserteq(&mut evaluations, aux, old_stack, new_stack, current.get_user_op_flag(OpCode::AssertEq));
 
     // input operations
-    enforce_read    (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Read.ld_index()]);
-    enforce_read2   (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Read2.ld_index()]);
+    enforce_read    (&mut evaluations,      old_stack, new_stack, current.get_user_op_flag(OpCode::Read));
+    enforce_read2   (&mut evaluations,      old_stack, new_stack, current.get_user_op_flag(OpCode::Read2));
 
     // stack manipulation operations
-    enforce_dup     (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Dup.ld_index()]);
-    enforce_dup2    (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Dup2.ld_index()]);
-    enforce_dup4    (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Dup4.ld_index()]);
-    enforce_pad2    (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Pad2.ld_index()]);
+    enforce_dup     (&mut evaluations,      old_stack, new_stack, current.get_user_op_flag(OpCode::Dup));
+    enforce_dup2    (&mut evaluations,      old_stack, new_stack, current.get_user_op_flag(OpCode::Dup2));
+    enforce_dup4    (&mut evaluations,      old_stack, new_stack, current.get_user_op_flag(OpCode::Dup4));
+    enforce_pad2    (&mut evaluations,      old_stack, new_stack, current.get_user_op_flag(OpCode::Pad2));
 
-    enforce_drop    (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Drop.ld_index()]);
-    enforce_drop4   (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Drop4.ld_index()]);
+    enforce_drop    (&mut evaluations,      old_stack, new_stack, current.get_user_op_flag(OpCode::Drop));
+    enforce_drop4   (&mut evaluations,      old_stack, new_stack, current.get_user_op_flag(OpCode::Drop4));
     
-    enforce_swap    (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Swap.ld_index()]);
-    enforce_swap2   (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Swap2.ld_index()]);
-    enforce_swap4   (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Swap4.ld_index()]);
+    enforce_swap    (&mut evaluations,      old_stack, new_stack, current.get_user_op_flag(OpCode::Swap));
+    enforce_swap2   (&mut evaluations,      old_stack, new_stack, current.get_user_op_flag(OpCode::Swap2));
+    enforce_swap4   (&mut evaluations,      old_stack, new_stack, current.get_user_op_flag(OpCode::Swap4));
 
-    enforce_roll4   (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Roll4.ld_index()]);
-    enforce_roll8   (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Roll8.ld_index()]);
+    enforce_roll4   (&mut evaluations,      old_stack, new_stack, current.get_user_op_flag(OpCode::Roll4));
+    enforce_roll8   (&mut evaluations,      old_stack, new_stack, current.get_user_op_flag(OpCode::Roll8));
 
     // arithmetic and boolean operations
-    enforce_add     (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Add.ld_index()]);
-    enforce_mul     (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Mul.ld_index()]);
-    enforce_inv     (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Inv.ld_index()]);
-    enforce_neg     (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::Neg.ld_index()]);
-    enforce_not     (&mut evaluations, aux, old_stack, new_stack, ld_flags[OpCode::Not.ld_index()]);
-    enforce_and     (&mut evaluations, aux, old_stack, new_stack, ld_flags[OpCode::And.ld_index()]);
-    enforce_or      (&mut evaluations, aux, old_stack, new_stack, ld_flags[OpCode::Or.ld_index()]);
+    enforce_add     (&mut evaluations,      old_stack, new_stack, current.get_user_op_flag(OpCode::Add));
+    enforce_mul     (&mut evaluations,      old_stack, new_stack, current.get_user_op_flag(OpCode::Mul));
+    enforce_inv     (&mut evaluations,      old_stack, new_stack, current.get_user_op_flag(OpCode::Inv));
+    enforce_neg     (&mut evaluations,      old_stack, new_stack, current.get_user_op_flag(OpCode::Neg));
+    enforce_not     (&mut evaluations, aux, old_stack, new_stack, current.get_user_op_flag(OpCode::Not));
+    enforce_and     (&mut evaluations, aux, old_stack, new_stack, current.get_user_op_flag(OpCode::And));
+    enforce_or      (&mut evaluations, aux, old_stack, new_stack, current.get_user_op_flag(OpCode::Or));
     
     // comparison operations
-    enforce_eq      (&mut evaluations, aux, old_stack, new_stack, ld_flags[OpCode::Eq.ld_index()]);
-    enforce_binacc  (&mut evaluations,      old_stack, new_stack, ld_flags[OpCode::BinAcc.ld_index()]);
+    enforce_eq      (&mut evaluations, aux, old_stack, new_stack, current.get_user_op_flag(OpCode::Eq));
+    enforce_binacc  (&mut evaluations,      old_stack, new_stack, current.get_user_op_flag(OpCode::BinAcc));
 
     // conditional selection operations
-    enforce_choose  (&mut evaluations, aux, old_stack, new_stack, ld_flags[OpCode::Choose.ld_index()]);
-    enforce_choose2 (&mut evaluations, aux, old_stack, new_stack, ld_flags[OpCode::Choose2.ld_index()]);
-    enforce_cswap2  (&mut evaluations, aux, old_stack, new_stack, ld_flags[OpCode::CSwap2.ld_index()]);
+    enforce_choose  (&mut evaluations, aux, old_stack, new_stack, current.get_user_op_flag(OpCode::Choose));
+    enforce_choose2 (&mut evaluations, aux, old_stack, new_stack, current.get_user_op_flag(OpCode::Choose2));
+    enforce_cswap2  (&mut evaluations, aux, old_stack, new_stack, current.get_user_op_flag(OpCode::CSwap2));
 
     // 2 ----- enforce constraints for high-degree operations --------------------------------------
-    let hd_flags = current.hd_op_flags();
-
-    enforce_push    (&mut evaluations,      old_stack, new_stack,      hd_flags[OpCode::Push.hd_index() ]);
-    enforce_cmp     (&mut evaluations,      old_stack, new_stack,      hd_flags[OpCode::Cmp.hd_index()  ]);
-    enforce_rescr   (&mut evaluations,      old_stack, new_stack, ark, hd_flags[OpCode::RescR.hd_index()]);
+    enforce_push    (&mut evaluations,      old_stack, new_stack,      current.get_user_op_flag(OpCode::Push));
+    enforce_cmp     (&mut evaluations,      old_stack, new_stack,      current.get_user_op_flag(OpCode::Cmp));
+    enforce_rescr   (&mut evaluations,      old_stack, new_stack, ark, current.get_user_op_flag(OpCode::RescR));
 
     // 3 ----- enforce constraints for composite operations ---------------------------------------
 
@@ -187,8 +184,8 @@ fn enforce_constraints(current: &TraceState, next: &TraceState, ark: &[u128], re
     // this results in flag degree of 7 for each operation, but since both operations enforce the
     // same constraints (the stack doesn't change), higher degree terms cancel out, and we
     // end up with overall constraint degree of (6 + 1 = 7) for both operations.
-    enforce_stack_copy(&mut evaluations, old_stack, new_stack, 0, current.begin_flag());
-    enforce_stack_copy(&mut evaluations, old_stack, new_stack, 0, current.noop_flag());
+    enforce_stack_copy(&mut evaluations, old_stack, new_stack, 0, current.get_user_op_flag(OpCode::Begin));
+    enforce_stack_copy(&mut evaluations, old_stack, new_stack, 0, current.get_user_op_flag(OpCode::Noop));
     
     // 4 ----- copy evaluations into the result ---------------------------------------------------
     result.copy_from_slice(&evaluations[..result.len()]);

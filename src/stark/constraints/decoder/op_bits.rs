@@ -12,70 +12,72 @@ pub fn enforce_op_bits(result: &mut [u128], current: &TraceState, next: &TraceSt
     let mut i = 0;
 
     // make sure all op bits are binary and compute their product/sum
-    let mut cf_bit_sum = 0;
-    for &op_bit in current.cf_op_bits() {
+    let mut flow_op_bit_sum = 0;
+    for &op_bit in current.flow_op_bits() {
         result[i] = is_binary(op_bit);
-        cf_bit_sum = add(cf_bit_sum, op_bit);
+        flow_op_bit_sum = add(flow_op_bit_sum, op_bit);
         i += 1;
     }
 
-    let mut ld_bit_prod = 1;
-    for &op_bit in current.ld_op_bits() {
+    let mut user_op_bit_prod = 1;
+    for &op_bit in current.user_op_bits() {
         result[i] = is_binary(op_bit);
-        ld_bit_prod = mul(ld_bit_prod, op_bit);
+        user_op_bit_prod = mul(user_op_bit_prod, binary_not(op_bit));
         i += 1;
     }
 
-    let mut hd_bit_prod = 1;
-    for &op_bit in current.hd_op_bits() {
-        result[i] = is_binary(op_bit);
-        hd_bit_prod = mul(hd_bit_prod, op_bit);
-        i += 1;
-    }
-
-    // when cf_ops = hacc, operation counter should be incremented by 1;
+    // when flow_op = HACC, operation counter should be incremented by 1;
     // otherwise, operation counter should remain the same
     let op_counter = current.op_counter();
-    let is_hacc = current.cf_op_flags()[FlowOps::Hacc.op_index()];
+    let is_hacc = current.get_flow_op_flags(FlowOps::Hacc);
     let hacc_transition = mul(add(op_counter, field::ONE), is_hacc);
     let rest_transition = mul(op_counter, binary_not(is_hacc));
     result[i] = are_equal(add(hacc_transition, rest_transition), next.op_counter());
     i += 1;
 
-    // ld_ops and hd_ops can be all 0s at the first step, but cannot be all 0s
-    // at any other step
-    result[i] = mul(op_counter, mul(binary_not(ld_bit_prod), binary_not(hd_bit_prod)));
+    // unless flow_op is HACC, user_op must be NOOP
+    result[i] = mul(flow_op_bit_sum, binary_not(user_op_bit_prod));
     i += 1;
 
-    // when cf_ops are not all 0s, ld_ops and hd_ops must be all 1s
-    result[i] = mul(cf_bit_sum, binary_not(mul(ld_bit_prod, hd_bit_prod)));
+    // TODO: add comment
+    let mut low_user_op_bit_sum = current.user_op_bits()[0];
+    for j in 1..4 {
+        low_user_op_bit_sum = add(current.user_op_bits()[j], low_user_op_bit_sum);
+    }
+    let is_one_bit = binary_not(mul(low_user_op_bit_sum, low_user_op_bit_sum));
+    let is_one_bit = add(is_one_bit, current.user_op_bits()[4]);
+    result[i] = mul(mul(is_one_bit, current.user_op_bits()[5]), op_counter);
+    i += 1;
+
+    // TODO: add comment
+    let mut low_user_op_bit_prod = current.user_op_bits()[0];
+    for j in 1..5 {
+        low_user_op_bit_prod = mul(low_user_op_bit_prod, current.user_op_bits()[j]);
+    }
+    result[i] = mul(binary_not(current.user_op_bits()[5]), low_user_op_bit_prod);
     i += 1;
     
-    let cf_op_flags = current.cf_op_flags();
-
     // VOID can be followed only by VOID
-    let current_void_flag = cf_op_flags[FlowOps::Void.op_index()];
-    let next_void_flag = next.cf_op_flags()[FlowOps::Void.op_index()];
+    let current_void_flag = current.get_flow_op_flags(FlowOps::Void);
+    let next_void_flag = next.get_flow_op_flags(FlowOps::Void);
     result[i] = mul(current_void_flag, binary_not(next_void_flag));
     i += 1;
 
-    let hd_op_flags = current.hd_op_flags();
-
     // BEGIN, LOOP, BREAK, and WRAP are allowed only on one less than multiple of 16
     let prefix_mask = masks[PREFIX_MASK_IDX];
-    result.agg_constraint(i, cf_op_flags[FlowOps::Begin.op_index()], prefix_mask);
-    result.agg_constraint(i, cf_op_flags[FlowOps::Loop.op_index()],  prefix_mask);
-    result.agg_constraint(i, cf_op_flags[FlowOps::Wrap.op_index()],  prefix_mask);
-    result.agg_constraint(i, cf_op_flags[FlowOps::Break.op_index()], prefix_mask);
+    result.agg_constraint(i, current.get_flow_op_flags(FlowOps::Begin), prefix_mask);
+    result.agg_constraint(i, current.get_flow_op_flags(FlowOps::Loop),  prefix_mask);
+    result.agg_constraint(i, current.get_flow_op_flags(FlowOps::Wrap),  prefix_mask);
+    result.agg_constraint(i, current.get_flow_op_flags(FlowOps::Break), prefix_mask);
 
     // TEND and FEND is allowed only on multiples of 16
     let base_cycle_mask = masks[CYCLE_MASK_IDX];
-    result.agg_constraint(i, cf_op_flags[FlowOps::Tend.op_index()], base_cycle_mask);
-    result.agg_constraint(i, cf_op_flags[FlowOps::Fend.op_index()], base_cycle_mask);
+    result.agg_constraint(i, current.get_flow_op_flags(FlowOps::Tend), base_cycle_mask);
+    result.agg_constraint(i, current.get_flow_op_flags(FlowOps::Fend), base_cycle_mask);
 
     // PUSH is allowed only on multiples of 8
     let push_cycle_mask = masks[PUSH_MASK_IDX];
-    result.agg_constraint(i, hd_op_flags[UserOps::Push.hd_index()], push_cycle_mask);
+    result.agg_constraint(i, current.get_user_op_flag(UserOps::Push), push_cycle_mask);
 }
 
 // TESTS
@@ -208,12 +210,12 @@ mod tests {
     fn new_state(flow_op: u8, user_op: u8, op_counter: u128) -> TraceState {
         let mut state = TraceState::new(1, 0, 1);
     
-        let mut op_bits = [0; 10];
+        let mut op_bits = [0; 9];
         for i in 0..3 {
             op_bits[i] = ((flow_op as u128) >> i) & 1;
         }
     
-        for i in 0..7 {
+        for i in 0..6 {
             op_bits[i + 3] = ((user_op as u128) >> i) & 1;
         }
 
@@ -226,7 +228,7 @@ mod tests {
         let mut state = TraceState::new(1, 0, 1);
         state.set_op_bits([
             cf_bits[0], cf_bits[1], cf_bits[2],
-            u_bits[0], u_bits[1], u_bits[2], u_bits[3], u_bits[4], u_bits[5], u_bits[6]
+            u_bits[0], u_bits[1], u_bits[2], u_bits[3], u_bits[4], u_bits[5]
         ]);
         return state;
     }

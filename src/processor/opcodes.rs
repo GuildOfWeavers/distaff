@@ -13,12 +13,6 @@ pub enum FlowOps {
     Void    = 0b111,
 }
 
-impl FlowOps {
-    pub fn op_index(&self) -> usize {
-        return (*self as usize) & 0b111;
-    }
-}
-
 impl std::fmt::Display for FlowOps {
 
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -39,81 +33,76 @@ impl std::fmt::Display for FlowOps {
     }
 }
 
+impl std::convert::TryFrom<u8> for FlowOps {
+
+    type Error = String;
+
+    fn try_from(value: u8) -> Result<Self, String> {
+        return match value {
+
+            0b00000_000 => Ok(FlowOps::Hacc),
+            0b00000_001 => Ok(FlowOps::Begin),
+            0b00000_010 => Ok(FlowOps::Tend),
+            0b00000_011 => Ok(FlowOps::Fend),
+            0b00000_100 => Ok(FlowOps::Loop),
+            0b00000_101 => Ok(FlowOps::Wrap),
+            0b00000_110 => Ok(FlowOps::Break),
+            0b00000_111 => Ok(FlowOps::Void),
+            
+            _ => Err(format!("value {} is not a valid control flow opcode", value))
+        };
+    }
+}
+
 // USER OPERATIONS
 // ================================================================================================
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum UserOps {
     
-    // low-degree operations
-    Assert      = 0b0_11_00000,         // left shift: 1
-    AssertEq    = 0b0_11_00001,         // left shift: 2
-    Eq          = 0b0_11_00010,         // left shift: 2
-    Drop        = 0b0_11_00011,         // left shift: 1
-    Drop4       = 0b0_11_00100,         // left shift: 4
-    Choose      = 0b0_11_00101,         // left shift: 2
-    Choose2     = 0b0_11_00110,         // left shift: 4
-    CSwap2      = 0b0_11_00111,         // left shift: 2
+    Noop        = 0b00_00_0000,         // no shift
+    Begin       = 0b00_11_1111,         // no shift
 
-    Add         = 0b0_11_01000,         // left shift: 1
-    Mul         = 0b0_11_01001,         // left shift: 1
-    And         = 0b0_11_01010,         // left shift: 1
-    Or          = 0b0_11_01011,         // left shift: 1
-    Inv         = 0b0_11_01100,         // no shift
-    Neg         = 0b0_11_01101,         // no shift
-    Not         = 0b0_11_01110,         // no shift
-    //???       = 0b0_11_01111,
+    // degree 1 operations
+    Assert      = 0b00_00_0001,         // left shift: 1
+    AssertEq    = 0b00_00_0010,         // left shift: 2
+    Drop        = 0b00_00_0011,         // left shift: 1
+    Drop4       = 0b00_00_0100,         // left shift: 4
+    Read        = 0b00_00_0101,         // right shift: 1
+    Read2       = 0b00_00_0110,         // right shift: 2
+    Dup         = 0b00_00_0111,         // right shift: 1
+    Dup2        = 0b00_00_1000,         // right shift: 2
+    Dup4        = 0b00_00_1001,         // right shift: 4
+    Pad2        = 0b00_00_1010,         // right shift: 2
+    Swap        = 0b00_00_1011,         // no shift
+    Swap2       = 0b00_00_1100,         // no shift
+    Swap4       = 0b00_00_1101,         // no shift
+    Roll4       = 0b00_00_1110,         // no shift
+    Roll8       = 0b00_00_1111,         // no shift
 
-    Read        = 0b0_11_10000,         // right shift: 1
-    Read2       = 0b0_11_10001,         // right shift: 2
-    Dup         = 0b0_11_10010,         // right shift: 1
-    Dup2        = 0b0_11_10011,         // right shift: 2
-    Dup4        = 0b0_11_10100,         // right shift: 4
-    Pad2        = 0b0_11_10101,         // right shift: 2
-    //???       = 0b0_11_10110,
-    //???       = 0b0_11_10111,
-
-    Swap        = 0b0_11_11000,         // no shift
-    Swap2       = 0b0_11_11001,         // no shift
-    Swap4       = 0b0_11_11010,         // no shift
-    Roll4       = 0b0_11_11011,         // no shift
-    Roll8       = 0b0_11_11100,         // no shift
-    BinAcc      = 0b0_11_11101,         // no shift
-    //???       = 0b0_11_11110,
+    // degree 2 operations
+    Eq          = 0b00_01_0000,         // left shift: 2
+    Choose      = 0b00_01_0001,         // left shift: 2
+    Choose2     = 0b00_01_0010,         // left shift: 4
+    CSwap2      = 0b00_01_0011,         // left shift: 2
+    Add         = 0b00_01_0100,         // left shift: 1
+    Mul         = 0b00_01_0101,         // left shift: 1
+    And         = 0b00_01_0110,         // left shift: 1
+    Or          = 0b00_01_0111,         // left shift: 1
+    Inv         = 0b00_01_1000,         // no shift
+    Neg         = 0b00_01_1001,         // no shift
+    Not         = 0b00_01_1010,         // no shift
+    BinAcc      = 0b00_01_1011,         // no shift
+    MLoad       = 0b00_01_1100,
+    MStore      = 0b00_01_1101,
+    Future1     = 0b00_01_1110,
+    //invalid   = 0b00_01_1111,
 
     // high-degree operations
-    Push        = 0b0_00_11111,         // right shift: 1
-    Cmp         = 0b0_01_11111,         // no shift
-    RescR       = 0b0_10_11111,         // no shift
-
-    // composite operations
-    Begin       = 0b0_00_00000,         // no shift
-    Noop        = 0b0_11_11111,         // no shift
-}
-
-impl UserOps {
-
-    pub fn ld_index(&self) -> usize {
-        return match self {
-            UserOps::Push | UserOps::Cmp | UserOps::RescR => {
-                panic!("{} is not a low-degree operation", self);
-            },
-            _ => {
-                (*self as usize) & 0b11111
-            }
-        };
-    }
-
-    pub fn hd_index(&self) -> usize {
-        return match self {
-            UserOps::Push | UserOps::Cmp | UserOps::RescR | UserOps::Noop | UserOps::Begin => {
-                ((*self as usize) >> 5) & 0b11
-            },
-            _ => {
-                panic!("{} is not a high-degree operation", self);
-            }
-        };
-    }
+    Push        = 0b00_10_0001,         // right shift: 1
+    Cmp         = 0b00_10_0010,         // no shift
+    RescR       = 0b00_10_0100,         // no shift
+    MemRR       = 0b00_10_1000,         // no shift
 }
 
 impl std::fmt::Display for UserOps {
@@ -130,6 +119,10 @@ impl std::fmt::Display for UserOps {
             UserOps::Push       => write!(f, "push"),
             UserOps::Read       => write!(f, "read"),
             UserOps::Read2      => write!(f, "read2"),
+
+            UserOps::MLoad      => write!(f, "mload"),
+            UserOps::MStore     => write!(f, "mstore"),
+            UserOps::MemRR      => write!(f, "memrr"),
     
             UserOps::Dup        => write!(f, "dup"),
             UserOps::Dup2       => write!(f, "dup2"),
@@ -162,7 +155,60 @@ impl std::fmt::Display for UserOps {
             UserOps::Cmp        => write!(f, "cmp"),
             UserOps::BinAcc     => write!(f, "binacc"),
     
-            UserOps::RescR      => write!(f, "rescr")
+            UserOps::RescR      => write!(f, "rescr"),
+            UserOps::Future1    => write!(f, "future1")
+        };
+    }
+}
+
+impl std::convert::TryFrom<u8> for UserOps {
+
+    type Error = String;
+
+    fn try_from(value: u8) -> Result<Self, String> {
+        return match value {
+
+            0b00_11_1111 => Ok(UserOps::Begin),
+            0b00_00_0000 => Ok(UserOps::Noop),
+
+            0b00_00_0001 => Ok(UserOps::Assert),
+            0b00_00_0010 => Ok(UserOps::AssertEq),
+            0b00_00_0011 => Ok(UserOps::Drop),
+            0b00_00_0100 => Ok(UserOps::Drop4),
+            0b00_00_0101 => Ok(UserOps::Read),
+            0b00_00_0110 => Ok(UserOps::Read2),
+            0b00_00_0111 => Ok(UserOps::Dup),
+            0b00_00_1000 => Ok(UserOps::Dup2),
+            0b00_00_1001 => Ok(UserOps::Dup4),
+            0b00_00_1010 => Ok(UserOps::Pad2),
+            0b00_00_1011 => Ok(UserOps::Swap),
+            0b00_00_1100 => Ok(UserOps::Swap2),
+            0b00_00_1101 => Ok(UserOps::Swap4),
+            0b00_00_1110 => Ok(UserOps::Roll4),
+            0b00_00_1111 => Ok(UserOps::Roll8),
+            
+            0b00_01_0000 => Ok(UserOps::Eq),
+            0b00_01_0001 => Ok(UserOps::Choose),
+            0b00_01_0010 => Ok(UserOps::Choose2),
+            0b00_01_0011 => Ok(UserOps::CSwap2),
+            0b00_01_0100 => Ok(UserOps::Add),
+            0b00_01_0101 => Ok(UserOps::Mul),
+            0b00_01_0110 => Ok(UserOps::And),
+            0b00_01_0111 => Ok(UserOps::Or),
+            0b00_01_1000 => Ok(UserOps::Inv),
+            0b00_01_1001 => Ok(UserOps::Neg),
+            0b00_01_1010 => Ok(UserOps::Not),
+            0b00_01_1011 => Ok(UserOps::BinAcc),
+            0b00_01_1100 => Ok(UserOps::MLoad),
+            0b00_01_1101 => Ok(UserOps::MStore),
+            0b00_01_1110 => Ok(UserOps::Future1),
+
+            0b00_10_0001 => Ok(UserOps::Push),
+            0b00_10_0010 => Ok(UserOps::Cmp),
+            0b00_10_0100 => Ok(UserOps::RescR),
+            0b00_10_1000 => Ok(UserOps::MemRR),
+
+            _ => Err(format!("value {} is not a valid user opcode", value))
         };
     }
 }
@@ -198,5 +244,36 @@ impl std::fmt::Display for OpHint {
             OpHint::PushValue(value)    => write!(f, "({})", value),
             OpHint::None             => Ok(()),
         };
+    }
+}
+
+// TESTS
+// ================================================================================================
+
+#[cfg(test)]
+mod tests {
+
+    use std::convert::TryFrom;
+
+    #[test]
+    fn parse_user_ops() {
+
+        for i in 0..64 {
+            match super::UserOps::try_from(i) {
+                Ok(opcode) => assert_eq!(i, opcode as u8),
+                Err(_) => ()
+            }
+        }
+    }
+
+    #[test]
+    fn parse_flow_ops() {
+
+        for i in 0..8 {
+            match super::FlowOps::try_from(i) {
+                Ok(opcode) => assert_eq!(i, opcode as u8),
+                Err(_) => ()
+            }
+        }
     }
 }

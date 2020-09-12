@@ -109,23 +109,20 @@ const HACC_NUM_ROUNDS       : usize = 14;
 // DECODER LAYOUT
 // ------------------------------------------------------------------------------------------------
 //
-//  ctr ╒═════ sponge ══════╕╒═══ cf_ops ══╕╒═══════ ld_ops ═══════╕╒═ hd_ops ╕╒═ ctx ══╕╒═ loop ═╕
-//   0    1    2    3    4    5    6    7    8    9    10   11   12   13   14   15   ..   ..   ..
-// ├────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┤
+//  ctr ╒═════ sponge ══════╕╒═ flow_ops ══╕╒═════════ user_ops ═════════╕╒═ ctx ══╕╒═ loop ═╕
+//   0    1    2    3    4    5    6    7    8    9    10   11   12   13   14   ..   ..   .. 
+// ├────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┴────┤
 
-const NUM_CF_OP_BITS        : usize = 3;
-const NUM_LD_OP_BITS        : usize = 5;
-const NUM_HD_OP_BITS        : usize = 2;
+const NUM_FLOW_OP_BITS      : usize = 3;
+const NUM_USER_OP_BITS      : usize = 6;
 
-const NUM_CF_OPS            : usize = 8;
-const NUM_LD_OPS            : usize = 32;
-const NUM_HD_OPS            : usize = 4;
+const NUM_FLOW_OPS          : usize = 8;
+const NUM_USER_OPS          : usize = 36;
 
 const OP_COUNTER_IDX        : usize = 0;
 const SPONGE_RANGE          : Range<usize> = Range { start:  1, end:  5 };
-const CF_OP_BITS_RANGE      : Range<usize> = Range { start:  5, end:  8 };
-const LD_OP_BITS_RANGE      : Range<usize> = Range { start:  8, end: 13 };
-const HD_OP_BITS_RANGE      : Range<usize> = Range { start: 13, end: 15 };
+const FLOW_OP_BITS_RANGE    : Range<usize> = Range { start:  5, end:  8 };
+const USER_OP_BITS_RANGE    : Range<usize> = Range { start:  8, end: 14 };
 
 // STACK LAYOUT
 // ------------------------------------------------------------------------------------------------

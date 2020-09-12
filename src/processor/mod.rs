@@ -196,15 +196,14 @@ mod tests {
         let trace_length = trace[0].len();
 
         assert_eq!(64, trace_length);
-        assert_eq!(17, trace.len());
+        assert_eq!(16, trace.len());
         let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
         state.update_from_trace(&trace, trace_length - 1);
 
         assert_eq!(46, state.op_counter());
         assert_eq!(program.hash(), as_bytes(state.program_hash()));
-        assert_eq!([1, 1, 1], state.cf_op_bits());
-        assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
-        assert_eq!([1, 1], state.hd_op_bits());
+        assert_eq!([0, 0, 0], state.flow_op_bits());
+        assert_eq!([0, 0, 0, 0, 0, 0], state.user_op_bits());
         assert_eq!([0], state.ctx_stack());
         assert_eq!([7, 15, 0, 0, 0, 0, 0, 0], state.user_stack());
     }
@@ -218,17 +217,15 @@ mod tests {
         let trace_length = trace[0].len();
 
         assert_eq!(64, trace_length);
-        assert_eq!(18, trace.len());
+        assert_eq!(17, trace.len());
 
         let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
         state.update_from_trace(&trace, trace_length - 1);
         
         assert_eq!(60, state.op_counter());
         assert_eq!(program.hash(), as_bytes(state.program_hash()));
-        assert_eq!([1, 1, 1], state.cf_op_bits());
-        assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
-        assert_eq!([1, 1], state.hd_op_bits());
-        assert_eq!([0], state.ctx_stack());
+        assert_eq!([0, 0, 0], state.flow_op_bits());
+        assert_eq!([0, 0, 0, 0, 0, 0], state.user_op_bits());
         assert_eq!([0], state.loop_stack());
         assert_eq!([7, 15, 0, 0, 0, 0, 0, 0], state.user_stack());
     }
@@ -244,16 +241,15 @@ mod tests {
         let trace_length = trace[0].len();
 
         assert_eq!(128, trace_length);
-        assert_eq!(19, trace.len());
+        assert_eq!(18, trace.len());
 
         let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
         state.update_from_trace(&trace, trace_length - 1);
 
         assert_eq!(76, state.op_counter());
         assert_eq!(program.hash(), as_bytes(state.program_hash()));
-        assert_eq!([1, 1, 1], state.cf_op_bits());
-        assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
-        assert_eq!([1, 1], state.hd_op_bits());
+        assert_eq!([0, 0, 0], state.flow_op_bits());
+        assert_eq!([0, 0, 0, 0, 0, 0], state.user_op_bits());
         assert_eq!([0], state.ctx_stack());
         assert_eq!([0], state.loop_stack());
         assert_eq!([24, 0, 0, 0, 0, 0, 0, 0], state.user_stack());
@@ -264,16 +260,15 @@ mod tests {
         let trace_length = trace[0].len();
 
         assert_eq!(128, trace_length);
-        assert_eq!(19, trace.len());
+        assert_eq!(18, trace.len());
 
         let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
         state.update_from_trace(&trace, trace_length - 1);
 
         assert_eq!(92, state.op_counter());
         assert_eq!(program.hash(), as_bytes(state.program_hash()));
-        assert_eq!([1, 1, 1], state.cf_op_bits());
-        assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
-        assert_eq!([1, 1], state.hd_op_bits());
+        assert_eq!([0, 0, 0], state.flow_op_bits());
+        assert_eq!([0, 0, 0, 0, 0, 0], state.user_op_bits());
         assert_eq!([0], state.ctx_stack());
         assert_eq!([0], state.loop_stack());
         assert_eq!([96, 3, 0, 0, 0, 0, 0, 0], state.user_stack());
@@ -290,16 +285,15 @@ mod tests {
         let trace_length = trace[0].len();
 
         assert_eq!(64, trace_length);
-        assert_eq!(18, trace.len());
+        assert_eq!(17, trace.len());
 
         let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
         state.update_from_trace(&trace, trace_length - 1);
 
         assert_eq!(60, state.op_counter());
         assert_eq!(program.hash(), as_bytes(state.program_hash()));
-        assert_eq!([1, 1, 1], state.cf_op_bits());
-        assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
-        assert_eq!([1, 1], state.hd_op_bits());
+        assert_eq!([0, 0, 0], state.flow_op_bits());
+        assert_eq!([0, 0, 0, 0, 0, 0], state.user_op_bits());
         assert_eq!([0], state.ctx_stack());
         assert_eq!([0], state.loop_stack());
         assert_eq!([15, 0, 0, 0, 0, 0, 0, 0], state.user_stack());
@@ -310,16 +304,15 @@ mod tests {
         let trace_length = trace[0].len();
 
         assert_eq!(128, trace_length);
-        assert_eq!(19, trace.len());
+        assert_eq!(18, trace.len());
 
         let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
         state.update_from_trace(&trace, trace_length - 1);
 
         assert_eq!(75, state.op_counter());
         assert_eq!(program.hash(), as_bytes(state.program_hash()));
-        assert_eq!([1, 1, 1], state.cf_op_bits());
-        assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
-        assert_eq!([1, 1], state.hd_op_bits());
+        assert_eq!([0, 0, 0], state.flow_op_bits());
+        assert_eq!([0, 0, 0, 0, 0, 0], state.user_op_bits());
         assert_eq!([0], state.ctx_stack());
         assert_eq!([0], state.loop_stack());
         assert_eq!([225, 0, 0, 0, 0, 0, 0, 0], state.user_stack());
@@ -330,16 +323,15 @@ mod tests {
         let trace_length = trace[0].len();
 
         assert_eq!(256, trace_length);
-        assert_eq!(19, trace.len());
+        assert_eq!(18, trace.len());
 
         let mut state = build_trace_state(trace.len(), ctx_depth, loop_depth) ;
         state.update_from_trace(&trace, trace_length - 1);
 
         assert_eq!(135, state.op_counter());
         assert_eq!(program.hash(), as_bytes(state.program_hash()));
-        assert_eq!([1, 1, 1], state.cf_op_bits());
-        assert_eq!([1, 1, 1, 1, 1], state.ld_op_bits());
-        assert_eq!([1, 1], state.hd_op_bits());
+        assert_eq!([0, 0, 0], state.flow_op_bits());
+        assert_eq!([0, 0, 0, 0, 0, 0], state.user_op_bits());
         assert_eq!([0], state.ctx_stack());
         assert_eq!([0], state.loop_stack());
         assert_eq!([43143988327398919500410556793212890625, 0, 0, 0, 0, 0, 0, 0], state.user_stack());
