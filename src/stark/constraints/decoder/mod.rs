@@ -29,12 +29,13 @@ mod tests;
 // ================================================================================================
 const NUM_OP_CONSTRAINTS: usize = 15;
 const OP_CONSTRAINT_DEGREES: [usize; NUM_OP_CONSTRAINTS] = [
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 2,   // all op bits are binary
-    3,                              // op_counter should be incremented for HACC operations
-    8,                              // ld_ops and hd_ops cannot be all 0s
-    8,                              // when cf_ops are not all 0s, ld_ops and hd_ops must be all 1s
-    6,                              // VOID can be followed only by VOID
-    4,                              // operations happen on allowed step multiples
+    2, 2, 2, 2, 2, 2, 2, 2, 2,  // all op bits are binary
+    3,                          // op_counter should be incremented for HACC operations
+    7,                          // unless flow_op is HACC, user_op must be NOOP
+    4,                          // TODO
+    6,                          // TODO
+    6,                          // VOID can be followed only by VOID
+    4,                          // operations happen on allowed step multiples
 ];
 
 const NUM_SPONGE_CONSTRAINTS: usize = 4;

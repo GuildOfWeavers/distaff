@@ -248,7 +248,7 @@ impl Decoder {
         fill_register(&mut self.op_counter, self.step + 1, last_op_count);
 
         // set all bit registers to 0 to indicate NOOP operation
-        for register in self.flow_op_bits.iter_mut() { fill_register(register, self.step, field::ZERO); }
+        for register in self.flow_op_bits.iter_mut() { fill_register(register, self.step, field::ONE); }
         for register in self.user_op_bits.iter_mut() { fill_register(register, self.step, field::ZERO); }
 
         // for sponge and stack registers, just copy the value of the last state of the register

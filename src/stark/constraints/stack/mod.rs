@@ -37,8 +37,8 @@ use hash::{ enforce_rescr };
 // CONSTANTS
 // ================================================================================================
 pub const NUM_AUX_CONSTRAINTS: usize = 2;
-const AUX_CONSTRAINT_DEGREES: [usize; NUM_AUX_CONSTRAINTS] = [7, 7];
-const STACK_TRANSITION_DEGREE: usize = 7; // degree for all stack register transition constraints
+const AUX_CONSTRAINT_DEGREES: [usize; NUM_AUX_CONSTRAINTS] = [8, 7];
+const STACK_TRANSITION_DEGREE: usize = 8; // degree for all stack register transition constraints
 
 // TYPES AND INTERFACES
 // ================================================================================================

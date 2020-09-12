@@ -201,7 +201,7 @@ impl Evaluator {
             result_adj = field::add(result_adj, field::mul(sponge[i], cc.sponge[i * 2 + 1]));
         }
 
-        // make sure cf_bits are set to HACC (000)
+        // make sure flow op_bits are set to HACC (000)
         let mut cc_idx = 0;
         let op_bits = current.flow_op_bits();
         for i in 0..op_bits.len() {
@@ -210,19 +210,12 @@ impl Evaluator {
             cc_idx += 2;
         }
 
-        // make sure low-degree op_bits are set to BEGIN (0000)
+        // make sure user op_bits are set to BEGIN (111111)
         let op_bits = current.user_op_bits();
         for i in 0..op_bits.len() {
-            i_result = field::add(i_result, field::mul(op_bits[i], cc.op_bits[cc_idx]));
-            result_adj = field::add(result_adj, field::mul(op_bits[i], cc.op_bits[cc_idx + 1]));
-            cc_idx += 2;
-        }
-
-        // make sure high-degree op_bits are set to BEGIN (00)
-        let op_bits = current.user_op_bits(); // TODO
-        for i in 0..op_bits.len() {
-            i_result = field::add(i_result, field::mul(op_bits[i], cc.op_bits[cc_idx]));
-            result_adj = field::add(result_adj, field::mul(op_bits[i], cc.op_bits[cc_idx + 1]));
+            let val = field::sub(op_bits[i], field::ONE);
+            i_result = field::add(i_result, field::mul(val, cc.op_bits[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(val, cc.op_bits[cc_idx + 1]));
             cc_idx += 2;
         }
 
@@ -280,21 +273,11 @@ impl Evaluator {
             cc_idx += 2;
         }
         
-        // make sure low-degree op_bits are set to NOOP (11111)
+        // make sure user op_bits are set to NOOP (000000)
         let op_bits = current.user_op_bits();
         for i in 0..op_bits.len() {
-            let val = field::sub(op_bits[i], field::ONE);
-            f_result = field::add(f_result, field::mul(val, cc.op_bits[cc_idx]));
-            result_adj = field::add(result_adj, field::mul(val, cc.op_bits[cc_idx + 1]));
-            cc_idx += 2;
-        }
-        
-        // make sure high-degree op_bits are set to NOOP (11)
-        let op_bits = current.user_op_bits(); // TODO
-        for i in 0..op_bits.len() {
-            let val = field::sub(op_bits[i], field::ONE);
-            f_result = field::add(f_result, field::mul(val, cc.op_bits[cc_idx]));
-            result_adj = field::add(result_adj, field::mul(val, cc.op_bits[cc_idx + 1]));
+            f_result = field::add(f_result, field::mul(op_bits[i], cc.op_bits[cc_idx]));
+            result_adj = field::add(result_adj, field::mul(op_bits[i], cc.op_bits[cc_idx + 1]));
             cc_idx += 2;
         }
         

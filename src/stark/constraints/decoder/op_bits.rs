@@ -11,22 +11,22 @@ pub fn enforce_op_bits(result: &mut [u128], current: &TraceState, next: &TraceSt
 {
     let mut i = 0;
 
-    // TODO: make sure all op bits are binary and compute their product/sum
-    let mut cf_bit_sum = 0;
+    // make sure all op bits are binary and compute their product/sum
+    let mut flow_op_bit_sum = 0;
     for &op_bit in current.flow_op_bits() {
         result[i] = is_binary(op_bit);
-        cf_bit_sum = add(cf_bit_sum, op_bit);
+        flow_op_bit_sum = add(flow_op_bit_sum, op_bit);
         i += 1;
     }
 
-    let mut ld_bit_prod = 1;
+    let mut user_op_bit_prod = 1;
     for &op_bit in current.user_op_bits() {
         result[i] = is_binary(op_bit);
-        ld_bit_prod = mul(ld_bit_prod, op_bit);
+        user_op_bit_prod = mul(user_op_bit_prod, binary_not(op_bit));
         i += 1;
     }
 
-    // when cf_ops = hacc, operation counter should be incremented by 1;
+    // when flow_op = HACC, operation counter should be incremented by 1;
     // otherwise, operation counter should remain the same
     let op_counter = current.op_counter();
     let is_hacc = current.get_flow_op_flags(FlowOps::Hacc);
@@ -35,13 +35,26 @@ pub fn enforce_op_bits(result: &mut [u128], current: &TraceState, next: &TraceSt
     result[i] = are_equal(add(hacc_transition, rest_transition), next.op_counter());
     i += 1;
 
-    // ld_ops and hd_ops can be all 0s at the first step, but cannot be all 0s
-    // at any other step
-    result[i] = 0; // TODO mul(op_counter, mul(binary_not(ld_bit_prod), binary_not(hd_bit_prod)));
+    // unless flow_op is HACC, user_op must be NOOP
+    result[i] = mul(flow_op_bit_sum, binary_not(user_op_bit_prod));
     i += 1;
 
-    // when cf_ops are not all 0s, ld_ops and hd_ops must be all 1s
-    result[i] = 0; // TODO mul(cf_bit_sum, binary_not(mul(ld_bit_prod, hd_bit_prod)));
+    // TODO: add comment
+    let mut low_user_op_bit_sum = current.user_op_bits()[0];
+    for j in 1..4 {
+        low_user_op_bit_sum = add(current.user_op_bits()[j], low_user_op_bit_sum);
+    }
+    let is_one_bit = binary_not(mul(low_user_op_bit_sum, low_user_op_bit_sum));
+    let is_one_bit = add(is_one_bit, current.user_op_bits()[4]);
+    result[i] = mul(mul(is_one_bit, current.user_op_bits()[5]), op_counter);
+    i += 1;
+
+    // TODO: add comment
+    let mut low_user_op_bit_prod = current.user_op_bits()[0];
+    for j in 1..5 {
+        low_user_op_bit_prod = mul(low_user_op_bit_prod, current.user_op_bits()[j]);
+    }
+    result[i] = mul(binary_not(current.user_op_bits()[5]), low_user_op_bit_prod);
     i += 1;
     
     // VOID can be followed only by VOID
