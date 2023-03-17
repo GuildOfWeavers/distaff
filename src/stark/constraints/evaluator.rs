@@ -54,7 +54,7 @@ impl Evaluator {
         // of transition constraints
         let domain_size = trace_length * extension_factor;
         let t_evaluations = if cfg!(debug_assertions) {
-            t_constraint_degrees.iter().map(|_| uninit_vector(domain_size)).collect()
+            t_constraint_degrees.iter().map(|_| unsafe { uninit_vector(domain_size) }).collect()
         }
         else {
             Vec::new()

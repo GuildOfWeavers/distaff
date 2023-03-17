@@ -173,7 +173,7 @@ impl TraceTable {
     /// form a single leaf value.
     pub fn build_merkle_tree(&self, hash: HashFunction) -> MerkleTree {
         let mut trace_state = vec![field::ZERO; self.register_count()];
-        let mut hashed_states = uninit_vector::<[u8; 32]>(self.domain_size());
+        let mut hashed_states = unsafe { uninit_vector::<[u8; 32]>(self.domain_size()) };
         // TODO: this loop should be parallelized
         for i in 0..self.domain_size() {
             for j in 0..trace_state.len() {

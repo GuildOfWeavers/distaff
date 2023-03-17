@@ -163,7 +163,7 @@ pub fn inv(x: u128) -> u128 {
 
 /// Computes multiplicative inverses of all slice elements using batch inversion method.
 pub fn inv_many(values: &[u128]) -> Vec<u128> {
-    let mut result = uninit_vector(values.len());
+    let mut result = unsafe { uninit_vector(values.len()) };
     inv_many_fill(values, &mut result);
     return result;
 }
@@ -235,7 +235,7 @@ pub fn get_root_of_unity(order: usize) -> u128 {
 
 /// Generates a vector with values [1, b, b^2, b^3, b^4, ..., b^length].
 pub fn get_power_series(b: u128, length: usize) -> Vec<u128> {
-    let mut result = uninit_vector(length);
+    let mut result = unsafe { uninit_vector(length) };
     result[0] = ONE;
     for i in 1..result.len() {
         result[i] = mul(result[i - 1], b);

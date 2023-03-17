@@ -20,9 +20,9 @@ impl ConstraintTable {
         let evaluation_domain_size = evaluator.domain_size();
         return ConstraintTable {
             evaluator       : evaluator,
-            i_evaluations   : uninit_vector(evaluation_domain_size),
-            f_evaluations   : uninit_vector(evaluation_domain_size),
-            t_evaluations   : uninit_vector(evaluation_domain_size),
+            i_evaluations   : unsafe { uninit_vector(evaluation_domain_size) },
+            f_evaluations   : unsafe { uninit_vector(evaluation_domain_size) },
+            t_evaluations   : unsafe { uninit_vector(evaluation_domain_size) },
         };
     }
 
@@ -59,7 +59,7 @@ impl ConstraintTable {
         #[cfg(debug_assertions)]
         self.validate_transition_degrees();
         
-        let mut combined_poly = uninit_vector(self.evaluation_domain_size());
+        let mut combined_poly = unsafe { uninit_vector(self.evaluation_domain_size()) };
         
         // 1 ----- boundary constraints for the initial step --------------------------------------
         // interpolate initial step boundary constraint combination into a polynomial, divide the 

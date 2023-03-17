@@ -7,9 +7,11 @@ pub mod sponge;
 
 // VECTOR FUNCTIONS
 // ================================================================================================
-pub fn uninit_vector<T>(length: usize) -> Vec<T> {
+/// # Safety
+/// Using values from the returned vector before initializing them will lead to undefined behavior.
+pub unsafe fn uninit_vector<T>(length: usize) -> Vec<T> {
     let mut vector = Vec::with_capacity(length);
-    unsafe { vector.set_len(length); }
+    vector.set_len(length);
     return vector;
 }
 

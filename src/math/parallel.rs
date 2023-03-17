@@ -14,7 +14,7 @@ pub fn add(a: &[u128], b: &[u128], num_threads: usize) -> Vec<u128> {
     let batch_size = n / num_threads;
 
     // allocate space for the results
-    let mut result = uninit_vector(n);
+    let mut result = unsafe { uninit_vector(n) };
 
     // add batches of values in separate threads
     thread::scope(|s| {
@@ -88,7 +88,7 @@ pub fn mul(a: &[u128], b: &[u128], num_threads: usize) -> Vec<u128> {
     let batch_size = n / num_threads;
 
     // allocate space for the results
-    let mut result = uninit_vector(n);
+    let mut result = unsafe { uninit_vector(n) };
 
     // multiply batches of values in separate threads
     thread::scope(|s| {
@@ -159,7 +159,7 @@ pub fn inv(values: &[u128], num_threads: usize) -> Vec<u128> {
     let batch_size = n / num_threads;
 
     // allocate space for the results
-    let result = uninit_vector(n);
+    let result = unsafe { uninit_vector(n) };
 
     // break up the values into batches and invert each batch in a separate thread
     thread::scope(|s| {
