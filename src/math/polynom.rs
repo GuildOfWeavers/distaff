@@ -259,7 +259,7 @@ pub fn infer_degree(evaluations: &[u128]) -> usize {
 // ================================================================================================
 fn get_zero_roots(xs: &[u128]) -> Vec<u128> {
     let mut n = xs.len() + 1;
-    let mut result = uninit_vector(n);
+    let mut result = unsafe { uninit_vector(n) };
     
     n -= 1;
     result[n] = field::ONE;

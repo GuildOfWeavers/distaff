@@ -91,7 +91,7 @@ impl StarkProof {
     pub fn trace_proof(&self) -> BatchMerkleProof {
 
         let hash = self.options.hash_fn();
-        let mut hashed_states = uninit_vector::<[u8; 32]>(self.trace_evaluations.len());
+        let mut hashed_states = unsafe { uninit_vector::<[u8; 32]>(self.trace_evaluations.len()) };
         for i in 0..self.trace_evaluations.len() {
             hash(as_bytes(&self.trace_evaluations[i]), &mut hashed_states[i]);
         }

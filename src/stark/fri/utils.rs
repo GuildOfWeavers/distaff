@@ -14,7 +14,7 @@ pub fn get_augmented_positions(positions: &[usize], column_length: usize) -> Vec
 }
 
 pub fn hash_values(values: &Vec<[u128; 4]>, hash: HashFunction) -> Vec<[u8; 32]> {
-    let mut result: Vec<[u8; 32]> = uninit_vector(values.len());
+    let mut result: Vec<[u8; 32]> = unsafe { uninit_vector(values.len()) };
     for i in 0..values.len() {
         hash(as_bytes(&values[i]), &mut result[i]);
     }

@@ -138,7 +138,7 @@ pub fn transpose(vector: &[u128], stride: usize) -> Vec<[u128; 4]> {
     assert!(vector.len() % (4 * stride) == 0, "vector length must be divisible by {}", 4 * stride);
     let row_count = vector.len() / (4 * stride);
 
-    let mut result = to_quartic_vec(uninit_vector(row_count * 4));
+    let mut result = to_quartic_vec(unsafe { uninit_vector(row_count * 4) });
     for i in 0..row_count {
         result[i] = [
             vector[i * stride],
